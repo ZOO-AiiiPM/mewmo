@@ -14,3 +14,10 @@
 - **坑了**：-
 - **学到**：-
 - **决策**：技术栈 / 具体做什么尚未确定，先搭协作骨架，边想边建
+
+## 2026-05-15 装上 Spec Kit
+
+- **做了**：从 skillfoo 项目拷来 `.specify/` + 14 个 speckit-* skills
+- **坑了**：-
+- **学到**：Spec Kit = spec-driven 开发框架，7 步主流程：constitution → specify → clarify → plan → tasks → analyze → implement
+- **决策**：vibe-coding 项目用 Spec Kit 走完整 spec 流程，作为"AI 产品思维"的核心展示骨架
