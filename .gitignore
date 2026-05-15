@@ -1,0 +1,28 @@
+# Claude Code 本地状态：memory 主题文件不入 repo（每项目独立），但骨架文件要保留
+.claude/memory/*
+!.claude/memory/MEMORY.md
+!.claude/memory/archive/
+.claude/memory/archive/*
+!.claude/memory/archive/.gitkeep
+
+# 本地运行时产物
+.claude/.turn-counter
+.claude/hooks/.state/
+.claude/settings.local.json
+
+# Workspace 临时
+workspace/tmp/
+workspace/bak/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 常见忽略
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+.env.local
