@@ -79,7 +79,7 @@ export function TabBar({ tabs, activeId, onSelect, onClose, onAddNew }: Props) {
         <button
           onClick={onAddNew}
           title="新建"
-          className="ml-1 w-6 h-6 shrink-0 flex items-center justify-center rounded text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+          className="ml-1 w-6 h-6 shrink-0 flex items-center justify-center rounded text-stone-800 dark:text-stone-200 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 5v14M5 12h14" />
@@ -104,14 +104,14 @@ function TabPill({
   return (
     <div
       onClick={onSelect}
-      className={`group relative flex items-center gap-1.5 h-7 pl-2.5 pr-1.5 rounded-md cursor-pointer text-[12px] w-[120px] shrink-0 transition-colors ${
+      className={`group relative flex items-center gap-1.5 h-7 pl-2.5 pr-1.5 rounded-md cursor-pointer text-[12px] font-semibold w-[120px] shrink-0 transition-colors ${
         active
           ? 'bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-50 shadow-sm'
-          : 'text-stone-700 dark:text-stone-300 hover:bg-black/5 dark:hover:bg-white/10'
+          : 'text-stone-800 dark:text-stone-200 hover:bg-black/5 dark:hover:bg-white/10'
       }`}
     >
       {tab.zone && (
-        <span className="shrink-0 text-stone-500 dark:text-stone-400">
+        <span className="shrink-0">
           {ZONE_ICONS[tab.zone]}
         </span>
       )}
