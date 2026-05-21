@@ -304,19 +304,27 @@ class TableWidget extends WidgetType {
   }
   // 用 widget DOM 在文档中的位置，反查表格当前的 from/to（避免缓存的位置因外部编辑失效）
   private locate(view: EditorView, wrap: HTMLElement): { from: number; to: number } | null {
-    const pos = view.posAtDOM(wrap);
-    const startLine = view.state.doc.lineAt(pos);
-    const from = startLine.from;
-    let endLineNum = startLine.number;
-    const total = view.state.doc.lines;
-    while (
-      endLineNum < total &&
-      view.state.doc.line(endLineNum + 1).text.includes('|')
-    ) {
-      endLineNum++;
+    // wrap 已脱离当前 view（widget 在 buildDecorations 重建时被换掉、或 doc 已大幅替换）→
+    // posAtDOM 返回越界值，lineAt 抛 RangeError 让整个 webview 卡死。
+    // 全部用 try 包住，失败放弃这次同步——cell 内容回写丢一次远好过应用崩溃。
+    try {
+      const pos = view.posAtDOM(wrap);
+      if (pos < 0 || pos > view.state.doc.length) return null;
+      const startLine = view.state.doc.lineAt(pos);
+      const from = startLine.from;
+      let endLineNum = startLine.number;
+      const total = view.state.doc.lines;
+      while (
+        endLineNum < total &&
+        view.state.doc.line(endLineNum + 1).text.includes('|')
+      ) {
+        endLineNum++;
+      }
+      const endLine = view.state.doc.line(endLineNum);
+      return { from, to: endLine.to };
+    } catch {
+      return null;
     }
-    const endLine = view.state.doc.line(endLineNum);
-    return { from, to: endLine.to };
   }
   private rewrite(view: EditorView, wrap: HTMLElement, transform: (src: string) => string) {
     const range = this.locate(view, wrap);
@@ -641,12 +649,43 @@ function buildDecorations(state: EditorState): DecorationSet {
           }
         } else if (name === 'Table') {
           // 表格永远渲染成 widget；cell 内的 contentEditable 提供编辑能力，不再依赖光标位置切换原文/视图
-          const startLine = state.doc.lineAt(node.from);
-          const endLine = state.doc.lineAt(node.to);
+          //
+          // 防御性边界：完全不信任 lezer-markdown Table 节点的 from/to。
+          // 实测 lezer 在表格末行后紧接非空段落（无空行分隔）时，会把后续整段
+          // paragraph 都吞进 Table 节点的 .to。直接用 lineAt(node.to) 会让 block widget
+          // replace 跨越多行非表格内容，表现为：用户在表格下方输入的文字看不见 / 光标
+          // 上下移动跳过那几行 / "无法保存"。
+          //
+          // 自己以"含 | 的连续行"为唯一表格边界，跳过 lezer 给的范围。
+          const total = state.doc.lines;
+          let startLineNum = state.doc.lineAt(node.from).number;
+          // startLine 也校准：lezer 偶尔把 from 落到表格之前的 paragraph 上
+          while (
+            startLineNum <= total &&
+            !state.doc.line(startLineNum).text.includes('|')
+          ) {
+            startLineNum++;
+          }
+          if (startLineNum > total) return false;
+          const startLine = state.doc.line(startLineNum);
+          let endLineNum = startLineNum;
+          while (
+            endLineNum < total &&
+            state.doc.line(endLineNum + 1).text.includes('|')
+          ) {
+            endLineNum++;
+          }
+          const endLine = state.doc.line(endLineNum);
           const text = state.doc.sliceString(startLine.from, endLine.to);
+          // CM 6 硬性要求：block decoration 的 from/to 必须在行边界（行首或文档末尾）。
+          // endLine.to 是行尾（newline 之前），不是下一行的行首，差 1 个字符。
+          // 这 1 个字符让 CM 在 widget 之后的 vertical motion 计算错位——光标按 ↑/↓
+          // 跳过 widget 之后的 1 行 / 多行（取决于这个错位累积多少）。
+          // widgetTo 必须延伸到下一行行首（含 trailing newline）；文档最末行则直接到 doc 末尾。
+          const widgetTo = endLineNum < total ? endLine.to + 1 : endLine.to;
           items.push({
             from: startLine.from,
-            to: endLine.to,
+            to: widgetTo,
             deco: Decoration.replace({
               widget: new TableWidget(text),
               block: true,
