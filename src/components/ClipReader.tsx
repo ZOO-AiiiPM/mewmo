@@ -147,26 +147,8 @@ export function ClipReader({ clip, aiOpen, onRefetch, expanded, onExpand }: Prop
             </div>
           )}
 
-          {/* 封面图 hero（仅在 cover_image 存在时显示，从正文已 dedup） */}
-          {clip.cover_image && (
-            <img
-              src={clip.cover_image}
-              alt={clip.title}
-              referrerPolicy="no-referrer"
-              className="w-full max-h-96 object-cover rounded-lg mb-6 bg-stone-100 dark:bg-stone-800"
-              onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
-            />
-          )}
-
-          {/* 摘要 */}
-          {clip.excerpt && (
-            <p className="text-[15px] text-stone-500 dark:text-stone-400 leading-relaxed mb-6 border-l-2 border-stone-200 dark:border-stone-700 pl-4">
-              {clip.excerpt}
-            </p>
-          )}
-
-          {/* 分隔线 */}
-          <hr className="border-stone-200 dark:border-stone-700/60 mb-6" />
+          {/* 封面图 + 摘要 + 分隔线已移除：cover_image 和 excerpt 仅作为 sidebar 元数据，
+              主区域 元数据行 → 正文 直接衔接，不再有 hero / 引导语装饰 */}
 
           {/* 正文 */}
           {contentHtml ? (
