@@ -379,27 +379,48 @@ fn url_stem(url: &str) -> &str {
     &u[..q]
 }
 
-/// 剔除正文里和封面 URL 同 stem 的第一张 markdown 图（避免 hero + 正文首图重复）
-/// Why: og:image 与正文 <img> 经常 path 相同但 query 不同（CDN 参数差异）
-fn dedup_cover_from_body(content_md: &str, cover_url: &str) -> String {
-    if cover_url.is_empty() { return content_md.to_string(); }
-    let cover_stem = url_stem(cover_url);
-    if cover_stem.is_empty() { return content_md.to_string(); }
+/// 图片去重的归一化 key
+///
+/// Why: 同一张图在 cover 与正文中常有微妙差异——
+///   - query 不同（CDN 参数）：`?wx_fmt=jpeg` vs 无参数
+///   - 末尾 size 标识不同：公众号 `/640`（缩略图）vs `/0`（原图），路径其余完全相同
+/// 这两类差异都不该被视作不同图。比对前先归一化。
+fn image_match_key(url: &str) -> String {
+    let stem = url_stem(url);
+    // 末尾若是 `/数字`（公众号尺寸标识），砍掉这一段
+    if let Some(slash) = stem.rfind('/') {
+        let tail = &stem[slash + 1..];
+        if !tail.is_empty() && tail.chars().all(|c| c.is_ascii_digit()) {
+            return stem[..slash].to_string();
+        }
+    }
+    stem.to_string()
+}
+
+/// 正文图片去重：同时处理"cover 在正文重复"和"正文内部同图反复"两类问题
+///
+/// Why: 用 [[image_match_key]] 做归一化匹配，比单纯 url_stem 更宽松（覆盖公众号 size 变体）。
+/// 把 cover_url 预置入 seen 集合，扫描 markdown 时同 key 的图片一律跳过——
+/// 第一次见的保留，后续重复的删掉；cover 因为已预置，正文里所有匹配项都被砍。
+fn dedup_images(content_md: &str, cover_url: &str) -> String {
+    use std::collections::HashSet;
+    let mut seen: HashSet<String> = HashSet::new();
+    if !cover_url.is_empty() {
+        let k = image_match_key(cover_url);
+        if !k.is_empty() { seen.insert(k); }
+    }
 
     let mut out = String::new();
-    let mut deduped = false;
     for line in content_md.lines() {
-        if !deduped {
-            let t = line.trim_start();
-            if t.starts_with("![") {
-                if let Some(open) = t.find("](") {
-                    let after = &t[open + 2..];
-                    if let Some(close) = after.find(')') {
-                        let img_url = &after[..close];
-                        if url_stem(img_url) == cover_stem {
-                            deduped = true;
-                            continue;
-                        }
+        let t = line.trim_start();
+        if t.starts_with("![") {
+            if let Some(open) = t.find("](") {
+                let after = &t[open + 2..];
+                if let Some(close) = after.find(')') {
+                    let img_url = &after[..close];
+                    let key = image_match_key(img_url);
+                    if !key.is_empty() && !seen.insert(key) {
+                        continue;
                     }
                 }
             }
@@ -456,7 +477,7 @@ async fn fetch_clip(url: String) -> Result<FetchedClip, String> {
     let author = page_author(&doc);
     let published_at = page_published(&doc);
     let raw_content = extract_article_md(&doc, &url);
-    let content_md = dedup_cover_from_body(&raw_content, &cover_image);
+    let content_md = dedup_images(&raw_content, &cover_image);
 
     Ok(FetchedClip {
         url, title, content_md, excerpt, site_name, favicon_url,
@@ -662,4 +683,92 @@ pub fn run() {
     })
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn match_key_strips_query() {
+        assert_eq!(
+            image_match_key("https://cdn.example.com/a/b/c.jpg?w=640&h=480"),
+            "https://cdn.example.com/a/b/c.jpg"
+        );
+    }
+
+    #[test]
+    fn match_key_strips_trailing_size_segment() {
+        // 公众号典型：尾段是纯数字尺寸标识，归一化掉
+        assert_eq!(
+            image_match_key("https://mmbiz.qpic.cn/sz_mmbiz_jpg/abc/640"),
+            "https://mmbiz.qpic.cn/sz_mmbiz_jpg/abc"
+        );
+        assert_eq!(
+            image_match_key("https://mmbiz.qpic.cn/sz_mmbiz_jpg/abc/0?wx_fmt=jpeg"),
+            "https://mmbiz.qpic.cn/sz_mmbiz_jpg/abc"
+        );
+    }
+
+    #[test]
+    fn match_key_keeps_filename_with_extension() {
+        // 末尾不是纯数字（含字母 / 点），不动
+        assert_eq!(
+            image_match_key("https://cdn.example.com/foo/bar/image.jpg"),
+            "https://cdn.example.com/foo/bar/image.jpg"
+        );
+    }
+
+    #[test]
+    fn dedup_removes_cover_appearing_in_body() {
+        let body = "标题段\n\n![](https://cdn.example.com/cover.jpg)\n\n正文一些文字\n";
+        let cover = "https://cdn.example.com/cover.jpg?v=2";
+        let out = dedup_images(body, cover);
+        assert!(!out.contains("cover.jpg"), "cover 应被从正文移除：{}", out);
+        assert!(out.contains("正文一些文字"));
+    }
+
+    #[test]
+    fn dedup_removes_cover_appearing_multiple_times() {
+        // 同一封面在正文里出现 2 次都要删
+        let body = "![](https://cdn.example.com/cover.jpg)\n\n中段\n\n![](https://cdn.example.com/cover.jpg?w=300)\n\n尾段";
+        let cover = "https://cdn.example.com/cover.jpg";
+        let out = dedup_images(body, cover);
+        assert!(!out.contains("cover.jpg"), "两次 cover 都应被删：{}", out);
+        assert!(out.contains("中段") && out.contains("尾段"));
+    }
+
+    #[test]
+    fn dedup_handles_wechat_size_variants() {
+        // cover 用 /640，正文用 /0 —— 同图不同 size
+        let body = "![](https://mmbiz.qpic.cn/sz_mmbiz_jpg/abc/0?wx_fmt=jpeg)\n\n正文";
+        let cover = "https://mmbiz.qpic.cn/sz_mmbiz_jpg/abc/640";
+        let out = dedup_images(body, cover);
+        assert!(!out.contains("mmbiz.qpic.cn"), "同图不同 size 应被识别为重复：{}", out);
+    }
+
+    #[test]
+    fn dedup_collapses_repeated_inner_images() {
+        // 正文内部同图重复，第二次起删除
+        let body = "![](https://cdn.example.com/x.jpg)\n\n中段\n\n![](https://cdn.example.com/x.jpg)\n\n尾段";
+        let out = dedup_images(body, "");
+        let count = out.matches("x.jpg").count();
+        assert_eq!(count, 1, "正文内部同图应只保留一次：{}", out);
+    }
+
+    #[test]
+    fn dedup_preserves_distinct_images() {
+        let body = "![](https://cdn.example.com/a.jpg)\n\n![](https://cdn.example.com/b.jpg)";
+        let out = dedup_images(body, "");
+        assert!(out.contains("a.jpg") && out.contains("b.jpg"), "不同图应保留：{}", out);
+    }
+
+    #[test]
+    fn dedup_empty_cover_only_handles_inner_duplicates() {
+        // 没 cover 时，正文内部仍要去重
+        let body = "![](https://cdn.example.com/a.jpg)\n\n![](https://cdn.example.com/a.jpg?v=2)";
+        let out = dedup_images(body, "");
+        let count = out.matches("a.jpg").count();
+        assert_eq!(count, 1, "cover 为空时正文内部仍应去重：{}", out);
+    }
 }
