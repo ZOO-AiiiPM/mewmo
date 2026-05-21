@@ -18,6 +18,8 @@ type Tab = {
   id: string;
   zone: Zone | null;       // null = empty tab → 引导页
   refId: number | null;    // notes/clipping 时绑定的文档 id
+  noteHistory: number[];   // 该 tab 的笔记浏览历史（id 序列），只 push 新切到的笔记
+  noteHistoryIdx: number;  // 历史游标。-1 = 空。前进/后退时只动游标不 push
 };
 
 const PLACEHOLDER_LABEL: Record<Zone, string> = {
@@ -37,7 +39,7 @@ export default function App() {
   const [expanded, setExpanded] = useState(false);
 
   // ── Tab 状态机 ────────────────────────────────────────────────────────────
-  const [tabs, setTabs] = useState<Tab[]>([{ id: 'tab_1', zone: null, refId: null }]);
+  const [tabs, setTabs] = useState<Tab[]>([{ id: 'tab_1', zone: null, refId: null, noteHistory: [], noteHistoryIdx: -1 }]);
   const [activeTabId, setActiveTabId] = useState<string>('tab_1');
   const tabIdSeqRef = useRef(2);
 
@@ -57,7 +59,7 @@ export default function App() {
 
   const addEmptyTab = useCallback(() => {
     const id = `tab_${tabIdSeqRef.current++}`;
-    setTabs(prev => [...prev, { id, zone: null, refId: null }]);
+    setTabs(prev => [...prev, { id, zone: null, refId: null, noteHistory: [], noteHistoryIdx: -1 }]);
     setActiveTabId(id);
   }, []);
 
@@ -70,7 +72,7 @@ export default function App() {
       if (next.length === 0) {
         const newId = `tab_${tabIdSeqRef.current++}`;
         setActiveTabId(newId);
-        return [{ id: newId, zone: null, refId: null }];
+        return [{ id: newId, zone: null, refId: null, noteHistory: [], noteHistoryIdx: -1 }];
       }
 
       // 关掉的是 active：跳到右邻，无右则左邻
@@ -126,7 +128,12 @@ export default function App() {
     const id = await createNote();
     await refresh();
     setTabs(prev =>
-      prev.map(t => (t.id === activeTabId ? { ...t, zone: 'notes', refId: id } : t))
+      prev.map(t => {
+        if (t.id !== activeTabId) return t;
+        // 新建笔记也算一次浏览：截断游标后内容、push 新 id、游标到末尾
+        const newHist = [...t.noteHistory.slice(0, t.noteHistoryIdx + 1), id];
+        return { ...t, zone: 'notes', refId: id, noteHistory: newHist, noteHistoryIdx: newHist.length - 1 };
+      })
     );
   }, [refresh, activeTabId]);
 
@@ -205,6 +212,10 @@ export default function App() {
       ? clips.find(c => c.id === activeTab.refId) ?? null
       : null;
 
+  // 笔记浏览历史前进/后退是否可用（仅在 notes zone 有意义）
+  const canBack = activeTab?.zone === 'notes' && (activeTab?.noteHistoryIdx ?? -1) > 0;
+  const canForward = activeTab?.zone === 'notes' && (activeTab?.noteHistoryIdx ?? -1) < ((activeTab?.noteHistory.length ?? 0) - 1);
+
   const counts: Record<Zone, number> = {
     subscribe: 0,
     notes: notes.length,
@@ -239,8 +250,38 @@ export default function App() {
   }, [updateActiveTab]);
 
   const handleNoteSelect = useCallback((id: number) => {
-    updateActiveTab({ zone: 'notes', refId: id });
-  }, [updateActiveTab]);
+    setTabs(prev =>
+      prev.map(t => {
+        if (t.id !== activeTabId) return t;
+        // 同一条笔记不重复入栈
+        if (t.zone === 'notes' && t.refId === id) return t;
+        const newHist = [...t.noteHistory.slice(0, t.noteHistoryIdx + 1), id];
+        return { ...t, zone: 'notes', refId: id, noteHistory: newHist, noteHistoryIdx: newHist.length - 1 };
+      })
+    );
+  }, [activeTabId]);
+
+  const handleNoteBack = useCallback(() => {
+    setTabs(prev =>
+      prev.map(t => {
+        if (t.id !== activeTabId) return t;
+        if (t.noteHistoryIdx <= 0) return t;
+        const newIdx = t.noteHistoryIdx - 1;
+        return { ...t, refId: t.noteHistory[newIdx], noteHistoryIdx: newIdx };
+      })
+    );
+  }, [activeTabId]);
+
+  const handleNoteForward = useCallback(() => {
+    setTabs(prev =>
+      prev.map(t => {
+        if (t.id !== activeTabId) return t;
+        if (t.noteHistoryIdx >= t.noteHistory.length - 1) return t;
+        const newIdx = t.noteHistoryIdx + 1;
+        return { ...t, refId: t.noteHistory[newIdx], noteHistoryIdx: newIdx };
+      })
+    );
+  }, [activeTabId]);
 
   const handleClipSelect = useCallback((id: number) => {
     updateActiveTab({ zone: 'clipping', refId: id });
@@ -317,6 +358,10 @@ export default function App() {
                   aiOpen={aiOpen}
                   expanded={expanded}
                   onExpand={() => setExpanded(e => !e)}
+                  canBack={canBack}
+                  canForward={canForward}
+                  onBack={handleNoteBack}
+                  onForward={handleNoteForward}
                 />
               </>
             ) : (

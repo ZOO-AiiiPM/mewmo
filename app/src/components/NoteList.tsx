@@ -68,7 +68,7 @@ export function NoteList({
                 <div
                   key={n.id}
                   onClick={() => onSelect(n.id)}
-                  className={`px-3 py-2.5 cursor-pointer transition-colors ${
+                  className={`pl-10 pr-3 py-2.5 cursor-pointer transition-colors ${
                     selectedId === n.id
                       ? 'bg-black/[0.06] dark:bg-white/[0.08]'
                       : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.04]'
