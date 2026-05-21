@@ -10,6 +10,7 @@ type Props = {
   counts?: Partial<Record<Zone, number>>;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
+  hidden?: boolean;
 };
 
 const icons = {
@@ -81,12 +82,12 @@ const NAV: Array<{ id: Zone; label: string }> = [
   { id: 'sediment', label: '沉淀' },
 ];
 
-export function Sidebar({ open, onToggle, active, onSelect, counts = {}, theme, onToggleTheme }: Props) {
+export function Sidebar({ open, onToggle, active, onSelect, counts = {}, theme, onToggleTheme, hidden = false }: Props) {
   return (
     <aside
-      style={{ width: open ? undefined : 48 }}
+      style={{ width: hidden ? 0 : (open ? undefined : 48) }}
       className={`shrink-0 flex flex-col overflow-hidden transition-[width] duration-200 ease-out ${
-        open ? 'w-56' : ''
+        !hidden && open ? 'w-56' : ''
       }`}
     >
       {/* 顶部条：高度对齐顶部 toolbar (h-12)。折叠态走 px-0.5 + px-3 py-3 同 nav 节奏，按钮 44×44 居中 */}
