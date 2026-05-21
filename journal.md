@@ -8,6 +8,25 @@
 >
 > 写法标准与示例：skill 的 `references/journal.md`。
 
+## 2026-05-21 全屏按钮两个 bug 修复 + 三列统一过渡
+
+做了：
+- bug 1：sidebar 折叠态进全屏没动画感知（48→0 物理上肉眼跟不上 200ms 过渡）
+- bug 2：全屏时 sidebarOpen 被 `&& !expanded` 短路导致 sidebar toggle 失效
+- 修法：Sidebar / NoteList / ClipInbox 三列统一加 `hidden?: boolean` prop + `width: hidden ? 0 : undefined` + `transition-[width] 200ms`；App.tsx 把 `open={sidebarOpen && !expanded}` 解短路成 `open={sidebarOpen} hidden={expanded}`；`{!expanded && <NoteList />}` 这种 conditional render 也换成 `<NoteList hidden={expanded} />`
+
+踩坑：
+- 用户第一次反馈"折叠后再压缩没动画"，我先猜是 sidebar 自身 48→0 的物理限制问题，洋洋洒洒讲了一通"每帧只动 0.24px 肉眼跟不上"+ 列了 AB 方案（A 折叠态不参与动画 / B 加 opacity 淡出）
+- 第二轮用户说"是笔记 bar 没动画"才知道搞错对象了——真正没动画的是隔壁的 NoteList（224px），它一直是 `{!expanded && <NoteList />}` 直接 unmount 没过渡
+- sidebar 展开态时旁边 sidebar 224→0 在跑动画**遮蔽了 NoteList 的瞬间消失**，给人"有动画"的错觉；sidebar 折叠态时 sidebar 几乎不动，NoteList 224px 直接消失就暴露了
+
+学到：
+- 用户说"X 没动画"时，"X 是哪个组件"先确认。这套三列布局里 sidebar / NoteList / ClipInbox 三个都可能被压缩消失，光听"压缩"两字凭直觉猜对象 = 方向错
+- 归到 [[听不懂人话-的根因]] 模式 A 的子类——不只是"诉求层级误判（参数 / 局部 / 结构）"，还有"**对象误判**（X 指代哪个 UI 元素）"
+- 下次：听到"X 不对"，先 grep 一遍 X 的可能候选，不确定就反述一句"你是说 sidebar / NoteList / 哪个？"
+
+---
+
 ## 2026-05-21 剪藏图片去重 bug 修复 + worktree 隔离
 
 做了：
