@@ -7,6 +7,7 @@ type Props = {
   onSelect: (id: number) => void;
   onSave: (url: string) => Promise<void>;
   onDelete: (id: number) => void;
+  hidden?: boolean;
 };
 
 function fmtTime(ts: number) {
@@ -18,7 +19,7 @@ function fmtTime(ts: number) {
   return d.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' });
 }
 
-export function ClipInbox({ clips, selectedId, onSelect, onSave, onDelete }: Props) {
+export function ClipInbox({ clips, selectedId, onSelect, onSave, onDelete, hidden = false }: Props) {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -46,7 +47,10 @@ export function ClipInbox({ clips, selectedId, onSelect, onSave, onDelete }: Pro
   };
 
   return (
-    <aside className="w-56 shrink-0 border-r border-black/[0.05] dark:border-white/[0.05] flex flex-col">
+    <aside
+      style={{ width: hidden ? 0 : undefined }}
+      className={`shrink-0 border-r border-black/[0.05] dark:border-white/[0.05] flex flex-col overflow-hidden transition-[width] duration-200 ease-out ${hidden ? '' : 'w-56'}`}
+    >
       {/* 顶栏 */}
       <div className="h-12 shrink-0 flex items-center px-3">
         <h1 className="text-[15px] font-medium tracking-tight text-stone-900 dark:text-stone-100 select-none">

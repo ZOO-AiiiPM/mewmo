@@ -265,7 +265,8 @@ export default function App() {
       />
       <div className="flex-1 flex overflow-hidden min-h-0">
         <Sidebar
-          open={sidebarOpen && !expanded}
+          open={sidebarOpen}
+          hidden={expanded}
           onToggle={() => setSidebarOpen(o => !o)}
           active={activeZone}
           onSelect={handleSidebarSelect}
@@ -282,15 +283,14 @@ export default function App() {
               <EmptyTabHome onPick={handleEmptyPick} />
             ) : activeZone === 'clipping' ? (
               <>
-                {!expanded && (
-                  <ClipInbox
-                    clips={clips}
-                    selectedId={selectedClip?.id ?? null}
-                    onSelect={handleClipSelect}
-                    onSave={handleClipSave}
-                    onDelete={handleClipDelete}
-                  />
-                )}
+                <ClipInbox
+                  clips={clips}
+                  selectedId={selectedClip?.id ?? null}
+                  onSelect={handleClipSelect}
+                  onSave={handleClipSave}
+                  onDelete={handleClipDelete}
+                  hidden={expanded}
+                />
                 <ClipReader
                   clip={selectedClip}
                   aiOpen={aiOpen}
@@ -301,14 +301,13 @@ export default function App() {
               </>
             ) : activeZone === 'notes' ? (
               <>
-                {!expanded && (
-                  <NoteList
-                    notes={notes}
-                    selectedId={selectedNote?.id ?? null}
-                    onSelect={handleNoteSelect}
-                    onCreate={handleCreateAndBind}
-                  />
-                )}
+                <NoteList
+                  notes={notes}
+                  selectedId={selectedNote?.id ?? null}
+                  onSelect={handleNoteSelect}
+                  onCreate={handleCreateAndBind}
+                  hidden={expanded}
+                />
                 <NoteEditor
                   note={selectedNote}
                   onChange={handleUpdateNote}

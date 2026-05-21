@@ -6,6 +6,7 @@ type Props = {
   selectedId: number | null;
   onSelect: (id: number) => void;
   onCreate: () => void;
+  hidden?: boolean;
 };
 
 const WEEKDAY = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
@@ -34,11 +35,15 @@ export function NoteList({
   selectedId,
   onSelect,
   onCreate,
+  hidden = false,
 }: Props) {
   const groups = groupByBucket(notes);
 
   return (
-    <aside className="w-56 shrink-0 border-r border-black/[0.1] dark:border-white/[0.1] flex flex-col">
+    <aside
+      style={{ width: hidden ? 0 : undefined }}
+      className={`shrink-0 border-r border-black/[0.1] dark:border-white/[0.1] flex flex-col overflow-hidden transition-[width] duration-200 ease-out ${hidden ? '' : 'w-56'}`}
+    >
       <div className="flex-1 overflow-y-auto">
         {notes.length === 0 ? (
           <div className="p-6 text-center text-stone-500 dark:text-stone-400 text-sm">
