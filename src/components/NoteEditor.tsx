@@ -21,6 +21,10 @@ type Props = {
   aiOpen: boolean;
   expanded: boolean;
   onExpand: () => void;
+  canBack: boolean;
+  canForward: boolean;
+  onBack: () => void;
+  onForward: () => void;
 };
 
 // 用某个标记包裹选区（Cmd+B / Cmd+I 用）
@@ -63,7 +67,6 @@ const baseTheme = EditorView.theme({
   '&': {
     fontSize: '15px',
     backgroundColor: 'transparent',
-    height: '100%',
   },
   '&.cm-focused': {
     outline: 'none !important',
@@ -79,7 +82,7 @@ const baseTheme = EditorView.theme({
     padding: '0',
   },
   '.cm-scroller': {
-    overflow: 'auto',
+    overflow: 'visible',
     fontFamily: 'inherit',
   },
   '.cm-cursor, .cm-dropCursor': {
@@ -103,10 +106,11 @@ const noSpellcheck = EditorView.contentAttributes.of({
   autocapitalize: 'off',
 });
 
-export function NoteEditor({ note, onChange, theme, onDelete, onCreate, aiOpen, expanded, onExpand }: Props) {
+export function NoteEditor({ note, onChange, theme, onDelete, onCreate, aiOpen, expanded, onExpand, canBack, canForward, onBack, onForward }: Props) {
   const debounceRef = useRef<number | null>(null);
   const lastNoteIdRef = useRef<number | null>(null);
   const cmRef = useRef<ReactCodeMirrorRef>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [cursorLine, setCursorLine] = useState(1);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
@@ -171,8 +175,31 @@ export function NoteEditor({ note, onChange, theme, onDelete, onCreate, aiOpen, 
 
   return (
     <main className="relative flex-1 flex flex-col overflow-hidden">
-      <div className={`h-12 shrink-0 flex items-center justify-between pl-3 transition-[padding] duration-200 ease-out ${aiOpen ? 'pr-[320px]' : 'pr-3'}`}>
+      <div className={`absolute top-0 left-0 right-0 z-[5] h-12 flex items-center justify-between pl-3 bg-white/70 dark:bg-stone-900/70 backdrop-blur-md transition-[padding] duration-200 ease-out ${aiOpen ? 'pr-[320px]' : 'pr-3'}`}>
           <div className="flex items-center gap-0.5">
+          <button
+            onClick={onBack}
+            disabled={!canBack}
+            title="返回上一条笔记"
+            className="w-8 h-8 flex items-center justify-center rounded-md text-stone-600 dark:text-stone-300 hover:bg-black/5 dark:hover:bg-white/10 disabled:hover:bg-transparent disabled:text-stone-300 disabled:dark:text-stone-600 disabled:cursor-not-allowed transition-colors"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m12 19-7-7 7-7" />
+              <path d="M19 12H5" />
+            </svg>
+          </button>
+          <button
+            onClick={onForward}
+            disabled={!canForward}
+            title="前进到下一条笔记"
+            className="w-8 h-8 flex items-center justify-center rounded-md text-stone-600 dark:text-stone-300 hover:bg-black/5 dark:hover:bg-white/10 disabled:hover:bg-transparent disabled:text-stone-300 disabled:dark:text-stone-600 disabled:cursor-not-allowed transition-colors"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 12h14" />
+              <path d="m12 5 7 7-7 7" />
+            </svg>
+          </button>
+          <div className="w-px h-5 bg-black/10 dark:bg-white/10 mx-1.5" />
           <button
             onClick={() => {
               const view = cmRef.current?.view;
@@ -211,17 +238,17 @@ export function NoteEditor({ note, onChange, theme, onDelete, onCreate, aiOpen, 
           >
             {expanded ? (
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M8 3v3a2 2 0 0 1-2 2H3" />
-                <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
-                <path d="M3 16h3a2 2 0 0 1 2 2v3" />
-                <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
+                <polyline points="10 5 10 10 5 10" />
+                <line x1="10" y1="10" x2="3" y2="3" />
+                <polyline points="14 19 14 14 19 14" />
+                <line x1="14" y1="14" x2="21" y2="21" />
               </svg>
             ) : (
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 8V5a2 2 0 0 1 2-2h3" />
-                <path d="M16 3h3a2 2 0 0 1 2 2v3" />
-                <path d="M21 16v3a2 2 0 0 1-2 2h-3" />
-                <path d="M8 21H5a2 2 0 0 1-2-2v-3" />
+                <polyline points="8 3 3 3 3 8" />
+                <line x1="3" y1="3" x2="10" y2="10" />
+                <polyline points="16 21 21 21 21 16" />
+                <line x1="14" y1="14" x2="21" y2="21" />
               </svg>
             )}
           </button>
@@ -250,74 +277,75 @@ export function NoteEditor({ note, onChange, theme, onDelete, onCreate, aiOpen, 
           </button>
           </div>
         </div>
-      <div className={`pl-10 pt-4 pb-2 transition-[padding] duration-200 ease-out ${aiOpen ? 'pr-[320px]' : 'pr-10'}`}>
-        <input
-          key={note.id}
-          defaultValue={note.title}
-          onChange={handleTitleChange}
-          onKeyDown={(e) => {
-            // Enter / ArrowDown 时把焦点切到 body 编辑器，光标定到首行
-            if (e.key === 'Enter' || e.key === 'ArrowDown') {
-              e.preventDefault();
-              const view = cmRef.current?.view;
-              if (view) {
-                view.focus();
-                view.dispatch({ selection: { anchor: 0 }, scrollIntoView: true });
+      <div ref={scrollRef} className="flex-1 overflow-y-auto pt-12">
+        <div className={`pl-10 pt-4 pb-2 transition-[padding] duration-200 ease-out ${aiOpen ? 'pr-[320px]' : 'pr-10'}`}>
+          <input
+            key={note.id}
+            defaultValue={note.title}
+            onChange={handleTitleChange}
+            onKeyDown={(e) => {
+              // Enter / ArrowDown 时把焦点切到 body 编辑器，光标定到首行
+              if (e.key === 'Enter' || e.key === 'ArrowDown') {
+                e.preventDefault();
+                const view = cmRef.current?.view;
+                if (view) {
+                  view.focus();
+                  view.dispatch({ selection: { anchor: 0 }, scrollIntoView: true });
+                }
               }
+            }}
+            placeholder="无标题"
+            className="w-full text-[26px] font-semibold tracking-tight bg-transparent outline-none text-stone-900 dark:text-stone-50 placeholder:text-stone-300 dark:placeholder:text-stone-600"
+          />
+        </div>
+        <div
+          className={`pl-10 cursor-text transition-[padding] duration-200 ease-out ${aiOpen ? 'pr-[280px]' : ''}`}
+          onClick={(e) => {
+            // 点击 wrapper 空白区域时 focus body 编辑器；点击 CodeMirror 内部已有内容时让 CM 自己处理
+            if (e.target === e.currentTarget) {
+              cmRef.current?.view?.focus();
             }
           }}
-          placeholder="无标题"
-          className="w-full text-[26px] font-semibold tracking-tight bg-transparent outline-none text-stone-900 dark:text-stone-50 placeholder:text-stone-300 dark:placeholder:text-stone-600"
-        />
+        >
+          <CodeMirror
+            ref={cmRef}
+            value={note.content_md}
+            onChange={handleContentChange}
+            onUpdate={handleCmUpdate}
+            theme="none"
+            basicSetup={{
+              lineNumbers: false,
+              foldGutter: false,
+              highlightActiveLine: false,
+              highlightActiveLineGutter: false,
+              indentOnInput: true,
+              bracketMatching: false,
+              closeBrackets: false,
+              autocompletion: false,
+              history: true,
+              drawSelection: true,
+              dropCursor: true,
+              allowMultipleSelections: false,
+              crosshairCursor: false,
+              highlightSelectionMatches: false,
+              syntaxHighlighting: false,
+            }}
+            extensions={[
+              markdown({ base: markdownLanguage, codeLanguages: [] }),
+              indentUnit.of('  '),
+              EditorView.lineWrapping,
+              baseTheme,
+              noSpellcheck,
+              formatKeymap,
+              livePreview,
+              imagePasteDrop,
+              linkClickHandler,
+            ]}
+            className={`live-md-editor ${theme === 'dark' ? 'cm-dark' : 'cm-light'}`}
+          />
+        </div>
       </div>
-      <div
-        className={`flex-1 overflow-hidden pl-10 cursor-text transition-[padding] duration-200 ease-out ${aiOpen ? 'pr-[280px]' : ''}`}
-        onClick={(e) => {
-          // 点击 wrapper 空白区域时 focus body 编辑器；点击 CodeMirror 内部已有内容时让 CM 自己处理
-          if (e.target === e.currentTarget) {
-            cmRef.current?.view?.focus();
-          }
-        }}
-      >
-        <CodeMirror
-          ref={cmRef}
-          value={note.content_md}
-          onChange={handleContentChange}
-          onUpdate={handleCmUpdate}
-          theme="none"
-          height="100%"
-          basicSetup={{
-            lineNumbers: false,
-            foldGutter: false,
-            highlightActiveLine: false,
-            highlightActiveLineGutter: false,
-            indentOnInput: true,
-            bracketMatching: false,
-            closeBrackets: false,
-            autocompletion: false,
-            history: true,
-            drawSelection: true,
-            dropCursor: true,
-            allowMultipleSelections: false,
-            crosshairCursor: false,
-            highlightSelectionMatches: false,
-            syntaxHighlighting: false,
-          }}
-          extensions={[
-            markdown({ base: markdownLanguage, codeLanguages: [] }),
-            indentUnit.of('  '),
-            EditorView.lineWrapping,
-            baseTheme,
-            noSpellcheck,
-            formatKeymap,
-            livePreview,
-            imagePasteDrop,
-            linkClickHandler,
-          ]}
-          className={`h-full live-md-editor ${theme === 'dark' ? 'cm-dark' : 'cm-light'}`}
-        />
-      </div>
-      <TableOfContents content={note.content_md} cursorLine={cursorLine} cmRef={cmRef} />
+      <TableOfContents content={note.content_md} cursorLine={cursorLine} cmRef={cmRef} scrollRef={scrollRef} />
       <ConfirmDialog
         open={confirmOpen}
         title="删除笔记"

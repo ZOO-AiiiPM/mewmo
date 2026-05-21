@@ -6,6 +6,7 @@ type Props = {
   content: string;
   cursorLine: number;
   cmRef: React.RefObject<ReactCodeMirrorRef | null>;
+  scrollRef: React.RefObject<HTMLDivElement | null>;
 };
 
 /** easeOutCubic：先快后慢（t³ 反向），最常被感知为"自然减速" */
@@ -23,7 +24,7 @@ function smoothScrollTo(el: HTMLElement, to: number, duration = 450) {
   requestAnimationFrame(step);
 }
 
-export function TableOfContents({ content, cursorLine, cmRef }: Props) {
+export function TableOfContents({ content, cursorLine, cmRef, scrollRef }: Props) {
   const [hover, setHover] = useState(false);
   const headings = useMemo(() => parseHeadings(content), [content]);
 
@@ -42,36 +43,38 @@ export function TableOfContents({ content, cursorLine, cmRef }: Props) {
 
   const jumpTo = (line: number) => {
     const view = cmRef.current?.view;
-    if (!view) return;
+    const wrapper = scrollRef.current;
+    if (!view || !wrapper) return;
     const lineObj = view.state.doc.line(line);
-    // 设光标 + 让 cm 内部 state 同步，但不让它瞬时滚动（不传 scrollIntoView）
-    view.dispatch({ selection: { anchor: lineObj.from } });
-    // 自己计算 scrollTop 再做缓动
+    // 纯滚动查阅，不动光标、不 focus 编辑器，避免打断当前编辑状态
     const block = view.lineBlockAt(lineObj.from);
-    const targetTop = Math.max(0, block.top - 32);
-    smoothScrollTo(view.scrollDOM, targetTop, 450);
-    // 动画末再 focus，避免动画中途因 focus 触发额外 scroll
-    window.setTimeout(() => view.focus(), 460);
+    const cmContent = view.contentDOM as HTMLElement;
+    const cmTopInWrapper =
+      cmContent.getBoundingClientRect().top -
+      wrapper.getBoundingClientRect().top +
+      wrapper.scrollTop;
+    const targetTop = Math.max(0, cmTopInWrapper + block.top - 60);
+    smoothScrollTo(wrapper, targetTop, 450);
   };
 
   // 不同 level 的 mini bar 长度（拉开方差，视觉层级更清晰）
   const barWidth = (level: number) => {
-    if (level === 1) return 26;
-    if (level === 2) return 20;
-    if (level === 3) return 14;
-    return 9;
+    if (level === 1) return 16;
+    if (level === 2) return 13;
+    if (level === 3) return 9;
+    return 6;
   };
 
   return (
     <div
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
-      className="absolute top-16 right-0 bottom-6 z-10 flex items-start"
+      className="absolute top-[18%] right-0 bottom-6 z-10 flex items-start"
     >
       {/* 提示层：mini bars，按 level 阶梯递减 */}
       <div
-        className={`flex flex-col items-end gap-2.5 py-3 pr-4 transition-opacity duration-200 ${
-          hover ? 'opacity-0' : 'opacity-25 hover:opacity-60'
+        className={`flex flex-col items-end gap-[13px] py-3 pr-4 transition-opacity duration-200 ${
+          hover ? 'opacity-0' : 'opacity-50 hover:opacity-80'
         }`}
       >
         {headings.map((h, i) => (
@@ -102,7 +105,7 @@ export function TableOfContents({ content, cursorLine, cmRef }: Props) {
             style={{ paddingLeft: `${(h.level - 1) * 14 + 18}px` }}
             className={`w-full text-left pr-5 py-2.5 text-[13px] leading-relaxed truncate transition-colors ${
               i === activeIdx
-                ? 'text-blue-600 dark:text-blue-400 font-medium'
+                ? 'text-stone-900 dark:text-stone-50 font-bold'
                 : 'text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-50 hover:bg-black/[0.03] dark:hover:bg-white/[0.04]'
             }`}
           >
