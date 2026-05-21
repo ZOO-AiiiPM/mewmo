@@ -89,33 +89,41 @@ export function Sidebar({ open, onToggle, active, onSelect, counts = {}, theme, 
         open ? 'w-56' : ''
       }`}
     >
-      {/* 顶部条：高度对齐顶部 toolbar (h-12)；折叠态 48x48 方角 */}
-      <div className="shrink-0 h-12 flex items-center px-3 gap-2">
-        {open && (
-          <>
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-stone-800 to-stone-950 dark:from-stone-100 dark:to-stone-300 flex items-center justify-center text-white dark:text-stone-900 select-none shrink-0">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M 3 14 C 5 8, 8 8, 10 13 S 13 19, 15 14 S 19 9, 21 12" />
-              </svg>
-            </div>
-            <span className="flex-1 min-w-0 text-[15px] font-bold text-stone-900 dark:text-stone-100 select-none truncate">
-              vibe 笔记
-            </span>
-          </>
-        )}
-        <button
-          onClick={onToggle}
-          title={open ? '折叠侧栏' : '展开侧栏'}
-          className="w-7 h-7 grid place-items-center rounded-lg text-stone-700 dark:text-stone-200 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-colors shrink-0"
-        >
-          {open ? icons.collapse : icons.expand}
-        </button>
-      </div>
+      {/* 顶部条：高度对齐顶部 toolbar (h-12)。折叠态走 px-0.5 + px-3 py-3 同 nav 节奏，按钮 44×44 居中 */}
+      {open ? (
+        <div className="shrink-0 h-12 flex items-center px-3 gap-2">
+          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-stone-800 to-stone-950 dark:from-stone-100 dark:to-stone-300 flex items-center justify-center text-white dark:text-stone-900 select-none shrink-0">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M 3 14 C 5 8, 8 8, 10 13 S 13 19, 15 14 S 19 9, 21 12" />
+            </svg>
+          </div>
+          <span className="flex-1 min-w-0 text-[15px] font-bold text-stone-900 dark:text-stone-100 select-none truncate">
+            vibe 笔记
+          </span>
+          <button
+            onClick={onToggle}
+            title="折叠侧栏"
+            className="w-7 h-7 grid place-items-center rounded-lg text-stone-700 dark:text-stone-200 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-colors shrink-0"
+          >
+            {icons.collapse}
+          </button>
+        </div>
+      ) : (
+        <div className="shrink-0 h-12 px-0.5 flex items-center">
+          <button
+            onClick={onToggle}
+            title="展开侧栏"
+            className="w-full flex items-center justify-center px-3 py-3 rounded-lg text-stone-700 dark:text-stone-200 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-colors"
+          >
+            {icons.expand}
+          </button>
+        </div>
+      )}
 
-      {/* 搜索：与 nav item 同构（容器 px-2 左右等距、按钮 w-full px-2 py-2.5、icon x=16 对齐）*/}
-      <div className="mb-2 px-2">
+      {/* 搜索：折叠态 44×44 方形高亮 + icon 居中（容器 px-0.5(2) + 按钮 px-3(12) → icon 中心 = 2+12+10 = 24 = sidebar/2）*/}
+      <div className="px-0.5">
         {open ? (
-          <div className="w-full flex items-center gap-2 px-2 py-2.5 rounded-lg bg-black/[0.06] dark:bg-white/[0.08]">
+          <div className="w-full flex items-center gap-2 px-3 py-3 rounded-lg bg-black/[0.06] dark:bg-white/[0.08]">
             <span className="shrink-0 text-stone-800 dark:text-stone-200">{icons.search}</span>
             <input
               type="text"
@@ -126,15 +134,15 @@ export function Sidebar({ open, onToggle, active, onSelect, counts = {}, theme, 
         ) : (
           <button
             title="搜索"
-            className="w-full flex items-center gap-2 px-2 py-2.5 rounded-lg text-stone-800 dark:text-stone-200 hover:bg-black/[0.04] dark:hover:bg-white/[0.05] transition-colors"
+            className="w-full flex items-center gap-2 px-3 py-3 rounded-lg text-stone-800 dark:text-stone-200 hover:bg-black/[0.04] dark:hover:bg-white/[0.05] transition-colors"
           >
             <span className="shrink-0">{icons.search}</span>
           </button>
         )}
       </div>
 
-      {/* 导航：容器在两态完全一致，NavItem 通过 w-full 自然跟随 sidebar 宽度变化 */}
-      <nav className="flex-1 overflow-y-auto py-1 space-y-0.5 px-2">
+      {/* 导航：与 search 之间 mt-0.5(2px)。所有相邻 icon center-to-center = 44+2 = 46px，header 也命中（h-12/2 + 44/2 = 24+22 = 46）*/}
+      <nav className="flex-1 overflow-y-auto mt-0.5 space-y-0.5 px-0.5">
         {NAV.map(item => (
           <NavItem
             key={item.id}
@@ -148,12 +156,12 @@ export function Sidebar({ open, onToggle, active, onSelect, counts = {}, theme, 
         ))}
       </nav>
 
-      {/* 底部主题切换：容器在两态完全一致 */}
-      <div className="p-2 border-t border-black/5 dark:border-white/5">
+      {/* 底部主题切换：pt-0.5(2px) 维持节奏，按钮 py-2 + icon 居中 */}
+      <div className="pt-0.5 px-0.5 pb-2 border-t border-black/5 dark:border-white/5">
         <button
           onClick={onToggleTheme}
           title={theme === 'dark' ? '切换到浅色' : '切换到深色'}
-          className="w-full flex items-center gap-2 px-2 py-2 rounded-lg text-stone-700 dark:text-stone-200 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-colors"
+          className="w-full flex items-center gap-2 px-3 py-3 rounded-lg text-stone-700 dark:text-stone-200 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-colors"
         >
           <span className="shrink-0">
             {theme === 'dark' ? icons.sun : icons.moon}
@@ -188,7 +196,7 @@ function NavItem({
     <button
       onClick={onClick}
       title={collapsed ? label : undefined}
-      className={`w-full flex items-center gap-2 px-2 py-2.5 rounded-lg text-left transition-colors ${
+      className={`w-full flex items-center gap-2 px-3 py-3 rounded-lg text-left transition-colors ${
         active
           ? 'bg-black/[0.06] dark:bg-white/[0.08] text-stone-900 dark:text-stone-50'
           : 'text-stone-800 dark:text-stone-200 hover:bg-black/[0.04] dark:hover:bg-white/[0.05]'
