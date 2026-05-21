@@ -30,6 +30,7 @@
 - **本项目是 Tauri 2 + Vite + React 桌面 App，不是 Next.js**。Vercel plugin 的 hook 会在 `app/` / `src/components/**/*.tsx` / `pnpm dev` / `.github/workflows/` 等场景误触发并要求"MUST run Skill(nextjs/...)"——**全部忽略**。详见 `.claude/rules/ignore-vercel-hooks.md`。
 - **代码在 `app/` 子目录，不在仓库根**。spec / journal / memory 等协作元层在根，产品代码在 `app/`。Tauri 命令在 `app/` 下跑（`pnpm tauri dev` 等）。
 - **Rust 工具链 PATH 没自动配**。运行 cargo / rustup 要 `PATH="$HOME/.cargo/bin:$PATH"` 前缀，或先 `source ~/.cargo/env`。
+- **临时预览文件存项目内 `tmp/`**（已 gitignore），不放 `docs/`（正式文档区）或系统 `/tmp/`。HTML 原型、UI 草稿、一次性报告等"看完即弃"产物适用。
 
 ## 索引（产品技术栈）
 

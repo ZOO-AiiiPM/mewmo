@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>vibe 笔记 · PRD</title>
+  <style>
+    :root {
+      --bg: #faf9f7;
+      --surface: #ffffff;
+      --border: #e8e4de;
+      --text: #1a1815;
+      --muted: #7a736a;
+      --accent: #2563eb;
+      --accent-light: #eff6ff;
+      --green: #16a34a;
+      --green-light: #f0fdf4;
+      --yellow: #d97706;
+      --yellow-light: #fffbeb;
+      --red: #dc2626;
+      --red-light: #fef2f2;
+      --purple: #7c3aed;
+      --purple-light: #f5f3ff;
+      --radius: 8px;
+      --shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.04);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 15px;
+      line-height: 1.7;
+    }
+
+    /* Layout — two-column docs */
+    .layout {
+      display: grid;
+      grid-template-columns: 200px 1fr;
+      min-height: 100vh;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    /* Left sticky TOC sidebar */
+    .sidebar {
+      padding: 48px 0 80px 32px;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+    }
+    .sidebar-label {
+      font-size: 11px; font-weight: 700; letter-spacing: .1em;
+      text-transform: uppercase; color: var(--muted);
+      margin-bottom: 12px; padding-left: 12px;
+    }
+    .sidebar nav { display: flex; flex-direction: column; gap: 2px; }
+    .sidebar nav a {
+      display: block; padding: 7px 12px;
+      border-radius: 6px;
+      font-size: 13px; color: var(--muted);
+      text-decoration: none; line-height: 1.4;
+      transition: background .12s, color .12s;
+    }
+    .sidebar nav a:hover { background: rgba(0,0,0,.05); color: var(--text); }
+    .sidebar nav a.active { background: var(--accent-light); color: var(--accent); font-weight: 600; }
+
+    /* Right content area */
+    .content { padding: 48px 48px 80px 32px; min-width: 0; }
+
+    /* Content-internal two/three col grids */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+
+    /* Legacy .page kept for nothing */
+    .page { max-width: 900px; margin: 0 auto; padding: 48px 32px 80px; }
+
+    /* Header */
+    .page-header { margin-bottom: 40px; }
+    .page-header .eyebrow {
+      font-size: 12px; font-weight: 600; letter-spacing: .08em;
+      text-transform: uppercase; color: var(--accent);
+      margin-bottom: 8px;
+    }
+    h1 { font-size: 32px; font-weight: 700; line-height: 1.25; }
+    .page-header .subtitle { color: var(--muted); margin-top: 8px; font-size: 16px; }
+    .meta-row {
+      display: flex; gap: 24px; margin-top: 20px;
+      padding-top: 20px; border-top: 1px solid var(--border);
+      font-size: 13px; color: var(--muted);
+    }
+    .meta-row strong { color: var(--text); }
+
+    /* Section */
+    section { margin-bottom: 48px; }
+    h2 {
+      font-size: 20px; font-weight: 700;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid var(--border);
+    }
+    h3 { font-size: 16px; font-weight: 600; margin-bottom: 12px; }
+    p { margin-bottom: 12px; }
+    p:last-child { margin-bottom: 0; }
+
+    /* Card */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      box-shadow: var(--shadow);
+    }
+    .card h3 { margin-bottom: 8px; }
+
+    /* Tags / badges */
+    .badge {
+      display: inline-block;
+      padding: 2px 8px; border-radius: 4px;
+      font-size: 12px; font-weight: 600;
+    }
+    .badge-p0 { background: #fee2e2; color: #b91c1c; }
+    .badge-p1 { background: #fef3c7; color: #92400e; }
+    .badge-p2 { background: #dbeafe; color: #1e40af; }
+    .badge-p3 { background: #f3f4f6; color: #4b5563; }
+    .badge-done { background: #dcfce7; color: #15803d; }
+    .badge-wip  { background: #fef9c3; color: #854d0e; }
+    .badge-todo { background: #f1f5f9; color: #475569; }
+
+    /* Loop diagram */
+    .loop {
+      display: flex; align-items: center; gap: 0;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 20px 16px;
+      overflow-x: auto;
+      box-shadow: var(--shadow);
+    }
+    .loop-step {
+      flex: 1; min-width: 90px;
+      text-align: center;
+      padding: 12px 8px;
+    }
+    .loop-step .icon { font-size: 22px; margin-bottom: 4px; }
+    .loop-step .name { font-size: 14px; font-weight: 700; }
+    .loop-step .desc { font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+    .loop-arrow {
+      color: var(--border);
+      font-size: 20px;
+      flex-shrink: 0;
+      padding: 0 2px;
+    }
+
+    /* Version roadmap */
+    .roadmap { display: flex; flex-direction: column; gap: 12px; }
+    .version-row {
+      display: grid;
+      grid-template-columns: 80px 1fr auto;
+      align-items: start;
+      gap: 16px;
+      padding: 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+    .version-row.active { border-color: var(--accent); background: var(--accent-light); }
+    .version-tag { font-size: 18px; font-weight: 800; color: var(--accent); }
+    .version-row.active .version-tag { color: var(--accent); }
+    .version-title { font-weight: 600; margin-bottom: 4px; }
+    .version-items { list-style: none; }
+    .version-items li { font-size: 14px; color: var(--muted); padding: 2px 0; }
+    .version-items li::before { content: "·  "; }
+
+    /* Feature table */
+    .feature-list { list-style: none; }
+    .feature-list li {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 10px 0; border-bottom: 1px solid var(--border);
+      font-size: 14px;
+    }
+    .feature-list li:last-child { border-bottom: none; }
+    .feature-list .name { flex: 1; font-weight: 500; }
+    .feature-list .desc { color: var(--muted); font-size: 13px; margin-top: 2px; }
+
+    /* Callout */
+    .callout {
+      padding: 14px 16px;
+      border-radius: var(--radius);
+      border-left: 3px solid;
+      margin: 16px 0;
+      font-size: 14px;
+    }
+    .callout-blue { background: var(--accent-light); border-color: var(--accent); color: #1e3a8a; }
+    .callout-green { background: var(--green-light); border-color: var(--green); color: #14532d; }
+    .callout-yellow { background: var(--yellow-light); border-color: var(--yellow); color: #78350f; }
+    .callout-red { background: var(--red-light); border-color: var(--red); color: #7f1d1d; }
+    .callout strong { display: block; margin-bottom: 4px; }
+
+    /* Competitor table */
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th {
+      text-align: left; padding: 8px 12px;
+      background: #f8f7f5; border-bottom: 2px solid var(--border);
+      font-weight: 600;
+    }
+    td { padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    .check { color: var(--green); font-weight: 700; }
+    .cross { color: var(--red); }
+
+    /* Current state */
+    .status-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .status-card {
+      padding: 14px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+    .status-card .label { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    .status-card .value { font-weight: 600; font-size: 14px; }
+
+    /* Constraint pills */
+    .pill-list { display: flex; flex-wrap: wrap; gap: 8px; }
+    .pill {
+      padding: 5px 12px; border-radius: 20px;
+      font-size: 13px; font-weight: 500;
+      border: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .pill-no { background: var(--red-light); border-color: #fca5a5; color: var(--red); }
+
+    /* TOC */
+    .toc {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 20px 24px;
+      margin-bottom: 40px; box-shadow: var(--shadow);
+    }
+    .toc h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 12px; }
+    .toc ol { padding-left: 20px; }
+    .toc li { font-size: 14px; padding: 3px 0; }
+    .toc a { color: var(--accent); text-decoration: none; }
+    .toc a:hover { text-decoration: underline; }
+
+    hr { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
+  </style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- Left sticky sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-label">目录</div>
+    <nav>
+      <a href="#positioning" class="active">1 · 产品定位 &amp; 北极星</a>
+      <a href="#core-loop">2 · 核心 Loop</a>
+      <a href="#roadmap">3 · 版本路线图</a>
+      <a href="#v1-scope">4 · v1 功能范围</a>
+      <a href="#current-state">5 · 当前状态</a>
+      <a href="#competitors">6 · 竞品对比</a>
+      <a href="#constraints">7 · 范围红线</a>
+      <a href="#success">8 · 成功指标</a>
+    </nav>
+  </aside>
+
+  <!-- Right content -->
+  <main class="content">
+
+  <!-- Header -->
+  <header class="page-header">
+    <div class="eyebrow">Product Requirements Document</div>
+    <h1>vibe 笔记</h1>
+    <p class="subtitle">本地 AI 第二外脑 · macOS 桌面 App</p>
+    <div class="meta-row">
+      <span><strong>版本</strong> v0.1-draft</span>
+      <span><strong>更新</strong> 2026-05-20</span>
+      <span><strong>阶段</strong> v1 开发中</span>
+      <span><strong>平台</strong> macOS (Tauri 2 + Vite + React)</span>
+    </div>
+  </header>
+
+  <!-- 1. 产品定位 -->
+  <section id="positioning">
+    <h2>1 · 产品定位 &amp; 北极星</h2>
+
+    <div class="callout callout-blue">
+      <strong>北极星句子</strong>
+      本地 AI 第二外脑——它知道你的私密 context（笔记、剪藏、待办、日历、健康），而云端工具永远做不到。
+    </div>
+
+    <p>
+      市场上最强的竞品（腾讯 ima、NotebookLM、Readwise）都是云端工具。这意味着用户永远不会把
+      <strong>感情日记、待办清单、健康数据、私密灵感</strong>放进去。
+      本地优先突破了这道心理防线，也是差异化护城河。
+    </p>
+
+    <div class="two-col" style="margin-top:20px">
+      <div class="card">
+        <h3>我们做什么</h3>
+        <ul class="feature-list">
+          <li><span class="name">本地笔记 + 剪藏一体化</span></li>
+          <li><span class="name">AI 自动织网（捕获→关联旧内容）</span></li>
+          <li><span class="name">纯本地 SQLite，不上云</span></li>
+          <li><span class="name">macOS 原生体验（vibrancy / 红绿灯）</span></li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>我们不做什么（v1）</h3>
+        <ul class="feature-list">
+          <li><span class="name" style="color:var(--red)">登录 / 账号体系</span></li>
+          <li><span class="name" style="color:var(--red)">多端同步 / 云存储</span></li>
+          <li><span class="name" style="color:var(--red)">任务管理 / 日历（v3+）</span></li>
+          <li><span class="name" style="color:var(--red)">RSS 订阅（v2）</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="callout callout-yellow" style="margin-top:20px">
+      <strong>差异化核心（必须守住）</strong>
+      "AI 织网"：剪一篇文章进来，5 秒内 AI 自动找出你过去笔记里最相关的 3 条，
+      一键建双向链接。这是 ima / Readwise 做不到的（没有你的私密笔记语料）。
+    </div>
+  </section>
+
+  <!-- 2. 核心 Loop -->
+  <section id="core-loop">
+    <h2>2 · 核心 Loop</h2>
+    <p style="color:var(--muted); margin-bottom:16px">
+      任何上线版本 <strong>必须让用户完整跑完这个 Loop</strong>，不允许"有捕获但不能整理"的半成品状态。
+    </p>
+    <div class="loop">
+      <div class="loop-step">
+        <div class="icon">📥</div>
+        <div class="name">捕获</div>
+        <div class="desc">写笔记<br>剪网页<br>粘贴链接</div>
+      </div>
+      <div class="loop-arrow">→</div>
+      <div class="loop-step">
+        <div class="icon">✨</div>
+        <div class="name">整理</div>
+        <div class="desc">AI 摘要<br>自动标签<br>关联旧内容</div>
+      </div>
+      <div class="loop-arrow">→</div>
+      <div class="loop-step">
+        <div class="icon">🔔</div>
+        <div class="name">激活</div>
+        <div class="desc">主动推送<br>回顾提醒<br>Daily Brief</div>
+      </div>
+      <div class="loop-arrow">→</div>
+      <div class="loop-step">
+        <div class="icon">👁</div>
+        <div class="name">消费</div>
+        <div class="desc">阅读<br>标记收藏<br>批注</div>
+      </div>
+      <div class="loop-arrow">→</div>
+      <div class="loop-step">
+        <div class="icon">🌱</div>
+        <div class="name">沉淀</div>
+        <div class="desc">归入主题库<br>强化下次激活</div>
+      </div>
+    </div>
+
+    <p style="margin-top:16px; font-size:14px; color:var(--muted)">
+      新功能必须标注其在 Loop 中的位置。不在 Loop 上的功能推迟到 P2/P3。
+    </p>
+  </section>
+
+  <!-- 3. 版本路线图 -->
+  <section id="roadmap">
+    <h2>3 · 版本路线图</h2>
+    <div class="roadmap">
+
+      <div class="version-row active">
+        <div class="version-tag">v1</div>
+        <div>
+          <div class="version-title">笔记 + 剪藏 + AI 织网 <span class="badge badge-wip">进行中</span></div>
+          <ul class="version-items">
+            <li>Markdown 笔记编辑（CodeMirror Live Preview）</li>
+            <li>网页剪藏（HTML→MD 统一管线，dom_smoothie）</li>
+            <li>AI 织网：捕获时自动匹配旧内容，一键建双链</li>
+            <li>三栏布局（Sidebar / NoteList / NoteEditor + AIPanel）</li>
+            <li>图片粘贴 / 附件管理</li>
+            <li>本地 SQLite 存储，30 秒首次捕获</li>
+          </ul>
+        </div>
+        <div><span class="badge badge-wip">WIP</span></div>
+      </div>
+
+      <div class="version-row">
+        <div class="version-tag">v2</div>
+        <div>
+          <div class="version-title">RSS 订阅 + Daily Brief</div>
+          <ul class="version-items">
+            <li>添加 RSS / Atom 源，自动拉取文章</li>
+            <li>Daily Brief：每天晨间推送一份 AI 摘要简报</li>
+            <li>订阅区完整激活（Sidebar "订阅" 选项卡接通数据）</li>
+          </ul>
+        </div>
+        <div><span class="badge badge-todo">计划中</span></div>
+      </div>
+
+      <div class="version-row">
+        <div class="version-tag">v3</div>
+        <div>
+          <div class="version-title">任务管理</div>
+          <ul class="version-items">
+            <li>笔记内 Todo 列表（[ ] 语法 → 可勾选）</li>
+            <li>独立任务视图（按优先级 / 截止日期排序）</li>
+            <li>AI 从笔记中提取行动项</li>
+          </ul>
+        </div>
+        <div><span class="badge badge-todo">计划中</span></div>
+      </div>
+
+      <div class="version-row">
+        <div class="version-tag">v4</div>
+        <div>
+          <div class="version-title">接入 macOS 日历 EventKit</div>
+          <ul class="version-items">
+            <li>读取系统日历 / 提醒事项（本地，不上云）</li>
+            <li>AI 结合日历 context 给出更精准的每日 Brief</li>
+          </ul>
+        </div>
+        <div><span class="badge badge-todo">计划中</span></div>
+      </div>
+
+      <div class="version-row">
+        <div class="version-tag">v5</div>
+        <div>
+          <div class="version-title">全知全能跨源主动织网</div>
+          <ul class="version-items">
+            <li>接入健康数据 / 位置 / 感情日记等私密 context</li>
+            <li>AI 主动发现跨源关联，无需用户触发</li>
+            <li>双模式：自主管理 OR 完全 AI 托管</li>
+          </ul>
+        </div>
+        <div><span class="badge badge-todo">远期</span></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- 4. v1 详细功能范围 -->
+  <section id="v1-scope">
+    <h2>4 · v1 详细功能范围</h2>
+
+    <h3 style="margin-bottom:12px">4.1 笔记区（核心）</h3>
+    <ul class="feature-list" style="border:1px solid var(--border); border-radius:var(--radius); padding:0 16px; background:var(--surface)">
+      <li>
+        <span class="badge badge-done">已完成</span>
+        <div>
+          <div class="name">三栏布局骨架</div>
+          <div class="desc">Sidebar（4 区导航）+ NoteList（笔记列表）+ NoteEditor（编辑器）+ AIPanel（右侧抽屉）</div>
+        </div>
+      </li>
+      <li>
+        <span class="badge badge-done">已完成</span>
+        <div>
+          <div class="name">CodeMirror 6 Live Preview 编辑器</div>
+          <div class="desc">行首标记即时渲染（#/- 等），行内标记（**/__/`）光标离开渲染，Obsidian 风格体验</div>
+        </div>
+      </li>
+      <li>
+        <span class="badge badge-done">已完成</span>
+        <div>
+          <div class="name">笔记 CRUD + SQLite 持久化</div>
+          <div class="desc">新建、编辑、删除、列表，本地 SQLite（Tauri tauri-plugin-sql）</div>
+        </div>
+      </li>
+      <li>
+        <span class="badge badge-done">已完成</span>
+        <div>
+          <div class="name">macOS vibrancy 侧栏 + 红绿灯定位</div>
+          <div class="desc">Sidebar 毛玻璃材质，红绿灯 (18, 24)，折叠动画 200ms ease-out</div>
+        </div>
+      </li>
+      <li>
+        <span class="badge badge-done">已完成</span>
+        <div>
+          <div class="name">深色 / 浅色主题</div>
+          <div class="desc">Tailwind dark class + Tauri setTheme 同步 NSAppearance，localStorage 持久化</div>
+        </div>
+      </li>
+      <li>
+        <span class="badge badge-done">已完成</span>
+        <div>
+          <div class="name">图片粘贴 + 附件管理</div>
+          <div class="desc">粘贴图片自动存到 Tauri AppData，孤儿清理，Markdown 内联引用</div>
+        </div>
+      </li>
+      <li>
+        <span class="badge badge-done">已完成</span>
+        <div>
+          <div class="name">AI 抽屉骨架（⌘J 唤起）</div>
+          <div class="desc">右侧面板占位，输入框 UI，AI 逻辑待接入</div>
+        </div>
+      </li>
+      <li>
+        <span class="badge badge-p0">P0 待做</span>
+        <div>
+          <div class="name">搜索（全文检索）</div>
+          <div class="desc">Sidebar 搜索框接通，SQLite FTS5 或前端 fuse.js 过滤</div>
+        </div>
+      </li>
+      <li>
+        <span class="badge badge-p0">P0 待做</span>
+        <div>
+          <div class="name">AI 织网：捕获时自动关联旧内容</div>
+          <div class="desc">新建/剪藏后，AI 计算与现有笔记的语义相似度，右侧展示 Top 3 相关笔记，一键建双链</div>
+        </div>
+      </li>
+      <li>
+        <span class="badge badge-p1">P1 待做</span>
+        <div>
+          <div class="name">网页剪藏</div>
+          <div class="desc">输入 URL → Rust 后端抓取 → dom_smoothie 提取正文 → htmd 转 Markdown → 存入剪藏区</div>
+        </div>
+      </li>
+      <li>
+        <span class="badge badge-p1">P1 待做</span>
+        <div>
+          <div class="name">AI 摘要 + 自动标签</div>
+          <div class="desc">剪藏/新建后 AI 生成 1-3 句摘要和 3-5 个标签，存入 SQLite</div>
+        </div>
+      </li>
+      <li>
+        <span class="badge badge-p1">P1 待做</span>
+        <div>
+          <div class="name">本地埋点（events 表）</div>
+          <div class="desc">记录核心 Loop 动作：启动/新建/剪藏/AI 触发/读取，不上报远端</div>
+        </div>
+      </li>
+      <li>
+        <span class="badge badge-p2">P2 待做</span>
+        <div>
+          <div class="name">沉淀区（主题归纳）</div>
+          <div class="desc">AI 把相关笔记自动聚合成主题页；Sidebar "沉淀" 选项卡接通数据</div>
+        </div>
+      </li>
+    </ul>
+
+    <h3 style="margin:24px 0 12px">4.2 AI 织网（v1 核心差异化）详解</h3>
+    <div class="card">
+      <p><strong>30 秒 Demo Loop（用户验收标准）</strong></p>
+      <ol style="padding-left:20px; margin-top:8px; font-size:14px; line-height:2">
+        <li>粘贴一篇公众号 / 网页 URL 进剪藏</li>
+        <li>5 秒内 AI 分析内容，右侧 AIPanel 弹出 Top 3 相关旧笔记</li>
+        <li>用户点击"建链"，自动在两侧笔记底部插入 Markdown 双链</li>
+        <li>30 秒内完成全程，无需配置</li>
+      </ol>
+      <div class="callout callout-blue" style="margin-top:12px">
+        <strong>技术路径</strong>
+        本地向量嵌入（Ollama 本地模型 OR BMC API）→ SQLite 存向量 →
+        余弦相似度 Top-K → Rust 后端计算（不过前端 / 不走网络）
+      </div>
+    </div>
+
+    <h3 style="margin:24px 0 12px">4.3 数据模型（SQLite schema 核心表）</h3>
+    <div class="card" style="overflow-x:auto">
+      <table>
+        <thead>
+          <tr><th>表名</th><th>核心字段</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>notes</code></td><td>id, title, content_md, created_at, updated_at</td><td>笔记 / 剪藏主表</td></tr>
+          <tr><td><code>tags</code></td><td>id, note_id, name</td><td>AI 自动标签</td></tr>
+          <tr><td><code>links</code></td><td>id, source_id, target_id, created_at</td><td>双向链接关系</td></tr>
+          <tr><td><code>embeddings</code></td><td>id, note_id, vector BLOB</td><td>本地语义向量，AI 织网用</td></tr>
+          <tr><td><code>events</code></td><td>id, action, note_id, ts</td><td>本地埋点，不上报</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 5. 当前状态 -->
+  <section id="current-state">
+    <h2>5 · 当前状态（已完成）</h2>
+    <div class="status-grid">
+      <div class="status-card">
+        <div class="label">布局</div>
+        <div class="value">三栏骨架 ✅ Sidebar 折叠动画 ✅</div>
+      </div>
+      <div class="status-card">
+        <div class="label">编辑器</div>
+        <div class="value">CodeMirror 6 + Live Preview ✅</div>
+      </div>
+      <div class="status-card">
+        <div class="label">存储</div>
+        <div class="value">SQLite CRUD ✅ 图片附件 ✅</div>
+      </div>
+      <div class="status-card">
+        <div class="label">主题</div>
+        <div class="value">深色/浅色 + vibrancy ✅</div>
+      </div>
+      <div class="status-card">
+        <div class="label">AI 接入</div>
+        <div class="value">AIPanel 骨架 ✅ 逻辑待接 ⏳</div>
+      </div>
+      <div class="status-card">
+        <div class="label">搜索</div>
+        <div class="value">UI 占位 ✅ 逻辑待接 ⏳</div>
+      </div>
+    </div>
+
+    <div class="callout callout-yellow" style="margin-top:16px">
+      <strong>当前 v1 主要缺口</strong>
+      搜索逻辑、网页剪藏管线（URL→MD）、AI 织网（最关键的差异化）、本地埋点 events 表。
+      其中 AI 织网是 v1 的核心交付，缺它产品就退化成"普通 Markdown 编辑器"。
+    </div>
+  </section>
+
+  <!-- 6. 竞品对比 -->
+  <section id="competitors">
+    <h2>6 · 竞品对比</h2>
+    <div style="overflow-x:auto">
+      <table>
+        <thead>
+          <tr>
+            <th>产品</th>
+            <th>本地存储</th>
+            <th>私密 context</th>
+            <th>AI 织网</th>
+            <th>中文剪藏</th>
+            <th>Mac 原生</th>
+            <th>免费</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>vibe 笔记</strong></td>
+            <td class="check">✓</td>
+            <td class="check">✓</td>
+            <td class="check">✓（目标）</td>
+            <td class="check">✓</td>
+            <td class="check">✓</td>
+            <td class="check">✓</td>
+          </tr>
+          <tr>
+            <td>腾讯 ima</td>
+            <td class="cross">✗</td>
+            <td class="cross">✗</td>
+            <td class="check">✓</td>
+            <td class="check">✓</td>
+            <td class="cross">✗</td>
+            <td class="check">✓</td>
+          </tr>
+          <tr>
+            <td>Obsidian</td>
+            <td class="check">✓</td>
+            <td class="check">✓</td>
+            <td>插件</td>
+            <td>插件</td>
+            <td class="check">✓</td>
+            <td>基础免费</td>
+          </tr>
+          <tr>
+            <td>Readwise Reader</td>
+            <td class="cross">✗</td>
+            <td class="cross">✗</td>
+            <td class="cross">✗</td>
+            <td><span style="color:var(--yellow)">部分</span></td>
+            <td class="cross">✗</td>
+            <td class="cross">✗</td>
+          </tr>
+          <tr>
+            <td>NotebookLM</td>
+            <td class="cross">✗</td>
+            <td class="cross">✗</td>
+            <td class="check">✓</td>
+            <td class="check">✓</td>
+            <td class="cross">✗</td>
+            <td class="check">✓</td>
+          </tr>
+          <tr>
+            <td>Reor</td>
+            <td class="check">✓</td>
+            <td class="check">✓</td>
+            <td><span style="color:var(--yellow)">RAG</span></td>
+            <td class="cross">✗</td>
+            <td class="cross">✗</td>
+            <td class="check">✓</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size:13px; color:var(--muted); margin-top:8px">
+      关键洞察：<strong>本地 + AI 织网 + 中文剪藏 + Mac 原生</strong> 四项同时满足的，
+      目前市场上没有主导者。这是可以守住的护城河。
+    </p>
+  </section>
+
+  <!-- 7. 范围红线 -->
+  <section id="constraints">
+    <h2>7 · 范围红线（永远不做 / 推迟）</h2>
+    <div class="pill-list">
+      <span class="pill pill-no">登录 / 账号体系</span>
+      <span class="pill pill-no">云端数据库 / 多设备同步</span>
+      <span class="pill pill-no">支付 / 订阅</span>
+      <span class="pill pill-no">多用户 / 协作</span>
+      <span class="pill pill-no">移动端（iOS / Android）</span>
+      <span class="pill pill-no">浏览器扩展</span>
+      <span class="pill pill-no">邮件推送服务</span>
+      <span class="pill pill-no">自训 / 微调模型</span>
+      <span class="pill pill-no">Apple 签名（Demo 阶段）</span>
+    </div>
+    <p style="font-size:13px; color:var(--muted); margin-top:12px">
+      单 feature 的实施周期 MUST ≤ 1 周（一个 vibe coder）。超出的拆 P1/P2/P3。
+    </p>
+  </section>
+
+  <!-- 8. 成功指标 -->
+  <section id="success">
+    <h2>8 · 成功指标</h2>
+    <div class="three-col">
+      <div class="card">
+        <h3>30 秒捕获</h3>
+        <p style="font-size:14px; color:var(--muted)">
+          新用户首次打开 → 完成第一次有价值的捕获动作（写笔记 / 剪藏 URL）≤ 30 秒。
+          这是 v1 验收的 P0 门槛。
+        </p>
+      </div>
+      <div class="card">
+        <h3>Loop 完整率</h3>
+        <p style="font-size:14px; color:var(--muted)">
+          周活用户中，完整跑完"捕获→整理→消费"至少一次的比例 ≥ 60%。
+          数据来源：本地 events 表。
+        </p>
+      </div>
+      <div class="card">
+        <h3>AI 织网触发率</h3>
+        <p style="font-size:14px; color:var(--muted)">
+          剪藏/新建后 AI 弹出相关笔记，用户点击"建链"的转化率 ≥ 30%。
+          上线 7 天内必须回看决定保留/调整。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <hr />
+  <p style="font-size:13px; color:var(--muted); text-align:center">
+    vibe 笔记 PRD · 最后更新 2026-05-20 · 宪法版本 v2.0.0
+  </p>
+
+  </main>
+</div>
+
+<script>
+  // Highlight active sidebar link based on scroll position
+  const sections = document.querySelectorAll('section[id], header');
+  const links = document.querySelectorAll('.sidebar nav a');
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const id = entry.target.id;
+        links.forEach(a => {
+          a.classList.toggle('active', a.getAttribute('href') === '#' + id);
+        });
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+
+  sections.forEach(s => { if (s.id) observer.observe(s); });
+</script>
+</body>
+</html>

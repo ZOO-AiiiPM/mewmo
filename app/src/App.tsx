@@ -1,62 +1,250 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
+import { Sidebar, type Zone } from './components/Sidebar';
+import { TabBar, type Tab as TabPillModel } from './components/TabBar';
 import { NoteList } from './components/NoteList';
 import { NoteEditor } from './components/NoteEditor';
+import { AIPanel } from './components/AIPanel';
+import { ClipInbox } from './components/ClipInbox';
+import { ClipReader } from './components/ClipReader';
+import { EmptyTabHome } from './components/EmptyTabHome';
 import { listNotes, createNote, updateNote, deleteNote } from './lib/db';
-import type { Note } from './types';
+import { listClips, saveClip, deleteClip, updateClip } from './lib/db';
+import { useTheme } from './lib/useTheme';
+import { extractAttachmentRefs, cleanupOrphans } from './lib/attachments';
+import type { Note, Clip } from './types';
+
+type Tab = {
+  id: string;
+  zone: Zone | null;       // null = empty tab → 引导页
+  refId: number | null;    // notes/clipping 时绑定的文档 id
+};
+
+const PLACEHOLDER_LABEL: Record<Zone, string> = {
+  subscribe: '订阅',
+  notes: '笔记',
+  clipping: '剪藏',
+  sediment: '沉淀',
+};
 
 export default function App() {
+  const { theme, toggle } = useTheme();
   const [notes, setNotes] = useState<Note[]>([]);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [clips, setClips] = useState<Clip[]>([]);
   const [loading, setLoading] = useState(true);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [expanded, setExpanded] = useState(false);
 
+  // ── Tab 状态机 ────────────────────────────────────────────────────────────
+  const [tabs, setTabs] = useState<Tab[]>([{ id: 'tab_1', zone: null, refId: null }]);
+  const [activeTabId, setActiveTabId] = useState<string>('tab_1');
+  const tabIdSeqRef = useRef(2);
+
+  const activeTab = useMemo(
+    () => tabs.find(t => t.id === activeTabId) ?? null,
+    [tabs, activeTabId]
+  );
+
+  const updateActiveTab = useCallback(
+    (patch: Partial<Omit<Tab, 'id'>>) => {
+      setTabs(prev =>
+        prev.map(t => (t.id === activeTabId ? { ...t, ...patch } : t))
+      );
+    },
+    [activeTabId]
+  );
+
+  const addEmptyTab = useCallback(() => {
+    const id = `tab_${tabIdSeqRef.current++}`;
+    setTabs(prev => [...prev, { id, zone: null, refId: null }]);
+    setActiveTabId(id);
+  }, []);
+
+  const closeTab = useCallback((id: string) => {
+    setTabs(prev => {
+      const idx = prev.findIndex(t => t.id === id);
+      if (idx === -1) return prev;
+      const next = prev.filter(t => t.id !== id);
+
+      if (next.length === 0) {
+        const newId = `tab_${tabIdSeqRef.current++}`;
+        setActiveTabId(newId);
+        return [{ id: newId, zone: null, refId: null }];
+      }
+
+      // 关掉的是 active：跳到右邻，无右则左邻
+      if (id === activeTabId) {
+        const neighbor = next[idx] ?? next[idx - 1] ?? next[0];
+        setActiveTabId(neighbor.id);
+      }
+      return next;
+    });
+  }, [activeTabId]);
+
+  // ── 数据加载 ──────────────────────────────────────────────────────────────
   const refresh = useCallback(async () => {
     const list = await listNotes();
     setNotes(list);
     return list;
   }, []);
 
+  const refreshClips = useCallback(async () => {
+    const list = await listClips();
+    setClips(list);
+    return list;
+  }, []);
+
   useEffect(() => {
     refresh()
       .then(list => {
-        if (list.length > 0) setSelectedId(list[0].id);
+        const refs = extractAttachmentRefs(list.map(n => n.content_md));
+        cleanupOrphans(refs)
+          .then(n => { if (n > 0) console.log(`[cleanup] removed ${n} orphan attachments`); })
+          .catch(e => console.error('[cleanup] failed:', e));
       })
       .finally(() => setLoading(false));
-  }, [refresh]);
+    refreshClips();
+  }, [refresh, refreshClips]);
 
-  const handleCreate = useCallback(async () => {
+  // ── AI 面板 ───────────────────────────────────────────────────────────────
+  const toggleAI = useCallback(() => setAiOpen(prev => !prev), []);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'j') {
+        e.preventDefault();
+        toggleAI();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [toggleAI]);
+
+  // ── 笔记操作 ──────────────────────────────────────────────────────────────
+  const handleCreateAndBind = useCallback(async () => {
     const id = await createNote();
     await refresh();
-    setSelectedId(id);
-  }, [refresh]);
+    setTabs(prev =>
+      prev.map(t => (t.id === activeTabId ? { ...t, zone: 'notes', refId: id } : t))
+    );
+  }, [refresh, activeTabId]);
 
-  const handleUpdate = useCallback(
+  const handleUpdateNote = useCallback(
     async (patch: { title?: string; content_md?: string }) => {
-      if (!selectedId) return;
-      await updateNote(selectedId, patch);
-      // 局部更新避免抖动
+      if (!activeTab || activeTab.zone !== 'notes' || activeTab.refId == null) return;
+      const noteId = activeTab.refId;
+      await updateNote(noteId, patch);
       setNotes(prev =>
         prev.map(n =>
-          n.id === selectedId
+          n.id === noteId
             ? { ...n, ...patch, updated_at: Math.floor(Date.now() / 1000) }
             : n
         )
       );
     },
-    [selectedId]
+    [activeTab]
   );
 
-  const handleDelete = useCallback(
+  const handleDeleteNote = useCallback(
     async (id: number) => {
       await deleteNote(id);
       const list = await refresh();
-      if (selectedId === id) {
-        setSelectedId(list.length > 0 ? list[0].id : null);
-      }
+      // 所有绑了这条笔记的 tab 都清空 refId（保留 tab 在 zone 空白态）
+      setTabs(prev =>
+        prev.map(t =>
+          t.zone === 'notes' && t.refId === id ? { ...t, refId: null } : t
+        )
+      );
+      const refs = extractAttachmentRefs(list.map(n => n.content_md));
+      cleanupOrphans(refs).catch(e => console.error('[cleanup] failed:', e));
     },
-    [refresh, selectedId]
+    [refresh]
   );
 
-  const selectedNote = notes.find(n => n.id === selectedId) ?? null;
+  // ── 剪藏操作 ──────────────────────────────────────────────────────────────
+  type FetchedClip = {
+    url: string; title: string; content_md: string;
+    excerpt: string; site_name: string; favicon_url: string;
+    cover_image: string; author: string; published_at: string;
+  };
+
+  const handleClipSave = useCallback(async (url: string) => {
+    const fetched = await invoke<FetchedClip>('fetch_clip', { url });
+    const id = await saveClip(fetched);
+    await refreshClips();
+    setTabs(prev =>
+      prev.map(t => (t.id === activeTabId ? { ...t, zone: 'clipping', refId: id } : t))
+    );
+  }, [refreshClips, activeTabId]);
+
+  const handleClipDelete = useCallback(async (id: number) => {
+    await deleteClip(id);
+    await refreshClips();
+    setTabs(prev =>
+      prev.map(t =>
+        t.zone === 'clipping' && t.refId === id ? { ...t, refId: null } : t
+      )
+    );
+  }, [refreshClips]);
+
+  const handleClipRefetch = useCallback(async (id: number, url: string) => {
+    const fetched = await invoke<FetchedClip>('fetch_clip', { url });
+    await updateClip(id, fetched);
+    await refreshClips();
+  }, [refreshClips]);
+
+  // ── 派生：当前 tab 视图 ───────────────────────────────────────────────────
+  const activeZone = activeTab?.zone ?? null;
+  const selectedNote =
+    activeTab?.zone === 'notes' && activeTab.refId != null
+      ? notes.find(n => n.id === activeTab.refId) ?? null
+      : null;
+  const selectedClip =
+    activeTab?.zone === 'clipping' && activeTab.refId != null
+      ? clips.find(c => c.id === activeTab.refId) ?? null
+      : null;
+
+  const counts: Record<Zone, number> = {
+    subscribe: 0,
+    notes: notes.length,
+    clipping: clips.length,
+    sediment: 0,
+  };
+
+  // tab pill：title 实时从 notes/clips 派生
+  const tabPills: TabPillModel[] = useMemo(() => {
+    return tabs.map(t => {
+      let title = '新建';
+      if (t.zone === 'notes') {
+        const n = t.refId != null ? notes.find(x => x.id === t.refId) : null;
+        title = n ? (n.title || '无标题') : PLACEHOLDER_LABEL.notes;
+      } else if (t.zone === 'clipping') {
+        const c = t.refId != null ? clips.find(x => x.id === t.refId) : null;
+        title = c ? (c.title || '无标题') : PLACEHOLDER_LABEL.clipping;
+      } else if (t.zone === 'subscribe' || t.zone === 'sediment') {
+        title = PLACEHOLDER_LABEL[t.zone];
+      }
+      return { id: t.id, title, zone: t.zone };
+    });
+  }, [tabs, notes, clips]);
+
+  // ── 事件桥 ────────────────────────────────────────────────────────────────
+  const handleSidebarSelect = useCallback((zone: Zone) => {
+    updateActiveTab({ zone, refId: null });
+  }, [updateActiveTab]);
+
+  const handleEmptyPick = useCallback((zone: Zone) => {
+    updateActiveTab({ zone, refId: null });
+  }, [updateActiveTab]);
+
+  const handleNoteSelect = useCallback((id: number) => {
+    updateActiveTab({ zone: 'notes', refId: id });
+  }, [updateActiveTab]);
+
+  const handleClipSelect = useCallback((id: number) => {
+    updateActiveTab({ zone: 'clipping', refId: id });
+  }, [updateActiveTab]);
 
   if (loading) {
     return (
@@ -67,15 +255,106 @@ export default function App() {
   }
 
   return (
-    <div className="h-screen flex bg-stone-50 dark:bg-stone-950">
-      <NoteList
-        notes={notes}
-        selectedId={selectedId}
-        onSelect={setSelectedId}
-        onCreate={handleCreate}
-        onDelete={handleDelete}
+    <div className="h-screen flex flex-col overflow-hidden relative">
+      <TabBar
+        tabs={tabPills}
+        activeId={activeTabId}
+        onSelect={setActiveTabId}
+        onClose={closeTab}
+        onAddNew={addEmptyTab}
       />
-      <NoteEditor note={selectedNote} onChange={handleUpdate} />
+      <div className="flex-1 flex overflow-hidden min-h-0">
+        <Sidebar
+          open={sidebarOpen && !expanded}
+          onToggle={() => setSidebarOpen(o => !o)}
+          active={activeZone}
+          onSelect={handleSidebarSelect}
+          counts={counts}
+          theme={theme}
+          onToggleTheme={toggle}
+        />
+
+        {/* 主内容区：relative 是 AIPanel 的浮层定位锚点 */}
+        <main className="flex-1 relative min-w-0">
+          {/* Layer 2：Content card（list + main 合并的圆角白卡，右/下 flush window 边缘） */}
+          <div className="h-full flex bg-white dark:bg-stone-900 rounded-tl-2xl overflow-hidden shadow-[0_2px_16px_rgba(0,0,0,0.07),0_0_0_0.5px_rgba(0,0,0,0.05)] dark:shadow-[0_2px_16px_rgba(0,0,0,0.4),0_0_0_0.5px_rgba(255,255,255,0.05)]">
+            {activeZone === null ? (
+              <EmptyTabHome onPick={handleEmptyPick} />
+            ) : activeZone === 'clipping' ? (
+              <>
+                {!expanded && (
+                  <ClipInbox
+                    clips={clips}
+                    selectedId={selectedClip?.id ?? null}
+                    onSelect={handleClipSelect}
+                    onSave={handleClipSave}
+                    onDelete={handleClipDelete}
+                  />
+                )}
+                <ClipReader
+                  clip={selectedClip}
+                  aiOpen={aiOpen}
+                  onRefetch={handleClipRefetch}
+                  expanded={expanded}
+                  onExpand={() => setExpanded(e => !e)}
+                />
+              </>
+            ) : activeZone === 'notes' ? (
+              <>
+                {!expanded && (
+                  <NoteList
+                    notes={notes}
+                    selectedId={selectedNote?.id ?? null}
+                    onSelect={handleNoteSelect}
+                    onCreate={handleCreateAndBind}
+                  />
+                )}
+                <NoteEditor
+                  note={selectedNote}
+                  onChange={handleUpdateNote}
+                  theme={theme}
+                  onDelete={() => selectedNote && handleDeleteNote(selectedNote.id)}
+                  onCreate={handleCreateAndBind}
+                  aiOpen={aiOpen}
+                  expanded={expanded}
+                  onExpand={() => setExpanded(e => !e)}
+                />
+              </>
+            ) : (
+              <div className="flex-1 flex items-center justify-center text-stone-400 dark:text-stone-500 text-sm">
+                {PLACEHOLDER_LABEL[activeZone]} 敬请期待
+              </div>
+            )}
+          </div>
+
+          {/* Layer 3：AI 浮层（绝对定位浮在 content card 之上） */}
+          <AIPanel
+            open={aiOpen}
+            currentNote={activeZone === 'notes' ? selectedNote : null}
+            currentClip={activeZone === 'clipping' ? selectedClip : null}
+            zone={activeZone}
+          />
+        </main>
+      </div>
+
+      {/* 全局浮动 AI toggle */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          toggleAI();
+        }}
+        onMouseDown={(e) => e.stopPropagation()}
+        title="AI 助手 (⌘J)"
+        className={`absolute top-1 right-2 z-50 w-8 h-8 flex items-center justify-center rounded-md transition-colors ${
+          aiOpen
+            ? 'bg-black/[0.10] dark:bg-white/[0.12] text-stone-900 dark:text-stone-100'
+            : 'text-stone-600 dark:text-stone-300 hover:bg-black/5 dark:hover:bg-white/10'
+        }`}
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 2 14 8l6 2-6 2-2 6-2-6-6-2 6-2 2-6z" />
+        </svg>
+      </button>
     </div>
   );
 }

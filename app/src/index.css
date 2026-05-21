@@ -1,7 +1,9 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, system-ui, 'SF Pro Display', sans-serif;
   color-scheme: light dark;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -9,15 +11,405 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-body {
+html,
+body,
+#root {
+  height: 100%;
   margin: 0;
-  background: #fafaf9;
+  background: transparent !important;
+}
+
+body {
   color: #1c1917;
 }
 
-@media (prefers-color-scheme: dark) {
-  body {
-    background: #0a0a0a;
-    color: #e7e5e4;
-  }
+html.dark body {
+  color: #e7e5e4;
 }
+
+.titlebar-spacer {
+  height: 28px;
+  flex-shrink: 0;
+}
+
+/* ===== CodeMirror Live Preview 样式 ===== */
+.live-md-editor,
+.live-md-editor .cm-editor,
+.live-md-editor .cm-scroller,
+.live-md-editor .cm-content {
+  height: 100%;
+  background: transparent !important;
+}
+
+.live-md-editor .cm-content {
+  font-size: 15px;
+  line-height: 1.7;
+  color: #1c1917;
+  padding-top: 4px !important;
+  padding-bottom: 200px !important;
+}
+html.dark .live-md-editor .cm-content {
+  color: #e7e5e4;
+}
+
+/* 标记字符（** _ ` # 等）光标在所属节点时的淡色样式 */
+.live-md-editor .tok-meta,
+.live-md-editor .ͼe { /* lezer markdown 的 mark token 经常带 .tok-meta */
+  color: #a8a29e;
+}
+html.dark .live-md-editor .tok-meta,
+html.dark .live-md-editor .ͼe {
+  color: #57534e;
+}
+
+/* —— 标题 —— */
+.live-md-editor .cm-h1,
+.live-md-editor .cm-h2,
+.live-md-editor .cm-h3,
+.live-md-editor .cm-h4,
+.live-md-editor .cm-h5,
+.live-md-editor .cm-h6 {
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: #0c0a09;
+}
+html.dark .live-md-editor .cm-h1,
+html.dark .live-md-editor .cm-h2,
+html.dark .live-md-editor .cm-h3,
+html.dark .live-md-editor .cm-h4,
+html.dark .live-md-editor .cm-h5,
+html.dark .live-md-editor .cm-h6 {
+  color: #fafaf9;
+}
+.live-md-editor .cm-h1 { font-size: 1.875em; }
+.live-md-editor .cm-h2 { font-size: 1.5em; }
+.live-md-editor .cm-h3 { font-size: 1.2em; font-weight: 600; }
+.live-md-editor .cm-h4 { font-size: 1.05em; font-weight: 600; }
+.live-md-editor .cm-h5 { font-size: 1em; font-weight: 600; }
+.live-md-editor .cm-h6 { font-size: 0.95em; font-weight: 600; }
+
+/* —— 行内格式 —— */
+.live-md-editor .cm-strong {
+  font-weight: 700;
+  color: #0c0a09;
+}
+html.dark .live-md-editor .cm-strong { color: #fafaf9; }
+
+.live-md-editor .cm-em {
+  font-style: italic;
+}
+
+.live-md-editor .cm-strike {
+  text-decoration: line-through;
+  color: #78716c;
+}
+
+.live-md-editor .cm-inline-code {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.9em;
+  background: rgba(0, 0, 0, 0.06);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  color: #be185d;
+}
+html.dark .live-md-editor .cm-inline-code {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f9a8d4;
+}
+
+/* —— 引用 —— */
+.live-md-editor .cm-blockquote {
+  color: #57534e;
+  font-style: italic;
+}
+html.dark .live-md-editor .cm-blockquote {
+  color: #a8a29e;
+}
+
+/* —— 列表 bullet —— */
+.live-md-editor .cm-bullet {
+  display: inline-block;
+  width: 1em;
+  color: #57534e;
+  font-weight: 700;
+}
+html.dark .live-md-editor .cm-bullet {
+  color: #a8a29e;
+}
+
+/* —— 内联图片 widget —— */
+.live-md-editor .cm-image-wrap {
+  display: inline-block;
+  vertical-align: middle;
+  max-width: 100%;
+  margin: 0.25em 0;
+  line-height: 0;
+}
+.live-md-editor .cm-image {
+  max-width: 100%;
+  max-height: 480px;
+  height: auto;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  user-select: none;
+}
+html.dark .live-md-editor .cm-image {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+/* —— 链接 —— */
+.live-md-editor .cm-link {
+  color: #2563eb;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+html.dark .live-md-editor .cm-link {
+  color: #60a5fa;
+}
+
+/* —— GFM 表格 —— */
+.live-md-editor .cm-md-table-wrap {
+  position: relative;
+  display: inline-block;
+  margin: 0.6em 0;
+  user-select: none;
+}
+.live-md-editor .cm-md-table {
+  border-collapse: collapse;
+  font-size: 0.95em;
+  line-height: 1.5;
+}
+.live-md-editor .cm-md-table th,
+.live-md-editor .cm-md-table td {
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  padding: 8px 14px;
+  height: 36px;
+  min-width: 80px;
+  text-align: left;
+  vertical-align: top;
+  outline: none;
+}
+.live-md-editor .cm-md-table th:focus,
+.live-md-editor .cm-md-table td:focus {
+  background: rgba(59, 130, 246, 0.08);
+  outline: 1px solid rgba(59, 130, 246, 0.4);
+  outline-offset: -1px;
+}
+html.dark .live-md-editor .cm-md-table th:focus,
+html.dark .live-md-editor .cm-md-table td:focus {
+  background: rgba(96, 165, 250, 0.12);
+  outline-color: rgba(96, 165, 250, 0.5);
+}
+.live-md-editor .cm-md-table th {
+  background: rgba(0, 0, 0, 0.07);
+  font-weight: 600;
+  color: #0c0a09;
+}
+.live-md-editor .cm-md-table tbody tr:nth-child(even) td {
+  background: rgba(0, 0, 0, 0.015);
+}
+html.dark .live-md-editor .cm-md-table th,
+html.dark .live-md-editor .cm-md-table td {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+html.dark .live-md-editor .cm-md-table th {
+  background: rgba(255, 255, 255, 0.10);
+  color: #fafaf9;
+}
+html.dark .live-md-editor .cm-md-table tbody tr:nth-child(even) td {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* +列 / −列 / +行 / −行 按钮：默认隐藏，hover wrap 时浮出 */
+.live-md-editor .cm-md-table-add-col,
+.live-md-editor .cm-md-table-add-row,
+.live-md-editor .cm-md-table-remove-col,
+.live-md-editor .cm-md-table-remove-row {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.06);
+  color: #57534e;
+  font-size: 16px;
+  line-height: 1;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s;
+  padding: 0;
+}
+.live-md-editor .cm-md-table-add-col {
+  top: calc(50% - 14px);
+  right: -28px;
+}
+.live-md-editor .cm-md-table-remove-col {
+  top: calc(50% + 14px);
+  right: -28px;
+}
+.live-md-editor .cm-md-table-add-row {
+  bottom: -28px;
+  left: calc(50% - 14px);
+}
+.live-md-editor .cm-md-table-remove-row {
+  bottom: -28px;
+  left: calc(50% + 14px);
+}
+.live-md-editor .cm-md-table-wrap:hover .cm-md-table-add-col,
+.live-md-editor .cm-md-table-wrap:hover .cm-md-table-add-row,
+.live-md-editor .cm-md-table-wrap:hover .cm-md-table-remove-col,
+.live-md-editor .cm-md-table-wrap:hover .cm-md-table-remove-row {
+  opacity: 1;
+}
+.live-md-editor .cm-md-table-add-col:hover,
+.live-md-editor .cm-md-table-add-row:hover {
+  background: rgba(59, 130, 246, 0.15);
+  color: #2563eb;
+}
+.live-md-editor .cm-md-table-remove-col:hover,
+.live-md-editor .cm-md-table-remove-row:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #dc2626;
+}
+html.dark .live-md-editor .cm-md-table-add-col,
+html.dark .live-md-editor .cm-md-table-add-row,
+html.dark .live-md-editor .cm-md-table-remove-col,
+html.dark .live-md-editor .cm-md-table-remove-row {
+  background: rgba(255, 255, 255, 0.08);
+  color: #d6d3d1;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+html.dark .live-md-editor .cm-md-table-add-col:hover,
+html.dark .live-md-editor .cm-md-table-add-row:hover {
+  background: rgba(96, 165, 250, 0.2);
+  color: #60a5fa;
+}
+html.dark .live-md-editor .cm-md-table-remove-col:hover,
+html.dark .live-md-editor .cm-md-table-remove-row:hover {
+  background: rgba(248, 113, 113, 0.2);
+  color: #f87171;
+}
+
+/* —— GFM 任务列表（待办勾选） —— */
+.live-md-editor .cm-task-checkbox {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: -2px;
+  margin-right: 0.35em;
+  user-select: none;
+}
+.live-md-editor .cm-task-checkbox input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: #2563eb;
+}
+html.dark .live-md-editor .cm-task-checkbox input[type="checkbox"] {
+  accent-color: #60a5fa;
+}
+.live-md-editor .cm-task-done {
+  color: #a8a29e;
+  text-decoration: line-through;
+  text-decoration-color: rgba(168, 162, 158, 0.6);
+}
+html.dark .live-md-editor .cm-task-done {
+  color: #78716c;
+  text-decoration-color: rgba(120, 113, 108, 0.6);
+}
+
+/* CodeMirror 默认隐藏 gutter 和 active line border */
+.live-md-editor .cm-gutters {
+  display: none !important;
+}
+.live-md-editor .cm-activeLine {
+  background: transparent !important;
+}
+.live-md-editor .cm-activeLineGutter {
+  background: transparent !important;
+}
+
+/* 去掉 focus 虚线框 */
+.live-md-editor .cm-editor.cm-focused,
+.live-md-editor .cm-editor {
+  outline: none !important;
+  border: none !important;
+}
+
+/* ===== 剪藏阅读视图排版（.clip-prose） ===== */
+.clip-prose {
+  font-size: 15px;
+  line-height: 1.75;
+  color: #1c1917;
+  word-break: break-word;
+}
+html.dark .clip-prose { color: #e7e5e4; }
+
+.clip-prose h1 { font-size: 1.6em; font-weight: 700; letter-spacing: -0.02em; margin: 1.5em 0 0.6em; color: #0c0a09; }
+.clip-prose h2 { font-size: 1.3em; font-weight: 700; letter-spacing: -0.015em; margin: 1.4em 0 0.5em; color: #0c0a09; }
+.clip-prose h3 { font-size: 1.1em; font-weight: 600; margin: 1.2em 0 0.4em; color: #0c0a09; }
+.clip-prose h4, .clip-prose h5, .clip-prose h6 { font-size: 1em; font-weight: 600; margin: 1em 0 0.3em; color: #0c0a09; }
+html.dark .clip-prose h1,
+html.dark .clip-prose h2,
+html.dark .clip-prose h3,
+html.dark .clip-prose h4 { color: #fafaf9; }
+
+.clip-prose p { margin: 0 0 1em; }
+.clip-prose ul, .clip-prose ol { margin: 0 0 1em 1.5em; padding: 0; }
+.clip-prose li { margin-bottom: 0.25em; }
+
+.clip-prose strong, .clip-prose b { font-weight: 700; color: #0c0a09; }
+html.dark .clip-prose strong, html.dark .clip-prose b { color: #fafaf9; }
+.clip-prose em, .clip-prose i { font-style: italic; }
+
+.clip-prose code {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.875em;
+  background: rgba(0,0,0,0.06);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  color: #be185d;
+}
+html.dark .clip-prose code {
+  background: rgba(255,255,255,0.08);
+  color: #f9a8d4;
+}
+
+.clip-prose pre {
+  background: rgba(0,0,0,0.04);
+  border-radius: 8px;
+  padding: 1em 1.2em;
+  overflow-x: auto;
+  margin: 0 0 1em;
+}
+html.dark .clip-prose pre { background: rgba(255,255,255,0.06); }
+.clip-prose pre code { background: transparent; padding: 0; color: inherit; font-size: 0.875em; }
+
+.clip-prose blockquote {
+  margin: 0 0 1em;
+  padding: 0.1em 0 0.1em 1em;
+  border-left: 3px solid #d6d3d1;
+  color: #57534e;
+  font-style: italic;
+}
+html.dark .clip-prose blockquote { border-left-color: #44403c; color: #a8a29e; }
+
+.clip-prose hr { border: none; border-top: 1px solid #e7e5e4; margin: 1.5em 0; }
+html.dark .clip-prose hr { border-top-color: #292524; }
+
+.clip-prose a { color: #2563eb; text-decoration: underline; text-underline-offset: 2px; }
+html.dark .clip-prose a { color: #60a5fa; }
+
+.clip-prose img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 1em auto;
+  border-radius: 6px;
+  background: rgba(0,0,0,0.03);
+}
+html.dark .clip-prose img { background: rgba(255,255,255,0.04); }
+
