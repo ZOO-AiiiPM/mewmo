@@ -138,9 +138,13 @@ export default function App() {
   }, [refresh, activeTabId]);
 
   const handleUpdateNote = useCallback(
-    async (patch: { title?: string; content_md?: string }) => {
-      if (!activeTab || activeTab.zone !== 'notes' || activeTab.refId == null) return;
-      const noteId = activeTab.refId;
+    async (patch: { title?: string; content_md?: string }, targetNoteId?: number) => {
+      // 切笔记的 race：NoteEditor 在切换前 flush 旧 note 的 pending 时显式传旧 id，
+      // 避免 onChange 默认走 activeTab.refId（已是新 id）把内容写到新笔记
+      const noteId = targetNoteId ?? (
+        activeTab?.zone === 'notes' && activeTab.refId != null ? activeTab.refId : null
+      );
+      if (noteId == null) return;
       await updateNote(noteId, patch);
       setNotes(prev =>
         prev.map(n =>
@@ -155,18 +159,30 @@ export default function App() {
 
   const handleDeleteNote = useCallback(
     async (id: number) => {
+      // 删除前 capture 邻接 id（按当前列表顺序——更新时间倒序）：
+      // 优先下一项；如果删的是末尾就用上一项；列表只剩它自己 → null
+      const oldIdx = notes.findIndex(n => n.id === id);
+      const fallbackId =
+        oldIdx === -1 ? null : (notes[oldIdx + 1]?.id ?? notes[oldIdx - 1]?.id ?? null);
+
       await deleteNote(id);
       const list = await refresh();
-      // 所有绑了这条笔记的 tab 都清空 refId（保留 tab 在 zone 空白态）
+      // 防御：确认 fallback 还在新列表里
+      const nextId = fallbackId != null && list.some(n => n.id === fallbackId) ? fallbackId : null;
+
       setTabs(prev =>
-        prev.map(t =>
-          t.zone === 'notes' && t.refId === id ? { ...t, refId: null } : t
-        )
+        prev.map(t => {
+          if (!(t.zone === 'notes' && t.refId === id)) return t;
+          if (nextId == null) return { ...t, refId: null };
+          // 切到 nextId 同时入历史栈，保持后退可用
+          const newHist = [...t.noteHistory.slice(0, t.noteHistoryIdx + 1), nextId];
+          return { ...t, refId: nextId, noteHistory: newHist, noteHistoryIdx: newHist.length - 1 };
+        })
       );
       const refs = extractAttachmentRefs(list.map(n => n.content_md));
       cleanupOrphans(refs).catch(e => console.error('[cleanup] failed:', e));
     },
-    [refresh]
+    [notes, refresh]
   );
 
   // ── 剪藏操作 ──────────────────────────────────────────────────────────────
@@ -242,8 +258,21 @@ export default function App() {
 
   // ── 事件桥 ────────────────────────────────────────────────────────────────
   const handleSidebarSelect = useCallback((zone: Zone) => {
-    updateActiveTab({ zone, refId: null });
-  }, [updateActiveTab]);
+    setTabs(prev =>
+      prev.map(t => {
+        if (t.id !== activeTabId) return t;
+        // 切到 notes zone 时默认打开最新笔记（避免落到"选一条笔记"空白引导态）；
+        // 这条笔记也算一次浏览，入历史栈让后退可用。其他 zone / 没有笔记时保持原行为。
+        if (zone === 'notes' && notes.length > 0) {
+          const id = notes[0].id;
+          if (t.zone === 'notes' && t.refId === id) return t;
+          const newHist = [...t.noteHistory.slice(0, t.noteHistoryIdx + 1), id];
+          return { ...t, zone, refId: id, noteHistory: newHist, noteHistoryIdx: newHist.length - 1 };
+        }
+        return { ...t, zone, refId: null };
+      })
+    );
+  }, [activeTabId, notes]);
 
   const handleEmptyPick = useCallback((zone: Zone) => {
     updateActiveTab({ zone, refId: null });
@@ -287,6 +316,24 @@ export default function App() {
     updateActiveTab({ zone: 'clipping', refId: id });
   }, [updateActiveTab]);
 
+  // 剪藏列表上一条 / 下一条：clips 已按 saved_at desc，← 列表上面（更新）→ 列表下面（更早）
+  const clipIdx = selectedClip ? clips.findIndex(c => c.id === selectedClip.id) : -1;
+  const hasClipPrev = clipIdx > 0;
+  const hasClipNext = clipIdx >= 0 && clipIdx < clips.length - 1;
+  const clipPrev = useCallback(() => {
+    if (clipIdx > 0) handleClipSelect(clips[clipIdx - 1].id);
+  }, [clipIdx, clips, handleClipSelect]);
+  const clipNext = useCallback(() => {
+    if (clipIdx >= 0 && clipIdx < clips.length - 1) handleClipSelect(clips[clipIdx + 1].id);
+  }, [clipIdx, clips, handleClipSelect]);
+
+  // 进 clipping zone 且无选中 → 自动选第一条
+  useEffect(() => {
+    if (activeTab?.zone === 'clipping' && activeTab.refId == null && clips.length > 0) {
+      handleClipSelect(clips[0].id);
+    }
+  }, [activeTab?.zone, activeTab?.refId, clips, handleClipSelect]);
+
   if (loading) {
     return (
       <div className="h-screen flex items-center justify-center text-stone-400 text-sm">
@@ -328,7 +375,6 @@ export default function App() {
                   clips={clips}
                   selectedId={selectedClip?.id ?? null}
                   onSelect={handleClipSelect}
-                  onSave={handleClipSave}
                   onDelete={handleClipDelete}
                   hidden={expanded}
                 />
@@ -336,6 +382,12 @@ export default function App() {
                   clip={selectedClip}
                   aiOpen={aiOpen}
                   onRefetch={handleClipRefetch}
+                  onDelete={handleClipDelete}
+                  onSave={handleClipSave}
+                  onPrev={clipPrev}
+                  onNext={clipNext}
+                  hasPrev={hasClipPrev}
+                  hasNext={hasClipNext}
                   expanded={expanded}
                   onExpand={() => setExpanded(e => !e)}
                 />
@@ -347,6 +399,7 @@ export default function App() {
                   selectedId={selectedNote?.id ?? null}
                   onSelect={handleNoteSelect}
                   onCreate={handleCreateAndBind}
+                  onDelete={handleDeleteNote}
                   hidden={expanded}
                 />
                 <NoteEditor

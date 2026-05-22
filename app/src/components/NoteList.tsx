@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import type { Note } from '../types';
 import { BUCKET_LABEL, groupByBucket, type Bucket } from '../lib/dateBuckets';
 
@@ -6,6 +8,7 @@ type Props = {
   selectedId: number | null;
   onSelect: (id: number) => void;
   onCreate: () => void;
+  onDelete: (id: number) => void;
   hidden?: boolean;
 };
 
@@ -35,9 +38,30 @@ export function NoteList({
   selectedId,
   onSelect,
   onCreate,
+  onDelete,
   hidden = false,
 }: Props) {
   const groups = groupByBucket(notes);
+  // 右键菜单：null 时不显示；坐标用 clientX/Y（fixed 定位）
+  const [menu, setMenu] = useState<{ x: number; y: number; noteId: number } | null>(null);
+
+  useEffect(() => {
+    if (!menu) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenu(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [menu]);
+
+  // 菜单尺寸近似 180×40，做一个简单 clamp 让它不超出窗口
+  const clampedMenu = menu
+    ? {
+        ...menu,
+        x: Math.min(menu.x, window.innerWidth - 200),
+        y: Math.min(menu.y, window.innerHeight - 60),
+      }
+    : null;
 
   return (
     <aside
@@ -60,14 +84,28 @@ export function NoteList({
             <section key={g.bucket}>
               <h2 className={`sticky top-0 z-10 h-12 px-3 flex items-center justify-between text-[15px] font-semibold text-stone-800 dark:text-stone-100 bg-white/70 dark:bg-stone-900/70 backdrop-blur-md select-none border-b border-black/[0.1] dark:border-white/[0.1] ${idx > 0 ? 'border-t' : ''}`}>
                 <span>{BUCKET_LABEL[g.bucket]}</span>
-                <span className="text-[11px] font-normal text-stone-400 dark:text-stone-500 tabular-nums">
+                <span className="text-[11px] font-medium text-stone-500 dark:text-stone-400 tabular-nums">
                   {g.items.length}
                 </span>
               </h2>
+              <AnimatePresence initial={false} mode="popLayout">
               {g.items.map(n => (
-                <div
+                <motion.div
+                  layout
                   key={n.id}
+                  initial={{ opacity: 0, scale: 0.96 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.94, x: -16 }}
+                  transition={{
+                    duration: 0.18,
+                    ease: [0.22, 0.61, 0.36, 1],
+                    layout: { duration: 0.24, ease: [0.22, 0.61, 0.36, 1] },
+                  }}
                   onClick={() => onSelect(n.id)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setMenu({ x: e.clientX, y: e.clientY, noteId: n.id });
+                  }}
                   className={`pl-10 pr-3 py-2.5 cursor-pointer transition-colors ${
                     selectedId === n.id
                       ? 'bg-black/[0.06] dark:bg-white/[0.08]'
@@ -83,16 +121,51 @@ export function NoteList({
                         {n.content_md.replace(/[#*_`>\n]/g, ' ').slice(0, 40) || '空笔记'}
                       </div>
                     </div>
-                    <div className="text-[11px] text-stone-400 dark:text-stone-500 shrink-0 mt-0.5 tabular-nums">
+                    <div className="text-[11px] font-medium text-stone-500 dark:text-stone-400 shrink-0 mt-0.5 tabular-nums">
                       {fmt(n.updated_at, g.bucket)}
                     </div>
                   </div>
-                </div>
+                </motion.div>
               ))}
+              </AnimatePresence>
             </section>
           ))
         )}
       </div>
+
+      {/* 右键菜单：fixed 定位浮在所有层级之上；外层 overlay 接管"点空白关闭" */}
+      {clampedMenu && (
+        <div
+          className="fixed inset-0 z-50"
+          onClick={() => setMenu(null)}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            setMenu(null);
+          }}
+        >
+          <div
+            style={{ left: clampedMenu.x, top: clampedMenu.y, position: 'fixed' }}
+            onClick={(e) => e.stopPropagation()}
+            onContextMenu={(e) => e.stopPropagation()}
+            className="min-w-[180px] p-1 rounded-xl bg-white/85 dark:bg-stone-900/85 backdrop-blur-2xl ring-1 ring-black/[0.08] dark:ring-white/[0.08] shadow-[0_10px_30px_rgba(0,0,0,0.15)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.5)]"
+          >
+            <button
+              onClick={() => {
+                onDelete(clampedMenu.noteId);
+                setMenu(null);
+              }}
+              className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-[13px] text-stone-700 dark:text-stone-200 hover:bg-red-500/90 hover:text-white rounded-md transition-colors"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 6h18" />
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              </svg>
+              <span>删除</span>
+            </button>
+          </div>
+        </div>
+      )}
     </aside>
   );
 }
