@@ -21,6 +21,9 @@ async function db(): Promise<Database> {
   throw lastErr;
 }
 
+/** 让其它 lib/*.ts（如 lib/subscription.ts）复用同一 db connection */
+export const getDb = db;
+
 export async function listNotes(): Promise<Note[]> {
   const d = await db();
   return d.select<Note[]>(

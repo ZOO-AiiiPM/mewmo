@@ -8,6 +8,7 @@ import { AIPanel } from './components/AIPanel';
 import { ClipInbox } from './components/ClipInbox';
 import { ClipReader } from './components/ClipReader';
 import { EmptyTabHome } from './components/EmptyTabHome';
+import { SubscriptionLayout } from './components/SubscriptionLayout';
 import { listNotes, createNote, updateNote, deleteNote } from './lib/db';
 import { listClips, saveClip, deleteClip, updateClip } from './lib/db';
 import { useTheme } from './lib/useTheme';
@@ -319,6 +320,8 @@ export default function App() {
                   onExpand={() => setExpanded(e => !e)}
                 />
               </>
+            ) : activeZone === 'subscribe' ? (
+              <SubscriptionLayout hidden={expanded} />
             ) : (
               <div className="flex-1 flex items-center justify-center text-stone-400 dark:text-stone-500 text-sm">
                 {PLACEHOLDER_LABEL[activeZone]} 敬请期待
