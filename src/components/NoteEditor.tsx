@@ -5,7 +5,7 @@ import { EditorView, keymap } from '@codemirror/view';
 import type { ViewUpdate } from '@codemirror/view';
 import { indentUnit } from '@codemirror/language';
 import { indentWithTab } from '@codemirror/commands';
-import { livePreview, insertTable, toggleTask } from '../lib/livePreview';
+import { livePreview, tableNavigationKeymap, insertTable, toggleTask } from '../lib/livePreview';
 import { imagePasteDrop } from '../lib/imagePaste';
 import { linkClickHandler } from '../lib/linkClick';
 import { TableOfContents } from './TableOfContents';
@@ -14,7 +14,7 @@ import type { Note } from '../types';
 
 type Props = {
   note: Note | null;
-  onChange: (patch: { title?: string; content_md?: string }) => void;
+  onChange: (patch: { title?: string; content_md?: string }, targetNoteId?: number) => void;
   theme: 'light' | 'dark';
   onDelete: () => void;
   onCreate: () => void;
@@ -107,12 +107,16 @@ const noSpellcheck = EditorView.contentAttributes.of({
 });
 
 export function NoteEditor({ note, onChange, theme, onDelete, onCreate, aiOpen, expanded, onExpand, canBack, canForward, onBack, onForward }: Props) {
-  const debounceRef = useRef<number | null>(null);
+  // content 用 debounce 避免连续打字每键都写 DB；title 短、改完会停 → 直接 onChange 即时保存
+  const contentDebounceRef = useRef<number | null>(null);
   const lastNoteIdRef = useRef<number | null>(null);
   const cmRef = useRef<ReactCodeMirrorRef>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
   const [cursorLine, setCursorLine] = useState(1);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  // 切笔记淡入淡出：1=显示中，0=过渡中（不重建 CM、不 unmount，只调 opacity）
+  const [contentVisible, setContentVisible] = useState(true);
 
   const handleCmUpdate = (vu: ViewUpdate) => {
     if (vu.selectionSet || vu.docChanged) {
@@ -123,43 +127,86 @@ export function NoteEditor({ note, onChange, theme, onDelete, onCreate, aiOpen, 
 
   useEffect(() => {
     if (!note || note.id === lastNoteIdRef.current) return;
-    const view = cmRef.current?.view;
-    if (view) {
+
+    // 切笔记前 flush 旧 note 的 content pending 到旧 id（修 race：
+    // 默认 onChange 走 activeTab.refId，但已被改成新 id → 必须显式传 prevId）
+    const prevId = lastNoteIdRef.current;
+    if (prevId !== null && contentDebounceRef.current) {
+      flushContent(prevId);
+    }
+
+    // 替换 CM 内容 + 处理 focus 的实际工作
+    const applyNote = () => {
+      const view = cmRef.current?.view;
+      if (!view) return;
       const content = note.content_md ?? '';
       view.dispatch({
-        changes: {
-          from: 0,
-          to: view.state.doc.length,
-          insert: content,
-        },
+        changes: { from: 0, to: view.state.doc.length, insert: content },
         // 光标放到文档末尾，避免落在首行（首行常是表格 / 标题）让 livePreview 误判"用户在编辑首块"而不渲染 widget
         selection: { anchor: content.length },
         scrollIntoView: true,
       });
-      // 给 body 编辑器一个初始焦点，否则 cursor 不会闪烁，看起来像"没光标"
-      // 但仅在没有其它输入控件已聚焦时（例如用户正在打 title）才抢，避免打断用户
+      // 空笔记（新建或本就空）→ 光标落 title；否则 → body 编辑器
+      // 仅在没有其它输入控件已聚焦时（例如用户正在打 title）才抢，避免打断用户
       if (document.activeElement === document.body || document.activeElement === null) {
-        view.focus();
+        const isEmpty = !note.title && !content;
+        if (isEmpty && titleInputRef.current) {
+          titleInputRef.current.focus();
+        } else {
+          view.focus();
+        }
       }
       lastNoteIdRef.current = note.id;
+    };
+
+    // 第一次 mount（lastNoteIdRef 还是 null）→ 直接应用，不淡入避免 app 启动闪烁
+    if (lastNoteIdRef.current === null) {
+      applyNote();
+      return;
     }
+
+    // 仅"新建/空笔记"走淡入动画（title + content 都空 = 草稿态）；
+    // 切到已有内容的笔记直接替换，避免每次切都过渡造成体感卡
+    const isNewDraft = !note.title && !(note.content_md ?? '');
+    if (!isNewDraft) {
+      applyNote();
+      return;
+    }
+
+    // 新建笔记：fade-out → 换内容 → fade-in
+    setContentVisible(false);
+    const t = window.setTimeout(() => {
+      applyNote();
+      setContentVisible(true);
+    }, 150);
+    return () => window.clearTimeout(t);
   }, [note]);
 
   const handleContentChange = (value: string) => {
-    if (debounceRef.current) window.clearTimeout(debounceRef.current);
-    debounceRef.current = window.setTimeout(() => {
+    if (contentDebounceRef.current) window.clearTimeout(contentDebounceRef.current);
+    contentDebounceRef.current = window.setTimeout(() => {
       if (lastNoteIdRef.current !== null && note && value !== note.content_md) {
         onChange({ content_md: value });
       }
     }, 1000);
   };
 
+  // title 不 debounce：直接同步写入，列表/Tab 标题立即反映
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newTitle = e.target.value;
-    if (debounceRef.current) window.clearTimeout(debounceRef.current);
-    debounceRef.current = window.setTimeout(() => {
-      onChange({ title: newTitle });
-    }, 1000);
+    onChange({ title: e.target.value });
+  };
+
+  // 立即把 content 待写值写入（切笔记前用；targetId 显式传旧 id 修 race）
+  const flushContent = (targetId?: number) => {
+    if (contentDebounceRef.current) {
+      window.clearTimeout(contentDebounceRef.current);
+      contentDebounceRef.current = null;
+    }
+    const id = targetId ?? lastNoteIdRef.current;
+    const view = cmRef.current?.view;
+    if (id != null && view) {
+      onChange({ content_md: view.state.doc.toString() }, id);
+    }
   };
 
   if (!note) {
@@ -278,71 +325,82 @@ export function NoteEditor({ note, onChange, theme, onDelete, onCreate, aiOpen, 
           </div>
         </div>
       <div ref={scrollRef} className="flex-1 overflow-y-auto pt-12">
-        <div className={`pl-10 pt-4 pb-2 transition-[padding] duration-200 ease-out ${aiOpen ? 'pr-[320px]' : 'pr-10'}`}>
-          <input
-            key={note.id}
-            defaultValue={note.title}
-            onChange={handleTitleChange}
-            onKeyDown={(e) => {
-              // Enter / ArrowDown 时把焦点切到 body 编辑器，光标定到首行
-              if (e.key === 'Enter' || e.key === 'ArrowDown') {
-                e.preventDefault();
-                const view = cmRef.current?.view;
-                if (view) {
-                  view.focus();
-                  view.dispatch({ selection: { anchor: 0 }, scrollIntoView: true });
-                }
-              }
-            }}
-            placeholder="无标题"
-            className="w-full text-[26px] font-semibold tracking-tight bg-transparent outline-none text-stone-900 dark:text-stone-50 placeholder:text-stone-300 dark:placeholder:text-stone-600"
-          />
-        </div>
         <div
-          className={`pl-10 cursor-text transition-[padding] duration-200 ease-out ${aiOpen ? 'pr-[280px]' : ''}`}
-          onClick={(e) => {
-            // 点击 wrapper 空白区域时 focus body 编辑器；点击 CodeMirror 内部已有内容时让 CM 自己处理
-            if (e.target === e.currentTarget) {
-              cmRef.current?.view?.focus();
-            }
+          style={{
+            opacity: contentVisible ? 1 : 0,
+            transform: contentVisible ? 'translateY(0)' : 'translateY(8px)',
+            transition: 'opacity 150ms ease-out, transform 150ms ease-out',
           }}
         >
-          <CodeMirror
-            ref={cmRef}
-            value={note.content_md}
-            onChange={handleContentChange}
-            onUpdate={handleCmUpdate}
-            theme="none"
-            basicSetup={{
-              lineNumbers: false,
-              foldGutter: false,
-              highlightActiveLine: false,
-              highlightActiveLineGutter: false,
-              indentOnInput: true,
-              bracketMatching: false,
-              closeBrackets: false,
-              autocompletion: false,
-              history: true,
-              drawSelection: true,
-              dropCursor: true,
-              allowMultipleSelections: false,
-              crosshairCursor: false,
-              highlightSelectionMatches: false,
-              syntaxHighlighting: false,
+          <div className={`pl-10 pt-4 pb-2 transition-[padding] duration-200 ease-out ${aiOpen ? 'pr-[320px]' : 'pr-10'}`}>
+            <input
+              ref={titleInputRef}
+              key={note.id}
+              defaultValue={note.title}
+              onChange={handleTitleChange}
+              onKeyDown={(e) => {
+                // Enter / ArrowDown 时把焦点切到 body 编辑器，光标定到首行
+                // title 是即时保存，无需 flush
+                if (e.key === 'Enter' || e.key === 'ArrowDown') {
+                  e.preventDefault();
+                  const view = cmRef.current?.view;
+                  if (view) {
+                    view.focus();
+                    view.dispatch({ selection: { anchor: 0 }, scrollIntoView: true });
+                  }
+                }
+              }}
+              placeholder="无标题"
+              className="w-full text-[26px] font-semibold tracking-tight bg-transparent outline-none text-stone-900 dark:text-stone-50 placeholder:text-stone-300 dark:placeholder:text-stone-600"
+            />
+          </div>
+          <div
+            className={`pl-10 cursor-text transition-[padding] duration-200 ease-out ${aiOpen ? 'pr-[280px]' : ''}`}
+            onClick={(e) => {
+              // 点击 wrapper 空白区域时 focus body 编辑器；点击 CodeMirror 内部已有内容时让 CM 自己处理
+              if (e.target === e.currentTarget) {
+                cmRef.current?.view?.focus();
+              }
             }}
-            extensions={[
-              markdown({ base: markdownLanguage, codeLanguages: [] }),
-              indentUnit.of('  '),
-              EditorView.lineWrapping,
-              baseTheme,
-              noSpellcheck,
-              formatKeymap,
-              livePreview,
-              imagePasteDrop,
-              linkClickHandler,
-            ]}
-            className={`live-md-editor ${theme === 'dark' ? 'cm-dark' : 'cm-light'}`}
-          />
+          >
+            <CodeMirror
+              ref={cmRef}
+              value={note.content_md}
+              onChange={handleContentChange}
+              onUpdate={handleCmUpdate}
+              theme="none"
+              basicSetup={{
+                lineNumbers: false,
+                foldGutter: false,
+                highlightActiveLine: false,
+                highlightActiveLineGutter: false,
+                indentOnInput: true,
+                bracketMatching: false,
+                closeBrackets: false,
+                autocompletion: false,
+                history: true,
+                drawSelection: true,
+                dropCursor: true,
+                allowMultipleSelections: false,
+                crosshairCursor: false,
+                highlightSelectionMatches: false,
+                syntaxHighlighting: false,
+              }}
+              extensions={[
+                markdown({ base: markdownLanguage, codeLanguages: [] }),
+                indentUnit.of('  '),
+                EditorView.lineWrapping,
+                baseTheme,
+                noSpellcheck,
+                tableNavigationKeymap,
+                formatKeymap,
+                livePreview,
+                imagePasteDrop,
+                linkClickHandler,
+              ]}
+              className={`live-md-editor ${theme === 'dark' ? 'cm-dark' : 'cm-light'}`}
+            />
+          </div>
         </div>
       </div>
       <TableOfContents content={note.content_md} cursorLine={cursorLine} cmRef={cmRef} scrollRef={scrollRef} />
