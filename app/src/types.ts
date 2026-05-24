@@ -18,6 +18,7 @@ export type Clip = {
   cover_image: string;
   author: string;
   published_at: string; // ISO 8601 字符串，可能为空
+  ip_region: string;    // 微信公众号 IP 属地（country 或 province），可能为空
 };
 
 // ── 订阅 ──────────────────────────────────────────────────────────────────

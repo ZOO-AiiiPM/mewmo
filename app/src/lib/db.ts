@@ -73,7 +73,7 @@ export async function deleteNote(id: number): Promise<void> {
 export async function listClips(): Promise<Clip[]> {
   const d = await db();
   return d.select<Clip[]>(
-    'SELECT id, url, title, content_md, excerpt, site_name, favicon_url, saved_at, cover_image, author, published_at FROM clips ORDER BY saved_at DESC'
+    'SELECT id, url, title, content_md, excerpt, site_name, favicon_url, saved_at, cover_image, author, published_at, ip_region FROM clips ORDER BY saved_at DESC'
   );
 }
 
@@ -82,9 +82,9 @@ export async function saveClip(
 ): Promise<number> {
   const d = await db();
   const result = await d.execute(
-    'INSERT INTO clips (url, title, content_md, excerpt, site_name, favicon_url, cover_image, author, published_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO clips (url, title, content_md, excerpt, site_name, favicon_url, cover_image, author, published_at, ip_region) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [clip.url, clip.title, clip.content_md, clip.excerpt, clip.site_name, clip.favicon_url,
-     clip.cover_image, clip.author, clip.published_at]
+     clip.cover_image, clip.author, clip.published_at, clip.ip_region]
   );
   return result.lastInsertId as number;
 }
@@ -101,9 +101,9 @@ export async function updateClip(
   const d = await db();
   await d.execute(
     `UPDATE clips SET url=?, title=?, content_md=?, excerpt=?, site_name=?,
-                      favicon_url=?, cover_image=?, author=?, published_at=?
+                      favicon_url=?, cover_image=?, author=?, published_at=?, ip_region=?
      WHERE id=?`,
     [patch.url, patch.title, patch.content_md, patch.excerpt, patch.site_name,
-     patch.favicon_url, patch.cover_image, patch.author, patch.published_at, id]
+     patch.favicon_url, patch.cover_image, patch.author, patch.published_at, patch.ip_region, id]
   );
 }

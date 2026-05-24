@@ -97,6 +97,7 @@ dependencies = [
  "tauri-plugin-mcp-bridge",
  "tauri-plugin-opener",
  "tauri-plugin-sql",
+ "tokio",
  "trash",
  "uuid",
  "window-vibrancy 0.7.1",
