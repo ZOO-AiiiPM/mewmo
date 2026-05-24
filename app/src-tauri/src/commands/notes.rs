@@ -57,18 +57,24 @@ pub fn create_note(db: State<Db>) -> Result<i64, String> {
 pub fn update_note(db: State<Db>, id: i64, patch: NotePatch) -> Result<(), String> {
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
     let result = match (patch.title, patch.content_md) {
-        (Some(t), Some(c)) => conn.execute(
-            "UPDATE notes SET title = ?, content_md = ?, updated_at = unixepoch() WHERE id = ?",
-            params![t, c, id],
-        ),
+        (Some(t), Some(c)) => {
+            let tokens = crate::db::tokenize(&c);
+            conn.execute(
+                "UPDATE notes SET title = ?, content_md = ?, content_tokens = ?, updated_at = unixepoch() WHERE id = ?",
+                params![t, c, tokens, id],
+            )
+        }
         (Some(t), None) => conn.execute(
             "UPDATE notes SET title = ?, updated_at = unixepoch() WHERE id = ?",
             params![t, id],
         ),
-        (None, Some(c)) => conn.execute(
-            "UPDATE notes SET content_md = ?, updated_at = unixepoch() WHERE id = ?",
-            params![c, id],
-        ),
+        (None, Some(c)) => {
+            let tokens = crate::db::tokenize(&c);
+            conn.execute(
+                "UPDATE notes SET content_md = ?, content_tokens = ?, updated_at = unixepoch() WHERE id = ?",
+                params![c, tokens, id],
+            )
+        }
         (None, None) => return Ok(()),
     };
     result.map_err(|e| e.to_string())?;

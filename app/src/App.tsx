@@ -10,6 +10,7 @@ import { ClipReader } from './components/ClipReader';
 import { EmptyTabHome } from './components/EmptyTabHome';
 import { listNotes, createNote, updateNote, deleteNote } from './lib/db';
 import { listClips, saveClip, deleteClip, updateClip } from './lib/db';
+import { SearchOverlay } from './components/SearchOverlay';
 import { useTheme } from './lib/useTheme';
 import { extractAttachmentRefs, cleanupOrphans } from './lib/attachments';
 import type { Note, Clip } from './types';
@@ -37,6 +38,9 @@ export default function App() {
   const [aiOpen, setAiOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [expanded, setExpanded] = useState(false);
+
+  // ── 搜索弹窗 open/close（query/results 由 SearchOverlay 自管） ────────────
+  const [searchOverlayOpen, setSearchOverlayOpen] = useState(false);
 
   // ── Tab 状态机 ────────────────────────────────────────────────────────────
   const [tabs, setTabs] = useState<Tab[]>([{ id: 'tab_1', zone: null, refId: null, noteHistory: [], noteHistoryIdx: -1 }]);
@@ -122,6 +126,19 @@ export default function App() {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [toggleAI]);
+
+  // 搜索：debounce 200ms 调 search_all（已迁移到 SearchOverlay 内部，App 不再持有）
+  // ⌘K 全局快捷键：唤起搜索弹窗
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setSearchOverlayOpen(true);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   // ── 笔记操作 ──────────────────────────────────────────────────────────────
   const handleCreateAndBind = useCallback(async () => {
@@ -361,6 +378,7 @@ export default function App() {
           counts={counts}
           theme={theme}
           onToggleTheme={toggle}
+          onSearchClick={() => setSearchOverlayOpen(true)}
         />
 
         {/* 主内容区：relative 是 AIPanel 的浮层定位锚点 */}
@@ -452,6 +470,22 @@ export default function App() {
           <path d="M12 2 14 8l6 2-6 2-2 6-2-6-6-2 6-2 2-6z" />
         </svg>
       </button>
+
+      {/* 全局搜索浮层：searchOverlayOpen 控制 open/close */}
+      <SearchOverlay
+        open={searchOverlayOpen}
+        notes={notes}
+        clips={clips}
+        onPickNote={(id) => {
+          updateActiveTab({ zone: 'notes', refId: id });
+          setSearchOverlayOpen(false);
+        }}
+        onPickClip={(id) => {
+          updateActiveTab({ zone: 'clipping', refId: id });
+          setSearchOverlayOpen(false);
+        }}
+        onClose={() => setSearchOverlayOpen(false)}
+      />
     </div>
   );
 }

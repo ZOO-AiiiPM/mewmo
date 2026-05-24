@@ -622,6 +622,7 @@ pub fn run() {
         commands::clips::save_clip,
         commands::clips::update_clip,
         commands::clips::delete_clip,
+        commands::search::search_all,
     ])
     .setup(|app| {
       use tauri::Manager;

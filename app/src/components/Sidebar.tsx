@@ -11,6 +11,7 @@ type Props = {
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
   hidden?: boolean;
+  onSearchClick: () => void;
 };
 
 const icons = {
@@ -82,7 +83,7 @@ const NAV: Array<{ id: Zone; label: string }> = [
   { id: 'sediment', label: '沉淀' },
 ];
 
-export function Sidebar({ open, onToggle, active, onSelect, counts = {}, theme, onToggleTheme, hidden = false }: Props) {
+export function Sidebar({ open, onToggle, active, onSelect, counts = {}, theme, onToggleTheme, hidden = false, onSearchClick }: Props) {
   return (
     <aside
       style={{ width: hidden ? 0 : (open ? undefined : 48) }}
@@ -121,20 +122,22 @@ export function Sidebar({ open, onToggle, active, onSelect, counts = {}, theme, 
         </div>
       )}
 
-      {/* 搜索：折叠态 44×44 方形高亮 + icon 居中（容器 px-0.5(2) + 按钮 px-3(12) → icon 中心 = 2+12+10 = 24 = sidebar/2）*/}
+      {/* 搜索：点击触发 SearchOverlay 弹窗（不在 sidebar 内编辑）*/}
       <div className="px-0.5">
         {open ? (
-          <div className="w-full flex items-center gap-2 px-3 py-3 rounded-lg bg-black/[0.06] dark:bg-white/[0.08]">
+          <button
+            onClick={onSearchClick}
+            title="搜索 (⌘K)"
+            className="w-full flex items-center gap-2 px-3 py-3 rounded-lg bg-black/[0.06] dark:bg-white/[0.08] hover:bg-black/[0.08] dark:hover:bg-white/[0.10] transition-colors text-left"
+          >
             <span className="shrink-0 text-stone-800 dark:text-stone-200">{icons.search}</span>
-            <input
-              type="text"
-              placeholder="搜索"
-              className="flex-1 min-w-0 bg-transparent text-[14px] font-medium text-stone-900 dark:text-stone-100 placeholder:text-stone-500 dark:placeholder:text-stone-400 focus:outline-none"
-            />
-          </div>
+            <span className="flex-1 text-[14px] font-medium text-stone-500 dark:text-stone-400 select-none">搜索</span>
+            <kbd className="text-[10px] font-semibold tracking-wider text-stone-500 dark:text-stone-400 bg-black/[0.06] dark:bg-white/[0.08] px-1.5 py-0.5 rounded select-none">⌘K</kbd>
+          </button>
         ) : (
           <button
-            title="搜索"
+            onClick={onSearchClick}
+            title="搜索 (⌘K)"
             className="w-full flex items-center gap-2 px-3 py-3 rounded-lg text-stone-800 dark:text-stone-200 hover:bg-black/[0.04] dark:hover:bg-white/[0.05] transition-colors"
           >
             <span className="shrink-0">{icons.search}</span>

@@ -19,7 +19,7 @@ description: "Task list for 全局搜索 + 标签管理"
 
 **Purpose**: 项目初始化 + Cargo deps 切换
 
-- [ ] **T001** 改 `app/src-tauri/Cargo.toml`：移除 `tauri-plugin-sql`，加 `rusqlite = { version = "0.31", features = ["bundled"] }` + `jieba-rs = "0.7"` + `once_cell = "1"`。验收：`cargo check` 编译错误正常（lib.rs 还没改），但依赖能下载成功。**估时**: 30min
+- [X] **T001** 改 `app/src-tauri/Cargo.toml`：移除 `tauri-plugin-sql`，加 `rusqlite = { version = "0.31", features = ["bundled"] }` + `jieba-rs = "0.7"` + `once_cell = "1"`。验收：`cargo check` 编译错误正常（lib.rs 还没改），但依赖能下载成功。**估时**: 30min
 
 ---
 
@@ -29,7 +29,7 @@ description: "Task list for 全局搜索 + 标签管理"
 
 **⚠️ CRITICAL**: Phase 2 不完成，US1 / US2 都跑不起来。本阶段对应 plan.md 的**切片 A**。
 
-- [ ] **T002** 备份现有数据库到 `~/Library/Application Support/com.vibecoding.app/vibe.db.bak`。命令：`cp ~/Library/Application\ Support/com.vibecoding.app/vibe.db ~/Library/Application\ Support/com.vibecoding.app/vibe.db.bak`。验收：备份文件存在 + sqlite3 CLI 可打开 + `SELECT count(*) FROM notes` 与现有一致。**⚠ 破坏性 migration 前置：先备份再迁移。** **估时**: 15min
+- [X] **T002** 备份现有数据库到 `~/Library/Application Support/com.vibecoding.app/vibe.db.bak`。命令：`cp ~/Library/Application\ Support/com.vibecoding.app/vibe.db ~/Library/Application\ Support/com.vibecoding.app/vibe.db.bak`。验收：备份文件存在 + sqlite3 CLI 可打开 + `SELECT count(*) FROM notes` 与现有一致。**⚠ 破坏性 migration 前置：先备份再迁移。** **估时**: 15min
 
 - [ ] **T003** [P] 写 `app/src-tauri/src/db.rs`：rusqlite `Mutex<Connection>` + 启用 `PRAGMA foreign_keys = ON` + `PRAGMA journal_mode = WAL` + migration 执行框架（按 `user_version` PRAGMA 顺序跑）。**估时**: 1h
 

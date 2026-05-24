@@ -68,12 +68,13 @@ pub fn list_clips(db: State<Db>) -> Result<Vec<Clip>, String> {
 #[tauri::command]
 pub fn save_clip(db: State<Db>, clip: ClipInput) -> Result<i64, String> {
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
+    let tokens = crate::db::tokenize(&clip.content_md);
     conn.execute(
-        "INSERT INTO clips (url, title, content_md, excerpt, site_name, favicon_url, \
+        "INSERT INTO clips (url, title, content_md, content_tokens, excerpt, site_name, favicon_url, \
                             cover_image, author, published_at) \
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         params![
-            clip.url, clip.title, clip.content_md, clip.excerpt,
+            clip.url, clip.title, clip.content_md, tokens, clip.excerpt,
             clip.site_name, clip.favicon_url, clip.cover_image,
             clip.author, clip.published_at
         ],
@@ -85,12 +86,13 @@ pub fn save_clip(db: State<Db>, clip: ClipInput) -> Result<i64, String> {
 #[tauri::command]
 pub fn update_clip(db: State<Db>, id: i64, patch: ClipInput) -> Result<(), String> {
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
+    let tokens = crate::db::tokenize(&patch.content_md);
     conn.execute(
-        "UPDATE clips SET url=?, title=?, content_md=?, excerpt=?, site_name=?, \
+        "UPDATE clips SET url=?, title=?, content_md=?, content_tokens=?, excerpt=?, site_name=?, \
                           favicon_url=?, cover_image=?, author=?, published_at=? \
          WHERE id=?",
         params![
-            patch.url, patch.title, patch.content_md, patch.excerpt,
+            patch.url, patch.title, patch.content_md, tokens, patch.excerpt,
             patch.site_name, patch.favicon_url, patch.cover_image,
             patch.author, patch.published_at, id
         ],
