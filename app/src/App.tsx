@@ -8,6 +8,7 @@ import { AIPanel } from './components/AIPanel';
 import { ClipInbox } from './components/ClipInbox';
 import { ClipReader } from './components/ClipReader';
 import { EmptyTabHome } from './components/EmptyTabHome';
+import { SubscriptionLayout } from './components/SubscriptionLayout';
 import { listNotes, createNote, updateNote, deleteNote } from './lib/db';
 import { listClips, saveClip, deleteClip, updateClip } from './lib/db';
 import { SearchOverlay } from './components/SearchOverlay';
@@ -443,6 +444,12 @@ export default function App() {
                   onCreateAnimDone={consumeNewlyCreated}
                 />
               </>
+            ) : activeZone === 'subscribe' ? (
+              <SubscriptionLayout
+                hidden={expanded}
+                expanded={expanded}
+                onExpand={() => setExpanded(e => !e)}
+              />
             ) : (
               <div className="flex-1 flex items-center justify-center text-stone-400 dark:text-stone-500 text-sm">
                 {PLACEHOLDER_LABEL[activeZone]} 敬请期待

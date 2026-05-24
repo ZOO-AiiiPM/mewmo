@@ -55,7 +55,7 @@
 ## 待做
 
 <!-- SPECKIT START -->
-**Active Plan**: [specs/001-search-tags/plan.md](specs/001-search-tags/plan.md) — 全局搜索 + 标签管理（jieba + FTS5 + rusqlite 切换）
+**Active Plan**: [specs/001-subscription-feed/plan.md](specs/001-subscription-feed/plan.md) — 订阅区（RSS / Atom 多源捕获，含公众号自部署桥接 onboarding）
 <!-- SPECKIT END -->
 
 <!-- todo 放这里，完成即删。跨天留着没关系，只删真正完成的或不再做的。

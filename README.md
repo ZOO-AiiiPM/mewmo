@@ -15,7 +15,7 @@
 | ✅ | 笔记 CRUD + Markdown 编辑器（`@uiw/react-md-editor`） |
 | ✅ | GitHub Actions 自动打包 macOS .dmg（arm64 + x64） |
 | ⏳ | **AI 总结模块对接（已有雏形，待接入）** |
-| ⏳ | RSS 多源捕获（P1.2） |
+| 🚧 | **订阅区（RSS / Atom 多源捕获，P1.2，进行中）** — spec + 原型完成，进 plan 阶段
 | ⏳ | Daily Brief HTML 可视化（P2） |
 | ⏳ | 周报 / 月报 / 发芽（P2） |
 
