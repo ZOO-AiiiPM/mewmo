@@ -8,6 +8,36 @@
 >
 > 写法标准与示例：skill 的 `references/journal.md`。
 
+## 2026-05-24 订阅 reader 全屏切换卡顿——三层 GPU 重计算叠加在 transition: width 上面
+
+做了：
+- 用户报"全屏阅读这么卡顿"。先 sqlite 实证数据层：143 条 entries / 平均 2.5KB / 单条最大 23KB+30 张图——数据量正常，不是 feed 太大需要分页那类问题，立刻排除数据层
+- 把诊断聚焦到自己加的 EntryReader UI 几个"GPU/CPU 重计算操作"叠加：(1) toolbar `bg-white/70 dark:bg-stone-900/70 backdrop-blur-md`——backdrop-blur 是 compositor 重操作；(2) toolbar title `mask-image: linear-gradient(...)`——mask 也走 GPU/CPU 重计算；(3) SourceList / EntryList 用 `transition-[width] duration-200`——width 是 layout 属性，浏览器无法 GPU 加速，每帧整页 reflow
+- 第三个是底层动画机制问题不易改，先动前两个最简：toolbar `bg-white/70 + backdrop-blur-md` → `bg-white`（不透明无 blur）；title `mask-image` → 直接 `truncate`（无淡出渐变）。让用户测看是否好转，同时让用户区分卡顿场景（切换瞬间 / 全屏完成后 / 切回时），定位是 transition 期间叠加 GPU 重计算还是底层 width 动画本身
+
+学到：
+- **`transition: width` 是性能坑——width 是 layout 属性永远走 CPU**：浏览器对 layout 属性的动画没 GPU 加速路径（不像 transform/opacity 走 compositor），每帧都要 reflow 整页。叠加任何 GPU 重计算（blur / mask / filter）= 平方级卡顿。下次做侧栏折叠动画，要么 `transform: translateX(-100%)` 模拟（但 sidebar 内容会溢出，需要 overflow:hidden 父元素夹住），要么接受 instant 切换不做动画——别在 width 上加 transition
+- **backdrop-blur 是浮层 toolbar 的常见诱惑但代价大**：Apple 系产品（Mail / Notes / Safari）的 toolbar 都用 backdrop-blur 让"内容透出来"美感强。前提是周围**没有 layout 动画在跑**。我盲抄这个模式没考虑全屏切换场景下 width 在 transition——backdrop-blur 在 transition 期间持续 invalidate compositor cache，每帧重算
+- **mask-image gradient 也是 GPU 重操作**：同款问题。静态场景里 mask 没事；width transition 期间持续重新计算 mask，雪上加霜。简单 `truncate`（CSS overflow: hidden + text-overflow: ellipsis）是纯 layout 不走 GPU，零重计算成本
+- **性能诊断的实证顺序**：先 sqlite 查数据量（数据层有没有异常）→ 再看代码里是否叠加了多个 GPU/CPU 重操作 → 再考虑底层动画机制。这次没瞎猜"feed 太大要分页"，直接 sqlite 实证 143 条 / 2.5KB 平均 → 立刻排除数据层，聚焦 UI 层省一大圈无用功
+
+---
+
+## 2026-05-24 多 worktree 共用 DB → migration 版本号冲突 + 整合到 main
+
+做了：
+- 当前主目录脏改动 18 文件混杂主题（剪藏 + notes/livePreview/Sidebar 旁支）一起 commit 到 `001-search-tags` 分支（848ccb0），message 中标注"附 worktree dirty 旁支改动"
+- 切到 main 并 `--no-ff merge 001-search-tags`（809c26e），35 文件 + 4130 insertions 合入。覆盖搜索 spec 文档 + 剪藏 meta 重构 + scripts/dev.sh 多端口启动 + 旁支 dirty
+- 未来其他分支（001-search-impl rusqlite / 001-subscription-feed / 002-ai-assistant）各自合 main
+
+学到：
+- **多 worktree 共用 DB symlink 导致 migration 版本号冲突**：scripts/dev.sh 让所有 worktree 的 vibe.db symlink 到 `com.vibecoding.app/vibe.db`，**任一分支跑过的 migration 会让 user_version 累进**，但每个分支的 lib.rs 看不到其他分支加过的 migration。本次：001-search-impl 加 v4 add `content_tokens` 跑过让 user_version=4；我同时加 v4 add `ip_region` 在 plugin-sql 看 user_version 已 4 → 跳过 → SELECT 报 `no such column: ip_region`。改成 v5 才生效。**症状不直接**：app 启动正常没报错，只在前端 SELECT 时才暴露
+- **诊断方法**：`sqlite3 ~/Library/Application\ Support/com.vibecoding.app/vibe.db "PRAGMA user_version"` + `PRAGMA table_info(clips)`——直接看 db 实际 schema vs 期望，比读 plugin 源码快
+- **协作工作流隐性约定**：不同分支各自加 migration 时 version 号要协调（约定从某个 anchor 开始递增 / 或者用日期+作者 namespace）。下次发现共享 DB 的多 worktree 工作流，先在 CLAUDE.md 加一条 migration 版本号协议
+- **混合 commit 是权宜之计**：把 worktree dirty 里别人的工作一起 commit 进我的分支风险存在（没充分 review 别人的 449 行 livePreview 改动），靠 commit message 标注"附旁支"留痕。健康做法是各 worktree 各 commit 自己的工作，但多 Claude session 共写同一目录时易混
+
+---
+
 ## 2026-05-24 占位符不能"假处理"——透明占位让 layout 不漂移但视觉完全融合，用户两次纠正才领会
 
 做了：
