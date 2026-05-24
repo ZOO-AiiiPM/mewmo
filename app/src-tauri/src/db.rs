@@ -25,6 +25,7 @@ pub fn tokenize(text: &str) -> String {
 const MIGRATIONS: &[(u32, &str)] = &[
     (3, include_str!("migrations/v1_v2_v3.sql")),
     (4, include_str!("migrations/v4_search.sql")),
+    (6, include_str!("migrations/v6_subscription.sql")),
 ];
 
 pub fn init(app: &AppHandle) -> Result<Db, String> {

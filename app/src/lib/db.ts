@@ -26,18 +26,6 @@ async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> 
   throw lastErr;
 }
 
-/**
- * 旧 tauri-plugin-sql 模式占位（订阅功能 lib/subscription.ts 还在用 d.execute()）。
- * 暂保留 stub 让 TS 编译通过；运行时调到会显式报错——订阅区需要由专门 agent
- * 把 db CRUD 迁移到 invoke commands 模式（参考 commands/notes.rs / commands/clips.rs）。
- */
-async function db(): Promise<never> {
-  throw new Error('legacy db() removed: subscription db CRUD pending migration to invoke commands');
-}
-
-/** 让其它 lib/*.ts（如 lib/subscription.ts）复用同一 db connection */
-export const getDb = db;
-
 export async function listNotes(): Promise<Note[]> {
   return call<Note[]>('list_notes');
 }
