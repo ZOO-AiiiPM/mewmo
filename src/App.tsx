@@ -196,6 +196,7 @@ export default function App() {
     url: string; title: string; content_md: string;
     excerpt: string; site_name: string; favicon_url: string;
     cover_image: string; author: string; published_at: string;
+    ip_region: string;
   };
 
   const handleClipSave = useCallback(async (url: string) => {

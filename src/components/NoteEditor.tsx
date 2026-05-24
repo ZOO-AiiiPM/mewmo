@@ -3,6 +3,7 @@ import CodeMirror, { type ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { EditorView, keymap } from '@codemirror/view';
 import type { ViewUpdate } from '@codemirror/view';
+import { EditorSelection, Prec } from '@codemirror/state';
 import { indentUnit } from '@codemirror/language';
 import { indentWithTab } from '@codemirror/commands';
 import { livePreview, tableNavigationKeymap, insertTable, toggleTask } from '../lib/livePreview';
@@ -32,6 +33,8 @@ type Props = {
 };
 
 // 用某个标记包裹选区（Cmd+B / Cmd+I 用）
+// changeByRange 返回的 range 必须是 SelectionRange，不能是 plain object——之前
+// 用 `{ ...range, anchor, head }` 在某些 case 会被 CM 误解析或映射错位置
 function wrapSelection(marker: string) {
   return (view: EditorView) => {
     const { state, dispatch } = view;
@@ -39,7 +42,7 @@ function wrapSelection(marker: string) {
       if (range.empty) {
         return {
           changes: { from: range.from, insert: marker + marker },
-          range: { ...range, anchor: range.from + marker.length, head: range.from + marker.length },
+          range: EditorSelection.cursor(range.from + marker.length),
         };
       }
       return {
@@ -47,11 +50,10 @@ function wrapSelection(marker: string) {
           { from: range.from, insert: marker },
           { from: range.to, insert: marker },
         ],
-        range: {
-          ...range,
-          anchor: range.anchor + marker.length,
-          head: range.head + marker.length,
-        },
+        range: EditorSelection.range(
+          range.anchor + marker.length,
+          range.head + marker.length,
+        ),
       };
     });
     dispatch(state.update(changes, { scrollIntoView: true, userEvent: 'input.format' }));
@@ -59,13 +61,42 @@ function wrapSelection(marker: string) {
   };
 }
 
-const formatKeymap = keymap.of([
+// 检测光标处是否是空 wrap pair（**|** / *|* / ~~|~~ / `|`），是则一次性删除整段
+// 解决 Cmd+B/I 等插入成对标记后立即按 backspace 想"撤销"时的体感问题
+function deletePairBackward(view: EditorView): boolean {
+  const { state, dispatch } = view;
+  const sel = state.selection.main;
+  if (!sel.empty) return false;
+  const pos = sel.head;
+  // 长 marker 优先（** 比 * 先匹配，否则 **|** 会先撞 *|*）
+  const pairs = ['~~', '**', '*', '`'];
+  for (const marker of pairs) {
+    const len = marker.length;
+    if (pos < len) continue;
+    const before = state.doc.sliceString(pos - len, pos);
+    const after = state.doc.sliceString(pos, pos + len);
+    if (before === marker && after === marker) {
+      dispatch(state.update({
+        changes: { from: pos - len, to: pos + len, insert: '' },
+        selection: EditorSelection.cursor(pos - len),
+        userEvent: 'delete.backward',
+      }));
+      return true;
+    }
+  }
+  return false;
+}
+
+// Prec.high 提升优先级，确保 Backspace 抢在 CM 默认 deleteCharBackward 之前；
+// Cmd+B/I 等格式快捷键也一并提升避免被其他 extension 拦截
+const formatKeymap = Prec.high(keymap.of([
   { key: 'Mod-b', run: wrapSelection('**') },
   { key: 'Mod-i', run: wrapSelection('*') },
   { key: 'Mod-Shift-x', run: wrapSelection('~~') },
   { key: 'Mod-e', run: wrapSelection('`') },
+  { key: 'Backspace', run: deletePairBackward },
   indentWithTab,
-]);
+]));
 
 const baseTheme = EditorView.theme({
   '&': {
@@ -121,6 +152,8 @@ export function NoteEditor({ note, onChange, theme, onDelete, onCreate, aiOpen, 
   const [confirmOpen, setConfirmOpen] = useState(false);
   // 切笔记淡入淡出：1=显示中，0=过渡中（不重建 CM、不 unmount，只调 opacity）
   const [contentVisible, setContentVisible] = useState(true);
+  // 滚动后 title 滚出视野 → toolbar 中央 fade-in 显示标题（同 ClipReader）
+  const [titleInToolbar, setTitleInToolbar] = useState(false);
 
   const handleCmUpdate = (vu: ViewUpdate) => {
     if (vu.selectionSet || vu.docChanged) {
@@ -217,6 +250,26 @@ export function NoteEditor({ note, onChange, theme, onDelete, onCreate, aiOpen, 
     }
   };
 
+  // 滚动监听：title input 底部滚到 toolbar 下沿之上 → toolbar 显示标题
+  useEffect(() => {
+    if (!note) return;
+    const root = scrollRef.current;
+    if (!root) {
+      setTitleInToolbar(false);
+      return;
+    }
+    const onScroll = () => {
+      const titleEl = titleInputRef.current;
+      if (!titleEl) { setTitleInToolbar(false); return; }
+      const rootTop = root.getBoundingClientRect().top;
+      const titleBottomRel = titleEl.getBoundingClientRect().bottom - rootTop;
+      setTitleInToolbar(titleBottomRel < 56);
+    };
+    onScroll();
+    root.addEventListener('scroll', onScroll, { passive: true });
+    return () => root.removeEventListener('scroll', onScroll);
+  }, [note?.id]);
+
   if (!note) {
     return (
       <main className="flex-1 flex flex-col">
@@ -230,7 +283,21 @@ export function NoteEditor({ note, onChange, theme, onDelete, onCreate, aiOpen, 
 
   return (
     <main className="relative flex-1 flex flex-col overflow-hidden">
-      <div className={`absolute top-0 left-0 right-0 z-[5] h-12 flex items-center justify-end pl-3 bg-white/70 dark:bg-stone-900/70 backdrop-blur-md transition-[padding] duration-200 ease-out ${aiOpen ? 'pr-[320px]' : 'pr-3'}`}>
+      <div className={`absolute top-0 left-0 right-0 z-[5] h-12 grid grid-cols-[1fr_auto] items-center gap-3 pl-10 bg-white/70 dark:bg-stone-900/70 backdrop-blur-md transition-[padding] duration-200 ease-out ${aiOpen ? 'pr-[320px]' : 'pr-3'}`}>
+          {/* 标题列：滚动后 fade-in 显示当前笔记标题；mask 让超出 icons 那侧渐隐 */}
+          <div className="min-w-0 overflow-hidden">
+            <span
+              className={`block whitespace-nowrap text-[14px] font-bold text-stone-800 dark:text-stone-100 transition-opacity duration-200 ${
+                titleInToolbar ? 'opacity-100' : 'opacity-0'
+              }`}
+              style={{
+                maskImage: 'linear-gradient(to right, black calc(100% - 32px), transparent)',
+                WebkitMaskImage: 'linear-gradient(to right, black calc(100% - 32px), transparent)',
+              }}
+            >
+              {note.title || '无标题'}
+            </span>
+          </div>
           <div className="flex items-center gap-0.5">
           <button
             onClick={onBack}
