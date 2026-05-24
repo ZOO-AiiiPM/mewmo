@@ -54,6 +54,10 @@
 
 ## 待做
 
+<!-- SPECKIT START -->
+**Active Plan**: [specs/001-search-tags/plan.md](specs/001-search-tags/plan.md) — 全局搜索 + 标签管理（jieba + FTS5 + rusqlite 切换）
+<!-- SPECKIT END -->
+
 <!-- todo 放这里，完成即删。跨天留着没关系，只删真正完成的或不再做的。
 - [ ] 按项目填第一批 todo
 -->

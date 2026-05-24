@@ -1,9 +1,10 @@
 import { syntaxTree, ensureSyntaxTree } from '@codemirror/language';
-import { RangeSetBuilder, StateField, type EditorState } from '@codemirror/state';
+import { Prec, RangeSetBuilder, StateField, type EditorState, type Text } from '@codemirror/state';
 import {
   Decoration,
   type DecorationSet,
   EditorView,
+  keymap,
   WidgetType,
 } from '@codemirror/view';
 import { resolveAttachmentUrl } from './attachments';
@@ -79,6 +80,11 @@ class ImageWidget extends WidgetType {
 
 // —— GFM 表格 ——
 type Align = 'left' | 'center' | 'right' | null;
+type TableRange = {
+  from: number;
+  to: number;
+  widgetTo: number;
+};
 
 function parseTableRow(line: string): string[] {
   let s = line.trim();
@@ -100,6 +106,206 @@ function parseTableRow(line: string): string[] {
   cells.push(current.trim());
   return cells;
 }
+
+function isTableLine(text: string): boolean {
+  return text.includes('|');
+}
+
+function tableRangeFromLine(doc: Text, lineNum: number): TableRange | null {
+  if (lineNum < 1 || lineNum > doc.lines) return null;
+  if (!isTableLine(doc.line(lineNum).text)) return null;
+
+  let startLineNum = lineNum;
+  while (startLineNum > 1 && isTableLine(doc.line(startLineNum - 1).text)) {
+    startLineNum--;
+  }
+
+  let endLineNum = lineNum;
+  while (endLineNum < doc.lines && isTableLine(doc.line(endLineNum + 1).text)) {
+    endLineNum++;
+  }
+
+  const startLine = doc.line(startLineNum);
+  const endLine = doc.line(endLineNum);
+  return {
+    from: startLine.from,
+    to: endLine.to,
+    widgetTo: endLineNum < doc.lines ? endLine.to + 1 : endLine.to,
+  };
+}
+
+function tableRangeNearLine(doc: Text, lineNum: number): TableRange | null {
+  return (
+    tableRangeFromLine(doc, lineNum) ??
+    tableRangeFromLine(doc, lineNum + 1) ??
+    tableRangeFromLine(doc, lineNum - 1)
+  );
+}
+
+function tableRangeBetween(doc: Text, from: number, to: number, forward: boolean): TableRange | null {
+  const pathFrom = Math.min(from, to);
+  const pathTo = Math.max(from, to);
+  const startLine = doc.lineAt(Math.min(from, to)).number;
+  const endLine = doc.lineAt(Math.max(from, to)).number;
+  if (forward) {
+    for (let lineNum = startLine; lineNum <= endLine; lineNum++) {
+      const range = tableRangeFromLine(doc, lineNum);
+      if (range && pathFrom < range.widgetTo && pathTo > range.from) return range;
+    }
+  } else {
+    for (let lineNum = endLine; lineNum >= startLine; lineNum--) {
+      const range = tableRangeFromLine(doc, lineNum);
+      if (range && pathFrom < range.widgetTo && pathTo > range.from) return range;
+    }
+  }
+  return null;
+}
+
+function tableRangeToEnterFromCursor(doc: Text, pos: number, forward: boolean): TableRange | null {
+  const line = doc.lineAt(pos);
+  const current = tableRangeFromLine(doc, line.number);
+  if (current) {
+    // At a table boundary, only enter when moving toward the table.
+    // Moving up from table.from means "leave upward", not "enter current table again".
+    if (forward && pos <= current.from) return current;
+    if (!forward && pos >= current.widgetTo) return current;
+    return null;
+  }
+
+  if (forward) {
+    return tableRangeFromLine(doc, line.number + 1);
+  }
+  return tableRangeFromLine(doc, line.number - 1);
+}
+
+function locateTableWrap(view: EditorView, wrap: HTMLElement): TableRange | null {
+  try {
+    const pos = view.posAtDOM(wrap);
+    if (pos < 0 || pos > view.state.doc.length) return null;
+    return tableRangeNearLine(view.state.doc, view.state.doc.lineAt(pos).number);
+  } catch {
+    return null;
+  }
+}
+
+function collapseCellSelection(cell: HTMLElement, placeAtEnd: boolean) {
+  const range = document.createRange();
+  range.selectNodeContents(cell);
+  range.collapse(!placeAtEnd);
+  const sel = window.getSelection();
+  if (sel) {
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+}
+
+function nearestCell(cells: HTMLElement[], x: number | null): HTMLElement | null {
+  if (cells.length === 0) return null;
+  if (x == null) return cells[0];
+  let best = cells[0];
+  let bestDist = Infinity;
+  for (const cell of cells) {
+    const rect = cell.getBoundingClientRect();
+    const clamped = Math.max(rect.left, Math.min(x, rect.right));
+    const dist = Math.abs(x - clamped);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = cell;
+    }
+  }
+  return best;
+}
+
+function focusTableWrapCell(
+  wrap: HTMLElement,
+  edge: 'first' | 'last',
+  x: number | null,
+): boolean {
+  const rows = Array.from(wrap.querySelectorAll<HTMLTableRowElement>('tr'));
+  const row = edge === 'first' ? rows[0] : rows[rows.length - 1];
+  if (!row) return false;
+
+  const cell = nearestCell(Array.from(row.children) as HTMLElement[], x);
+  if (!cell) return false;
+  cell.focus();
+  collapseCellSelection(cell, edge === 'last');
+  return true;
+}
+
+function focusRenderedTableCell(
+  view: EditorView,
+  range: TableRange,
+  edge: 'first' | 'last',
+  x: number | null,
+): boolean {
+  const wraps = Array.from(
+    view.contentDOM.querySelectorAll<HTMLElement>('.cm-md-table-wrap')
+  );
+  for (const wrap of wraps) {
+    const located = locateTableWrap(view, wrap);
+    if (!located || located.from !== range.from) continue;
+    return focusTableWrapCell(wrap, edge, x);
+  }
+  return false;
+}
+
+function nearestRenderedTableByCoords(
+  view: EditorView,
+  forward: boolean,
+  coords: { top: number; bottom: number },
+): HTMLElement | null {
+  const wraps = Array.from(
+    view.contentDOM.querySelectorAll<HTMLElement>('.cm-md-table-wrap')
+  );
+  const cursorY = forward ? coords.bottom : coords.top;
+  const maxGap = view.defaultLineHeight * 3;
+  let best: HTMLElement | null = null;
+  let bestGap = Infinity;
+
+  for (const wrap of wraps) {
+    const rect = wrap.getBoundingClientRect();
+    const gap = forward ? rect.top - cursorY : cursorY - rect.bottom;
+    if (gap < -2 || gap > maxGap) continue;
+    if (gap < bestGap) {
+      bestGap = gap;
+      best = wrap;
+    }
+  }
+
+  return best;
+}
+
+function enterAdjacentTable(view: EditorView, forward: boolean): boolean {
+  const sel = view.state.selection.main;
+  if (!sel.empty) return false;
+
+  const range = tableRangeToEnterFromCursor(view.state.doc, sel.head, forward);
+  const coords = view.coordsAtPos(sel.head, sel.assoc || (forward ? 1 : -1));
+  const x = coords ? (coords.left + coords.right) / 2 : null;
+  const edge = forward ? 'first' : 'last';
+
+  if (range && focusRenderedTableCell(view, range, edge, x)) return true;
+
+  const moved = view.moveVertically(sel, forward);
+  const skippedRange = moved.head === sel.head
+    ? null
+    : tableRangeBetween(view.state.doc, sel.head, moved.head, forward);
+  if (skippedRange && focusRenderedTableCell(view, skippedRange, edge, x)) {
+    return true;
+  }
+
+  if ((range || skippedRange) && coords) {
+    const wrap = nearestRenderedTableByCoords(view, forward, coords);
+    if (wrap && focusTableWrapCell(wrap, edge, x)) return true;
+  }
+
+  return false;
+}
+
+export const tableNavigationKeymap = Prec.high(keymap.of([
+  { key: 'ArrowDown', run: view => enterAdjacentTable(view, true) },
+  { key: 'ArrowUp', run: view => enterAdjacentTable(view, false) },
+]));
 
 function parseAlignments(line: string): Align[] {
   return parseTableRow(line).map(c => {
@@ -303,28 +509,11 @@ class TableWidget extends WidgetType {
     this.source = source;
   }
   // 用 widget DOM 在文档中的位置，反查表格当前的 from/to（避免缓存的位置因外部编辑失效）
-  private locate(view: EditorView, wrap: HTMLElement): { from: number; to: number } | null {
+  private locate(view: EditorView, wrap: HTMLElement): TableRange | null {
     // wrap 已脱离当前 view（widget 在 buildDecorations 重建时被换掉、或 doc 已大幅替换）→
     // posAtDOM 返回越界值，lineAt 抛 RangeError 让整个 webview 卡死。
     // 全部用 try 包住，失败放弃这次同步——cell 内容回写丢一次远好过应用崩溃。
-    try {
-      const pos = view.posAtDOM(wrap);
-      if (pos < 0 || pos > view.state.doc.length) return null;
-      const startLine = view.state.doc.lineAt(pos);
-      const from = startLine.from;
-      let endLineNum = startLine.number;
-      const total = view.state.doc.lines;
-      while (
-        endLineNum < total &&
-        view.state.doc.line(endLineNum + 1).text.includes('|')
-      ) {
-        endLineNum++;
-      }
-      const endLine = view.state.doc.line(endLineNum);
-      return { from, to: endLine.to };
-    } catch {
-      return null;
-    }
+    return locateTableWrap(view, wrap);
   }
   private rewrite(view: EditorView, wrap: HTMLElement, transform: (src: string) => string) {
     const range = this.locate(view, wrap);
@@ -335,12 +524,9 @@ class TableWidget extends WidgetType {
       changes: { from: range.from, to: range.to, insert: next },
     });
   }
-  // 把 widget DOM 里 cells 的内容回写到 markdown（焦点离开整张表才调一次）
-  private syncToMarkdown(view: EditorView, wrap: HTMLElement) {
+  private markdownFromDOM(wrap: HTMLElement): string | null {
     const tbl = wrap.querySelector('table.cm-md-table') as HTMLTableElement | null;
-    if (!tbl) return;
-    const range = this.locate(view, wrap);
-    if (!range) return;
+    if (!tbl) return null;
     const aligns = parseAlignments(
       this.source.split('\n').filter(l => l.includes('|'))[1] ?? ''
     );
@@ -366,10 +552,34 @@ class TableWidget extends WidgetType {
       '| ' + sep.join(' | ') + ' |',
       ...bodyRows.map(lineFor),
     ];
-    const next = lines.join('\n');
-    if (next === this.source) return;
+    return lines.join('\n');
+  }
+  // 把 widget DOM 里 cells 的内容回写到 markdown（焦点离开整张表才调一次）
+  private syncToMarkdown(
+    view: EditorView,
+    wrap: HTMLElement,
+    selectionSide?: 'before' | 'after',
+  ) {
+    const range = this.locate(view, wrap);
+    if (!range) return;
+    const next = this.markdownFromDOM(wrap);
+    if (next == null) return;
+
+    const current = view.state.doc.sliceString(range.from, range.to);
+    const changed = next !== current;
+    if (!changed && !selectionSide) return;
+
+    const selection =
+      selectionSide === 'before'
+        ? { anchor: range.from }
+        : selectionSide === 'after'
+          ? { anchor: range.from + next.length + (range.widgetTo > range.to ? 1 : 0) }
+          : undefined;
+
     view.dispatch({
-      changes: { from: range.from, to: range.to, insert: next },
+      changes: changed ? { from: range.from, to: range.to, insert: next } : undefined,
+      selection,
+      scrollIntoView: Boolean(selection),
     });
   }
   toDOM(view: EditorView) {
@@ -428,16 +638,18 @@ class TableWidget extends WidgetType {
           target = allRows[rowIdx + 1].children[0] as HTMLElement;
         }
       }
-      if (!target) return;
-      target.focus();
-      const range = document.createRange();
-      range.selectNodeContents(target);
-      range.collapse(!placeAtEnd);
-      const sel = window.getSelection();
-      if (sel) {
-        sel.removeAllRanges();
-        sel.addRange(range);
+      if (!target) {
+        if (dir === 'up') {
+          this.syncToMarkdown(view, wrap, 'before');
+          view.focus();
+        } else if (dir === 'down') {
+          this.syncToMarkdown(view, wrap, 'after');
+          view.focus();
+        }
+        return;
       }
+      target.focus();
+      collapseCellSelection(target, placeAtEnd);
     };
 
     // cell 渲染：空文本用 &nbsp; 撑住高度，contentEditable 让用户直接键入
@@ -451,10 +663,16 @@ class TableWidget extends WidgetType {
       }
       // 进入 cell 时清掉占位 nbsp，避免出现在用户输入前面
       el.addEventListener('focus', () => {
-        if (el.textContent === ' ') el.textContent = '';
+        if (el.textContent === ' ') {
+          el.textContent = '';
+          view.requestMeasure();
+        }
       });
       el.addEventListener('blur', () => {
-        if ((el.textContent ?? '').length === 0) el.innerHTML = '&nbsp;';
+        if ((el.textContent ?? '').length === 0) {
+          el.innerHTML = '&nbsp;';
+          view.requestMeasure();
+        }
       });
       // 方向键 / Tab / Enter 在 cells 间跳转
       el.addEventListener('keydown', e => {
@@ -489,7 +707,10 @@ class TableWidget extends WidgetType {
       });
       // 鼠标点击事件不要让 CM 看见，避免 CM 把 cell 当成空 widget 区域去重新放置 cursor
       el.addEventListener('mousedown', e => e.stopPropagation());
-      el.addEventListener('input', e => e.stopPropagation());
+      el.addEventListener('input', e => {
+        e.stopPropagation();
+        view.requestMeasure();
+      });
     };
 
     const thead = document.createElement('thead');
@@ -594,6 +815,9 @@ function buildDecorations(state: EditorState): DecorationSet {
   type Item = { from: number; to: number; deco: Decoration };
   const items: Item[] = [];
 
+  // 收集 lezer 识别的 Emphasis / StrongEmphasis 范围；regex 补丁会跳过这些避免重复装饰
+  const lezerEmphasisRanges: Array<[number, number]> = [];
+
   // StateField 不能限制为 visibleRanges（无法访问 view）；笔记体量小，整文档遍历可接受
   syntaxTree(state).iterate({
     enter(node) {
@@ -605,12 +829,14 @@ function buildDecorations(state: EditorState): DecorationSet {
 
         // 整段节点：套样式（mark），不依赖光标
         if (name === 'StrongEmphasis') {
+          lezerEmphasisRanges.push([node.from, node.to]);
           items.push({
             from: node.from,
             to: node.to,
             deco: Decoration.mark({ class: 'cm-strong' }),
           });
         } else if (name === 'Emphasis') {
+          lezerEmphasisRanges.push([node.from, node.to]);
           items.push({
             from: node.from,
             to: node.to,
@@ -657,35 +883,17 @@ function buildDecorations(state: EditorState): DecorationSet {
           // 上下移动跳过那几行 / "无法保存"。
           //
           // 自己以"含 | 的连续行"为唯一表格边界，跳过 lezer 给的范围。
-          const total = state.doc.lines;
-          let startLineNum = state.doc.lineAt(node.from).number;
-          // startLine 也校准：lezer 偶尔把 from 落到表格之前的 paragraph 上
-          while (
-            startLineNum <= total &&
-            !state.doc.line(startLineNum).text.includes('|')
-          ) {
-            startLineNum++;
-          }
-          if (startLineNum > total) return false;
-          const startLine = state.doc.line(startLineNum);
-          let endLineNum = startLineNum;
-          while (
-            endLineNum < total &&
-            state.doc.line(endLineNum + 1).text.includes('|')
-          ) {
-            endLineNum++;
-          }
-          const endLine = state.doc.line(endLineNum);
-          const text = state.doc.sliceString(startLine.from, endLine.to);
+          const range = tableRangeNearLine(state.doc, state.doc.lineAt(node.from).number);
+          if (!range) return false;
+          const text = state.doc.sliceString(range.from, range.to);
           // CM 6 硬性要求：block decoration 的 from/to 必须在行边界（行首或文档末尾）。
           // endLine.to 是行尾（newline 之前），不是下一行的行首，差 1 个字符。
           // 这 1 个字符让 CM 在 widget 之后的 vertical motion 计算错位——光标按 ↑/↓
           // 跳过 widget 之后的 1 行 / 多行（取决于这个错位累积多少）。
           // widgetTo 必须延伸到下一行行首（含 trailing newline）；文档最末行则直接到 doc 末尾。
-          const widgetTo = endLineNum < total ? endLine.to + 1 : endLine.to;
           items.push({
-            from: startLine.from,
-            to: widgetTo,
+            from: range.from,
+            to: range.widgetTo,
             deco: Decoration.replace({
               widget: new TableWidget(text),
               block: true,
@@ -694,9 +902,9 @@ function buildDecorations(state: EditorState): DecorationSet {
           return false;
         } else if (/^ATXHeading[1-6]$/.test(name)) {
           // CommonMark 允许 "###" 单独一行算空 heading，但用户体验上"#"没空格就变大很突兀
-          // 所以这里要求 # 后必须跟空格 + 至少一个字符才套大字号样式
+          // 要求 # 后必须跟空格才套大字号样式（空格之后即使还没输文字也立刻渲染）
           const text = state.doc.sliceString(node.from, node.to);
-          const m = text.match(/^(#{1,6})\s+\S/);
+          const m = text.match(/^(#{1,6})\s/);
           if (m) {
             const level = m[1].length;
             items.push({
@@ -740,52 +948,60 @@ function buildDecorations(state: EditorState): DecorationSet {
           });
         }
 
-        // 行首结构标记（#）：成形（# + 空格 + 内容）就立即隐藏，无视光标
+        // 行首结构标记（#）：Obsidian 风 live preview——光标在该行时保留显示井号 + 空格，
+        // 切到其他行才隐藏；点击该行时光标进入，井号 + 空格再次出现
         if (name === 'HeaderMark') {
           const line = state.doc.lineAt(node.from);
           const lineText = state.doc.sliceString(line.from, line.to);
-          if (/^#{1,6}\s+\S/.test(lineText)) {
-            let hideTo = node.to;
-            const next = state.doc.sliceString(node.to, node.to + 1);
-            if (next === ' ') hideTo += 1;
-            items.push({
-              from: node.from,
-              to: hideTo,
-              deco: Decoration.replace({}),
-            });
-          }
-        }
-
-        // 列表标记：立即渲染为圆点，按嵌套深度选实心 / 空心
-        if (name === 'ListMark') {
-          const text = state.doc.sliceString(node.from, node.to);
-          if (/^[-*+]$/.test(text)) {
-            // 任务项 (- [ ] foo / - [x] foo) → 隐藏前缀 "- "，由 TaskMarker widget 取代
-            const line = state.doc.lineAt(node.from);
-            const lineText = state.doc.sliceString(line.from, line.to);
-            if (/^\s*[-*+]\s+\[[ xX]\]\s/.test(lineText)) {
+          if (/^#{1,6}\s/.test(lineText)) {
+            const cursorLine = state.doc.lineAt(state.selection.main.head).number;
+            if (cursorLine !== line.number) {
+              let hideTo = node.to;
               const next = state.doc.sliceString(node.to, node.to + 1);
-              const hideTo = next === ' ' ? node.to + 1 : node.to;
+              if (next === ' ') hideTo += 1;
               items.push({
                 from: node.from,
                 to: hideTo,
                 deco: Decoration.replace({}),
               });
-            } else {
-              // 普通列表：数 BulletList / OrderedList 祖先深度
-              let depth = 0;
-              let cur = node.node.parent;
-              while (cur) {
-                if (cur.name === 'BulletList' || cur.name === 'OrderedList') {
-                  depth++;
+            }
+          }
+        }
+
+        // 列表标记：立即渲染为圆点，按嵌套深度选实心 / 空心
+        // 严格判定：必须 `[-*+] + 空格` 才识别为列表（光标后空格一打出就立即渲染，
+        // 不要求内容；用户输 "-" 没空格时保留原字符）
+        if (name === 'ListMark') {
+          const text = state.doc.sliceString(node.from, node.to);
+          if (/^[-*+]$/.test(text)) {
+            const line = state.doc.lineAt(node.from);
+            const lineText = state.doc.sliceString(line.from, line.to);
+            if (/^\s*[-*+]\s/.test(lineText)) {
+              // 任务项 (- [ ] foo / - [x] foo) → 隐藏前缀 "- "，由 TaskMarker widget 取代
+              if (/^\s*[-*+]\s+\[[ xX]\]\s/.test(lineText)) {
+                const next = state.doc.sliceString(node.to, node.to + 1);
+                const hideTo = next === ' ' ? node.to + 1 : node.to;
+                items.push({
+                  from: node.from,
+                  to: hideTo,
+                  deco: Decoration.replace({}),
+                });
+              } else {
+                // 普通列表：数 BulletList / OrderedList 祖先深度
+                let depth = 0;
+                let cur = node.node.parent;
+                while (cur) {
+                  if (cur.name === 'BulletList' || cur.name === 'OrderedList') {
+                    depth++;
+                  }
+                  cur = cur.parent;
                 }
-                cur = cur.parent;
+                items.push({
+                  from: node.from,
+                  to: node.to,
+                  deco: depth >= 2 ? hollowBulletDeco : bulletDeco,
+                });
               }
-              items.push({
-                from: node.from,
-                to: node.to,
-                deco: depth >= 2 ? hollowBulletDeco : bulletDeco,
-              });
             }
           }
         }
@@ -849,6 +1065,45 @@ function buildDecorations(state: EditorState): DecorationSet {
         }
       },
     });
+
+  // ── regex 补丁：lezer-markdown 不识别紧贴 unicode word char 的 emphasis ──
+  // 例：`这是*斜体*` 中 `*` 紧贴中文，CommonMark 规则不识别为 Emphasis。手动扫描补 mark。
+  // 跳过 lezer 已识别范围避免重复装饰。
+  // 注意：regex 不能跨行匹配 emphasis（合规 markdown 不允许跨行），用 [^*\n] 限制
+  const docText = state.doc.toString();
+  const isInLezerRange = (from: number, to: number) =>
+    lezerEmphasisRanges.some(([f, t]) => from >= f && to <= t);
+
+  // 先扫 ** ** （strong），再扫 * *（em）—— 顺序很重要，避免 ** 内层 * 误识别
+  const strongRe = /\*\*([^*\n]+?)\*\*/g;
+  let sm: RegExpExecArray | null;
+  while ((sm = strongRe.exec(docText)) !== null) {
+    const mFrom = sm.index;
+    const mTo = sm.index + sm[0].length;
+    if (isInLezerRange(mFrom, mTo)) continue;
+    items.push({ from: mFrom, to: mTo, deco: Decoration.mark({ class: 'cm-strong' }) });
+    // 隐藏 ** （光标不在该行）
+    const line = state.doc.lineAt(mFrom);
+    if (cursorLine !== line.number) {
+      items.push({ from: mFrom, to: mFrom + 2, deco: Decoration.replace({}) });
+      items.push({ from: mTo - 2, to: mTo, deco: Decoration.replace({}) });
+    }
+    lezerEmphasisRanges.push([mFrom, mTo]);
+  }
+  // em：避免误吃 strong 已处理过的 ** （isInLezerRange 已含 strong 范围）
+  const emRe = /\*([^*\n]+?)\*/g;
+  let em: RegExpExecArray | null;
+  while ((em = emRe.exec(docText)) !== null) {
+    const mFrom = em.index;
+    const mTo = em.index + em[0].length;
+    if (isInLezerRange(mFrom, mTo)) continue;
+    items.push({ from: mFrom, to: mTo, deco: Decoration.mark({ class: 'cm-em' }) });
+    const line = state.doc.lineAt(mFrom);
+    if (cursorLine !== line.number) {
+      items.push({ from: mFrom, to: mFrom + 1, deco: Decoration.replace({}) });
+      items.push({ from: mTo - 1, to: mTo, deco: Decoration.replace({}) });
+    }
+  }
 
   items.sort((a, b) => a.from - b.from || a.to - b.to);
   for (const it of items) builder.add(it.from, it.to, it.deco);
