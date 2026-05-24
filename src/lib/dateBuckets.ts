@@ -38,13 +38,16 @@ export function getBucket(ts: number, now: Date = new Date()): Bucket {
   return 'older';
 }
 
-/** 把已按时间倒序排好的 items 按桶分组；桶之间按 BUCKET_ORDER；桶内保持原顺序。 */
-export function groupByBucket<T extends { updated_at: number }>(
-  items: T[]
+/** 把已按时间倒序排好的 items 按桶分组；桶之间按 BUCKET_ORDER；桶内保持原顺序。
+ *  默认按 item.updated_at（保持 NoteList 原有调用兼容）；可传 getTs 自定义时间字段
+ *  （如剪藏用 saved_at）。 */
+export function groupByBucket<T>(
+  items: T[],
+  getTs: (item: T) => number = (item) => (item as { updated_at: number }).updated_at,
 ): Array<{ bucket: Bucket; items: T[] }> {
   const map = new Map<Bucket, T[]>();
   for (const it of items) {
-    const b = getBucket(it.updated_at);
+    const b = getBucket(getTs(it));
     if (!map.has(b)) map.set(b, []);
     map.get(b)!.push(it);
   }

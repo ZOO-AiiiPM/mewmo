@@ -1,8 +1,17 @@
+use std::collections::HashMap;
+use std::sync::Mutex;
 use tauri_plugin_sql::{Migration, MigrationKind};
 #[cfg(target_os = "macos")]
 use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial, NSVisualEffectState};
 
 mod subscription;
+
+// ── 剪藏：webview 后台抓取（绕开 zse-ck 等 JS 反爬）─────────────────────────
+
+/// request_id → oneshot sender；隐藏 webview 加载完成后通过 webview_html_done
+/// 命令把 HTML 传回，对应 sender 唤醒等待的 fetch_via_webview。
+#[derive(Default)]
+struct FetchChannels(Mutex<HashMap<String, tokio::sync::oneshot::Sender<String>>>);
 
 // ── 剪藏：网页抓取 + HTML→Markdown ────────────────────────────────────────
 
@@ -16,7 +25,8 @@ struct FetchedClip {
     favicon_url: String,
     cover_image: String,
     author: String,
-    published_at: String, // ISO 8601；为空表示没拿到
+    published_at: String, // ISO 8601 / unix ts 字符串；为空表示没拿到
+    ip_region: String,    // 公众号 ip_wording.country/province，可能为空
 }
 
 /// 从 scraper 元素递归生成 Markdown
@@ -88,8 +98,28 @@ fn element_to_md(el: scraper::ElementRef<'_>, base_url: &str) -> String {
         "h3" => format!("### {}\n\n", wrap(&inner_t)),
         "h4" | "h5" | "h6" => format!("#### {}\n\n", wrap(&inner_t)),
         "p" => format!("{}\n\n", wrap(&inner_t)),
-        "strong" | "b" => format!("**{}**", wrap(&inner_t)),
-        "em" | "i" => format!("*{}*", wrap(&inner_t)),
+        "strong" | "b" => {
+            // markdown 的 ** emphasis 跨 HTML 边界（**<span>...</span>**）时 marked 不配对，
+            // 会把 ** 当字面字符渲染。inner 含 HTML 子节点或自身带 style 时直接用 <strong>。
+            if inline_style.is_some() || inner_t.contains('<') {
+                let attr = inline_style.as_ref()
+                    .map(|s| format!(" style=\"{}\"", s))
+                    .unwrap_or_default();
+                format!("<strong{}>{}</strong>", attr, inner_t)
+            } else {
+                format!("**{}**", inner_t)
+            }
+        }
+        "em" | "i" => {
+            if inline_style.is_some() || inner_t.contains('<') {
+                let attr = inline_style.as_ref()
+                    .map(|s| format!(" style=\"{}\"", s))
+                    .unwrap_or_default();
+                format!("<em{}>{}</em>", attr, inner_t)
+            } else {
+                format!("*{}*", inner_t)
+            }
+        }
         "code" if !inner_t.contains('\n') => format!("`{}`", inner_t),
         "pre" | "code" => format!("\n```\n{}\n```\n\n", inner_t),
         "blockquote" => {
@@ -344,8 +374,9 @@ fn page_author(document: &scraper::Html) -> String {
     String::new()
 }
 
-/// 发布时间：article:published_time / itemprop=datePublished / time[datetime]
-/// 返回 ISO 8601 字符串（不解析成 unix timestamp，前端 new Date() 处理）
+/// 发布时间：article:published_time / itemprop=datePublished / time[datetime] /
+/// 微信公众号 #publish_time / #js_publish_time
+/// 返回 ISO 8601 字符串或站点原文格式（前端 new Date() 处理，解析失败返回原值）
 fn page_published(document: &scraper::Html) -> String {
     for key in &["article:published_time", "og:published_time", "datePublished",
                  "publishdate", "publish_date", "date"] {
@@ -367,6 +398,13 @@ fn page_published(document: &scraper::Html) -> String {
             if let Some(c) = el.value().attr("content") {
                 return c.to_string();
             }
+            let text: String = el.text().collect::<Vec<_>>().join("").trim().to_string();
+            if !text.is_empty() { return text; }
+        }
+    }
+    // 微信公众号：发布时间在 <em id="publish_time"> 或 <em id="js_publish_time"> 文本里
+    if let Ok(sel) = scraper::Selector::parse("#publish_time, #js_publish_time") {
+        if let Some(el) = document.select(&sel).next() {
             let text: String = el.text().collect::<Vec<_>>().join("").trim().to_string();
             if !text.is_empty() { return text; }
         }
@@ -446,45 +484,237 @@ fn dedup_images(content_md: &str, cover_url: &str) -> String {
     compact.trim().to_string()
 }
 
-/// Tauri 命令：抓取 URL → 解析 → 返回结构化数据（前端负责写库）
-#[tauri::command]
-async fn fetch_clip(url: String) -> Result<FetchedClip, String> {
+/// 判断 URL 是否需要走 webview 抓取（站点有 JS 反爬，reqwest 拿不到正文）。
+/// 当前**禁用**：知乎在 zse-ck 之外还有未登录强制登录墙 modal，且远程 origin
+/// 通过 capability remote.urls 注入 __TAURI_INTERNALS__ 实测仍 timeout（init_script
+/// 跑了但 invoke 没回到 Rust）。后续待续做，相关代码（fetch_via_webview/
+/// FetchChannels/webview_html_done/capabilities/fetcher.json）保留作为脚手架。
+fn needs_browser_fetch(_url: &str) -> bool {
+    false
+}
+
+/// reqwest 直抓（无 JS 渲染）—— 公众号 / 普通博客 / 静态页面用这个
+async fn fetch_via_reqwest(url: &str) -> Result<String, String> {
     let client = reqwest::Client::builder()
         .user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
         .timeout(std::time::Duration::from_secs(20))
         .build()
         .map_err(|e| format!("HTTP 客户端初始化失败: {}", e))?;
 
-    let resp = client.get(&url).send().await
+    let resp = client.get(url).send().await
         .map_err(|e| format!("请求失败: {}", e))?;
 
     if !resp.status().is_success() {
         return Err(format!("HTTP {}", resp.status()));
     }
 
-    let html = resp.text().await
-        .map_err(|e| format!("读取响应失败: {}", e))?;
+    resp.text().await.map_err(|e| format!("读取响应失败: {}", e))
+}
 
-    let doc = scraper::Html::parse_document(&html);
+/// webview 抓取：开一个 invisible 的 WebviewWindow 加载 URL，让其执行 JS（包括
+/// 知乎 zse-ck 反爬挑战），加载完成后注入的 init_script 把 outerHTML 通过
+/// webview_html_done 传回 Rust。30s 超时兜底。
+/// webview 抓取：开一个 invisible 的 WebviewWindow 加载 URL，让其执行 JS（包括
+/// 知乎 zse-ck 反爬挑战），加载完成后注入的 init_script 把 outerHTML 通过
+/// webview_html_done 传回 Rust。30s 超时兜底。
+///
+/// **当前未启用**（needs_browser_fetch 永远 false）。保留作为续做脚手架，
+/// 待解决：远程 origin 实测 init_script 跑了但 invoke 没回 Rust（capability
+/// remote.urls 配了仍 timeout）+ 知乎登录墙 modal 拦截未登录用户。
+#[allow(dead_code)]
+async fn fetch_via_webview(
+    app: tauri::AppHandle,
+    url: String,
+) -> Result<String, String> {
+    use tauri::Manager;
+
+    let request_id = uuid::Uuid::new_v4().to_string();
+    let label = format!("fetcher-{}", request_id.replace('-', ""));
+
+    let (tx, rx) = tokio::sync::oneshot::channel::<String>();
+    {
+        let state = app.state::<FetchChannels>();
+        let mut map = state.0.lock().map_err(|e| e.to_string())?;
+        map.insert(request_id.clone(), tx);
+    }
+
+    // 注入到隐藏 webview 的 page context：等正文容器出现 / 或 15s 上限后回传 HTML。
+    // 用 __TAURI_INTERNALS__.invoke 直接调 Rust command（capabilities/fetcher.json
+    // 已经把这个 webview label + 知乎 origin 加白名单）。
+    let init_script = format!(
+        r#"
+        (function() {{
+            const REQ_ID = "{req_id}";
+            const SELECTORS = ['.RichText', '.Post-RichText', 'article', '#js_content', 'main', '[data-zop]'];
+            const MAX_WAIT_MS = 15000;
+            const POLL_MS = 300;
+            let sent = false;
+            const start = Date.now();
+
+            function send(reason) {{
+                if (sent) return;
+                sent = true;
+                try {{
+                    window.__TAURI_INTERNALS__.invoke('webview_html_done', {{
+                        requestId: REQ_ID,
+                        html: document.documentElement ? document.documentElement.outerHTML : ''
+                    }});
+                }} catch (e) {{
+                    console.error('[fetcher] invoke failed:', e, reason);
+                }}
+            }}
+
+            const interval = setInterval(() => {{
+                const ready = SELECTORS.some(sel => {{
+                    const el = document.querySelector(sel);
+                    return el && el.textContent && el.textContent.trim().length > 50;
+                }});
+                if (ready) {{
+                    clearInterval(interval);
+                    send('ready');
+                }} else if (Date.now() - start > MAX_WAIT_MS) {{
+                    clearInterval(interval);
+                    send('timeout');
+                }}
+            }}, POLL_MS);
+        }})();
+        "#,
+        req_id = request_id,
+    );
+
+    let parsed_url = url.parse::<tauri::Url>()
+        .map_err(|e| format!("URL 解析失败: {}", e))?;
+
+    tauri::WebviewWindowBuilder::new(
+        &app,
+        &label,
+        tauri::WebviewUrl::External(parsed_url),
+    )
+    .visible(false)
+    .focused(false)
+    .skip_taskbar(true)
+    .inner_size(800.0, 600.0)
+    .initialization_script(&init_script)
+    .build()
+    .map_err(|e| format!("创建抓取 webview 失败: {}", e))?;
+
+    let html_result = tokio::time::timeout(
+        std::time::Duration::from_secs(30),
+        rx,
+    ).await;
+
+    if let Some(window) = app.get_webview_window(&label) {
+        let _ = window.close();
+    }
+
+    match html_result {
+        Ok(Ok(html)) => Ok(html),
+        Ok(Err(_)) => Err("webview 通道已关闭".into()),
+        Err(_) => {
+            let state = app.state::<FetchChannels>();
+            if let Ok(mut map) = state.0.lock() {
+                map.remove(&request_id);
+            }
+            Err("webview 抓取超时（30s）".into())
+        }
+    }
+}
+
+/// 提取 substring：从 haystack 中找 start...end 之间的内容（不含 start/end）
+fn extract_between<'a>(haystack: &'a str, start: &str, end: &str) -> Option<&'a str> {
+    let s = haystack.find(start)?;
+    let after = &haystack[s + start.len()..];
+    let e = after.find(end)?;
+    Some(&after[..e])
+}
+
+/// 微信公众号公众号名（"十字路口Crossing"）从 `<script>var nickname = htmlDecode("...")` 抽
+fn wx_nickname(html: &str) -> Option<String> {
+    extract_between(html, r#"var nickname = htmlDecode(""#, r#"")"#)
+        .map(|s| s.to_string())
+        .filter(|s| !s.is_empty())
+}
+
+/// 微信公众号发布时间从 `<script>var ct = "1779267600"` 抽（unix timestamp 字符串）
+/// 前端 fmtPublished 检测纯数字时按 unix 转 Date
+fn wx_publish_ts(html: &str) -> Option<String> {
+    extract_between(html, r#"var ct = ""#, r#"""#)
+        .filter(|s| s.chars().all(|c| c.is_ascii_digit()) && !s.is_empty())
+        .map(|s| s.to_string())
+}
+
+/// 微信公众号 IP 属地：`window.ip_wording = { countryName: '美国', provinceName: '...', ... }`
+/// 优先 provinceName（国内省份）→ 否则 countryName（国外国家）
+fn wx_ip_region(html: &str) -> Option<String> {
+    let block = extract_between(html, "window.ip_wording = {", "}")?;
+    let extract_field = |key: &str| -> Option<String> {
+        // 支持单引号或双引号包裹
+        let needle_sq = format!("{}: '", key);
+        let needle_dq = format!("{}: \"", key);
+        if let Some(s) = extract_between(block, &needle_sq, "'") {
+            return Some(s.to_string()).filter(|s| !s.is_empty());
+        }
+        if let Some(s) = extract_between(block, &needle_dq, "\"") {
+            return Some(s.to_string()).filter(|s| !s.is_empty());
+        }
+        None
+    };
+    extract_field("provinceName").or_else(|| extract_field("countryName"))
+}
+
+/// 解析已经抓到的 HTML → 结构化 FetchedClip
+fn parse_clip_html(html: &str, url: String) -> Result<FetchedClip, String> {
+    let doc = scraper::Html::parse_document(html);
 
     let title = page_title(&doc);
     let excerpt: String = meta_content(&doc, "og:description")
         .or_else(|| meta_content(&doc, "description"))
         .unwrap_or_default()
         .chars().take(300).collect();
-    let site_name = meta_content(&doc, "og:site_name")
+    // 公众号 SSR 里 #js_name 是空、og:site_name 是"微信公众平台"——优先用 script var nickname
+    let site_name = wx_nickname(html)
+        .or_else(|| meta_content(&doc, "og:site_name"))
         .unwrap_or_else(|| url_domain(&url));
     let favicon_url = page_favicon(&doc, &url);
     let cover_image = page_cover(&doc, &url);
     let author = page_author(&doc);
-    let published_at = page_published(&doc);
+    // 公众号 #publish_time 也是 SSR 空、JS 填充——从 script var ct 取 unix timestamp
+    let published_at = wx_publish_ts(html).unwrap_or_else(|| page_published(&doc));
+    let ip_region = wx_ip_region(html).unwrap_or_default();
     let raw_content = extract_article_md(&doc, &url);
     let content_md = dedup_images(&raw_content, &cover_image);
 
     Ok(FetchedClip {
         url, title, content_md, excerpt, site_name, favicon_url,
-        cover_image, author, published_at,
+        cover_image, author, published_at, ip_region,
     })
+}
+
+/// webview 内的 JS 通过 __TAURI_INTERNALS__.invoke 把 outerHTML 传回时进入这里。
+/// 用 request_id 找到对应的 oneshot sender 唤醒 fetch_via_webview。
+#[tauri::command]
+fn webview_html_done(
+    request_id: String,
+    html: String,
+    state: tauri::State<'_, FetchChannels>,
+) -> Result<(), String> {
+    let mut map = state.0.lock().map_err(|e| e.to_string())?;
+    if let Some(tx) = map.remove(&request_id) {
+        let _ = tx.send(html);
+    }
+    Ok(())
+}
+
+/// Tauri 命令：抓取 URL → 解析 → 返回结构化数据（前端负责写库）。
+/// 知乎等 JS 反爬站点走 webview 渲染抓取，其余 reqwest 直抓。
+#[tauri::command]
+async fn fetch_clip(app: tauri::AppHandle, url: String) -> Result<FetchedClip, String> {
+    let html = if needs_browser_fetch(&url) {
+        fetch_via_webview(app, url.clone()).await?
+    } else {
+        fetch_via_reqwest(&url).await?
+    };
+    parse_clip_html(&html, url)
 }
 
 /// 保存附件到 {app_data_dir}/attachments/{uuid}.{ext}
@@ -637,7 +867,13 @@ pub fn run() {
       kind: MigrationKind::Up,
     },
     Migration {
-      version: 4,
+      version: 5,
+      description: "add ip_region to clips",
+      sql: "ALTER TABLE clips ADD COLUMN ip_region TEXT NOT NULL DEFAULT '';",
+      kind: MigrationKind::Up,
+    },
+    Migration {
+      version: 6,
       description: "create subscription_sources and feed_entries tables",
       sql: "CREATE TABLE IF NOT EXISTS subscription_sources (\
               id INTEGER PRIMARY KEY AUTOINCREMENT,\
@@ -690,12 +926,14 @@ pub fn run() {
         .add_migrations("sqlite:vibe.db", migrations)
         .build(),
     )
+    .manage(FetchChannels::default())
     .invoke_handler(tauri::generate_handler![
         save_attachment,
         get_app_data_dir,
         cleanup_orphan_attachments,
         fetch_clip,
         subscription::commands::fetch_subscription_source,
+        webview_html_done,
     ])
     .setup(|app| {
       if cfg!(debug_assertions) {
