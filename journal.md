@@ -8,6 +8,39 @@
 >
 > 写法标准与示例：skill 的 `references/journal.md`。
 
+## 2026-05-24 发现主目录处于 git merge 进行中——我在不知情下改 conflict 文件
+
+做了：
+- 用户从其他 worktree session 提示 main 有 dirty 阻挡 merge。git status 重新看才发现：**主目录是 `git merge 61156a9` 进行中状态**，不是普通 dirty
+- `.git/MERGE_MSG` 显示在合搜索分支的 rusqlite 切换 commit（移除 tauri-plugin-sql + 加 rusqlite + 12 个 invoke commands + db.rs 模块化）
+- 4 个文件 UU（unresolved）：Cargo.lock / lib.rs / db.ts / types.ts；5 个新文件 staged：commands/{clips,notes,mod}.rs + db.rs + migrations/v1_v2_v3.sql
+- 我之前几轮以为在改普通 conflict markers，**实际上是在 merge in progress 状态下编辑冲突文件**，没 `git add` → git 仍标记 UU。我不知道是别的 session 发起的 merge 一直卡着
+- 给用户两条出路：abort 这次 merge（推荐——架构切换不应被卷进随手 merge）或继续完成（plugin-sql 和 rusqlite 两套并存需后续清理）
+
+学到：
+- **`git status` 的 `UU` 是 merge in progress 信号，跟 `M` 完全不同**。`M` 是简单 modified，`UU` 是 unmerged paths（merge 冲突）。我前面几轮编辑文件前都没仔细看 `git status` 输出的状态字符——只看了文件列表+ modified。下次 status 一眼扫过：**M 之外的字符（UU/AA/A 等）都意味着 git 处于特殊状态**，必须停下确认
+- **多 worktree 共享 main 分支时，任一 session 都可能让 main 进入 merge 状态**。我以为 main 是 quiescent 的，但其他 worktree 可以 `git merge xxx`（git 不会拒绝多 worktree 操作 main，除非已 checkout）。下次干净启动前先 `git status | head` + 看 `.git/MERGE_HEAD` 是否存在确认 main 不在 merge 中
+- **改 dirty 文件前必看 `git status`**——这个习惯被前面几轮 conflict marker 的繁琐操作冲淡了。当我以为"主目录就只是 dirty"，没意识到 dirty 可能是 merge state 的副作用。"M ≠ 简单 dirty"必须刻进反射
+- **架构切换级 merge 不该靠 'git merge' 自动合**——HEAD plugin-sql 和搜索分支 rusqlite 是底层选择。这种合并应该先在协调层（CLAUDE.md / spec）拍板架构方向再执行，不是简单跑 `git merge` 让 git 自动凑
+
+---
+
+## 2026-05-24 未解决的 git conflict markers 被 commit 进 main + sqlite3 手动加列
+
+做了：
+- 用户授权后手动 sqlite3 加 ip_region 列 + bump user_version=5（绕开 plugin-sql migration 跳号失效问题）
+- 重启 dev 失败 exit 101 + Cargo "failed to parse lock file"。grep 发现 4 个文件残留 `<<<<<<< HEAD ... ======= ... >>>>>>> 61156a9` 未解决 conflict markers：lib.rs（顶部 import + run() 3 处）、db.ts（3 处）、types.ts（1 处）、Cargo.lock（1 处）
+- 修了 lib.rs + db.ts，types.ts 和 Cargo.lock 还没修就被用户打断"现在再干嘛什么意思"
+- 全部冲突方向：HEAD 是 main 的 plugin-sql 直接 SQL 写法，61156a9 是搜索分支的 rusqlite + commands 模块化写法。选 HEAD（保留 main 的 plugin-sql + ip_region 字段），保留 types.ts 中 `tags_text` 字段（搜索分支扩展，已被 main 接受）
+
+学到：
+- **致命踩坑：未解决的 merge conflict markers 被 git add 进 commit**。前面 commit 848ccb0（"feat(clip): 公众号 meta + 全屏过渡（含 worktree 旁支改动）"）用 `git add -u` 把所有 dirty 一起入栈时，**没注意到 4 个文件里有 conflict markers**——这些 markers 是文本，git 不会拒绝 add，但 cargo/TS 会编译失败。markers 跟着 commit 走进 main，是不可逆的（已是 history）
+- **`git add -u/-A` 前必须 `git diff --check`**。这条命令专门检测 conflict markers + 行尾空白等问题，1 秒钟跑完。下次 commit 前**必须**先 `git diff --check`，没有任何成本，能挡掉这种灾难。**升 rule 候选**
+- **"用户说先 commit 再 merge" 不等于跳过 review**。我把"用户授权 commit"理解成"全 commit 不审"，但用户没说"不审"——他默认我会做基本检查。这次混合 commit + 不 review 的代价是污染 main commit 历史，需要花 1+ 小时修
+- **db.ts / types.ts 的 conflict 暴露 schema 设计冲突**：搜索分支用 rusqlite + invoke commands 模式，main 用 plugin-sql 直接 SQL 模式。两条路本质不兼容（不只是字段加减）。两个分支共享同一份 db symlink + 各自不同的访问层，是结构性冲突，不只是 migration 编号问题
+
+---
+
 ## 2026-05-24 订阅 reader 全屏切换卡顿——三层 GPU 重计算叠加在 transition: width 上面
 
 做了：
