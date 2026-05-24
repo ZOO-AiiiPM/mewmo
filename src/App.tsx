@@ -124,6 +124,11 @@ export default function App() {
   }, [toggleAI]);
 
   // ── 笔记操作 ──────────────────────────────────────────────────────────────
+  // 刚创建的笔记 id 标记：仅 NoteEditor 切到这条时触发 fade 动画，用完即清
+  // （单纯靠"内容空"反推会误命中其他空笔记，必须显式信号）
+  const [newlyCreatedNoteId, setNewlyCreatedNoteId] = useState<number | null>(null);
+  const consumeNewlyCreated = useCallback(() => setNewlyCreatedNoteId(null), []);
+
   const handleCreateAndBind = useCallback(async () => {
     const id = await createNote();
     await refresh();
@@ -135,6 +140,7 @@ export default function App() {
         return { ...t, zone: 'notes', refId: id, noteHistory: newHist, noteHistoryIdx: newHist.length - 1 };
       })
     );
+    setNewlyCreatedNoteId(id);
   }, [refresh, activeTabId]);
 
   const handleUpdateNote = useCallback(
@@ -375,7 +381,6 @@ export default function App() {
                   clips={clips}
                   selectedId={selectedClip?.id ?? null}
                   onSelect={handleClipSelect}
-                  onDelete={handleClipDelete}
                   hidden={expanded}
                 />
                 <ClipReader
@@ -415,6 +420,8 @@ export default function App() {
                   canForward={canForward}
                   onBack={handleNoteBack}
                   onForward={handleNoteForward}
+                  newlyCreatedId={newlyCreatedNoteId}
+                  onCreateAnimDone={consumeNewlyCreated}
                 />
               </>
             ) : (
