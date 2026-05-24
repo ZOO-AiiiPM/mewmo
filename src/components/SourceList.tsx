@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from 'react';
 import type { SubscriptionSource } from '../types';
 
 type Props = {
@@ -133,13 +134,8 @@ export function SourceList({
                     : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.04]'
                 }`}
               >
-                {/* favicon */}
-                <div
-                  className="w-7 h-7 rounded-md grid place-items-center text-white text-[11px] font-semibold shrink-0"
-                  style={{ background: isUnhealthy ? '#ef4444' : colorFor(s) }}
-                >
-                  {isUnhealthy ? '!' : faviconLabel(s)}
-                </div>
+                {/* favicon: 真实 logo（feed metadata）→ fallback letter placeholder */}
+                <SourceFavicon source={s} unhealthy={isUnhealthy} />
                 <div className="min-w-0 flex-1">
                   <div className="text-[14px] font-medium text-stone-900 dark:text-stone-100 truncate">
                     {s.title || s.feed_url}
@@ -161,5 +157,48 @@ export function SourceList({
         )}
       </div>
     </aside>
+  );
+}
+
+/** 三层 fallback：feed 声明的 favicon_url → 站点 /favicon.ico → 首字母 placeholder */
+function SourceFavicon({ source, unhealthy }: { source: SubscriptionSource; unhealthy: boolean }) {
+  const candidates = useMemo(() => {
+    const list: string[] = [];
+    if (source.favicon_url) list.push(source.favicon_url);
+    if (source.site_url) {
+      try {
+        const u = new URL(source.site_url);
+        list.push(`${u.protocol}//${u.host}/favicon.ico`);
+      } catch (_) {
+        /* invalid site_url，跳过 */
+      }
+    }
+    return list;
+  }, [source.favicon_url, source.site_url]);
+
+  const [idx, setIdx] = useState(0);
+  // candidates 变化时重置（如刷新拿到新 favicon_url）
+  useEffect(() => setIdx(0), [candidates.join('|')]);
+
+  const useImg = !unhealthy && idx < candidates.length;
+  return (
+    <div
+      className="w-7 h-7 rounded-md grid place-items-center text-white text-[11px] font-semibold shrink-0 overflow-hidden"
+      style={{ background: unhealthy ? '#ef4444' : (useImg ? '#fafaf9' : colorFor(source)) }}
+    >
+      {unhealthy ? (
+        '!'
+      ) : useImg ? (
+        <img
+          src={candidates[idx]}
+          alt=""
+          className="w-full h-full object-cover"
+          onError={() => setIdx(i => i + 1)}
+          loading="lazy"
+        />
+      ) : (
+        faviconLabel(source)
+      )}
+    </div>
   );
 }
