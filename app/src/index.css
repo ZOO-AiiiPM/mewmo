@@ -2,8 +2,15 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* 数字字符（0-9 / 冒号 / 小数点）单独走 SF Pro Rounded —— 苹果系统时钟 / 控制中心那套圆润扁数字 */
+@font-face {
+  font-family: "AppleNumber";
+  src: local("SF Pro Rounded"), local("-apple-system"), local("BlinkMacSystemFont");
+  unicode-range: U+0030-0039, U+002E, U+003A;
+}
+
 :root {
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'PingFang SC', 'Hiragino Sans GB', system-ui, sans-serif;
+  font-family: "AppleNumber", -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'PingFang SC', 'Hiragino Sans GB', system-ui, sans-serif;
   color-scheme: light dark;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -97,6 +104,9 @@ html.dark .live-md-editor .cm-strong { color: #fafaf9; }
 
 .live-md-editor .cm-em {
   font-style: italic;
+  /* 中文字体一般无原生斜体字形；root 设了 font-synthesis: none 会让 italic 无效，
+     这里显式开启字体合成，让浏览器对中文也合成倾斜效果 */
+  font-synthesis: style;
 }
 
 .live-md-editor .cm-strike {
@@ -171,7 +181,7 @@ html.dark .live-md-editor .cm-link {
 .live-md-editor .cm-md-table-wrap {
   position: relative;
   display: inline-block;
-  margin: 0.6em 0;
+  padding: 0.6em 0;
   user-select: none;
 }
 .live-md-editor .cm-md-table {
@@ -413,3 +423,11 @@ html.dark .clip-prose a { color: #60a5fa; }
 }
 html.dark .clip-prose img { background: rgba(255,255,255,0.04); }
 
+/* 深色模式：原文 inline 背景一刀切。
+   公众号 / 知乎的 background:#f5f5f5 等浅灰高亮块在深色模式下会变白底块。
+   color 不在此处理（CSS 无法按饱和度选择性 apply），由 ClipReader.tsx 的
+   useEffect + MutationObserver 按饱和度过滤（灰阶剥，彩色装饰保留）。*/
+html.dark .clip-prose [style] {
+  background-color: transparent !important;
+  background-image: none !important;
+}

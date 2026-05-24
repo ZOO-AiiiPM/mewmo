@@ -1,4 +1,4 @@
-import { Fragment } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import type React from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import type { Zone } from './Sidebar';
@@ -101,10 +101,31 @@ function TabPill({
   onSelect: () => void;
   onClose: () => void;
 }) {
+  const titleRef = useRef<HTMLSpanElement>(null);
+  const [overflow, setOverflow] = useState(false);
+
+  useEffect(() => {
+    const el = titleRef.current;
+    if (!el) return;
+    const check = () => setOverflow(el.scrollWidth > el.clientWidth);
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [tab.title]);
+
+  // 文字溢出才加 mask：短文字完整显示不被淡边吃掉
+  const fadeStyle = overflow
+    ? {
+        maskImage: 'linear-gradient(to right, black calc(100% - 18px), transparent)',
+        WebkitMaskImage: 'linear-gradient(to right, black calc(100% - 18px), transparent)',
+      }
+    : undefined;
+
   return (
     <div
       onClick={onSelect}
-      className={`group relative flex items-center gap-1.5 h-7 pl-2.5 pr-1.5 rounded-md cursor-pointer text-[12px] font-semibold w-[120px] shrink-0 transition-colors ${
+      className={`group relative flex items-center gap-1.5 h-7 pl-2.5 pr-1.5 rounded-md cursor-pointer text-[12px] font-semibold w-[160px] shrink-0 transition-colors ${
         active
           ? 'bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-50 shadow-sm'
           : 'text-stone-800 dark:text-stone-200 hover:bg-black/5 dark:hover:bg-white/10'
@@ -115,7 +136,13 @@ function TabPill({
           {ZONE_ICONS[tab.zone]}
         </span>
       )}
-      <span className="flex-1 truncate text-center select-none">{tab.title || '无标题'}</span>
+      <span
+        ref={titleRef}
+        style={fadeStyle}
+        className="flex-1 min-w-0 whitespace-nowrap overflow-hidden text-left select-none"
+      >
+        {tab.title || '无标题'}
+      </span>
       <button
         onClick={e => {
           e.stopPropagation();
