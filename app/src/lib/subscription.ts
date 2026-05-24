@@ -81,13 +81,14 @@ async function insertSource(meta: {
   title: string;
   description: string;
   site_url: string | null;
+  favicon_url: string | null;
 }): Promise<number> {
   const d = await getDb();
   const result = await d.execute(
     `INSERT INTO subscription_sources
-     (feed_url, title, description, site_url, status)
-     VALUES (?, ?, ?, ?, 'pending')`,
-    [meta.feed_url, meta.title, meta.description, meta.site_url],
+     (feed_url, title, description, site_url, favicon_url, status)
+     VALUES (?, ?, ?, ?, ?, 'pending')`,
+    [meta.feed_url, meta.title, meta.description, meta.site_url, meta.favicon_url],
   );
   return result.lastInsertId as number;
 }
@@ -98,6 +99,7 @@ async function updateSourceAfterFetch(
     title?: string;
     description?: string;
     site_url?: string | null;
+    favicon_url?: string | null;
     etag?: string | null;
     last_modified?: string | null;
     status?: SourceStatus;
@@ -110,6 +112,7 @@ async function updateSourceAfterFetch(
     'title',
     'description',
     'site_url',
+    'favicon_url',
     'etag',
     'last_modified',
     'status',
@@ -267,6 +270,7 @@ export async function addSubscription(url: string): Promise<AddResult> {
     title: outcome.feed_meta.title || hostnameOf(feed_url),
     description: outcome.feed_meta.description,
     site_url: outcome.feed_meta.site_url,
+    favicon_url: outcome.feed_meta.favicon_url,
   });
 
   // 5. INSERT entries
@@ -311,10 +315,13 @@ export async function refreshAllSubscriptions(): Promise<RefreshSummary> {
 
   for (const s of sources) {
     try {
+      // 旧 source 的 favicon_url 还是 NULL 时，跳过条件头强制 server 200，
+      // 让 metadata（含 logo）能补全。常态下 (favicon 已存) 走 304 节流路径
+      const useConditional = s.favicon_url != null;
       const outcome = await fetchSubscriptionSource(
         s.feed_url,
-        s.etag,
-        s.last_modified,
+        useConditional ? s.etag : null,
+        useConditional ? s.last_modified : null,
       );
       if (outcome.status === 'not_modified') {
         // 仅刷新 last_fetched_at + 重置 failure
@@ -327,6 +334,7 @@ export async function refreshAllSubscriptions(): Promise<RefreshSummary> {
           title: outcome.feed_meta.title || s.title,
           description: outcome.feed_meta.description || s.description,
           site_url: outcome.feed_meta.site_url ?? s.site_url,
+          favicon_url: outcome.feed_meta.favicon_url ?? s.favicon_url,
           etag: outcome.etag,
           last_modified: outcome.last_modified,
           status: 'ok',

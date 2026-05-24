@@ -321,7 +321,11 @@ export default function App() {
                 />
               </>
             ) : activeZone === 'subscribe' ? (
-              <SubscriptionLayout hidden={expanded} />
+              <SubscriptionLayout
+                hidden={expanded}
+                expanded={expanded}
+                onExpand={() => setExpanded(e => !e)}
+              />
             ) : (
               <div className="flex-1 flex items-center justify-center text-stone-400 dark:text-stone-500 text-sm">
                 {PLACEHOLDER_LABEL[activeZone]} 敬请期待

@@ -61,6 +61,7 @@ export interface FetchedFeedMeta {
   title: string;
   description: string;
   site_url: string | null;
+  favicon_url: string | null;
 }
 
 export interface FetchedEntry {

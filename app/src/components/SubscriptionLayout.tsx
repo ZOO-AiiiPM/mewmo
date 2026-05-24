@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { SourceList } from './SourceList';
 import { EntryList } from './EntryList';
+import { EntryReader } from './EntryReader';
 import { AddSourceDialog } from './AddSourceDialog';
 import {
   addSubscription,
@@ -14,13 +15,17 @@ import type { FeedEntry, SubscriptionSource } from '../types';
 
 type Props = {
   hidden?: boolean;
+  expanded: boolean;
+  onExpand: () => void;
 };
 
-export function SubscriptionLayout({ hidden = false }: Props) {
+export function SubscriptionLayout({ hidden = false, expanded, onExpand }: Props) {
   const [sources, setSources] = useState<SubscriptionSource[]>([]);
   const [selectedSourceId, setSelectedSourceId] = useState<number | null>(null);
   const [entries, setEntries] = useState<FeedEntry[]>([]);
-  const [selectedEntry, setSelectedEntry] = useState<FeedEntry | null>(null);
+  // 历史栈：用户点过的 entry 序列；historyIdx 指向当前显示的
+  const [history, setHistory] = useState<FeedEntry[]>([]);
+  const [historyIdx, setHistoryIdx] = useState(-1);
   const [addOpen, setAddOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -69,12 +74,14 @@ export function SubscriptionLayout({ hidden = false }: Props) {
   useEffect(() => {
     if (selectedSourceId == null) {
       setEntries([]);
-      setSelectedEntry(null);
+      setHistory([]);
+      setHistoryIdx(-1);
       return;
     }
-    refreshEntries(selectedSourceId).then(list => {
-      // 切源时不自动选条目（让用户主动点）
-      if (list.length === 0) setSelectedEntry(null);
+    refreshEntries(selectedSourceId).then(_list => {
+      // 切源时清空历史栈（跨源历史无意义）
+      setHistory([]);
+      setHistoryIdx(-1);
     });
   }, [selectedSourceId, refreshEntries]);
 
@@ -102,17 +109,42 @@ export function SubscriptionLayout({ hidden = false }: Props) {
   }, [refreshing, refreshSources, refreshEntries, selectedSourceId]);
 
   const handleEntrySelect = useCallback(async (entry: FeedEntry) => {
-    setSelectedEntry(entry);
+    // 历史栈：截断 forward 之后追加新 entry（浏览器历史经典模式）
+    setHistory(prev => {
+      const truncated = historyIdx >= 0 ? prev.slice(0, historyIdx + 1) : [];
+      // 如果新 entry == 当前 entry，不重复入栈
+      if (truncated.length > 0 && truncated[truncated.length - 1].id === entry.id) {
+        return truncated;
+      }
+      return [...truncated, entry];
+    });
+    setHistoryIdx(idx => idx + 1);
+
     if (entry.read_at == null) {
       await markEntryRead(entry.id);
-      // 本地更新 read_at 状态
       const now = Math.floor(Date.now() / 1000);
       setEntries(prev =>
         prev.map(e => (e.id === entry.id ? { ...e, read_at: now } : e)),
       );
       await refreshSources(); // 更新 unread badge
     }
-  }, [refreshSources]);
+  }, [historyIdx, refreshSources]);
+
+  const handleBack = useCallback(() => {
+    setHistoryIdx(idx => Math.max(0, idx - 1));
+  }, []);
+
+  const handleForward = useCallback(() => {
+    setHistoryIdx(idx => Math.min(history.length - 1, idx + 1));
+  }, [history.length]);
+
+  // 当前显示的 entry = 历史栈当前位置
+  const currentEntry = historyIdx >= 0 && historyIdx < history.length
+    ? history[historyIdx]
+    : null;
+  const currentSource = selectedSourceId != null
+    ? sources.find(s => s.id === selectedSourceId) ?? null
+    : null;
 
   if (loading) {
     return (
@@ -136,24 +168,21 @@ export function SubscriptionLayout({ hidden = false }: Props) {
       />
       <EntryList
         entries={entries}
-        selectedId={selectedEntry?.id ?? null}
+        source={currentSource}
+        selectedId={currentEntry?.id ?? null}
         onSelect={handleEntrySelect}
         hidden={hidden}
       />
-      {/* Reader 区：US2 阶段实现真实 EntryReader，先放占位 */}
-      <main className="flex-1 min-w-0 flex flex-col">
-        {selectedEntry ? (
-          <SimpleReader entry={selectedEntry} />
-        ) : (
-          <div className="flex-1 grid place-items-center text-stone-400 dark:text-stone-500 text-sm px-6 text-center">
-            {entries.length === 0 && sources.length > 0
-              ? '此订阅源还没有内容，等下次抓取'
-              : sources.length === 0
-                ? '点左上 + 添加你的第一个订阅源 ✨'
-                : '从中间列表点选一条阅读 ✨'}
-          </div>
-        )}
-      </main>
+      <EntryReader
+        entry={currentEntry}
+        source={currentSource}
+        onBack={handleBack}
+        onForward={handleForward}
+        canBack={historyIdx > 0}
+        canForward={historyIdx < history.length - 1}
+        expanded={expanded}
+        onExpand={onExpand}
+      />
 
       <AddSourceDialog
         open={addOpen}
@@ -161,46 +190,5 @@ export function SubscriptionLayout({ hidden = false }: Props) {
         onSubmit={handleAdd}
       />
     </>
-  );
-}
-
-/** US2 之前的最简阅读器：直接渲染 content_html */
-function SimpleReader({ entry }: { entry: FeedEntry }) {
-  return (
-    <div className="flex-1 overflow-y-auto">
-      <article className="max-w-[680px] mx-auto px-8 py-10">
-        <h1 className="text-[28px] font-bold leading-tight text-stone-900 dark:text-stone-100 mb-3">
-          {entry.title || '无标题'}
-        </h1>
-        <div className="flex items-center gap-2 text-[13px] text-stone-500 dark:text-stone-400 mb-7 pb-5 border-b border-black/[0.05] dark:border-white/[0.05] flex-wrap">
-          {entry.author && <span>{entry.author}</span>}
-          {entry.author && entry.published_at && <span className="w-1 h-1 rounded-full bg-current opacity-50" />}
-          {entry.published_at && (
-            <span>
-              {new Date(entry.published_at * 1000).toLocaleDateString('zh-CN', {
-                year: 'numeric', month: 'long', day: 'numeric',
-              })}
-            </span>
-          )}
-          {entry.link && (
-            <>
-              <span className="w-1 h-1 rounded-full bg-current opacity-50" />
-              <a
-                href={entry.link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:underline"
-              >
-                原文 ↗
-              </a>
-            </>
-          )}
-        </div>
-        <div
-          className="clip-prose"
-          dangerouslySetInnerHTML={{ __html: entry.content_html }}
-        />
-      </article>
-    </div>
   );
 }

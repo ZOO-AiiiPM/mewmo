@@ -18,6 +18,7 @@ pub struct FetchedFeedMeta {
     pub title: String,
     pub description: String,
     pub site_url: Option<String>,
+    pub favicon_url: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -133,6 +134,13 @@ pub async fn fetch_one(
             .iter()
             .find(|l| l.rel.as_deref() == Some("alternate") || l.rel.is_none())
             .map(|l| l.href.clone()),
+        // RSS 2.0 <image><url> 和 Atom <icon>/<logo> 都被 feed-rs 映射进来。
+        // 优先 icon（专门设计为小尺寸 favicon），fallback logo（banner，能用就用）。
+        favicon_url: feed
+            .icon
+            .as_ref()
+            .map(|i| i.uri.clone())
+            .or_else(|| feed.logo.as_ref().map(|l| l.uri.clone())),
     };
 
     let entries: Vec<FetchedEntry> = feed
