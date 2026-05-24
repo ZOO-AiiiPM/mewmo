@@ -1,4 +1,6 @@
-use tauri_plugin_sql::{Migration, MigrationKind};
+mod db;
+mod commands;
+
 #[cfg(target_os = "macos")]
 use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial, NSVisualEffectState};
 
@@ -598,44 +600,6 @@ fn cleanup_orphan_attachments(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-  let migrations = vec![
-    Migration {
-      version: 1,
-      description: "create notes table",
-      sql: "CREATE TABLE IF NOT EXISTS notes (\
-              id INTEGER PRIMARY KEY AUTOINCREMENT,\
-              title TEXT NOT NULL DEFAULT '',\
-              content_md TEXT NOT NULL DEFAULT '',\
-              created_at INTEGER NOT NULL DEFAULT (unixepoch()),\
-              updated_at INTEGER NOT NULL DEFAULT (unixepoch())\
-            );",
-      kind: MigrationKind::Up,
-    },
-    Migration {
-      version: 2,
-      description: "create clips table",
-      sql: "CREATE TABLE IF NOT EXISTS clips (\
-              id INTEGER PRIMARY KEY AUTOINCREMENT,\
-              url TEXT NOT NULL,\
-              title TEXT NOT NULL DEFAULT '',\
-              content_md TEXT NOT NULL DEFAULT '',\
-              excerpt TEXT NOT NULL DEFAULT '',\
-              site_name TEXT NOT NULL DEFAULT '',\
-              favicon_url TEXT NOT NULL DEFAULT '',\
-              saved_at INTEGER NOT NULL DEFAULT (unixepoch())\
-            );",
-      kind: MigrationKind::Up,
-    },
-    Migration {
-      version: 3,
-      description: "add metadata columns to clips",
-      sql: "ALTER TABLE clips ADD COLUMN cover_image TEXT NOT NULL DEFAULT '';\
-            ALTER TABLE clips ADD COLUMN author TEXT NOT NULL DEFAULT '';\
-            ALTER TABLE clips ADD COLUMN published_at TEXT NOT NULL DEFAULT '';",
-      kind: MigrationKind::Up,
-    },
-  ];
-
   let mut builder = tauri::Builder::default();
 
   #[cfg(debug_assertions)]
@@ -645,18 +609,23 @@ pub fn run() {
 
   builder
     .plugin(tauri_plugin_opener::init())
-    .plugin(
-      tauri_plugin_sql::Builder::default()
-        .add_migrations("sqlite:vibe.db", migrations)
-        .build(),
-    )
     .invoke_handler(tauri::generate_handler![
         save_attachment,
         get_app_data_dir,
         cleanup_orphan_attachments,
         fetch_clip,
+        commands::notes::list_notes,
+        commands::notes::create_note,
+        commands::notes::update_note,
+        commands::notes::delete_note,
+        commands::clips::list_clips,
+        commands::clips::save_clip,
+        commands::clips::update_clip,
+        commands::clips::delete_clip,
     ])
     .setup(|app| {
+      use tauri::Manager;
+
       if cfg!(debug_assertions) {
         app.handle().plugin(
           tauri_plugin_log::Builder::default()
@@ -665,10 +634,14 @@ pub fn run() {
         )?;
       }
 
+      // 初始化数据库（rusqlite + 自管 migration，后续 jieba tokenizer 注册也走这里）
+      let database = db::init(app.handle())
+        .map_err(|e| format!("init db: {e}"))?;
+      app.manage(database);
+
       // macOS 毛玻璃效果（Sidebar material 类似 Notes / Mail / Finder 的侧栏）
       #[cfg(target_os = "macos")]
       {
-        use tauri::Manager;
         let window = app.get_webview_window("main").expect("main window");
         apply_vibrancy(
           &window,
