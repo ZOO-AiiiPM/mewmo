@@ -6,6 +6,8 @@ use std::sync::Mutex;
 #[cfg(target_os = "macos")]
 use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial, NSVisualEffectState};
 
+mod subscription;
+
 // ── 剪藏：webview 后台抓取（绕开 zse-ck 等 JS 反爬）─────────────────────────
 
 /// request_id → oneshot sender；隐藏 webview 加载完成后通过 webview_html_done
@@ -845,6 +847,7 @@ pub fn run() {
         get_app_data_dir,
         cleanup_orphan_attachments,
         fetch_clip,
+        subscription::commands::fetch_subscription_source,
         webview_html_done,
         commands::notes::list_notes,
         commands::notes::create_note,
