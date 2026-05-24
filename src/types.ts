@@ -21,3 +21,26 @@ export type Clip = {
   published_at: string; // ISO 8601 字符串，可能为空
   tags_text: string;
 };
+
+// ── 搜索 ──────────────────────────────────────────────────────────────────
+
+export type NoteHit = {
+  id: number;
+  title_html: string;    // 含 <mark> 高亮
+  snippet: string;       // 32 字上下文 + <mark>
+  updated_at: number;
+};
+
+export type ClipHit = {
+  id: number;
+  title_html: string;
+  site_name: string;
+  author: string;
+  snippet: string;
+  saved_at: number;
+};
+
+export type SearchResults = {
+  notes: NoteHit[];
+  clips: ClipHit[];
+};

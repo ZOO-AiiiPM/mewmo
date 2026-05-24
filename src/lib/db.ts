@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { Note, Clip } from '../types';
+import type { Note, Clip, SearchResults } from '../types';
 
 // 8 个原 db.ts 函数迁移：tauri-plugin-sql (sqlx) 直接 SQL → invoke Rust commands
 // 接口签名保持不变 → 组件代码（listNotes() / createNote() / ...）零改动
@@ -66,4 +66,10 @@ export async function updateClip(
   patch: Omit<Clip, 'id' | 'saved_at' | 'tags_text'>
 ): Promise<void> {
   return call<void>('update_clip', { id, patch });
+}
+
+// ── 搜索 ──────────────────────────────────────────────────────────────────
+
+export async function searchAll(query: string): Promise<SearchResults> {
+  return call<SearchResults>('search_all', { query });
 }
