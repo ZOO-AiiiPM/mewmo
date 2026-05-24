@@ -817,6 +817,8 @@ function buildDecorations(state: EditorState): DecorationSet {
 
   // 收集 lezer 识别的 Emphasis / StrongEmphasis 范围；regex 补丁会跳过这些避免重复装饰
   const lezerEmphasisRanges: Array<[number, number]> = [];
+  // 收集 lezer 识别的 ListMark 位置；regex 补丁扫"空 list item"（- 后无内容时 lezer 不识别）
+  const lezerListMarkPositions = new Set<number>();
 
   // StateField 不能限制为 visibleRanges（无法访问 view）；笔记体量小，整文档遍历可接受
   syntaxTree(state).iterate({
@@ -977,6 +979,7 @@ function buildDecorations(state: EditorState): DecorationSet {
             const line = state.doc.lineAt(node.from);
             const lineText = state.doc.sliceString(line.from, line.to);
             if (/^\s*[-*+]\s/.test(lineText)) {
+              lezerListMarkPositions.add(node.from);
               // 任务项 (- [ ] foo / - [x] foo) → 隐藏前缀 "- "，由 TaskMarker widget 取代
               if (/^\s*[-*+]\s+\[[ xX]\]\s/.test(lineText)) {
                 const next = state.doc.sliceString(node.to, node.to + 1);
@@ -1103,6 +1106,24 @@ function buildDecorations(state: EditorState): DecorationSet {
       items.push({ from: mFrom, to: mFrom + 1, deco: Decoration.replace({}) });
       items.push({ from: mTo - 1, to: mTo, deco: Decoration.replace({}) });
     }
+  }
+
+  // ── regex 补丁：lezer 对"`- ` 后无内容"的空 list item 不识别成 ListMark ──
+  // 扫每行行首，匹配 `[-*+] + 空格`，且位置不在 lezer 已识别集合里 → 手动渲染圆点
+  const totalLines = state.doc.lines;
+  for (let lineNum = 1; lineNum <= totalLines; lineNum++) {
+    const line = state.doc.line(lineNum);
+    const m = line.text.match(/^(\s*)([-*+])\s/);
+    if (!m) continue;
+    const markerPos = line.from + m[1].length;
+    if (lezerListMarkPositions.has(markerPos)) continue;
+    // 任务项格式 `- [ ] / - [x]` 整体由 TaskMarker widget 处理，跳过
+    if (/^\s*[-*+]\s+\[[ xX]\]\s/.test(line.text)) continue;
+    items.push({
+      from: markerPos,
+      to: markerPos + 1,
+      deco: bulletDeco,
+    });
   }
 
   items.sort((a, b) => a.from - b.from || a.to - b.to);
