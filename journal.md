@@ -8,6 +8,56 @@
 >
 > 写法标准与示例：skill 的 `references/journal.md`。
 
+## 2026-05-24 search-tags 完整并入 main —— rusqlite + jieba + Spotlight 弹窗 + ip_region 融合
+
+做了：
+- 切片 A/B/C 全部代码（worktree 上 5 个 commit：DB 后端切换 / jieba+FTS5 / Spotlight 弹窗 / ip_region adapter / 端口配置）通过 `git merge main` 在 worktree 上 resolve 冲突后，主目录 fast-forward merge 进 main。HEAD = 91116a9，17 文件 / +1464 / -786
+- 关键 conflict resolution：保留 worktree 的 rusqlite + commands 模块路线 + 删除 main 的 plugin_sql Migration vec；保留 main 的 fetch_via_webview + FetchChannels + IP 属地抓取 + tokio sync deps；types.ts / commands/clips.rs 同时加 ip_region + tags_text + 搜索新 type；Cargo.lock 接受 main 版本让 cargo 自动补 jieba/rusqlite
+- main 上 search 项目全部 done：从 5/22 spec 启动 → 5/24 完整 merge，3 天 60 个回合
+
+踩坑：
+- 用户先指出我跑了路径 B（主目录直接 cherry-pick）而不是之前推荐的路径 A（worktree rebase / merge），路径 B 撞 conflict 直接在 main 上 resolve 风险高（错 resolve 破坏 main）。改回路径 A 后 conflict 在 worktree 解，main fast-forward 拿干净结果——这是 feature branch 工作流的核心智慧，merge 时从来不该在 base branch 上 resolve conflict
+- merge --continue 之前临时改的 commands/clips.rs（加 ip_region 字段）没 git add，merge commit 漏了 ip_region adapter，需要再补一个 commit。merge --continue 走的是 staged content，未 add 的 working tree 改动会被忽略——以后大 merge 解完 conflict 要 `git add -A` 一起检查
+
+学到：
+- **大跨度 merge（fork 后 main 推进多次）的标准流程**：① worktree / feature branch 上 `git merge target_branch`，conflict 在自己 working tree 解 ② cargo check / pnpm build 验证编译 ③ commit merge ④ target_branch fast-forward 拿干净结果。**绝对不在 target branch 上 resolve conflict** —— 错了直接坏 base。这次教训值得升级到 ~/.claude/rules/execution.md 「git 合并铁律」一段
+- **架构层级冲突的 resolve 策略**：worktree 切换了 SQL 后端（plugin_sql → rusqlite）属于"架构层级改动"，main 上别人加的功能（IP 属地 / fetch_via_webview）是"业务层级"。conflict resolve 时**架构层级保留 worktree 的整套（不能拼接 plugin_sql + rusqlite 半截半截）+ 业务层级保留 main 的实现 + adapter（commands 加 ip_region 列处理）**。把"架构 + 业务"拆成两个维度想，比一段段看 conflict marker 决断更稳
+
+---
+
+## 2026-05-24 merge main 后没 pnpm install——cargo build + tsc 都通过照样 vite 启动 import 报错
+
+做了：
+- 把 main 最新 commits merge 进 worktree 分支（剪藏 ip_region / 公众号 meta / livePreview 等大改动），手解 lib.rs migration v4→v6 / .specify/feature.json / CLAUDE.md SPECKIT 段三处冲突，落 merge commit 7cf6eb1
+- 跑 `cargo build` 通过 + `pnpm tsc --noEmit` 通过，**自信告诉用户"merge 跑通了"**
+- 用户开 dev 后截图打回：vite 报 `[plugin:vite:import-analysis] Failed to resolve import "framer-motion" from "src/components/NoteList.tsx"`
+- 修：`pnpm install` 装上 +42 packages（framer-motion 12.40.0 / @radix-ui/react-context-menu 2.2.16 等），重启 dev 启动 OK
+
+踩坑：
+- merge 拉过来的 main commits 同时改了 `app/package.json`（加 framer-motion + @radix-ui/react-context-menu 这两个 main 上 NoteList 用的新 dep），但 worktree 的 node_modules 还停在 worktree 第一次 install 的旧状态——package.json 升级后 deps 不会自动安装
+- 我跑的两层 check 都漏了这个：`cargo build` **只编译 Rust**，根本不解析 TypeScript import；`tsc --noEmit` **只检查类型**，不验证 npm 包是否真的躺在 node_modules 里。**`vite dev` 启动时才真实做 import resolution**——这才是 dep 缺失的实际测试点。三层 check 各自有盲区，我只跑了前两层就宣告"跑通"
+
+学到：
+- **"build 通过 ≠ 跑通"——三层 check 各自盲区不能互相替代**：cargo build 看 Rust 编译 / tsc 看 TS 类型 / vite dev 看 import resolution，三者维度正交。**任何 package.json 变化必须 pnpm install 后跑一次 vite dev** 才能确认真跑通。merge / pull / rebase 凡是拉了新依赖的，install 必做。**升 rule 候选**
+- **declare "跑通了" 的实证标准是 vite ready + Tauri 窗口 + 至少一个核心交互**，不是"build 通过"。下次 merge 完不要省"启动一次"这一步——它揭示前两层 check 漏的 dep 缺失问题，跑一次只要 10 秒
+- **package.json 改动是 npm dep 漂移的强信号**：merge 输出里出现 `Auto-merging app/package.json` 应该立即触发"`pnpm install` 必跑"心智反射，不能靠"我记得最近 install 过"那种记忆决定要不要跑——记忆和 package.json 实际状态完全是两码事
+
+---
+
+## 2026-05-24 abort 时把 cherry-pick 当 merge——`.git/` state 文件才是 ground truth
+
+做了：
+- 用户选 abort，我跑 `git merge --abort` 失败：`There is no merge to abort (MERGE_HEAD missing)`。看 `.git/` 才发现是 `git cherry-pick 61156a9` 在跑（不是 merge），应该是 `git cherry-pick --abort`
+- abort 成功，main 回到 ba38f21（含我的剪藏 commit 848ccb0）干净状态。剩下 dirty 是别的 session 的旁支（journal.md / lessons / 临时目录），不动
+- 给用户写了搜索分支 session 的接力提示词：让那边在 worktree 里 `git merge origin/main` 拉最新进自己分支 → adapter ip_region 字段到 rusqlite 实现 → 自己分支测通 → 再 PR 到 main。强调不要再在主目录直接 cherry-pick / merge 到 main
+
+学到：
+- **`.git/` state 文件区分 merge / cherry-pick / rebase / bisect**：MERGE_HEAD / CHERRY_PICK_HEAD / REBASE_HEAD / BISECT_LOG。看到 UU + A 同时存在的"merge-like"状态时，**ls .git/*_HEAD** 才能确定具体是哪个，对应 `--abort` 命令不同。**git status 输出文字"You have unmerged paths"对 merge 和 cherry-pick 是一样的，靠它区分不了**
+- **跨 session 的 git 状态污染**：另一个 worktree 的 session 在主目录跑了 `git cherry-pick`（没 abort 就停了），主目录就被卡在 cherry-pick 中间状态，影响所有后续操作。多 session/worktree 协作时**不要在共享主目录跑 cherry-pick / merge / rebase 这种状态机操作**——应该在自己 worktree 内跑（worktree 是独立 working tree + index）。如果非要跑，留下"我跑了 X 操作中"的明确标记
+- **重复信号：今天两次 git 操作没看清状态**——前面 commit 848ccb0 把 conflict markers commit 进去（没跑 `git diff --check`），这次 abort 时把 cherry-pick 当 merge（没看 `.git/`）。**全局 ~/.claude/rules/execution.md 里"破坏性 git 操作前先 git status"那条应该扩展为"先看 git status + .git/{MERGE,CHERRY_PICK,REBASE,BISECT}_HEAD 文件 + git diff --check"**——同一类教训重复出现 = rule 不够具体
+
+---
+
 ## 2026-05-24 发现主目录处于 git merge 进行中——我在不知情下改 conflict 文件
 
 做了：
