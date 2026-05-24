@@ -847,7 +847,6 @@ pub fn run() {
         get_app_data_dir,
         cleanup_orphan_attachments,
         fetch_clip,
-        subscription::commands::fetch_subscription_source,
         webview_html_done,
         commands::notes::list_notes,
         commands::notes::create_note,
@@ -858,6 +857,13 @@ pub fn run() {
         commands::clips::update_clip,
         commands::clips::delete_clip,
         commands::search::search_all,
+        commands::subscriptions::add_subscription,
+        commands::subscriptions::list_sources_with_unread,
+        commands::subscriptions::list_entries_for_source,
+        commands::subscriptions::mark_entry_read,
+        commands::subscriptions::delete_source,
+        commands::subscriptions::refresh_all_subscriptions,
+        commands::subscriptions::should_auto_refresh_on_startup,
     ])
     .setup(|app| {
       use tauri::Manager;
