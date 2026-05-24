@@ -25,6 +25,10 @@ type Props = {
   canForward: boolean;
   onBack: () => void;
   onForward: () => void;
+  // 父层标记的"刚通过新建按钮创建的笔记 id"——只有切到这条才触发 fade 动画
+  newlyCreatedId: number | null;
+  // fade 完成后通知父层清掉标记，避免再切回这条还触发动画
+  onCreateAnimDone: () => void;
 };
 
 // 用某个标记包裹选区（Cmd+B / Cmd+I 用）
@@ -106,7 +110,7 @@ const noSpellcheck = EditorView.contentAttributes.of({
   autocapitalize: 'off',
 });
 
-export function NoteEditor({ note, onChange, theme, onDelete, onCreate, aiOpen, expanded, onExpand, canBack, canForward, onBack, onForward }: Props) {
+export function NoteEditor({ note, onChange, theme, onDelete, onCreate, aiOpen, expanded, onExpand, canBack, canForward, onBack, onForward, newlyCreatedId, onCreateAnimDone }: Props) {
   // content 用 debounce 避免连续打字每键都写 DB；title 短、改完会停 → 直接 onChange 即时保存
   const contentDebounceRef = useRef<number | null>(null);
   const lastNoteIdRef = useRef<number | null>(null);
@@ -165,24 +169,28 @@ export function NoteEditor({ note, onChange, theme, onDelete, onCreate, aiOpen, 
       return;
     }
 
-    // 仅"新建/空笔记"走淡入动画（title + content 都空 = 草稿态）；
-    // 切到已有内容的笔记直接替换，避免每次切都过渡造成体感卡
-    const isNewDraft = !note.title && !(note.content_md ?? '');
-    if (!isNewDraft) {
+    // 严格判断"是不是刚新建的笔记"——只有这种才 fade，普通切换瞬时换内容
+    const isFromCreate = note.id === newlyCreatedId;
+    if (!isFromCreate) {
       applyNote();
       return;
     }
 
-    // 新建笔记：fade-out → 换内容 → fade-in
+    // 新建笔记：fade-out → 换内容 → fade-in → 通知父层清标记
     setContentVisible(false);
     const t = window.setTimeout(() => {
       applyNote();
       setContentVisible(true);
+      onCreateAnimDone();
     }, 150);
     return () => window.clearTimeout(t);
-  }, [note]);
+  }, [note, newlyCreatedId, onCreateAnimDone]);
 
   const handleContentChange = (value: string) => {
+    // applyNote 用 view.dispatch 替换 doc 时也会触发这里的 onChange（CM update listener 不区分 user vs programmatic）。
+    // 那次 value === note.content_md，直接 return 不启动 debounce，否则会留下 pending → 切笔记时被 flushContent
+    // 当成"用户改动"写回 DB → updated_at 被无谓刷新（用户没编辑也变成"刚改过"）
+    if (note && value === (note.content_md ?? '')) return;
     if (contentDebounceRef.current) window.clearTimeout(contentDebounceRef.current);
     contentDebounceRef.current = window.setTimeout(() => {
       if (lastNoteIdRef.current !== null && note && value !== note.content_md) {
@@ -222,7 +230,7 @@ export function NoteEditor({ note, onChange, theme, onDelete, onCreate, aiOpen, 
 
   return (
     <main className="relative flex-1 flex flex-col overflow-hidden">
-      <div className={`absolute top-0 left-0 right-0 z-[5] h-12 flex items-center justify-between pl-3 bg-white/70 dark:bg-stone-900/70 backdrop-blur-md transition-[padding] duration-200 ease-out ${aiOpen ? 'pr-[320px]' : 'pr-3'}`}>
+      <div className={`absolute top-0 left-0 right-0 z-[5] h-12 flex items-center justify-end pl-3 bg-white/70 dark:bg-stone-900/70 backdrop-blur-md transition-[padding] duration-200 ease-out ${aiOpen ? 'pr-[320px]' : 'pr-3'}`}>
           <div className="flex items-center gap-0.5">
           <button
             onClick={onBack}
@@ -276,8 +284,7 @@ export function NoteEditor({ note, onChange, theme, onDelete, onCreate, aiOpen, 
               <path d="m9 12 2 2 4-4" />
             </svg>
           </button>
-          </div>
-          <div className="flex items-center gap-0.5">
+          <div className="w-px h-5 bg-black/10 dark:bg-white/10 mx-1.5" />
           <button
             onClick={onExpand}
             title={expanded ? '收起 (⌘⇧F)' : '专注模式 (⌘⇧F)'}
