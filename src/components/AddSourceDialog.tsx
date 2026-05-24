@@ -140,6 +140,7 @@ export function AddSourceDialog({ open, onClose, onSubmit }: Props) {
 function prettifyError(raw: string): string {
   if (raw.startsWith('INVALID_URL')) return 'URL 格式错误，请检查协议（http/https）和拼写';
   if (raw === 'DUPLICATE_URL') return '这个源已经订阅过了';
+  if (raw.startsWith('EMPTY_RESPONSE')) return raw.replace('EMPTY_RESPONSE:', '').trim();
   if (raw.startsWith('FETCH_FAILED')) return `抓取失败：${raw.replace('FETCH_FAILED:', '').trim() || '检查网络或源是否可达'}`;
   if (raw.startsWith('PARSE_FAILED')) return `解析失败：这个 URL 不是合法的 RSS / Atom feed`;
   return raw;
