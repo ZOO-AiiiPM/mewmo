@@ -11,18 +11,6 @@
     "core:window:allow-toggle-maximize",
     "core:window:allow-set-theme",
     {
-      "identifier": "sql:allow-load",
-      "allow": [{ "name": "sqlite:vibe.db" }]
-    },
-    {
-      "identifier": "sql:allow-execute",
-      "allow": [{ "name": "sqlite:vibe.db" }]
-    },
-    {
-      "identifier": "sql:allow-select",
-      "allow": [{ "name": "sqlite:vibe.db" }]
-    },
-    {
       "identifier": "opener:allow-open-url",
       "allow": [{ "url": "https://*" }, { "url": "http://*" }, { "url": "mailto:*" }]
     },
