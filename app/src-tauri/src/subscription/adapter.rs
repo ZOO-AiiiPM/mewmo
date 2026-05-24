@@ -7,7 +7,9 @@
 // 未做 content-hash 兜底——v1 每天 1 次抓取，多解析一次 RSS XML 不是性能瓶颈。
 
 use feed_rs::parser;
-use reqwest::header::{ETAG, IF_MODIFIED_SINCE, IF_NONE_MATCH, LAST_MODIFIED, USER_AGENT};
+use reqwest::header::{
+    CACHE_CONTROL, ETAG, IF_MODIFIED_SINCE, IF_NONE_MATCH, LAST_MODIFIED, PRAGMA, USER_AGENT,
+};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
@@ -61,15 +63,26 @@ pub async fn fetch_one(
         .get(url)
         .header(USER_AGENT, "vibe-coding/0.1 (+https://github.com/...)");
 
+    let mut sent_conditional = false;
     if let Some(etag) = if_none_match {
         if !etag.is_empty() {
             req = req.header(IF_NONE_MATCH, etag);
+            sent_conditional = true;
         }
     }
     if let Some(lm) = if_modified_since {
         if !lm.is_empty() {
             req = req.header(IF_MODIFIED_SINCE, lm);
+            sent_conditional = true;
         }
+    }
+
+    // 首次抓取（无条件头）时主动加 no-cache —— 应对部分 CDN/反向代理即使没收到
+    // If-None-Match 也激进返回 304 的非标准行为，强制 server 给真实 body。
+    if !sent_conditional {
+        req = req
+            .header(CACHE_CONTROL, "no-cache")
+            .header(PRAGMA, "no-cache");
     }
 
     let resp = req

@@ -256,7 +256,9 @@ export async function addSubscription(url: string): Promise<AddResult> {
   const outcome = await fetchSubscriptionSource(feed_url);
 
   if (outcome.status !== 'updated') {
-    throw new Error('FETCH_FAILED: server returned 304 on first fetch (unexpected)');
+    throw new Error(
+      'EMPTY_RESPONSE: 服务器持续返回空响应（可能是该源的 CDN / 反向代理缓存配置异常），换一个 RSS 源试试',
+    );
   }
 
   // 4. INSERT source（status 先 pending）
