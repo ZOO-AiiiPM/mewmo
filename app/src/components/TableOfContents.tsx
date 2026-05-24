@@ -46,7 +46,10 @@ export function TableOfContents({ content, cursorLine, cmRef, scrollRef }: Props
     const wrapper = scrollRef.current;
     if (!view || !wrapper) return;
     const lineObj = view.state.doc.line(line);
-    // 纯滚动查阅，不动光标、不 focus 编辑器，避免打断当前编辑状态
+    // 改光标位置 → 触发 onUpdate → cursorLine 更新 → TOC active 高亮跟着切（点哪条粗哪条）；
+    // 不 focus 编辑器：浏览器不会因为 selection 变反向滚 wrapper，也不打断用户当前的输入位置
+    view.dispatch({ selection: { anchor: lineObj.from } });
+    // 滚动外层 wrapper（CM 自己不滚，从 contentDOM 算偏移）
     const block = view.lineBlockAt(lineObj.from);
     const cmContent = view.contentDOM as HTMLElement;
     const cmTopInWrapper =
