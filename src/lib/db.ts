@@ -4,9 +4,9 @@ import type { Note, Clip, SearchResults } from '../types';
 // 8 个原 db.ts 函数迁移：tauri-plugin-sql (sqlx) 直接 SQL → invoke Rust commands
 // 接口签名保持不变 → 组件代码（listNotes() / createNote() / ...）零改动
 
-// __TAURI_INTERNALS__ 注入有时序窗口，webview 启动到注入完成有几十毫秒间隙；
-// React useEffect 可能落在这个窗口里，invoke 会同步 throw `Cannot read invoke of undefined`。
-// 包装一层短延迟重试，最多覆盖 ~500ms（10 × 50ms）—— 实际通常 1-2 次就成功。
+// __TAURI_INTERNALS__ 注入有时序窗口,webview 启动到注入完成有几十毫秒间隙;
+// React useEffect 可能落在这个窗口里,invoke 会同步 throw `Cannot read invoke of undefined`。
+// 包装一层短延迟重试,最多覆盖 ~500ms(10 × 50ms)—— 实际通常 1-2 次就成功。
 async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   let lastErr: unknown;
   for (let i = 0; i < 10; i++) {
@@ -14,7 +14,7 @@ async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> 
       return await invoke<T>(cmd, args);
     } catch (e) {
       const msg = String(e);
-      // 只对"Tauri 还没注入"类错误重试，业务错误立即抛
+      // 只对"Tauri 还没注入"类错误重试,业务错误立即抛
       if (msg.includes('undefined') || msg.includes('__TAURI')) {
         lastErr = e;
         await new Promise(r => setTimeout(r, 50));

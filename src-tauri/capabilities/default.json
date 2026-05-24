@@ -12,7 +12,7 @@
     "core:window:allow-set-theme",
     {
       "identifier": "opener:allow-open-url",
-      "allow": [{ "url": "https://*" }, { "url": "http://*" }, { "url": "mailto:*" }]
+      "allow": [{ "url": "https://**" }, { "url": "http://**" }, { "url": "mailto:*" }]
     },
     "mcp-bridge:default"
   ]

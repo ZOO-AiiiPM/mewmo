@@ -211,7 +211,7 @@ function NavItem({
         <>
           <span className="flex-1 text-[14px] font-medium truncate">{label}</span>
           {count > 0 && (
-            <span className="text-[12px] text-stone-400 dark:text-stone-500 tabular-nums shrink-0">
+            <span className="text-[12px] font-medium text-stone-500 dark:text-stone-400 tabular-nums shrink-0">
               {count}
             </span>
           )}
