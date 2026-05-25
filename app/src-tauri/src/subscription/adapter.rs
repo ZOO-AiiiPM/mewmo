@@ -123,7 +123,11 @@ pub async fn fetch_one(
     let feed = parser::parse(&bytes[..]).map_err(|e| format!("PARSE_FAILED: {}", e))?;
 
     let feed_meta = FetchedFeedMeta {
-        title: feed.title.as_ref().map(|t| t.content.clone()).unwrap_or_default(),
+        title: feed
+            .title
+            .as_ref()
+            .map(|t| t.content.clone())
+            .unwrap_or_default(),
         description: feed
             .description
             .as_ref()
@@ -143,11 +147,7 @@ pub async fn fetch_one(
             .or_else(|| feed.logo.as_ref().map(|l| l.uri.clone())),
     };
 
-    let entries: Vec<FetchedEntry> = feed
-        .entries
-        .into_iter()
-        .filter_map(map_entry)
-        .collect();
+    let entries: Vec<FetchedEntry> = feed.entries.into_iter().filter_map(map_entry).collect();
 
     Ok(FetchOutcome::Updated {
         feed_meta,
@@ -199,7 +199,11 @@ fn map_entry(e: feed_rs::model::Entry) -> Option<FetchedEntry> {
 
     let link = e.links.first().map(|l| l.href.clone());
 
-    let author = e.authors.first().map(|a| a.name.clone()).unwrap_or_default();
+    let author = e
+        .authors
+        .first()
+        .map(|a| a.name.clone())
+        .unwrap_or_default();
 
     // published 优先，updated 兜底
     let published_at = e.published.or(e.updated).map(|dt| dt.timestamp());

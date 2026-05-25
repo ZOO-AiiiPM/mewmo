@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { Note, Clip, SearchResults } from '../types';
 
-// 8 个原 db.ts 函数迁移：tauri-plugin-sql (sqlx) 直接 SQL → invoke Rust commands
+// DB access is routed through Tauri invoke commands; Rust owns SQLite CRUD.
 // 接口签名保持不变 → 组件代码（listNotes() / createNote() / ...）零改动
 
 // __TAURI_INTERNALS__ 注入有时序窗口,webview 启动到注入完成有几十毫秒间隙;
@@ -30,6 +30,10 @@ export async function listNotes(): Promise<Note[]> {
   return call<Note[]>('list_notes');
 }
 
+export async function getNote(id: number): Promise<Note | null> {
+  return call<Note | null>('get_note', { id });
+}
+
 export async function createNote(): Promise<number> {
   return call<number>('create_note');
 }
@@ -49,6 +53,10 @@ export async function deleteNote(id: number): Promise<void> {
 
 export async function listClips(): Promise<Clip[]> {
   return call<Clip[]>('list_clips');
+}
+
+export async function getClip(id: number): Promise<Clip | null> {
+  return call<Clip | null>('get_clip', { id });
 }
 
 export async function saveClip(

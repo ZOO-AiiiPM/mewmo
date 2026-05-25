@@ -1,6 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { streamText, stepCountIs, type ModelMessage } from 'ai';
-import { openai, DEFAULT_MODEL, hasApiKey } from '../lib/ai/client';
+import {
+  DEFAULT_MODEL,
+  createOpenAIProvider,
+  hasApiKey,
+  loadAISettings,
+  saveAISettings,
+  type AISettings,
+} from '../lib/ai/client';
 import { createTools } from '../lib/ai/tools';
 import {
   loadConversations,
@@ -20,12 +27,10 @@ type Props = {
   open: boolean;
   currentNote: Note | null;
   currentClip: Clip | null;
-  zone: string;
+  zone: Zone | null;
 };
 
 type View = 'chat' | 'history';
-
-const PANEL_WIDTH = 360;
 
 const SUGGESTIONS = [
   '总结当前这篇的核心观点',
@@ -42,11 +47,14 @@ const SYSTEM = `你是 vibe 笔记的本地 AI 助手。用户把笔记和网页
 - 回答用简洁中文，结构清晰；引用笔记 / 剪藏时带上标题
 - 没找到相关数据直说"没找到"，不编造`;
 
-function describeCtx(note: Note | null, clip: Clip | null, zone: string) {
+function describeCtx(note: Note | null, clip: Clip | null, zone: Zone | null) {
   if (zone === 'clipping') {
     return clip
       ? `用户在「剪藏」区，正在看《${clip.title}》（来自 ${clip.site_name || clip.url}）`
       : '用户在「剪藏」区，未选中剪藏';
+  }
+  if (zone == null) {
+    return '用户在空白标签页，未打开笔记或剪藏';
   }
   return note
     ? `用户在「${zone}」区，正在编辑笔记《${note.title || '无标题'}》`
@@ -57,25 +65,22 @@ export function AIPanel({ open, currentNote, currentClip, zone }: Props) {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<AIMessage[]>([]);
   const [running, setRunning] = useState(false);
+  const [settings, setSettings] = useState<AISettings>(() => loadAISettings());
 
   // 多会话
   const [conversations, setConversations] = useState<Conversation[]>(() => loadConversations());
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [view, setView] = useState<View>('chat');
 
-  // ref：tool execute 永远拿最新 props（用户切换笔记后 tool 自动跟进）
-  const ctxRef = useRef({ currentNote, currentClip, zone });
-  ctxRef.current = { currentNote, currentClip, zone };
-
-  // tools 只构造一次，内部通过 ctxRef 读最新值
+  // tools 随当前上下文重建；send 时使用本次用户提问所在的 note/clip。
   const tools = useMemo(
     () =>
       createTools({
-        getCurrentNote: () => ctxRef.current.currentNote,
-        getCurrentClip: () => ctxRef.current.currentClip,
-        getZone: () => ctxRef.current.zone,
+        getCurrentNote: () => currentNote,
+        getCurrentClip: () => currentClip,
+        getZone: () => zone ?? 'empty',
       }),
-    [],
+    [currentNote, currentClip, zone],
   );
 
   // 把当前 messages 同步到对应 conversation 并 persist。
@@ -135,18 +140,22 @@ export function AIPanel({ open, currentNote, currentClip, zone }: Props) {
     }
   }
 
+  function handleSaveSettings(next: AISettings) {
+    saveAISettings(next);
+    setSettings(next);
+  }
+
   async function send(text: string) {
     const trimmed = text.trim();
     if (!trimmed || running) return;
 
-    if (!hasApiKey()) {
+    if (!hasApiKey(settings)) {
       setMessages(prev => [
         ...prev,
         { role: 'user', content: trimmed },
         {
           role: 'assistant',
-          content:
-            '⚠️ 还没配 OpenAI API key。在 `app/.env` 加：\n\n`VITE_OPENAI_API_KEY=sk-...`\n\n然后重启 `pnpm tauri dev`。',
+          content: '还没配置 OpenAI API key。点顶部钥匙按钮，在本机保存后再发送。',
         },
       ]);
       setInput('');
@@ -173,10 +182,10 @@ export function AIPanel({ open, currentNote, currentClip, zone }: Props) {
 
     let finalSnapshot: AIMessage[] = [];
     try {
-      const ctx = ctxRef.current;
+      const openai = createOpenAIProvider(settings);
       const result = streamText({
-        model: openai(DEFAULT_MODEL),
-        system: `${SYSTEM}\n\n当前上下文：${describeCtx(ctx.currentNote, ctx.currentClip, ctx.zone)}`,
+        model: openai(settings.model || DEFAULT_MODEL),
+        system: `${SYSTEM}\n\n当前上下文：${describeCtx(currentNote, currentClip, zone)}`,
         messages: history,
         tools,
         stopWhen: stepCountIs(8),
@@ -264,6 +273,7 @@ export function AIPanel({ open, currentNote, currentClip, zone }: Props) {
           <div className="flex items-center gap-0.5">
             {view === 'chat' ? (
               <>
+                <SettingsDialog settings={settings} onSave={handleSaveSettings} disabled={running} />
                 <IconButton title="新对话" onClick={handleNewConversation} disabled={running}>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M12 5v14M5 12h14" />
@@ -341,6 +351,110 @@ function IconButton({
     >
       {children}
     </button>
+  );
+}
+
+function SettingsDialog({
+  settings,
+  onSave,
+  disabled,
+}: {
+  settings: AISettings;
+  onSave: (settings: AISettings) => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState<AISettings>(settings);
+
+  useEffect(() => {
+    if (open) setDraft(settings);
+  }, [open, settings]);
+
+  const save = () => {
+    onSave(draft);
+    setOpen(false);
+  };
+
+  return (
+    <>
+      <IconButton title="AI 设置" onClick={() => setOpen(true)} disabled={disabled}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="7.5" cy="15.5" r="5.5" />
+          <path d="m21 2-9.6 9.6" />
+          <path d="m15.5 7.5 3 3L22 7" />
+        </svg>
+      </IconButton>
+      {open && (
+        <div
+          className="absolute inset-0 z-20 bg-white/96 dark:bg-stone-900/96 px-4 py-4 flex flex-col"
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="h-8 flex items-center justify-between shrink-0">
+            <span className="text-[13px] font-medium text-stone-700 dark:text-stone-300">AI 设置</span>
+            <IconButton title="关闭" onClick={() => setOpen(false)}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </IconButton>
+          </div>
+
+          <div className="mt-5 space-y-4">
+            <Field label="OpenAI API Key">
+              <input
+                type="password"
+                value={draft.apiKey}
+                onChange={e => setDraft(prev => ({ ...prev, apiKey: e.target.value }))}
+                placeholder="sk-..."
+                className="w-full h-9 rounded-lg bg-stone-100 dark:bg-stone-800 px-3 text-[13px] text-stone-900 dark:text-stone-100 outline-none focus:ring-2 focus:ring-stone-300 dark:focus:ring-stone-600"
+              />
+            </Field>
+            <Field label="Base URL">
+              <input
+                value={draft.baseURL}
+                onChange={e => setDraft(prev => ({ ...prev, baseURL: e.target.value }))}
+                placeholder="https://api.openai.com/v1"
+                className="w-full h-9 rounded-lg bg-stone-100 dark:bg-stone-800 px-3 text-[13px] text-stone-900 dark:text-stone-100 outline-none focus:ring-2 focus:ring-stone-300 dark:focus:ring-stone-600"
+              />
+            </Field>
+            <Field label="Model">
+              <input
+                value={draft.model}
+                onChange={e => setDraft(prev => ({ ...prev, model: e.target.value }))}
+                placeholder={DEFAULT_MODEL}
+                className="w-full h-9 rounded-lg bg-stone-100 dark:bg-stone-800 px-3 text-[13px] text-stone-900 dark:text-stone-100 outline-none focus:ring-2 focus:ring-stone-300 dark:focus:ring-stone-600"
+              />
+            </Field>
+            <p className="text-[12px] leading-relaxed text-stone-500 dark:text-stone-400">
+              设置只保存在本机。公开构建不会包含开发者自己的 API key。
+            </p>
+          </div>
+
+          <div className="mt-auto flex justify-end gap-2">
+            <button
+              onClick={() => setOpen(false)}
+              className="h-8 px-3 rounded-lg text-[13px] text-stone-600 dark:text-stone-300 hover:bg-black/5 dark:hover:bg-white/10"
+            >
+              取消
+            </button>
+            <button
+              onClick={save}
+              className="h-8 px-3 rounded-lg bg-stone-900 dark:bg-stone-100 text-[13px] text-white dark:text-stone-900"
+            >
+              保存
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="block mb-1.5 text-[12px] font-medium text-stone-600 dark:text-stone-400">{label}</span>
+      {children}
+    </label>
   );
 }
 

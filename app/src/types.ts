@@ -2,6 +2,7 @@ export type Note = {
   id: number;
   title: string;
   content_md: string;
+  content_loaded?: boolean;
   tags_text: string;
   created_at: number;
   updated_at: number;
@@ -12,6 +13,7 @@ export type Clip = {
   url: string;
   title: string;
   content_md: string;
+  content_loaded?: boolean;
   excerpt: string;
   site_name: string;
   favicon_url: string;

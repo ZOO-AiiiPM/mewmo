@@ -277,9 +277,7 @@ pub async fn add_subscription(db: State<'_, Db>, url: String) -> Result<AddResul
     // INSERT source + entries（短 lock，事务）
     let (source, entries_inserted) = {
         let mut conn = db.conn.lock().map_err(|e| e.to_string())?;
-        let tx = conn
-            .transaction()
-            .map_err(|e| format!("DB_ERROR: {}", e))?;
+        let tx = conn.transaction().map_err(|e| format!("DB_ERROR: {}", e))?;
 
         tx.execute(
             "INSERT INTO subscription_sources
@@ -338,10 +336,7 @@ pub fn list_sources_with_unread(db: State<'_, Db>) -> Result<Vec<Source>, String
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub fn list_entries_for_source(
-    db: State<'_, Db>,
-    source_id: i64,
-) -> Result<Vec<Entry>, String> {
+pub fn list_entries_for_source(db: State<'_, Db>, source_id: i64) -> Result<Vec<Entry>, String> {
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn
         .prepare(
@@ -399,9 +394,7 @@ pub fn delete_source(db: State<'_, Db>, source_id: i64) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn refresh_all_subscriptions(
-    db: State<'_, Db>,
-) -> Result<RefreshSummary, String> {
+pub async fn refresh_all_subscriptions(db: State<'_, Db>) -> Result<RefreshSummary, String> {
     let started_at = chrono_now();
 
     // 列出所有 source（短 lock）
@@ -429,7 +422,11 @@ pub async fn refresh_all_subscriptions(
     for s in &sources {
         // 旧 source 还没有 favicon 时强制走 200（不发条件请求），让 metadata 能补全
         let use_conditional = s.favicon_url.is_some();
-        let if_none_match = if use_conditional { s.etag.as_deref() } else { None };
+        let if_none_match = if use_conditional {
+            s.etag.as_deref()
+        } else {
+            None
+        };
         let if_modified_since = if use_conditional {
             s.last_modified.as_deref()
         } else {
@@ -456,9 +453,7 @@ pub async fn refresh_all_subscriptions(
             }) => {
                 let inserted = {
                     let mut conn = db.conn.lock().map_err(|e| e.to_string())?;
-                    let tx = conn
-                        .transaction()
-                        .map_err(|e| format!("DB_ERROR: {}", e))?;
+                    let tx = conn.transaction().map_err(|e| format!("DB_ERROR: {}", e))?;
                     let inserted = insert_entries(&tx, s.id, &entries)?;
                     tx.commit().map_err(|e| format!("DB_ERROR: {}", e))?;
                     inserted

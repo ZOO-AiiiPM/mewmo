@@ -41,7 +41,7 @@ export function AddSourceDialog({ open, onClose, onSubmit }: Props) {
 
   return (
     <div
-      className="absolute inset-0 z-50 bg-black/40 backdrop-blur-[2px] flex items-center justify-center"
+      className="absolute inset-0 z-50 bg-black/40 flex items-center justify-center"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}

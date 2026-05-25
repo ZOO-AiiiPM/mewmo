@@ -1,73 +1,73 @@
-# React + TypeScript + Vite
+# vibe-coding
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Local-first AI information manager for macOS. It combines notes, web clipping,
+RSS/Atom subscriptions, local SQLite search, and an optional AI assistant.
 
-Currently, two official plugins are available:
+This public project is the contents of this `app/` directory. The parent
+workspace contains private development notes, skills, journals, and specs and is
+not part of the open-source app.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Features
 
-## React Compiler
+- Markdown notes with CodeMirror live preview, tables, tasks, image paste/drop,
+  and local attachments.
+- Web clipping that fetches article metadata and stores readable Markdown.
+- RSS/Atom subscriptions with unread state and local feed storage.
+- Chinese-friendly full-text search powered by rusqlite, SQLite FTS5, and
+  jieba tokenization.
+- Optional AI panel for reading current notes/clips and answering questions
+  with local tool access.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Requirements
 
-## Expanding the ESLint configuration
+- macOS for the current packaged app.
+- Node.js 22.
+- pnpm 10.28.1.
+- Rust toolchain with the Tauri 2 prerequisites installed.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Development
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+pnpm install
+pnpm tauri dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Useful checks:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+pnpm lint
+pnpm build
+cd src-tauri && cargo test
 ```
+
+## Optional AI Configuration
+
+The app runs without an AI key. To enable the AI panel, open the AI settings
+button in the app and save an OpenAI-compatible API key, optional base URL, and
+model. Public release builds do not contain a developer API key.
+
+## Local Data
+
+On macOS, the app stores its SQLite database and attachments under:
+
+```text
+~/Library/Application Support/com.vibecoding.app/
+```
+
+No notes, clips, feeds, or attachments are uploaded by the app itself.
+
+## Release
+
+GitHub Actions builds draft macOS releases when a `v*` tag is pushed:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+Current demo builds are unsigned. On first launch, macOS may require
+right-clicking the app and choosing Open.
+
+## License
+
+MIT

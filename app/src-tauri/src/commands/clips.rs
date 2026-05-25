@@ -1,4 +1,4 @@
-use rusqlite::params;
+use rusqlite::{params, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
@@ -10,6 +10,7 @@ pub struct Clip {
     pub url: String,
     pub title: String,
     pub content_md: String,
+    pub content_loaded: bool,
     pub excerpt: String,
     pub site_name: String,
     pub favicon_url: String,
@@ -40,7 +41,8 @@ pub fn list_clips(db: State<Db>) -> Result<Vec<Clip>, String> {
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn
         .prepare(
-            "SELECT id, url, title, content_md, excerpt, site_name, favicon_url, \
+            "SELECT id, url, title, substr(content_md, 1, 240) AS content_md, 0 AS content_loaded, \
+                    excerpt, site_name, favicon_url, \
                     cover_image, author, published_at, ip_region, '' AS tags_text, saved_at \
              FROM clips ORDER BY saved_at DESC",
         )
@@ -52,20 +54,52 @@ pub fn list_clips(db: State<Db>) -> Result<Vec<Clip>, String> {
                 url: row.get(1)?,
                 title: row.get(2)?,
                 content_md: row.get(3)?,
-                excerpt: row.get(4)?,
-                site_name: row.get(5)?,
-                favicon_url: row.get(6)?,
-                cover_image: row.get(7)?,
-                author: row.get(8)?,
-                published_at: row.get(9)?,
-                ip_region: row.get(10)?,
-                tags_text: row.get(11)?,
-                saved_at: row.get(12)?,
+                content_loaded: row.get::<_, i64>(4)? != 0,
+                excerpt: row.get(5)?,
+                site_name: row.get(6)?,
+                favicon_url: row.get(7)?,
+                cover_image: row.get(8)?,
+                author: row.get(9)?,
+                published_at: row.get(10)?,
+                ip_region: row.get(11)?,
+                tags_text: row.get(12)?,
+                saved_at: row.get(13)?,
             })
         })
         .map_err(|e| e.to_string())?;
     rows.collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_clip(db: State<Db>, id: i64) -> Result<Option<Clip>, String> {
+    let conn = db.conn.lock().map_err(|e| e.to_string())?;
+    conn.query_row(
+        "SELECT id, url, title, content_md, 1 AS content_loaded, excerpt, site_name, favicon_url, \
+                cover_image, author, published_at, ip_region, '' AS tags_text, saved_at \
+         FROM clips WHERE id = ?",
+        params![id],
+        |row| {
+            Ok(Clip {
+                id: row.get(0)?,
+                url: row.get(1)?,
+                title: row.get(2)?,
+                content_md: row.get(3)?,
+                content_loaded: row.get::<_, i64>(4)? != 0,
+                excerpt: row.get(5)?,
+                site_name: row.get(6)?,
+                favicon_url: row.get(7)?,
+                cover_image: row.get(8)?,
+                author: row.get(9)?,
+                published_at: row.get(10)?,
+                ip_region: row.get(11)?,
+                tags_text: row.get(12)?,
+                saved_at: row.get(13)?,
+            })
+        },
+    )
+    .optional()
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -95,9 +129,18 @@ pub fn update_clip(db: State<Db>, id: i64, patch: ClipInput) -> Result<(), Strin
                           favicon_url=?, cover_image=?, author=?, published_at=?, ip_region=? \
          WHERE id=?",
         params![
-            patch.url, patch.title, patch.content_md, tokens, patch.excerpt,
-            patch.site_name, patch.favicon_url, patch.cover_image,
-            patch.author, patch.published_at, patch.ip_region, id
+            patch.url,
+            patch.title,
+            patch.content_md,
+            tokens,
+            patch.excerpt,
+            patch.site_name,
+            patch.favicon_url,
+            patch.cover_image,
+            patch.author,
+            patch.published_at,
+            patch.ip_region,
+            id
         ],
     )
     .map_err(|e| e.to_string())?;

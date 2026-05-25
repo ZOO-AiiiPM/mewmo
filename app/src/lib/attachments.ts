@@ -41,20 +41,7 @@ export function isImageFile(file: File | Blob): boolean {
   return file.type.startsWith('image/');
 }
 
-// 匹配 markdown 里的相对路径引用：attachments/xxx.ext（含中文/字母/数字/-/_/.）
-const ATTACHMENT_REF_RE = /attachments\/[A-Za-z0-9._-]+/g;
-
-/** 从一组笔记 markdown 里提所有被引用的相对路径 */
-export function extractAttachmentRefs(contents: string[]): string[] {
-  const set = new Set<string>();
-  for (const text of contents) {
-    const matches = text.match(ATTACHMENT_REF_RE);
-    if (matches) matches.forEach(m => set.add(m));
-  }
-  return Array.from(set);
-}
-
-/** 清理孤儿附件：传入「所有被引用的相对路径」，后端删除其余文件（60s 内修改的跳过） */
-export async function cleanupOrphans(referenced: string[]): Promise<number> {
-  return await invoke<number>('cleanup_orphan_attachments', { referenced });
+/** 清理孤儿附件：后端扫描笔记正文引用并删除其余文件（60s 内修改的跳过） */
+export async function cleanupOrphans(): Promise<number> {
+  return await invoke<number>('cleanup_orphan_attachments');
 }

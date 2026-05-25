@@ -43,8 +43,8 @@ const ENTRIES: Entry[] = [
   {
     zone: 'subscribe',
     label: '订阅',
-    desc: '敬请期待',
-    enabled: false,
+    desc: '订 RSS / 公众号',
+    enabled: true,
     icon: (
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
         <path d="M4 11a9 9 0 0 1 9 9" />

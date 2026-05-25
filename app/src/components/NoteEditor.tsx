@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import CodeMirror, { type ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { EditorView, keymap } from '@codemirror/view';
@@ -142,6 +142,7 @@ const noSpellcheck = EditorView.contentAttributes.of({
 });
 
 export function NoteEditor({ note, onChange, theme, onDelete, onCreate, aiOpen, expanded, onExpand, canBack, canForward, onBack, onForward, newlyCreatedId, onCreateAnimDone }: Props) {
+  const noteId = note?.id;
   // content 用 debounce 避免连续打字每键都写 DB；title 短、改完会停 → 直接 onChange 即时保存
   const contentDebounceRef = useRef<number | null>(null);
   const lastNoteIdRef = useRef<number | null>(null);
@@ -161,6 +162,19 @@ export function NoteEditor({ note, onChange, theme, onDelete, onCreate, aiOpen, 
       setCursorLine(vu.state.doc.lineAt(head).number);
     }
   };
+
+  // 立即把 content 待写值写入（切笔记前用；targetId 显式传旧 id 修 race）
+  const flushContent = useCallback((targetId?: number) => {
+    if (contentDebounceRef.current) {
+      window.clearTimeout(contentDebounceRef.current);
+      contentDebounceRef.current = null;
+    }
+    const id = targetId ?? lastNoteIdRef.current;
+    const view = cmRef.current?.view;
+    if (id != null && view) {
+      onChange({ content_md: view.state.doc.toString() }, id);
+    }
+  }, [onChange]);
 
   useEffect(() => {
     if (!note || note.id === lastNoteIdRef.current) return;
@@ -217,7 +231,7 @@ export function NoteEditor({ note, onChange, theme, onDelete, onCreate, aiOpen, 
       onCreateAnimDone();
     }, 150);
     return () => window.clearTimeout(t);
-  }, [note, newlyCreatedId, onCreateAnimDone]);
+  }, [note, newlyCreatedId, onCreateAnimDone, flushContent]);
 
   const handleContentChange = (value: string) => {
     // applyNote 用 view.dispatch 替换 doc 时也会触发这里的 onChange（CM update listener 不区分 user vs programmatic）。
@@ -237,22 +251,9 @@ export function NoteEditor({ note, onChange, theme, onDelete, onCreate, aiOpen, 
     onChange({ title: e.target.value });
   };
 
-  // 立即把 content 待写值写入（切笔记前用；targetId 显式传旧 id 修 race）
-  const flushContent = (targetId?: number) => {
-    if (contentDebounceRef.current) {
-      window.clearTimeout(contentDebounceRef.current);
-      contentDebounceRef.current = null;
-    }
-    const id = targetId ?? lastNoteIdRef.current;
-    const view = cmRef.current?.view;
-    if (id != null && view) {
-      onChange({ content_md: view.state.doc.toString() }, id);
-    }
-  };
-
   // 滚动监听：title input 底部滚到 toolbar 下沿之上 → toolbar 显示标题
   useEffect(() => {
-    if (!note) return;
+    if (noteId == null) return;
     const root = scrollRef.current;
     if (!root) {
       setTitleInToolbar(false);
@@ -268,7 +269,7 @@ export function NoteEditor({ note, onChange, theme, onDelete, onCreate, aiOpen, 
     onScroll();
     root.addEventListener('scroll', onScroll, { passive: true });
     return () => root.removeEventListener('scroll', onScroll);
-  }, [note?.id]);
+  }, [noteId]);
 
   if (!note) {
     return (
@@ -283,7 +284,7 @@ export function NoteEditor({ note, onChange, theme, onDelete, onCreate, aiOpen, 
 
   return (
     <main className="relative flex-1 flex flex-col overflow-hidden">
-      <div className={`absolute top-0 left-0 right-0 z-[5] h-12 grid grid-cols-[1fr_auto] items-center gap-3 pl-10 bg-white/70 dark:bg-stone-900/70 backdrop-blur-md transition-[padding] duration-200 ease-out ${aiOpen ? 'pr-[320px]' : 'pr-3'}`}>
+      <div className={`absolute top-0 left-0 right-0 z-[5] h-12 grid grid-cols-[1fr_auto] items-center gap-3 pl-10 bg-white/95 dark:bg-stone-900/95 transition-[padding] duration-200 ease-out ${aiOpen ? 'pr-[320px]' : 'pr-3'}`}>
           {/* 标题列：滚动后 fade-in 显示当前笔记标题；mask 让超出 icons 那侧渐隐 */}
           <div className="min-w-0 overflow-hidden">
             <span
@@ -425,7 +426,7 @@ export function NoteEditor({ note, onChange, theme, onDelete, onCreate, aiOpen, 
                 }
               }}
               placeholder="无标题"
-              className="w-full text-[26px] font-semibold tracking-tight bg-transparent outline-none text-stone-900 dark:text-stone-50 placeholder:text-stone-300 dark:placeholder:text-stone-600"
+              className="w-full text-[32px] font-bold tracking-tight leading-tight bg-transparent outline-none text-stone-900 dark:text-stone-50 placeholder:text-stone-300 dark:placeholder:text-stone-600"
             />
           </div>
           <div

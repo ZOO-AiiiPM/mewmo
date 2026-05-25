@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import type { FeedEntry, SubscriptionSource } from '../types';
+import { sanitizeHtml } from '../lib/sanitizeHtml';
 
 type Props = {
   entry: FeedEntry | null;
@@ -27,18 +28,8 @@ function fmtPublished(ts: number | null): string {
   });
 }
 
-function hostnameOf(url: string | null): string {
-  if (!url) return '';
-  try {
-    return new URL(url).hostname;
-  } catch (_) {
-    return url;
-  }
-}
-
 export function EntryReader({
   entry,
-  source,
   onBack,
   onForward,
   canBack,
@@ -82,8 +73,6 @@ export function EntryReader({
   }
 
   const publishedText = fmtPublished(entry.published_at);
-  const siteName = source?.title || hostnameOf(entry.link);
-
   const openOriginal = () => {
     if (!entry.link) return;
     openUrl(entry.link);
@@ -121,14 +110,14 @@ export function EntryReader({
 
           {/* 正文 */}
           {entry.content_html ? (
-            <div className="clip-prose" dangerouslySetInnerHTML={{ __html: entry.content_html }} />
+            <div className="clip-prose" dangerouslySetInnerHTML={{ __html: sanitizeHtml(entry.content_html) }} />
           ) : (
             <div className="text-stone-400 dark:text-stone-500 text-sm italic">暂无正文内容</div>
           )}
         </div>
       </div>
 
-      {/* toolbar 浮层：absolute top:0，不透明背景（去掉 backdrop-blur 避免全屏切换时 GPU 持续 invalidate） */}
+      {/* toolbar 浮层：absolute top:0，不透明背景，避免全屏切换时 GPU 持续 invalidate */}
       <div className="absolute top-0 inset-x-0 z-10 h-12 flex items-center pl-3 pr-2 gap-0.5 bg-white dark:bg-stone-900">
         {/* 左：title 渐显（h1 滚出 viewport 后），直接 truncate 不用 mask 避免 GPU 重计算 */}
         <div

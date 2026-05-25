@@ -53,7 +53,7 @@ export function SourceList({
   return (
     <aside
       style={{ width: hidden ? 0 : undefined }}
-      className={`shrink-0 border-r border-black/[0.1] dark:border-white/[0.1] flex flex-col overflow-hidden transition-[width] duration-200 ease-out ${hidden ? '' : 'w-56'}`}
+      className={`shrink-0 border-r border-black/[0.1] dark:border-white/[0.1] flex flex-col overflow-hidden ${hidden ? '' : 'w-56'}`}
     >
       {/* col-header h-12，和其它列对齐 */}
       <div className="shrink-0 h-12 px-3 flex items-center justify-between border-b border-black/[0.1] dark:border-white/[0.1]">
@@ -169,16 +169,17 @@ function SourceFavicon({ source, unhealthy }: { source: SubscriptionSource; unhe
       try {
         const u = new URL(source.site_url);
         list.push(`${u.protocol}//${u.host}/favicon.ico`);
-      } catch (_) {
+      } catch {
         /* invalid site_url，跳过 */
       }
     }
     return list;
   }, [source.favicon_url, source.site_url]);
+  const candidateKey = candidates.join('|');
 
   const [idx, setIdx] = useState(0);
   // candidates 变化时重置（如刷新拿到新 favicon_url）
-  useEffect(() => setIdx(0), [candidates.join('|')]);
+  useEffect(() => setIdx(0), [candidateKey]);
 
   const useImg = !unhealthy && idx < candidates.length;
   return (

@@ -95,7 +95,7 @@ export function TableOfContents({ content, cursorLine, cmRef, scrollRef }: Props
 
       {/* Hover 展开面板 */}
       <div
-        className={`absolute top-0 right-3 min-w-[150px] max-w-[200px] max-h-full overflow-y-auto py-4 rounded-xl bg-white/95 dark:bg-stone-800/95 backdrop-blur-sm shadow-[0_8px_24px_rgba(0,0,0,0.08)] dark:shadow-[0_8px_24px_rgba(0,0,0,0.4)] ring-1 ring-black/[0.04] dark:ring-white/[0.06] transition-all duration-[400ms] ease-out ${
+        className={`absolute top-0 right-3 min-w-[150px] max-w-[200px] max-h-full overflow-y-auto py-4 rounded-xl bg-white/95 dark:bg-stone-800/95 shadow-[0_8px_24px_rgba(0,0,0,0.06)] dark:shadow-[0_8px_24px_rgba(0,0,0,0.35)] ring-1 ring-black/[0.04] dark:ring-white/[0.06] transition-all duration-[400ms] ease-out ${
           hover
             ? 'opacity-100 translate-x-0'
             : 'opacity-0 translate-x-2 pointer-events-none'

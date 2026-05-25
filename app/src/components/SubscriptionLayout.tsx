@@ -43,6 +43,23 @@ export function SubscriptionLayout({ hidden = false, expanded, onExpand }: Props
     return list;
   }, []);
 
+  const handleRefresh = useCallback(async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      const summary = await refreshAllSubscriptions();
+      console.log('[subscription] refresh summary:', summary);
+      await refreshSources();
+      if (selectedSourceId != null) {
+        await refreshEntries(selectedSourceId);
+      }
+    } catch (e) {
+      console.error('[subscription] refresh failed:', e);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshing, refreshSources, refreshEntries, selectedSourceId]);
+
   // 初次挂载：加载 sources + 启动检查 auto-refresh
   useEffect(() => {
     if (initialFetchedRef.current) return;
@@ -78,10 +95,16 @@ export function SubscriptionLayout({ hidden = false, expanded, onExpand }: Props
       setHistoryIdx(-1);
       return;
     }
-    refreshEntries(selectedSourceId).then(_list => {
-      // 切源时清空历史栈（跨源历史无意义）
-      setHistory([]);
-      setHistoryIdx(-1);
+    refreshEntries(selectedSourceId).then(list => {
+      // 切源时清空历史栈（跨源历史无意义）+ 默认打开第一条 entry。
+      // 不调 handleEntrySelect / markEntryRead——保留未读 badge 让用户自己点击触发已读。
+      if (list.length > 0) {
+        setHistory([list[0]]);
+        setHistoryIdx(0);
+      } else {
+        setHistory([]);
+        setHistoryIdx(-1);
+      }
     });
   }, [selectedSourceId, refreshEntries]);
 
@@ -90,23 +113,6 @@ export function SubscriptionLayout({ hidden = false, expanded, onExpand }: Props
     await refreshSources();
     setSelectedSourceId(source.id);
   }, [refreshSources]);
-
-  const handleRefresh = useCallback(async () => {
-    if (refreshing) return;
-    setRefreshing(true);
-    try {
-      const summary = await refreshAllSubscriptions();
-      console.log('[subscription] refresh summary:', summary);
-      await refreshSources();
-      if (selectedSourceId != null) {
-        await refreshEntries(selectedSourceId);
-      }
-    } catch (e) {
-      console.error('[subscription] refresh failed:', e);
-    } finally {
-      setRefreshing(false);
-    }
-  }, [refreshing, refreshSources, refreshEntries, selectedSourceId]);
 
   const handleEntrySelect = useCallback(async (entry: FeedEntry) => {
     // 历史栈：截断 forward 之后追加新 entry（浏览器历史经典模式）
