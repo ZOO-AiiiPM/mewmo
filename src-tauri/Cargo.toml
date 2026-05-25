@@ -1,10 +1,9 @@
 [package]
-name = "app"
+name = "vibe-coding"
 version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
-license = ""
-repository = ""
+description = "Local-first AI information manager."
+authors = ["vibe-coding contributors"]
+license = "MIT"
 edition = "2021"
 rust-version = "1.77.2"
 

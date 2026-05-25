@@ -1,8 +1,11 @@
 {
-  "name": "app",
+  "name": "vibe-coding",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "description": "Local-first AI information manager built with Tauri, React, and SQLite.",
+  "license": "MIT",
   "type": "module",
+  "packageManager": "pnpm@10.28.1",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
@@ -21,7 +24,6 @@
     "@radix-ui/react-context-menu": "^2.2.16",
     "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-opener": "^2.5.4",
-    "@tauri-apps/plugin-sql": "^2.4.0",
     "@uiw/react-codemirror": "^4.25.9",
     "ai": "^6.0.185",
     "framer-motion": "^12.40.0",

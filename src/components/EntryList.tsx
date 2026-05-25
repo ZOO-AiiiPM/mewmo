@@ -58,7 +58,7 @@ export function EntryList({ entries, source, selectedId, onSelect, hidden = fals
   return (
     <aside
       style={{ width: hidden ? 0 : undefined }}
-      className={`shrink-0 border-r border-black/[0.1] dark:border-white/[0.1] flex flex-col overflow-hidden transition-[width] duration-200 ease-out ${hidden ? '' : 'w-80'}`}
+      className={`shrink-0 border-r border-black/[0.1] dark:border-white/[0.1] flex flex-col overflow-hidden ${hidden ? '' : 'w-80'}`}
     >
       <div className="flex-1 overflow-y-auto">
         {entries.length === 0 ? (
@@ -69,7 +69,7 @@ export function EntryList({ entries, source, selectedId, onSelect, hidden = fals
           groups.map((g, idx) => (
             <section key={g.bucket}>
               <h2
-                className={`sticky top-0 z-10 h-12 px-3 flex items-center justify-between text-[15px] font-semibold text-stone-800 dark:text-stone-100 bg-white/70 dark:bg-stone-900/70 backdrop-blur-md select-none border-b border-black/[0.1] dark:border-white/[0.1] ${idx > 0 ? 'border-t' : ''}`}
+                className={`sticky top-0 z-10 h-12 px-3 flex items-center justify-between text-[15px] font-semibold text-stone-800 dark:text-stone-100 bg-white/95 dark:bg-stone-900/95 select-none border-b border-black/[0.1] dark:border-white/[0.1] ${idx > 0 ? 'border-t' : ''}`}
               >
                 <span>{BUCKET_LABEL[g.bucket]}</span>
                 <span className="text-[11px] font-normal text-stone-400 dark:text-stone-500 tabular-nums">
@@ -158,4 +158,3 @@ function EntryItem({
     </div>
   );
 }
-

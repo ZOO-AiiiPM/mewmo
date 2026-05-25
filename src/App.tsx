@@ -1,20 +1,23 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Sidebar, type Zone } from './components/Sidebar';
 import { TabBar, type Tab as TabPillModel } from './components/TabBar';
 import { NoteList } from './components/NoteList';
 import { NoteEditor } from './components/NoteEditor';
-import { AIPanel } from './components/AIPanel';
 import { ClipInbox } from './components/ClipInbox';
 import { ClipReader } from './components/ClipReader';
 import { EmptyTabHome } from './components/EmptyTabHome';
 import { SubscriptionLayout } from './components/SubscriptionLayout';
-import { listNotes, createNote, updateNote, deleteNote } from './lib/db';
-import { listClips, saveClip, deleteClip, updateClip } from './lib/db';
+import { listNotes, getNote, createNote, updateNote, deleteNote } from './lib/db';
+import { listClips, getClip, saveClip, deleteClip, updateClip } from './lib/db';
 import { SearchOverlay } from './components/SearchOverlay';
 import { useTheme } from './lib/useTheme';
-import { extractAttachmentRefs, cleanupOrphans } from './lib/attachments';
+import { cleanupOrphans } from './lib/attachments';
 import type { Note, Clip } from './types';
+
+const AIPanel = lazy(() =>
+  import('./components/AIPanel').then(module => ({ default: module.AIPanel })),
+);
 
 type Tab = {
   id: string;
@@ -37,6 +40,7 @@ export default function App() {
   const [clips, setClips] = useState<Clip[]>([]);
   const [loading, setLoading] = useState(true);
   const [aiOpen, setAiOpen] = useState(false);
+  const [aiMounted, setAiMounted] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [expanded, setExpanded] = useState(false);
 
@@ -47,6 +51,8 @@ export default function App() {
   const [tabs, setTabs] = useState<Tab[]>([{ id: 'tab_1', zone: null, refId: null, noteHistory: [], noteHistoryIdx: -1 }]);
   const [activeTabId, setActiveTabId] = useState<string>('tab_1');
   const tabIdSeqRef = useRef(2);
+  const loadingNoteIdsRef = useRef(new Set<number>());
+  const loadingClipIdsRef = useRef(new Set<number>());
 
   const activeTab = useMemo(
     () => tabs.find(t => t.id === activeTabId) ?? null,
@@ -104,9 +110,8 @@ export default function App() {
 
   useEffect(() => {
     refresh()
-      .then(list => {
-        const refs = extractAttachmentRefs(list.map(n => n.content_md));
-        cleanupOrphans(refs)
+      .then(() => {
+        cleanupOrphans()
           .then(n => { if (n > 0) console.log(`[cleanup] removed ${n} orphan attachments`); })
           .catch(e => console.error('[cleanup] failed:', e));
       })
@@ -114,8 +119,46 @@ export default function App() {
     refreshClips();
   }, [refresh, refreshClips]);
 
+  const ensureNoteLoaded = useCallback(async (id: number) => {
+    if (loadingNoteIdsRef.current.has(id)) return;
+    const current = notes.find(n => n.id === id);
+    if (!current || current.content_loaded) return;
+
+    loadingNoteIdsRef.current.add(id);
+    try {
+      const full = await getNote(id);
+      if (!full) return;
+      setNotes(prev => prev.map(n => (n.id === id ? full : n)));
+    } catch (e) {
+      console.error('[notes] load failed:', e);
+    } finally {
+      loadingNoteIdsRef.current.delete(id);
+    }
+  }, [notes]);
+
+  const ensureClipLoaded = useCallback(async (id: number) => {
+    if (loadingClipIdsRef.current.has(id)) return;
+    const current = clips.find(c => c.id === id);
+    if (!current || current.content_loaded) return;
+
+    loadingClipIdsRef.current.add(id);
+    try {
+      const full = await getClip(id);
+      if (!full) return;
+      setClips(prev => prev.map(c => (c.id === id ? full : c)));
+    } catch (e) {
+      console.error('[clips] load failed:', e);
+    } finally {
+      loadingClipIdsRef.current.delete(id);
+    }
+  }, [clips]);
+
   // ── AI 面板 ───────────────────────────────────────────────────────────────
   const toggleAI = useCallback(() => setAiOpen(prev => !prev), []);
+
+  useEffect(() => {
+    if (aiOpen) setAiMounted(true);
+  }, [aiOpen]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -159,6 +202,7 @@ export default function App() {
       })
     );
     setNewlyCreatedNoteId(id);
+    setNotes(prev => prev.map(n => (n.id === id ? { ...n, content_md: '', content_loaded: true } : n)));
   }, [refresh, activeTabId]);
 
   const handleUpdateNote = useCallback(
@@ -173,7 +217,12 @@ export default function App() {
       setNotes(prev =>
         prev.map(n =>
           n.id === noteId
-            ? { ...n, ...patch, updated_at: Math.floor(Date.now() / 1000) }
+            ? {
+                ...n,
+                ...patch,
+                content_loaded: n.content_loaded || patch.content_md !== undefined,
+                updated_at: Math.floor(Date.now() / 1000),
+              }
             : n
         )
       );
@@ -203,8 +252,7 @@ export default function App() {
           return { ...t, refId: nextId, noteHistory: newHist, noteHistoryIdx: newHist.length - 1 };
         })
       );
-      const refs = extractAttachmentRefs(list.map(n => n.content_md));
-      cleanupOrphans(refs).catch(e => console.error('[cleanup] failed:', e));
+      cleanupOrphans().catch(e => console.error('[cleanup] failed:', e));
     },
     [notes, refresh]
   );
@@ -252,6 +300,20 @@ export default function App() {
     activeTab?.zone === 'clipping' && activeTab.refId != null
       ? clips.find(c => c.id === activeTab.refId) ?? null
       : null;
+  const selectedNoteReady = selectedNote?.content_loaded ? selectedNote : null;
+  const selectedClipReady = selectedClip?.content_loaded ? selectedClip : null;
+
+  useEffect(() => {
+    if (selectedNote && !selectedNote.content_loaded) {
+      ensureNoteLoaded(selectedNote.id);
+    }
+  }, [selectedNote, ensureNoteLoaded]);
+
+  useEffect(() => {
+    if (selectedClip && !selectedClip.content_loaded) {
+      ensureClipLoaded(selectedClip.id);
+    }
+  }, [selectedClip, ensureClipLoaded]);
 
   // 笔记浏览历史前进/后退是否可用（仅在 notes zone 有意义）
   const canBack = activeTab?.zone === 'notes' && (activeTab?.noteHistoryIdx ?? -1) > 0;
@@ -404,7 +466,7 @@ export default function App() {
                   hidden={expanded}
                 />
                 <ClipReader
-                  clip={selectedClip}
+                  clip={selectedClipReady}
                   aiOpen={aiOpen}
                   onRefetch={handleClipRefetch}
                   onDelete={handleClipDelete}
@@ -428,7 +490,7 @@ export default function App() {
                   hidden={expanded}
                 />
                 <NoteEditor
-                  note={selectedNote}
+                  note={selectedNoteReady}
                   onChange={handleUpdateNote}
                   theme={theme}
                   onDelete={() => selectedNote && handleDeleteNote(selectedNote.id)}
@@ -458,12 +520,16 @@ export default function App() {
           </div>
 
           {/* Layer 3：AI 浮层（绝对定位浮在 content card 之上） */}
-          <AIPanel
-            open={aiOpen}
-            currentNote={activeZone === 'notes' ? selectedNote : null}
-            currentClip={activeZone === 'clipping' ? selectedClip : null}
-            zone={activeZone}
-          />
+          {aiMounted && (
+            <Suspense fallback={null}>
+              <AIPanel
+                open={aiOpen}
+                currentNote={activeZone === 'notes' ? selectedNoteReady : null}
+                currentClip={activeZone === 'clipping' ? selectedClipReady : null}
+                zone={activeZone}
+              />
+            </Suspense>
+          )}
         </main>
       </div>
 

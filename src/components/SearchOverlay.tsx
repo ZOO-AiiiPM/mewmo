@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Note, Clip, SearchResults, NoteHit, ClipHit } from '../types';
 import { searchAll } from '../lib/db';
+import { sanitizeHtml } from '../lib/sanitizeHtml';
 
 type Props = {
   open: boolean;
@@ -15,6 +16,9 @@ type ActiveHit =
   | { kind: 'note'; id: number }
   | { kind: 'clip'; id: number }
   | null;
+
+const EMPTY_NOTES: NoteHit[] = [];
+const EMPTY_CLIPS: ClipHit[] = [];
 
 export function SearchOverlay({
   open, notes, clips,
@@ -59,8 +63,8 @@ export function SearchOverlay({
     return () => clearTimeout(t);
   }, [query, open]);
 
-  const noteHits = results?.notes ?? [];
-  const clipHits = results?.clips ?? [];
+  const noteHits = results?.notes ?? EMPTY_NOTES;
+  const clipHits = results?.clips ?? EMPTY_CLIPS;
   const flatHits = useMemo<ActiveHit[]>(
     () => [
       ...noteHits.map(h => ({ kind: 'note' as const, id: h.id })),
@@ -117,11 +121,11 @@ export function SearchOverlay({
   return (
     <div
       onClick={onClose}
-      className="fixed inset-0 z-[60] bg-black/[0.18] backdrop-blur-md flex items-start justify-center pt-14"
+      className="fixed inset-0 z-[60] bg-black/[0.18] flex items-start justify-center pt-14"
     >
       <div
         onClick={e => e.stopPropagation()}
-        className="w-[860px] max-w-[calc(100vw-40px)] h-[540px] flex flex-col rounded-2xl overflow-hidden bg-white/95 dark:bg-stone-800/95 backdrop-blur-2xl shadow-[0_18px_60px_rgba(0,0,0,0.18),0_0_0_0.5px_rgba(0,0,0,0.08)] dark:shadow-[0_18px_60px_rgba(0,0,0,0.55),0_0_0_0.5px_rgba(255,255,255,0.06)]"
+        className="w-[860px] max-w-[calc(100vw-40px)] h-[540px] flex flex-col rounded-2xl overflow-hidden bg-white dark:bg-stone-800 shadow-[0_18px_60px_rgba(0,0,0,0.18),0_0_0_0.5px_rgba(0,0,0,0.08)] dark:shadow-[0_18px_60px_rgba(0,0,0,0.55),0_0_0_0.5px_rgba(255,255,255,0.06)]"
       >
         {/* ── 顶部：可编辑 input，autofocus ── */}
         <div className="shrink-0 flex items-center gap-3 px-4 py-3.5 border-b border-black/[0.08] dark:border-white/[0.08]">
@@ -270,11 +274,11 @@ function NoteRow({ hit, active, onHover, onClick }: { hit: NoteHit; active: bool
     >
       <div
         className={`text-[14px] font-medium text-stone-900 dark:text-stone-50 leading-snug truncate ${HIGHLIGHT_CLASSES}`}
-        dangerouslySetInnerHTML={{ __html: hit.title_html || '无标题' }}
+        dangerouslySetInnerHTML={{ __html: sanitizeHtml(hit.title_html || '无标题', 'highlight') }}
       />
       <div
         className={`text-[12px] text-stone-500 dark:text-stone-400 leading-relaxed mt-0.5 line-clamp-2 ${SNIPPET_HIGHLIGHT}`}
-        dangerouslySetInnerHTML={{ __html: hit.snippet || '' }}
+        dangerouslySetInnerHTML={{ __html: sanitizeHtml(hit.snippet || '', 'highlight') }}
       />
     </div>
   );
@@ -289,7 +293,7 @@ function ClipRow({ hit, active, onHover, onClick }: { hit: ClipHit; active: bool
     >
       <div
         className={`text-[14px] font-medium text-stone-900 dark:text-stone-50 leading-snug truncate ${HIGHLIGHT_CLASSES}`}
-        dangerouslySetInnerHTML={{ __html: hit.title_html || '无标题' }}
+        dangerouslySetInnerHTML={{ __html: sanitizeHtml(hit.title_html || '无标题', 'highlight') }}
       />
       <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-stone-400 dark:text-stone-500">
         {hit.site_name && <span className="truncate">{hit.site_name}</span>}
@@ -302,7 +306,7 @@ function ClipRow({ hit, active, onHover, onClick }: { hit: ClipHit; active: bool
       </div>
       <div
         className={`text-[12px] text-stone-500 dark:text-stone-400 leading-relaxed mt-0.5 line-clamp-2 ${SNIPPET_HIGHLIGHT}`}
-        dangerouslySetInnerHTML={{ __html: hit.snippet || '' }}
+        dangerouslySetInnerHTML={{ __html: sanitizeHtml(hit.snippet || '', 'highlight') }}
       />
     </div>
   );
@@ -315,7 +319,7 @@ function NotePreview({ hit, note }: { hit?: NoteHit; note?: Note }) {
       <PreviewPill kind="notes" />
       <h2
         className={`text-[18px] font-semibold text-stone-900 dark:text-stone-50 leading-tight mb-3 ${HIGHLIGHT_CLASSES}`}
-        dangerouslySetInnerHTML={{ __html: hit.title_html || '无标题' }}
+        dangerouslySetInnerHTML={{ __html: sanitizeHtml(hit.title_html || '无标题', 'highlight') }}
       />
       <div className={`text-[13px] leading-[1.7] text-stone-700 dark:text-stone-300 whitespace-pre-wrap ${HIGHLIGHT_CLASSES}`}>
         {note.content_md || <span className="text-stone-400">空笔记</span>}
@@ -331,7 +335,7 @@ function ClipPreview({ hit, clip }: { hit?: ClipHit; clip?: Clip }) {
       <PreviewPill kind="clips" />
       <h2
         className={`text-[18px] font-semibold text-stone-900 dark:text-stone-50 leading-tight mb-1.5 ${HIGHLIGHT_CLASSES}`}
-        dangerouslySetInnerHTML={{ __html: hit.title_html || '无标题' }}
+        dangerouslySetInnerHTML={{ __html: sanitizeHtml(hit.title_html || '无标题', 'highlight') }}
       />
       <div className="flex items-center gap-2 text-[12px] text-stone-400 dark:text-stone-500 mb-4">
         {clip.site_name && <span>{clip.site_name}</span>}

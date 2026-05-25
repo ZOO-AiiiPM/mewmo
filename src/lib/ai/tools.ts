@@ -1,7 +1,7 @@
 import { tool } from 'ai';
 import { z } from 'zod';
 import type { Note, Clip } from '../../types';
-import { listNotes, listClips } from '../db';
+import { getNote, listClips, getClip, searchAll } from '../db';
 
 // Agent 上下文：当前打开的笔记 / 剪藏 / 当前区域。
 // 用 ref-style 包装 —— execute 调用时才读取，确保拿到最新值（panel 挂载后用户切换笔记也能感知）。
@@ -17,15 +17,6 @@ function truncate(s: string, max = 15000): string {
   return s.slice(0, max) + `\n\n[…内容过长，已截断 ${s.length - max} 字]`;
 }
 
-function noteSummary(n: Note) {
-  return {
-    id: n.id,
-    title: n.title || '无标题',
-    excerpt: n.content_md.replace(/[#*_`>\n]/g, ' ').slice(0, 80),
-    updated_at: n.updated_at,
-  };
-}
-
 function clipSummary(c: Clip) {
   return {
     id: c.id,
@@ -35,6 +26,10 @@ function clipSummary(c: Clip) {
     excerpt: c.excerpt?.slice(0, 120) ?? '',
     saved_at: c.saved_at,
   };
+}
+
+function stripMarks(html: string): string {
+  return html.replace(/<\/?mark>/g, '');
 }
 
 export function createTools(ctx: AgentContext) {
@@ -81,16 +76,15 @@ export function createTools(ctx: AgentContext) {
         limit: z.number().int().min(1).max(20).optional().describe('最多返回几条，默认 10'),
       }),
       execute: async ({ query, limit = 10 }) => {
-        const all = await listNotes();
-        const q = query.toLowerCase();
-        const hits = all.filter(
-          n =>
-            n.title.toLowerCase().includes(q) ||
-            n.content_md.toLowerCase().includes(q),
-        );
+        const hits = (await searchAll(query)).notes;
         return {
           total: hits.length,
-          results: hits.slice(0, limit).map(noteSummary),
+          results: hits.slice(0, limit).map(h => ({
+            id: h.id,
+            title: stripMarks(h.title_html) || '无标题',
+            excerpt: stripMarks(h.snippet),
+            updated_at: h.updated_at,
+          })),
         };
       },
     }),
@@ -101,8 +95,7 @@ export function createTools(ctx: AgentContext) {
         id: z.number().int().describe('笔记 id'),
       }),
       execute: async ({ id }) => {
-        const all = await listNotes();
-        const n = all.find(x => x.id === id);
+        const n = await getNote(id);
         if (!n) return { ok: false, reason: 'not_found' };
         return {
           ok: true,
@@ -121,20 +114,24 @@ export function createTools(ctx: AgentContext) {
         limit: z.number().int().min(1).max(30).optional(),
       }),
       execute: async ({ query, limit = 15 }) => {
+        if (query) {
+          const hits = (await searchAll(query)).clips;
+          return {
+            total: hits.length,
+            results: hits.slice(0, limit).map(h => ({
+              id: h.id,
+              title: stripMarks(h.title_html) || '无标题',
+              site_name: h.site_name,
+              excerpt: stripMarks(h.snippet),
+              saved_at: h.saved_at,
+            })),
+          };
+        }
+
         const all = await listClips();
-        const filtered = query
-          ? all.filter(c => {
-              const q = query.toLowerCase();
-              return (
-                c.title.toLowerCase().includes(q) ||
-                c.excerpt?.toLowerCase().includes(q) ||
-                c.content_md.toLowerCase().includes(q)
-              );
-            })
-          : all;
         return {
-          total: filtered.length,
-          results: filtered.slice(0, limit).map(clipSummary),
+          total: all.length,
+          results: all.slice(0, limit).map(clipSummary),
         };
       },
     }),
@@ -145,8 +142,7 @@ export function createTools(ctx: AgentContext) {
         id: z.number().int(),
       }),
       execute: async ({ id }) => {
-        const all = await listClips();
-        const c = all.find(x => x.id === id);
+        const c = await getClip(id);
         if (!c) return { ok: false, reason: 'not_found' };
         return {
           ok: true,

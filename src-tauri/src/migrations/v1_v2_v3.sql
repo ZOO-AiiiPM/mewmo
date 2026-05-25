@@ -20,5 +20,6 @@ CREATE TABLE IF NOT EXISTS clips (
   saved_at INTEGER NOT NULL DEFAULT (unixepoch()),
   cover_image TEXT NOT NULL DEFAULT '',
   author TEXT NOT NULL DEFAULT '',
-  published_at TEXT NOT NULL DEFAULT ''
+  published_at TEXT NOT NULL DEFAULT '',
+  ip_region TEXT NOT NULL DEFAULT ''
 );

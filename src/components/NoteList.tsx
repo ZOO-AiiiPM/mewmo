@@ -46,7 +46,7 @@ export function NoteList({
   return (
     <aside
       style={{ width: hidden ? 0 : undefined }}
-      className={`shrink-0 border-r border-black/[0.1] dark:border-white/[0.1] flex flex-col overflow-hidden transition-[width] duration-200 ease-out ${hidden ? '' : 'w-56'}`}
+      className={`shrink-0 border-r border-black/[0.1] dark:border-white/[0.1] flex flex-col overflow-hidden ${hidden ? '' : 'w-56'}`}
     >
       <div className="flex-1 overflow-y-auto notelist-scroll">
         {/* 自定义滚动条：默认完全透明（不常驻），hover sidebar 时才浮出
@@ -91,7 +91,7 @@ export function NoteList({
         ) : (
           groups.map((g, idx) => (
             <section key={g.bucket}>
-              <h2 className={`sticky top-0 z-10 h-12 px-3 flex items-center justify-between text-[15px] font-semibold text-stone-800 dark:text-stone-100 bg-white/70 dark:bg-stone-900/70 backdrop-blur-md select-none border-b border-black/[0.1] dark:border-white/[0.1] ${idx > 0 ? 'border-t' : ''}`}>
+              <h2 className={`sticky top-0 z-10 h-12 px-3 flex items-center justify-between text-[15px] font-semibold text-stone-800 dark:text-stone-100 bg-white/95 dark:bg-stone-900/95 select-none border-b border-black/[0.1] dark:border-white/[0.1] ${idx > 0 ? 'border-t' : ''}`}>
                 <span>{BUCKET_LABEL[g.bucket]}</span>
                 <span className="text-[11px] font-medium text-stone-500 dark:text-stone-400 tabular-nums">
                   {g.items.length}
@@ -135,7 +135,7 @@ export function NoteList({
                   </ContextMenu.Trigger>
                   <ContextMenu.Portal>
                     <ContextMenu.Content
-                      className="min-w-[200px] p-1.5 rounded-2xl bg-white/85 dark:bg-stone-800/90 backdrop-blur-2xl ring-1 ring-black/[0.06] dark:ring-white/[0.08] shadow-[0_12px_32px_rgba(0,0,0,0.18)] dark:shadow-[0_12px_32px_rgba(0,0,0,0.55)] z-50"
+                      className="min-w-[200px] p-1.5 rounded-2xl bg-white dark:bg-stone-800 ring-1 ring-black/[0.06] dark:ring-white/[0.08] shadow-[0_12px_32px_rgba(0,0,0,0.18)] dark:shadow-[0_12px_32px_rgba(0,0,0,0.55)] z-50"
                     >
                       <ContextMenu.Item
                         onSelect={() => onDelete(n.id)}

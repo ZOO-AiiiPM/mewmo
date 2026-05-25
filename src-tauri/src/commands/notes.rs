@@ -1,4 +1,4 @@
-use rusqlite::params;
+use rusqlite::{params, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
@@ -9,6 +9,7 @@ pub struct Note {
     pub id: i64,
     pub title: String,
     pub content_md: String,
+    pub content_loaded: bool,
     pub tags_text: String,
     pub created_at: i64,
     pub updated_at: i64,
@@ -25,7 +26,8 @@ pub fn list_notes(db: State<Db>) -> Result<Vec<Note>, String> {
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn
         .prepare(
-            "SELECT id, title, content_md, '' AS tags_text, created_at, updated_at \
+            "SELECT id, title, substr(content_md, 1, 160) AS content_md, 0 AS content_loaded, \
+                    '' AS tags_text, created_at, updated_at \
              FROM notes ORDER BY updated_at DESC",
         )
         .map_err(|e| e.to_string())?;
@@ -35,14 +37,38 @@ pub fn list_notes(db: State<Db>) -> Result<Vec<Note>, String> {
                 id: row.get(0)?,
                 title: row.get(1)?,
                 content_md: row.get(2)?,
-                tags_text: row.get(3)?,
-                created_at: row.get(4)?,
-                updated_at: row.get(5)?,
+                content_loaded: row.get::<_, i64>(3)? != 0,
+                tags_text: row.get(4)?,
+                created_at: row.get(5)?,
+                updated_at: row.get(6)?,
             })
         })
         .map_err(|e| e.to_string())?;
     rows.collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_note(db: State<Db>, id: i64) -> Result<Option<Note>, String> {
+    let conn = db.conn.lock().map_err(|e| e.to_string())?;
+    conn.query_row(
+        "SELECT id, title, content_md, 1 AS content_loaded, '' AS tags_text, created_at, updated_at \
+         FROM notes WHERE id = ?",
+        params![id],
+        |row| {
+            Ok(Note {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                content_md: row.get(2)?,
+                content_loaded: row.get::<_, i64>(3)? != 0,
+                tags_text: row.get(4)?,
+                created_at: row.get(5)?,
+                updated_at: row.get(6)?,
+            })
+        },
+    )
+    .optional()
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { marked } from 'marked';
+import { openUrl } from '@tauri-apps/plugin-opener';
 import type { Clip } from '../types';
+import { sanitizeHtml } from '../lib/sanitizeHtml';
 
 marked.use({ gfm: true, breaks: true });
 
@@ -24,12 +26,9 @@ type Props = {
 /// - 解析失败 → 原样返回
 function fmtPublished(s: string): string {
   if (!s) return '';
-  let d: Date | null = null;
-  if (/^\d+$/.test(s)) {
-    d = new Date(parseInt(s, 10) * 1000);
-  } else {
-    d = new Date(s);
-  }
+  const d = /^\d+$/.test(s)
+    ? new Date(parseInt(s, 10) * 1000)
+    : new Date(s);
   if (!d || Number.isNaN(d.getTime())) return s;
   return d.toLocaleString('zh-CN', {
     year: 'numeric', month: 'long', day: 'numeric',
@@ -43,22 +42,20 @@ function fmtPublished(s: string): string {
 /// （绿/红/蓝/橙等）则保留作者意图。
 function isNeutralColor(c: string): boolean {
   if (!c) return false;
-  let r = 0, g = 0, b = 0;
   const m = c.match(/rgba?\((\d+)[\s,]+(\d+)[\s,]+(\d+)/);
   if (m) {
-    r = +m[1]; g = +m[2]; b = +m[3];
-  } else if (c.startsWith('#')) {
-    const hex = c.slice(1);
-    if (hex.length === 3) {
-      r = parseInt(hex[0] + hex[0], 16);
-      g = parseInt(hex[1] + hex[1], 16);
-      b = parseInt(hex[2] + hex[2], 16);
-    } else if (hex.length === 6) {
-      r = parseInt(hex.slice(0, 2), 16);
-      g = parseInt(hex.slice(2, 4), 16);
-      b = parseInt(hex.slice(4, 6), 16);
-    } else return false;
-  } else return false;
+    const channels = [+m[1], +m[2], +m[3]];
+    return Math.max(...channels) - Math.min(...channels) < 30;
+  }
+  if (!c.startsWith('#')) return false;
+  const hex = c.slice(1);
+  const channels = hex.length === 3
+    ? [hex[0] + hex[0], hex[1] + hex[1], hex[2] + hex[2]].map(v => parseInt(v, 16))
+    : hex.length === 6
+      ? [hex.slice(0, 2), hex.slice(2, 4), hex.slice(4, 6)].map(v => parseInt(v, 16))
+      : null;
+  if (!channels) return false;
+  const [r, g, b] = channels;
   return Math.max(r, g, b) - Math.min(r, g, b) < 30;
 }
 
@@ -106,7 +103,7 @@ export function ClipReader({
 
   const contentHtml = useMemo(() => {
     if (!clip?.content_md) return '';
-    return marked.parse(clip.content_md) as string;
+    return sanitizeHtml(marked.parse(clip.content_md) as string);
   }, [clip?.content_md]);
 
   // 深色模式下剥掉灰阶 inline color，保留彩色装饰；切主题或 DOM 重渲染时同步刷新。
@@ -241,7 +238,7 @@ export function ClipReader({
   /// 顶栏 Toolbar：grid-cols-[1fr_auto]——左列标题占剩余空间 + mask-image 右边渐隐，
   /// 右列 icons 自动宽。撞 icons 不再发生（grid 自动给 icons 让位）。
   const Toolbar = (
-    <div className={`absolute top-0 left-0 right-0 z-[5] h-12 grid grid-cols-[1fr_auto] items-center gap-3 pl-10 bg-white/70 dark:bg-stone-900/70 backdrop-blur-md transition-[padding] duration-200 ease-out ${aiOpen ? 'pr-[323px]' : 'pr-3'}`}>
+    <div className={`absolute top-0 left-0 right-0 z-[5] h-12 grid grid-cols-[1fr_auto] items-center gap-3 pl-10 bg-white/95 dark:bg-stone-900/95 transition-[padding] duration-200 ease-out ${aiOpen ? 'pr-[323px]' : 'pr-3'}`}>
       {/* 标题列：mask 让超出右边的部分渐隐到透明 */}
       <div className="min-w-0 overflow-hidden">
         {clip && (
@@ -278,7 +275,7 @@ export function ClipReader({
           <>
             <div className="w-px h-5 bg-black/10 dark:bg-white/10 mx-1.5" />
             <button
-              onClick={() => import('@tauri-apps/plugin-opener').then(m => m.openUrl(clip.url))}
+              onClick={() => openUrl(clip.url)}
               title="在浏览器中打开原文"
               className={BTN}
             >

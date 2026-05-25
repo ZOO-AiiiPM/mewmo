@@ -26,6 +26,7 @@ const MIGRATIONS: &[(u32, &str)] = &[
     (3, include_str!("migrations/v1_v2_v3.sql")),
     (4, include_str!("migrations/v4_search.sql")),
     (6, include_str!("migrations/v6_subscription.sql")),
+    (7, include_str!("migrations/v7_clip_ip_region.sql")),
 ];
 
 pub fn init(app: &AppHandle) -> Result<Db, String> {
@@ -84,6 +85,9 @@ fn run_migrations(conn: &mut Connection) -> Result<(), String> {
         if version == 4 {
             ensure_column(&tx, "notes", "content_tokens")?;
             ensure_column(&tx, "clips", "content_tokens")?;
+        }
+        if version == 7 {
+            ensure_column(&tx, "clips", "ip_region")?;
         }
 
         tx.execute_batch(sql)

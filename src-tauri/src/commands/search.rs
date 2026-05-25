@@ -83,10 +83,7 @@ pub fn search_all(db: State<Db>, query: String) -> Result<SearchResults, String>
 
 // ── FTS5 路径 ──────────────────────────────────────────────────────────────
 
-fn search_notes_fts(
-    conn: &rusqlite::Connection,
-    fts_q: &str,
-) -> Result<Vec<NoteHit>, String> {
+fn search_notes_fts(conn: &rusqlite::Connection, fts_q: &str) -> Result<Vec<NoteHit>, String> {
     // bm25 权重 title=5 / content_tokens=1，时间衰减 0.005/天
     // title 用 highlight() 取整段含 <mark>，content 用 snippet() 截 32 token 上下文
     let mut stmt = conn
@@ -114,13 +111,11 @@ fn search_notes_fts(
         })
         .map_err(|e| e.to_string())?;
 
-    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())
 }
 
-fn search_clips_fts(
-    conn: &rusqlite::Connection,
-    fts_q: &str,
-) -> Result<Vec<ClipHit>, String> {
+fn search_clips_fts(conn: &rusqlite::Connection, fts_q: &str) -> Result<Vec<ClipHit>, String> {
     // bm25 权重 title=5 / content_tokens=1 / site_name=2 / author=2
     let mut stmt = conn
         .prepare(
@@ -150,15 +145,13 @@ fn search_clips_fts(
         })
         .map_err(|e| e.to_string())?;
 
-    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())
 }
 
 // ── LIKE fallback：FTS5 0 结果时兜底（jieba 词典外的新词、纯英文混入等）─────
 
-fn search_notes_like(
-    conn: &rusqlite::Connection,
-    raw_q: &str,
-) -> Result<Vec<NoteHit>, String> {
+fn search_notes_like(conn: &rusqlite::Connection, raw_q: &str) -> Result<Vec<NoteHit>, String> {
     let like_q = format!("%{}%", escape_like(raw_q));
     let mut stmt = conn
         .prepare(
@@ -182,13 +175,11 @@ fn search_notes_like(
         })
         .map_err(|e| e.to_string())?;
 
-    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())
 }
 
-fn search_clips_like(
-    conn: &rusqlite::Connection,
-    raw_q: &str,
-) -> Result<Vec<ClipHit>, String> {
+fn search_clips_like(conn: &rusqlite::Connection, raw_q: &str) -> Result<Vec<ClipHit>, String> {
     let like_q = format!("%{}%", escape_like(raw_q));
     let mut stmt = conn
         .prepare(
@@ -215,7 +206,8 @@ fn search_clips_like(
         })
         .map_err(|e| e.to_string())?;
 
-    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())
 }
 
 /// LIKE pattern 转义：% / _ / \ 都得加 \ 前缀（配合 SQL ESCAPE '\\'）
