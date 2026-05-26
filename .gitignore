@@ -1,51 +1,10 @@
-# Claude Code 本地状态：memory 主题文件不入 repo（每项目独立），但骨架文件要保留
-.claude/memory/*
-!.claude/memory/MEMORY.md
-!.claude/memory/archive/
-.claude/memory/archive/*
-!.claude/memory/archive/.gitkeep
+# 主仓库只 track app/，其他全部不进 git
+#
+# 元层（CLAUDE.md / journal / specs / lessons / .specify / .claude / 等）
+# 物理上呆在主目录作为所有 worktree 的公共父目录访问，
+# 但不被主仓库 git 跟踪 —— 协作元层不污染产品代码 commit history。
 
-# 本地运行时产物
-.claude/.turn-counter
-.claude/hooks/.state/
-.claude/settings.local.json
+/*
 
-# Workspace 临时
-workspace/tmp/
-workspace/bak/
-
-# OS
-.DS_Store
-Thumbs.db
-
-# 常见忽略
-node_modules/
-__pycache__/
-*.pyc
-.venv/
-venv/
-.env
-.env.local
-.pnpm-store/
-app/node_modules/
-app/dist/
-app/src-tauri/target/
-app/src-tauri/gen/
-tmp/
-.playwright-mcp/
-app/.playwright-cli/
-
-# git worktree 目录（每个 worktree 是独立的 working tree，不进 repo）
-.claude/worktrees/
-
-# 协作元层走 symlink，物理位置在 ~/.claude/projects/mewmo/，不进项目 git
-# 全局位置自己有独立 git repo 留版本历史
-# 新 worktree 跑 `bash ~/.claude/projects/mewmo/setup-worktree.sh` 重建 symlink
-/CLAUDE.md
-/AGENTS.md
-/journal.md
-/specs
-/lessons
-/.specify
-/.claude/skills
-/.claude/hooks
+!/.gitignore
+!/app/
