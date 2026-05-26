@@ -1,3 +1,4 @@
+import type { SyntaxNodeRef } from '@lezer/common';
 import { syntaxTree, ensureSyntaxTree } from '@codemirror/language';
 import { Prec, StateField, type EditorState, type Text } from '@codemirror/state';
 import {
@@ -804,277 +805,246 @@ const headingClasses: Record<number, string> = {
   6: 'cm-h6',
 };
 
-function buildDecorations(state: EditorState): DecorationSet {
-  const cursorLine = state.doc.lineAt(state.selection.main.head).number;
+// buildDecorations 主 traversal 跟 10 个 per-decoration helper 共享的工作集。
+// items 累加最终结果；lezerEmphasisRanges / lezerListMarkPositions 是 lezer pass
+// 收集给后续 regex patches 用的「已识别集合」，避免重复装饰。
+type Item = { from: number; to: number; deco: Decoration };
 
-  // 强制解析到文档尾，避免初次切换笔记时 syntax tree 还没含 Table / TaskMarker 节点 → 装饰漏建
-  ensureSyntaxTree(state, state.doc.length, 50);
+interface DecorationCtx {
+  state: EditorState;
+  cursorLine: number;
+  items: Item[];
+  lezerEmphasisRanges: Array<[number, number]>;
+  lezerListMarkPositions: Set<number>;
+}
 
-  // 收集所有要应用的装饰，按 from 升序排，方便交给 builder
-  type Item = { from: number; to: number; deco: Decoration };
-  const items: Item[] = [];
+function isCursorOnNode(node: SyntaxNodeRef, ctx: DecorationCtx): boolean {
+  const fromLine = ctx.state.doc.lineAt(node.from).number;
+  const toLine = ctx.state.doc.lineAt(node.to).number;
+  return ctx.cursorLine >= fromLine && ctx.cursorLine <= toLine;
+}
 
-  // 收集 lezer 识别的 Emphasis / StrongEmphasis 范围；regex 补丁会跳过这些避免重复装饰
-  const lezerEmphasisRanges: Array<[number, number]> = [];
-  // 收集 lezer 识别的 ListMark 位置；regex 补丁扫"空 list item"（- 后无内容时 lezer 不识别）
-  const lezerListMarkPositions = new Set<number>();
+// ── lezer 整段节点：套样式 mark（不依赖光标） ──
+function handleEntireNodeStyle(node: SyntaxNodeRef, ctx: DecorationCtx) {
+  const name = node.name;
+  if (name === 'StrongEmphasis') {
+    ctx.lezerEmphasisRanges.push([node.from, node.to]);
+    ctx.items.push({ from: node.from, to: node.to, deco: Decoration.mark({ class: 'cm-strong' }) });
+  } else if (name === 'Emphasis') {
+    ctx.lezerEmphasisRanges.push([node.from, node.to]);
+    ctx.items.push({ from: node.from, to: node.to, deco: Decoration.mark({ class: 'cm-em' }) });
+  } else if (name === 'Strikethrough') {
+    ctx.items.push({ from: node.from, to: node.to, deco: Decoration.mark({ class: 'cm-strike' }) });
+  } else if (name === 'InlineCode') {
+    ctx.items.push({ from: node.from, to: node.to, deco: Decoration.mark({ class: 'cm-inline-code' }) });
+  } else if (name === 'Blockquote') {
+    ctx.items.push({ from: node.from, to: node.to, deco: Decoration.mark({ class: 'cm-blockquote' }) });
+  } else if (name === 'Link' || name === 'Autolink') {
+    // Autolink (CommonMark <url> 形式)：整段（含尖括号）套链接样式
+    ctx.items.push({ from: node.from, to: node.to, deco: Decoration.mark({ class: 'cm-link' }) });
+  } else if (/^ATXHeading[1-6]$/.test(name)) {
+    // CommonMark 允许 "###" 单独一行算空 heading，但用户体验上"#"没空格就变大很突兀
+    // 要求 # 后必须跟空格才套大字号样式（空格之后即使还没输文字也立刻渲染）
+    const text = ctx.state.doc.sliceString(node.from, node.to);
+    const m = text.match(/^(#{1,6})\s/);
+    if (m) {
+      const level = m[1].length;
+      ctx.items.push({
+        from: node.from,
+        to: node.to,
+        deco: Decoration.mark({ class: headingClasses[level] }),
+      });
+    }
+  }
+}
 
-  // StateField 不能限制为 visibleRanges（无法访问 view）；笔记体量小，整文档遍历可接受
-  syntaxTree(state).iterate({
-    enter(node) {
-        const nodeFromLine = state.doc.lineAt(node.from).number;
-        const nodeToLine = state.doc.lineAt(node.to).number;
-        const cursorOnNode =
-          cursorLine >= nodeFromLine && cursorLine <= nodeToLine;
-        const name = node.name;
+// ── lezer Image 节点 ──
+// 光标在该 Image 节点的行上时，显示原 markdown 让用户编辑；
+// 否则用 widget 把 ![alt](src) 整段替换为 <img>。
+// 返回 true 表示跳过子节点（避免 URL / LinkMark 子节点被另规则隐藏，造成 widget 范围错乱）。
+function handleImage(node: SyntaxNodeRef, ctx: DecorationCtx): boolean {
+  if (isCursorOnNode(node, ctx)) return false;
 
-        // 整段节点：套样式（mark），不依赖光标
-        if (name === 'StrongEmphasis') {
-          lezerEmphasisRanges.push([node.from, node.to]);
-          items.push({
-            from: node.from,
-            to: node.to,
-            deco: Decoration.mark({ class: 'cm-strong' }),
-          });
-        } else if (name === 'Emphasis') {
-          lezerEmphasisRanges.push([node.from, node.to]);
-          items.push({
-            from: node.from,
-            to: node.to,
-            deco: Decoration.mark({ class: 'cm-em' }),
-          });
-        } else if (name === 'Strikethrough') {
-          items.push({
-            from: node.from,
-            to: node.to,
-            deco: Decoration.mark({ class: 'cm-strike' }),
-          });
-        } else if (name === 'InlineCode') {
-          items.push({
-            from: node.from,
-            to: node.to,
-            deco: Decoration.mark({ class: 'cm-inline-code' }),
-          });
-        } else if (name === 'Image') {
-          // 光标在该 Image 节点的行上时，显示原 markdown 让用户编辑；
-          // 否则用 widget 把 ![alt](src) 整段替换为 <img>
-          if (!cursorOnNode) {
-            const text = state.doc.sliceString(node.from, node.to);
-            const m = text.match(/^!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/);
-            if (m) {
-              const [, alt, src] = m;
-              items.push({
-                from: node.from,
-                to: node.to,
-                deco: Decoration.replace({
-                  widget: new ImageWidget(src, alt),
-                }),
-              });
-              // 跳过子节点（避免 URL / LinkMark 子节点被另外的规则隐藏，造成 widget 范围错乱）
-              return false;
-            }
-          }
-        } else if (name === 'Table') {
-          // 表格永远渲染成 widget；cell 内的 contentEditable 提供编辑能力，不再依赖光标位置切换原文/视图
-          //
-          // 防御性边界：完全不信任 lezer-markdown Table 节点的 from/to。
-          // 实测 lezer 在表格末行后紧接非空段落（无空行分隔）时，会把后续整段
-          // paragraph 都吞进 Table 节点的 .to。直接用 lineAt(node.to) 会让 block widget
-          // replace 跨越多行非表格内容，表现为：用户在表格下方输入的文字看不见 / 光标
-          // 上下移动跳过那几行 / "无法保存"。
-          //
-          // 自己以"含 | 的连续行"为唯一表格边界，跳过 lezer 给的范围。
-          const range = tableRangeNearLine(state.doc, state.doc.lineAt(node.from).number);
-          if (!range) return false;
-          const text = state.doc.sliceString(range.from, range.to);
-          // CM 6 硬性要求：block decoration 的 from/to 必须在行边界（行首或文档末尾）。
-          // endLine.to 是行尾（newline 之前），不是下一行的行首，差 1 个字符。
-          // 这 1 个字符让 CM 在 widget 之后的 vertical motion 计算错位——光标按 ↑/↓
-          // 跳过 widget 之后的 1 行 / 多行（取决于这个错位累积多少）。
-          // widgetTo 必须延伸到下一行行首（含 trailing newline）；文档最末行则直接到 doc 末尾。
-          items.push({
-            from: range.from,
-            to: range.widgetTo,
-            deco: Decoration.replace({
-              widget: new TableWidget(text),
-              block: true,
-            }),
-          });
-          return false;
-        } else if (/^ATXHeading[1-6]$/.test(name)) {
-          // CommonMark 允许 "###" 单独一行算空 heading，但用户体验上"#"没空格就变大很突兀
-          // 要求 # 后必须跟空格才套大字号样式（空格之后即使还没输文字也立刻渲染）
-          const text = state.doc.sliceString(node.from, node.to);
-          const m = text.match(/^(#{1,6})\s/);
-          if (m) {
-            const level = m[1].length;
-            items.push({
-              from: node.from,
-              to: node.to,
-              deco: Decoration.mark({ class: headingClasses[level] }),
-            });
-          }
-        } else if (name === 'Blockquote') {
-          items.push({
-            from: node.from,
-            to: node.to,
-            deco: Decoration.mark({ class: 'cm-blockquote' }),
-          });
-        } else if (name === 'Link') {
-          items.push({
-            from: node.from,
-            to: node.to,
-            deco: Decoration.mark({ class: 'cm-link' }),
-          });
-        } else if (name === 'Autolink') {
-          // CommonMark <url> 形式：整段（含尖括号）套链接样式
-          items.push({
-            from: node.from,
-            to: node.to,
-            deco: Decoration.mark({ class: 'cm-link' }),
-          });
-        }
+  const text = ctx.state.doc.sliceString(node.from, node.to);
+  const m = text.match(/^!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/);
+  if (!m) return false;
 
-        // 行内格式标记（**, *, ~~, `）：光标不在所属节点时才隐藏
-        if (
-          (name === 'EmphasisMark' ||
-            name === 'StrikethroughMark' ||
-            name === 'CodeMark') &&
-          !cursorOnNode
-        ) {
-          items.push({
-            from: node.from,
-            to: node.to,
-            deco: Decoration.replace({}),
-          });
-        }
+  const [, alt, src] = m;
+  ctx.items.push({
+    from: node.from,
+    to: node.to,
+    deco: Decoration.replace({ widget: new ImageWidget(src, alt) }),
+  });
+  return true;
+}
 
-        // 行首结构标记（#）：Obsidian 风 live preview——光标在该行时保留显示井号 + 空格，
-        // 切到其他行才隐藏；点击该行时光标进入，井号 + 空格再次出现
-        if (name === 'HeaderMark') {
-          const line = state.doc.lineAt(node.from);
-          const lineText = state.doc.sliceString(line.from, line.to);
-          if (/^#{1,6}\s/.test(lineText)) {
-            const cursorLine = state.doc.lineAt(state.selection.main.head).number;
-            if (cursorLine !== line.number) {
-              let hideTo = node.to;
-              const next = state.doc.sliceString(node.to, node.to + 1);
-              if (next === ' ') hideTo += 1;
-              items.push({
-                from: node.from,
-                to: hideTo,
-                deco: Decoration.replace({}),
-              });
-            }
-          }
-        }
+// ── lezer Table 节点 ──
+// 表格永远渲染成 widget；cell 内的 contentEditable 提供编辑能力，不再依赖光标位置切换原文/视图。
+//
+// 防御性边界：完全不信任 lezer-markdown Table 节点的 from/to。实测 lezer 在表格末行后
+// 紧接非空段落（无空行分隔）时，会把后续整段 paragraph 都吞进 Table 节点的 .to。直接用
+// lineAt(node.to) 会让 block widget replace 跨越多行非表格内容，表现为：用户在表格下方
+// 输入的文字看不见 / 光标上下移动跳过那几行 / "无法保存"。
+// 自己以"含 | 的连续行"为唯一表格边界，跳过 lezer 给的范围。
+//
+// CM 6 硬性要求：block decoration 的 from/to 必须在行边界（行首或文档末尾）。endLine.to
+// 是行尾（newline 之前），不是下一行的行首，差 1 个字符。这 1 个字符让 CM 在 widget 之后
+// 的 vertical motion 计算错位——光标按 ↑/↓ 跳过 widget 之后的 1 行 / 多行（取决于错位累积
+// 多少）。widgetTo 必须延伸到下一行行首（含 trailing newline）；文档最末行直接到 doc 末尾。
+//
+// 返回 true 跳过子节点。
+function handleTable(node: SyntaxNodeRef, ctx: DecorationCtx): boolean {
+  const range = tableRangeNearLine(ctx.state.doc, ctx.state.doc.lineAt(node.from).number);
+  if (!range) return false;
 
-        // 列表标记：立即渲染为圆点，按嵌套深度选实心 / 空心
-        // 严格判定：必须 `[-*+] + 空格` 才识别为列表（光标后空格一打出就立即渲染，
-        // 不要求内容；用户输 "-" 没空格时保留原字符）
-        if (name === 'ListMark') {
-          const text = state.doc.sliceString(node.from, node.to);
-          if (/^[-*+]$/.test(text)) {
-            const line = state.doc.lineAt(node.from);
-            const lineText = state.doc.sliceString(line.from, line.to);
-            if (/^\s*[-*+]\s/.test(lineText)) {
-              lezerListMarkPositions.add(node.from);
-              // 任务项 (- [ ] foo / - [x] foo) → 隐藏前缀 "- "，由 TaskMarker widget 取代
-              if (/^\s*[-*+]\s+\[[ xX]\]\s/.test(lineText)) {
-                const next = state.doc.sliceString(node.to, node.to + 1);
-                const hideTo = next === ' ' ? node.to + 1 : node.to;
-                items.push({
-                  from: node.from,
-                  to: hideTo,
-                  deco: Decoration.replace({}),
-                });
-              } else {
-                // 普通列表：数 BulletList / OrderedList 祖先深度
-                let depth = 0;
-                let cur = node.node.parent;
-                while (cur) {
-                  if (cur.name === 'BulletList' || cur.name === 'OrderedList') {
-                    depth++;
-                  }
-                  cur = cur.parent;
-                }
-                items.push({
-                  from: node.from,
-                  to: node.to,
-                  deco: depth >= 2 ? hollowBulletDeco : bulletDeco,
-                });
-              }
-            }
-          }
-        }
+  const text = ctx.state.doc.sliceString(range.from, range.to);
+  ctx.items.push({
+    from: range.from,
+    to: range.widgetTo,
+    deco: Decoration.replace({
+      widget: new TableWidget(text),
+      block: true,
+    }),
+  });
+  return true;
+}
 
-        // 任务标记 [ ] / [x] → 替换为可勾选 checkbox
-        if (name === 'TaskMarker') {
-          const text = state.doc.sliceString(node.from, node.to);
-          const checked = /\[[xX]\]/.test(text);
-          items.push({
-            from: node.from,
-            to: node.to,
-            deco: Decoration.replace({
-              widget: new TaskWidget(checked),
-            }),
-          });
-          if (checked) {
-            // 已完成 → 行内剩余文本套灰色删除线
-            const line = state.doc.lineAt(node.from);
-            const tailFrom = node.to + (state.doc.sliceString(node.to, node.to + 1) === ' ' ? 1 : 0);
-            if (tailFrom < line.to) {
-              items.push({
-                from: tailFrom,
-                to: line.to,
-                deco: Decoration.mark({ class: 'cm-task-done' }),
-              });
-            }
-          }
-        }
+// ── 行内格式标记隐藏（**, *, ~~, `）：光标不在所属节点时才隐藏 ──
+function handleInlineMarkHide(node: SyntaxNodeRef, ctx: DecorationCtx) {
+  if (isCursorOnNode(node, ctx)) return;
+  ctx.items.push({
+    from: node.from,
+    to: node.to,
+    deco: Decoration.replace({}),
+  });
+}
 
-        // 链接的 url 部分（光标不在时整体仅显示 link text）
-        if (name === 'URL') {
-          // 只隐藏 [text](url) 里的 url 子节点；裸 URL（GFM autolink）的顶层 URL
-          // 节点父节点不是 Link，永远显示并套上链接样式（裸 URL 本身就是原文）
-          const parent = node.node.parent;
-          if (parent && parent.name === 'Link') {
-            if (!cursorOnNode) {
-              items.push({
-                from: node.from,
-                to: node.to,
-                deco: Decoration.replace({}),
-              });
-            }
-          } else {
-            items.push({
-              from: node.from,
-              to: node.to,
-              deco: Decoration.mark({ class: 'cm-link' }),
-            });
-          }
-        }
-        // 链接的 [ ] ( )
-        if (
-          (name === 'LinkMark') &&
-          !cursorOnNode
-        ) {
-          items.push({
-            from: node.from,
-            to: node.to,
-            deco: Decoration.replace({}),
-          });
-        }
-      },
+// ── 行首结构标记 # ──
+// Obsidian 风 live preview——光标在该行时保留显示井号 + 空格，切到其他行才隐藏；
+// 点击该行时光标进入，井号 + 空格再次出现。
+function handleHeaderMark(node: SyntaxNodeRef, ctx: DecorationCtx) {
+  const line = ctx.state.doc.lineAt(node.from);
+  const lineText = ctx.state.doc.sliceString(line.from, line.to);
+  if (!/^#{1,6}\s/.test(lineText)) return;
+  if (ctx.cursorLine === line.number) return;
+
+  let hideTo = node.to;
+  const next = ctx.state.doc.sliceString(node.to, node.to + 1);
+  if (next === ' ') hideTo += 1;
+  ctx.items.push({
+    from: node.from,
+    to: hideTo,
+    deco: Decoration.replace({}),
+  });
+}
+
+// ── 列表标记 ──
+// 严格判定：必须 [-*+] + 空格 才识别为列表（光标后空格一打出就立即渲染，不要求内容；
+// 用户输 "-" 没空格时保留原字符）。
+// 任务项 (- [ ] foo / - [x] foo) → 隐藏前缀 "- "，由 TaskMarker widget 取代。
+// 普通列表 → 数 BulletList / OrderedList 祖先深度选实心 / 空心。
+function handleListMark(node: SyntaxNodeRef, ctx: DecorationCtx) {
+  const text = ctx.state.doc.sliceString(node.from, node.to);
+  if (!/^[-*+]$/.test(text)) return;
+
+  const line = ctx.state.doc.lineAt(node.from);
+  const lineText = ctx.state.doc.sliceString(line.from, line.to);
+  if (!/^\s*[-*+]\s/.test(lineText)) return;
+
+  ctx.lezerListMarkPositions.add(node.from);
+
+  if (/^\s*[-*+]\s+\[[ xX]\]\s/.test(lineText)) {
+    // 任务项 → 隐藏 "- " 前缀
+    const next = ctx.state.doc.sliceString(node.to, node.to + 1);
+    const hideTo = next === ' ' ? node.to + 1 : node.to;
+    ctx.items.push({
+      from: node.from,
+      to: hideTo,
+      deco: Decoration.replace({}),
     });
+    return;
+  }
 
-  // ── regex 补丁：lezer-markdown 不识别紧贴 unicode word char 的 emphasis ──
-  // 例：`这是*斜体*` 中 `*` 紧贴中文，CommonMark 规则不识别为 Emphasis。手动扫描补 mark。
-  // 跳过 lezer 已识别范围避免重复装饰。
-  // 注意：regex 不能跨行匹配 emphasis（合规 markdown 不允许跨行），用 [^*\n] 限制
-  const docText = state.doc.toString();
+  // 普通列表：数嵌套深度
+  let depth = 0;
+  let cur = node.node.parent;
+  while (cur) {
+    if (cur.name === 'BulletList' || cur.name === 'OrderedList') {
+      depth++;
+    }
+    cur = cur.parent;
+  }
+  ctx.items.push({
+    from: node.from,
+    to: node.to,
+    deco: depth >= 2 ? hollowBulletDeco : bulletDeco,
+  });
+}
+
+// ── 任务标记 [ ] / [x] → 替换为可勾选 checkbox ──
+function handleTaskMarker(node: SyntaxNodeRef, ctx: DecorationCtx) {
+  const text = ctx.state.doc.sliceString(node.from, node.to);
+  const checked = /\[[xX]\]/.test(text);
+  ctx.items.push({
+    from: node.from,
+    to: node.to,
+    deco: Decoration.replace({ widget: new TaskWidget(checked) }),
+  });
+
+  if (!checked) return;
+  // 已完成 → 行内剩余文本套灰色删除线
+  const line = ctx.state.doc.lineAt(node.from);
+  const tailFrom = node.to + (ctx.state.doc.sliceString(node.to, node.to + 1) === ' ' ? 1 : 0);
+  if (tailFrom < line.to) {
+    ctx.items.push({
+      from: tailFrom,
+      to: line.to,
+      deco: Decoration.mark({ class: 'cm-task-done' }),
+    });
+  }
+}
+
+// ── 链接的 url 部分 ──
+// [text](url) 形式：光标不在时隐藏 url（仅显示 link text）。
+// 裸 URL（GFM autolink）的顶层 URL 节点父节点不是 Link，永远显示并套上链接样式。
+function handleUrl(node: SyntaxNodeRef, ctx: DecorationCtx) {
+  const parent = node.node.parent;
+  const isInLink = parent && parent.name === 'Link';
+
+  if (isInLink) {
+    if (isCursorOnNode(node, ctx)) return;
+    ctx.items.push({
+      from: node.from,
+      to: node.to,
+      deco: Decoration.replace({}),
+    });
+  } else {
+    ctx.items.push({
+      from: node.from,
+      to: node.to,
+      deco: Decoration.mark({ class: 'cm-link' }),
+    });
+  }
+}
+
+// ── 链接的 [ ] ( ) ——光标不在所属链接时才隐藏 ──
+function handleLinkMark(node: SyntaxNodeRef, ctx: DecorationCtx) {
+  if (isCursorOnNode(node, ctx)) return;
+  ctx.items.push({
+    from: node.from,
+    to: node.to,
+    deco: Decoration.replace({}),
+  });
+}
+
+// ── regex 补丁：lezer-markdown 不识别紧贴 unicode word char 的 emphasis ──
+// 例：`这是*斜体*` 中 `*` 紧贴中文，CommonMark 规则不识别为 Emphasis。手动扫描补 mark。
+// 跳过 lezer 已识别范围避免重复装饰。
+// 注意：regex 不能跨行匹配 emphasis（合规 markdown 不允许跨行），用 [^*\n] 限制。
+function patchUnicodeEmphasis(ctx: DecorationCtx) {
+  const docText = ctx.state.doc.toString();
   const isInLezerRange = (from: number, to: number) =>
-    lezerEmphasisRanges.some(([f, t]) => from >= f && to <= t);
+    ctx.lezerEmphasisRanges.some(([f, t]) => from >= f && to <= t);
 
   // 先扫 ** ** （strong），再扫 * *（em）—— 顺序很重要，避免 ** 内层 * 误识别
   const strongRe = /\*\*([^*\n]+?)\*\*/g;
@@ -1083,15 +1053,16 @@ function buildDecorations(state: EditorState): DecorationSet {
     const mFrom = sm.index;
     const mTo = sm.index + sm[0].length;
     if (isInLezerRange(mFrom, mTo)) continue;
-    items.push({ from: mFrom, to: mTo, deco: Decoration.mark({ class: 'cm-strong' }) });
+    ctx.items.push({ from: mFrom, to: mTo, deco: Decoration.mark({ class: 'cm-strong' }) });
     // 隐藏 ** （光标不在该行）
-    const line = state.doc.lineAt(mFrom);
-    if (cursorLine !== line.number) {
-      items.push({ from: mFrom, to: mFrom + 2, deco: Decoration.replace({}) });
-      items.push({ from: mTo - 2, to: mTo, deco: Decoration.replace({}) });
+    const line = ctx.state.doc.lineAt(mFrom);
+    if (ctx.cursorLine !== line.number) {
+      ctx.items.push({ from: mFrom, to: mFrom + 2, deco: Decoration.replace({}) });
+      ctx.items.push({ from: mTo - 2, to: mTo, deco: Decoration.replace({}) });
     }
-    lezerEmphasisRanges.push([mFrom, mTo]);
+    ctx.lezerEmphasisRanges.push([mFrom, mTo]);
   }
+
   // em：避免误吃 strong 已处理过的 ** （isInLezerRange 已含 strong 范围）
   const emRe = /\*([^*\n]+?)\*/g;
   let em: RegExpExecArray | null;
@@ -1099,36 +1070,114 @@ function buildDecorations(state: EditorState): DecorationSet {
     const mFrom = em.index;
     const mTo = em.index + em[0].length;
     if (isInLezerRange(mFrom, mTo)) continue;
-    items.push({ from: mFrom, to: mTo, deco: Decoration.mark({ class: 'cm-em' }) });
-    const line = state.doc.lineAt(mFrom);
-    if (cursorLine !== line.number) {
-      items.push({ from: mFrom, to: mFrom + 1, deco: Decoration.replace({}) });
-      items.push({ from: mTo - 1, to: mTo, deco: Decoration.replace({}) });
+    ctx.items.push({ from: mFrom, to: mTo, deco: Decoration.mark({ class: 'cm-em' }) });
+    const line = ctx.state.doc.lineAt(mFrom);
+    if (ctx.cursorLine !== line.number) {
+      ctx.items.push({ from: mFrom, to: mFrom + 1, deco: Decoration.replace({}) });
+      ctx.items.push({ from: mTo - 1, to: mTo, deco: Decoration.replace({}) });
     }
   }
+}
 
-  // ── regex 补丁：lezer 对"`- ` 后无内容"的空 list item 不识别成 ListMark ──
-  // 扫每行行首，匹配 `[-*+] + 空格`，且位置不在 lezer 已识别集合里 → 手动渲染圆点
-  const totalLines = state.doc.lines;
+// ── regex 补丁：lezer 对"`- ` 后无内容"的空 list item 不识别成 ListMark ──
+// 扫每行行首，匹配 `[-*+] + 空格`，且位置不在 lezer 已识别集合里 → 手动渲染圆点
+function patchEmptyListMark(ctx: DecorationCtx) {
+  const totalLines = ctx.state.doc.lines;
   for (let lineNum = 1; lineNum <= totalLines; lineNum++) {
-    const line = state.doc.line(lineNum);
+    const line = ctx.state.doc.line(lineNum);
     const m = line.text.match(/^(\s*)([-*+])\s/);
     if (!m) continue;
     const markerPos = line.from + m[1].length;
-    if (lezerListMarkPositions.has(markerPos)) continue;
+    if (ctx.lezerListMarkPositions.has(markerPos)) continue;
     // 任务项格式 `- [ ] / - [x]` 整体由 TaskMarker widget 处理，跳过
     if (/^\s*[-*+]\s+\[[ xX]\]\s/.test(line.text)) continue;
-    items.push({
+    ctx.items.push({
       from: markerPos,
       to: markerPos + 1,
       deco: bulletDeco,
     });
   }
+}
+
+function buildDecorations(state: EditorState): DecorationSet {
+  const ctx: DecorationCtx = {
+    state,
+    cursorLine: state.doc.lineAt(state.selection.main.head).number,
+    items: [],
+    lezerEmphasisRanges: [],
+    lezerListMarkPositions: new Set(),
+  };
+
+  // 强制解析到文档尾，避免初次切换笔记时 syntax tree 还没含 Table / TaskMarker 节点 → 装饰漏建
+  ensureSyntaxTree(state, state.doc.length, 50);
+
+  // StateField 不能限制为 visibleRanges（无法访问 view）；笔记体量小，整文档遍历可接受。
+  // enter 函数本身只做 dispatch，每类节点由 handleXXX helper 处理；返回 false 跳过子节点。
+  syntaxTree(state).iterate({
+    enter(node) {
+      const name = node.name;
+
+      // 整段节点 mark / heading / blockquote / link
+      if (
+        name === 'StrongEmphasis' ||
+        name === 'Emphasis' ||
+        name === 'Strikethrough' ||
+        name === 'InlineCode' ||
+        name === 'Blockquote' ||
+        name === 'Link' ||
+        name === 'Autolink' ||
+        /^ATXHeading[1-6]$/.test(name)
+      ) {
+        handleEntireNodeStyle(node, ctx);
+        return;
+      }
+
+      // 复合节点（widget + 跳过 children）
+      if (name === 'Image') {
+        if (handleImage(node, ctx)) return false;
+        return;
+      }
+      if (name === 'Table') {
+        if (handleTable(node, ctx)) return false;
+        return;
+      }
+
+      // 行内格式标记（**, *, ~~, `）
+      if (name === 'EmphasisMark' || name === 'StrikethroughMark' || name === 'CodeMark') {
+        handleInlineMarkHide(node, ctx);
+        return;
+      }
+      if (name === 'HeaderMark') {
+        handleHeaderMark(node, ctx);
+        return;
+      }
+      if (name === 'ListMark') {
+        handleListMark(node, ctx);
+        return;
+      }
+      if (name === 'TaskMarker') {
+        handleTaskMarker(node, ctx);
+        return;
+      }
+      if (name === 'URL') {
+        handleUrl(node, ctx);
+        return;
+      }
+      if (name === 'LinkMark') {
+        handleLinkMark(node, ctx);
+        return;
+      }
+    },
+  });
+
+  // regex patches 处理 lezer 漏识别的 case
+  patchUnicodeEmphasis(ctx);
+  patchEmptyListMark(ctx);
 
   // 不能手工 sort 后塞 RangeSetBuilder：CM 的 builder 还要求同 from 位置上 startSide 升序，
   // 而 startSide 是 Decoration 的内部属性（mark/replace/block 各不相同），按业务字段没法排对。
   // 交给 Decoration.set(ranges, true) 让 CM 自己用完整规则排，是公开 API 的标准用法。
-  return Decoration.set(items.map(it => it.deco.range(it.from, it.to)), true);
+  return Decoration.set(ctx.items.map(it => it.deco.range(it.from, it.to)), true);
 }
 
 // block widgets 必须通过 StateField 注入，ViewPlugin 提供的会被静默丢弃
