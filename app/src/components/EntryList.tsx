@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { FeedEntry, SubscriptionSource } from '../types';
-import { BUCKET_LABEL, getBucket, type Bucket } from '../lib/dateBuckets';
+import { BUCKET_LABEL, formatListItemDate, getBucket, type Bucket } from '../lib/dateBuckets';
 
 type Props = {
   entries: FeedEntry[];
@@ -9,26 +9,6 @@ type Props = {
   onSelect: (entry: FeedEntry) => void;
   hidden?: boolean;
 };
-
-const WEEKDAY = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-
-function fmt(ts: number, bucket: Bucket): string {
-  const d = new Date(ts * 1000);
-  switch (bucket) {
-    case 'today':
-      return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-    case 'yesterday':
-      return '昨天';
-    case 'week':
-      return WEEKDAY[d.getDay()];
-    case 'month':
-    case 'year':
-      return d.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' });
-    case 'older':
-    default:
-      return d.toLocaleDateString('zh-CN', { year: '2-digit', month: 'numeric', day: 'numeric' });
-  }
-}
 
 function entryTimestamp(e: FeedEntry): number {
   return e.published_at ?? e.fetched_at;
@@ -135,7 +115,7 @@ function EntryItem({
         <div className="text-[11px] text-stone-400 dark:text-stone-500 mt-1.5 truncate">
           {sourceTitle}
           {sourceTitle && ' · '}
-          {fmt(entryTimestamp(entry), bucket)}
+          {formatListItemDate(entryTimestamp(entry), bucket)}
         </div>
       </div>
 
