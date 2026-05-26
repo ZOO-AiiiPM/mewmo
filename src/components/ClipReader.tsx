@@ -103,7 +103,12 @@ export function ClipReader({
 
   const contentHtml = useMemo(() => {
     if (!clip?.content_md) return '';
-    return sanitizeHtml(marked.parse(clip.content_md) as string);
+    // 剥掉公众号等来源 clip_parser 没处理掉的 inline <span> styling 标签。
+    // marked 对 inline HTML 内部的 markdown 不当 markdown 解析（直接 raw 透传），
+    // 导致 <span style="...">![](url)</span> 里的 ![](url) 显示成字面字符串没渲染成
+    // <img>。剥 span 保留内容，让 image / bold / em 等 markdown 暴露给 marked 解析。
+    const stripped = clip.content_md.replace(/<\/?span\b[^>]*>/gi, '');
+    return sanitizeHtml(marked.parse(stripped) as string);
   }, [clip?.content_md]);
 
   // contentHtml 变化时手动写 innerHTML，绕开 dangerouslySetInnerHTML 在每次
