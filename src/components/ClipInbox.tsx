@@ -1,5 +1,5 @@
 import type { Clip } from '../types';
-import { BUCKET_LABEL, groupByBucket, type Bucket } from '../lib/dateBuckets';
+import { BUCKET_LABEL, formatListItemDate, groupByBucket } from '../lib/dateBuckets';
 
 type Props = {
   clips: Clip[];
@@ -7,27 +7,6 @@ type Props = {
   onSelect: (id: number) => void;
   hidden?: boolean;
 };
-
-const WEEKDAY = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-
-/** 时间戳按桶分类显示：今天 HH:mm / 昨日 / 本周 周X / 本月本年 M/D / 更早 YY/M/D */
-function fmt(ts: number, bucket: Bucket): string {
-  const d = new Date(ts * 1000);
-  switch (bucket) {
-    case 'today':
-      return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-    case 'yesterday':
-      return '昨日';
-    case 'week':
-      return WEEKDAY[d.getDay()];
-    case 'month':
-    case 'year':
-      return d.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' });
-    case 'older':
-    default:
-      return d.toLocaleDateString('zh-CN', { year: '2-digit', month: 'numeric', day: 'numeric' });
-  }
-}
 
 export function ClipInbox({ clips, selectedId, onSelect, hidden = false }: Props) {
   const groups = groupByBucket(clips, c => c.saved_at);
@@ -84,7 +63,7 @@ export function ClipInbox({ clips, selectedId, onSelect, hidden = false }: Props
                       <div className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 flex items-center gap-1 truncate">
                         <span className="truncate">{c.site_name || '未知来源'}</span>
                         <span className="text-stone-300 dark:text-stone-600">·</span>
-                        <span className="shrink-0 tabular-nums">{fmt(c.saved_at, g.bucket)}</span>
+                        <span className="shrink-0 tabular-nums">{formatListItemDate(c.saved_at, g.bucket)}</span>
                       </div>
                     </div>
                     {c.cover_image && (

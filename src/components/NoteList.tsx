@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import * as ContextMenu from '@radix-ui/react-context-menu';
 import type { Note } from '../types';
-import { BUCKET_LABEL, groupByBucket, type Bucket } from '../lib/dateBuckets';
+import { BUCKET_LABEL, formatListItemDate, groupByBucket } from '../lib/dateBuckets';
 
 type Props = {
   notes: Note[];
@@ -11,27 +11,6 @@ type Props = {
   onDelete: (id: number) => void;
   hidden?: boolean;
 };
-
-const WEEKDAY = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-
-/** 时间戳按桶分类显示：今天 HH:mm / 昨日 / 本周 周X / 本月本年 M/D / 更早 YY/M/D */
-function fmt(ts: number, bucket: Bucket): string {
-  const d = new Date(ts * 1000);
-  switch (bucket) {
-    case 'today':
-      return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-    case 'yesterday':
-      return '昨日';
-    case 'week':
-      return WEEKDAY[d.getDay()];
-    case 'month':
-    case 'year':
-      return d.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' });
-    case 'older':
-    default:
-      return d.toLocaleDateString('zh-CN', { year: '2-digit', month: 'numeric', day: 'numeric' });
-  }
-}
 
 export function NoteList({
   notes,
@@ -128,7 +107,7 @@ export function NoteList({
                           </div>
                         </div>
                         <div className="text-[11px] font-medium text-stone-500 dark:text-stone-400 shrink-0 mt-0.5 tabular-nums">
-                          {fmt(n.updated_at, g.bucket)}
+                          {formatListItemDate(n.updated_at, g.bucket)}
                         </div>
                       </div>
                     </motion.div>
