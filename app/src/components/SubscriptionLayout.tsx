@@ -11,6 +11,16 @@ import {
   refreshAllSubscriptions,
   shouldAutoRefreshOnStartup,
 } from '../lib/subscription';
+import {
+  canGoBack,
+  canGoForward,
+  currentItem,
+  emptyHistory,
+  goBack,
+  goForward,
+  pushHistory,
+  type HistoryState,
+} from '../lib/historyStack';
 import type { FeedEntry, SubscriptionSource } from '../types';
 
 type Props = {
@@ -23,9 +33,10 @@ export function SubscriptionLayout({ hidden = false, expanded, onExpand }: Props
   const [sources, setSources] = useState<SubscriptionSource[]>([]);
   const [selectedSourceId, setSelectedSourceId] = useState<number | null>(null);
   const [entries, setEntries] = useState<FeedEntry[]>([]);
-  // 历史栈：history 和 idx 合并成一个 state，原子更新避免双击 race
-  // （分两个 state 时第二次 click 的闭包 idx 是 stale，setHistoryIdx +1 会越界让 reader 显示空）
-  const [browse, setBrowse] = useState<{ history: FeedEntry[]; idx: number }>({ history: [], idx: -1 });
+  // 历史栈：history + idx 合并成单 state object 才能原子更新（双击 race 教训）。
+  // pushHistory / goBack / goForward / currentItem 都是 lib/historyStack.ts 的 pure
+  // function，App.tsx 笔记浏览历史也用同一套。
+  const [browse, setBrowse] = useState<HistoryState<FeedEntry>>(emptyHistory());
   const [addOpen, setAddOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -91,7 +102,7 @@ export function SubscriptionLayout({ hidden = false, expanded, onExpand }: Props
   useEffect(() => {
     if (selectedSourceId == null) {
       setEntries([]);
-      setBrowse({ history: [], idx: -1 });
+      setBrowse(emptyHistory());
       return;
     }
     refreshEntries(selectedSourceId)
@@ -101,14 +112,14 @@ export function SubscriptionLayout({ hidden = false, expanded, onExpand }: Props
         if (list.length > 0) {
           setBrowse({ history: [list[0]], idx: 0 });
         } else {
-          setBrowse({ history: [], idx: -1 });
+          setBrowse(emptyHistory());
         }
       })
       .catch(e => {
         // 加载失败时显式清空，避免新源标题下显示老源 entries 的迷惑场景
         console.error('[subscription] load entries failed:', e);
         setEntries([]);
-        setBrowse({ history: [], idx: -1 });
+        setBrowse(emptyHistory());
       });
   }, [selectedSourceId, refreshEntries]);
 
@@ -119,16 +130,7 @@ export function SubscriptionLayout({ hidden = false, expanded, onExpand }: Props
   }, [refreshSources]);
 
   const handleEntrySelect = useCallback(async (entry: FeedEntry) => {
-    // 截断 forward 之后追加新 entry（浏览器历史经典模式）
-    setBrowse(prev => {
-      const truncated = prev.idx >= 0 ? prev.history.slice(0, prev.idx + 1) : [];
-      // 末尾就是同一条 entry → 不入栈不动 idx（双击 / 重复点同一条）
-      if (truncated.length > 0 && truncated[truncated.length - 1].id === entry.id) {
-        return prev;
-      }
-      const nextHistory = [...truncated, entry];
-      return { history: nextHistory, idx: nextHistory.length - 1 };
-    });
+    setBrowse(prev => pushHistory(prev, entry, (a, b) => a.id === b.id));
 
     if (entry.read_at == null) {
       await markEntryRead(entry.id);
@@ -140,18 +142,11 @@ export function SubscriptionLayout({ hidden = false, expanded, onExpand }: Props
     }
   }, [refreshSources]);
 
-  const handleBack = useCallback(() => {
-    setBrowse(prev => ({ ...prev, idx: Math.max(0, prev.idx - 1) }));
-  }, []);
-
-  const handleForward = useCallback(() => {
-    setBrowse(prev => ({ ...prev, idx: Math.min(prev.history.length - 1, prev.idx + 1) }));
-  }, []);
+  const handleBack = useCallback(() => setBrowse(goBack), []);
+  const handleForward = useCallback(() => setBrowse(goForward), []);
 
   // 当前显示的 entry = 历史栈当前位置
-  const currentEntry = browse.idx >= 0 && browse.idx < browse.history.length
-    ? browse.history[browse.idx]
-    : null;
+  const currentEntry = currentItem(browse);
   const currentSource = selectedSourceId != null
     ? sources.find(s => s.id === selectedSourceId) ?? null
     : null;
@@ -188,8 +183,8 @@ export function SubscriptionLayout({ hidden = false, expanded, onExpand }: Props
         source={currentSource}
         onBack={handleBack}
         onForward={handleForward}
-        canBack={browse.idx > 0}
-        canForward={browse.idx < browse.history.length - 1}
+        canBack={canGoBack(browse)}
+        canForward={canGoForward(browse)}
         expanded={expanded}
         onExpand={onExpand}
       />
