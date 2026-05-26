@@ -87,7 +87,7 @@ export function Sidebar({ open, onToggle, active, onSelect, counts = {}, theme, 
   return (
     <aside
       style={{ width: hidden ? 0 : (open ? undefined : 48) }}
-      className={`shrink-0 flex flex-col overflow-hidden ${
+      className={`shrink-0 flex flex-col overflow-hidden transition-[width] duration-200 ease-out ${
         !hidden && open ? 'w-56' : ''
       }`}
     >

@@ -35,7 +35,7 @@ export function ClipInbox({ clips, selectedId, onSelect, hidden = false }: Props
   return (
     <aside
       style={{ width: hidden ? 0 : undefined }}
-      className={`shrink-0 border-r border-black/[0.1] dark:border-white/[0.1] flex flex-col overflow-hidden ${hidden ? '' : 'w-72'}`}
+      className={`shrink-0 border-r border-black/[0.1] dark:border-white/[0.1] flex flex-col overflow-hidden transition-[width] duration-200 ease-out ${hidden ? '' : 'w-72'}`}
     >
       <div className="flex-1 overflow-y-auto">
         {clips.length === 0 ? (

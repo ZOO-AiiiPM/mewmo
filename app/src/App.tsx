@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Sidebar, type Zone } from './components/Sidebar';
 import { TabBar, type Tab as TabPillModel } from './components/TabBar';
@@ -15,9 +15,7 @@ import { useTheme } from './lib/useTheme';
 import { cleanupOrphans } from './lib/attachments';
 import type { Note, Clip } from './types';
 
-const AIPanel = lazy(() =>
-  import('./components/AIPanel').then(module => ({ default: module.AIPanel })),
-);
+import { AIPanel } from './components/AIPanel';
 
 type Tab = {
   id: string;
@@ -40,7 +38,6 @@ export default function App() {
   const [clips, setClips] = useState<Clip[]>([]);
   const [loading, setLoading] = useState(true);
   const [aiOpen, setAiOpen] = useState(false);
-  const [aiMounted, setAiMounted] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [expanded, setExpanded] = useState(false);
 
@@ -157,10 +154,6 @@ export default function App() {
 
   // ── AI 面板 ───────────────────────────────────────────────────────────────
   const toggleAI = useCallback(() => setAiOpen(prev => !prev), []);
-
-  useEffect(() => {
-    if (aiOpen) setAiMounted(true);
-  }, [aiOpen]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -521,17 +514,14 @@ export default function App() {
             )}
           </div>
 
-          {/* Layer 3：AI 浮层（绝对定位浮在 content card 之上） */}
-          {aiMounted && (
-            <Suspense fallback={null}>
-              <AIPanel
-                open={aiOpen}
-                currentNote={activeZone === 'notes' ? selectedNoteReady : null}
-                currentClip={activeZone === 'clipping' ? selectedClipReady : null}
-                zone={activeZone}
-              />
-            </Suspense>
-          )}
+          {/* Layer 3：AI 浮层（绝对定位浮在 content card 之上）。
+              永久挂着 + open 控制 transform/opacity，否则首次 toggle 没起点状态 → 无 transition */}
+          <AIPanel
+            open={aiOpen}
+            currentNote={activeZone === 'notes' ? selectedNoteReady : null}
+            currentClip={activeZone === 'clipping' ? selectedClipReady : null}
+            zone={activeZone}
+          />
         </main>
       </div>
 

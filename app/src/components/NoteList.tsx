@@ -46,7 +46,7 @@ export function NoteList({
   return (
     <aside
       style={{ width: hidden ? 0 : undefined }}
-      className={`shrink-0 border-r border-black/[0.1] dark:border-white/[0.1] flex flex-col overflow-hidden ${hidden ? '' : 'w-56'}`}
+      className={`shrink-0 border-r border-black/[0.1] dark:border-white/[0.1] flex flex-col overflow-hidden transition-[width] duration-200 ease-out ${hidden ? '' : 'w-56'}`}
     >
       <div className="flex-1 overflow-y-auto notelist-scroll">
         {/* 自定义滚动条：默认完全透明（不常驻），hover sidebar 时才浮出
