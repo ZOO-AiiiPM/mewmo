@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import type { Note, Clip, SearchResults, NoteHit, ClipHit } from '../types';
 import { searchAll } from '../lib/db';
 import { sanitizeHtml } from '../lib/sanitizeHtml';
@@ -113,20 +114,28 @@ export function SearchOverlay({
     return () => window.removeEventListener('keydown', handler);
   }, [open, active, flatHits, onClose, onPickNote, onPickClip]);
 
-  if (!open) return null;
-
   const total = noteHits.length + clipHits.length;
   const empty = !loading && query.trim() && total === 0;
 
   return (
-    <div
-      onClick={onClose}
-      className="fixed inset-0 z-[60] bg-black/[0.18] flex items-start justify-center pt-14"
-    >
-      <div
-        onClick={e => e.stopPropagation()}
-        className="w-[860px] max-w-[calc(100vw-40px)] h-[540px] flex flex-col rounded-2xl overflow-hidden bg-white dark:bg-stone-800 shadow-[0_18px_60px_rgba(0,0,0,0.18),0_0_0_0.5px_rgba(0,0,0,0.08)] dark:shadow-[0_18px_60px_rgba(0,0,0,0.55),0_0_0_0.5px_rgba(255,255,255,0.06)]"
-      >
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          onClick={onClose}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+          className="fixed inset-0 z-[60] bg-black/[0.18] flex items-start justify-center pt-14"
+        >
+          <motion.div
+            onClick={e => e.stopPropagation()}
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.96 }}
+            transition={{ duration: 0.15, ease: [0.22, 0.61, 0.36, 1] }}
+            className="w-[860px] max-w-[calc(100vw-40px)] h-[540px] flex flex-col rounded-2xl overflow-hidden bg-white dark:bg-stone-800 shadow-[0_18px_60px_rgba(0,0,0,0.18),0_0_0_0.5px_rgba(0,0,0,0.08)] dark:shadow-[0_18px_60px_rgba(0,0,0,0.55),0_0_0_0.5px_rgba(255,255,255,0.06)]"
+          >
         {/* ── 顶部：可编辑 input，autofocus ── */}
         <div className="shrink-0 flex items-center gap-3 px-4 py-3.5 border-b border-black/[0.08] dark:border-white/[0.08]">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-stone-500 dark:text-stone-400 shrink-0">
@@ -228,8 +237,10 @@ export function SearchOverlay({
           </span>
           <span className="ml-auto text-stone-400 tabular-nums">{total} 个结果</span>
         </div>
-      </div>
-    </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
 
