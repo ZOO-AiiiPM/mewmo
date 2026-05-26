@@ -26,6 +26,7 @@ __pycache__/
 venv/
 .env
 .env.local
+.pnpm-store/
 app/node_modules/
 app/dist/
 app/src-tauri/target/
@@ -36,3 +37,15 @@ app/.playwright-cli/
 
 # git worktree 目录（每个 worktree 是独立的 working tree，不进 repo）
 .claude/worktrees/
+
+# 协作元层走 symlink，物理位置在 ~/.claude/projects/mewmo/，不进项目 git
+# 全局位置自己有独立 git repo 留版本历史
+# 新 worktree 跑 `bash ~/.claude/projects/mewmo/setup-worktree.sh` 重建 symlink
+/CLAUDE.md
+/AGENTS.md
+/journal.md
+/specs
+/lessons
+/.specify
+/.claude/skills
+/.claude/hooks
