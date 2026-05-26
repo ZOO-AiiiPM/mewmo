@@ -1,5 +1,5 @@
 import { syntaxTree, ensureSyntaxTree } from '@codemirror/language';
-import { Prec, RangeSetBuilder, StateField, type EditorState, type Text } from '@codemirror/state';
+import { Prec, StateField, type EditorState, type Text } from '@codemirror/state';
 import {
   Decoration,
   type DecorationSet,
@@ -805,7 +805,6 @@ const headingClasses: Record<number, string> = {
 };
 
 function buildDecorations(state: EditorState): DecorationSet {
-  const builder = new RangeSetBuilder<Decoration>();
   const cursorLine = state.doc.lineAt(state.selection.main.head).number;
 
   // 强制解析到文档尾，避免初次切换笔记时 syntax tree 还没含 Table / TaskMarker 节点 → 装饰漏建
@@ -1126,9 +1125,10 @@ function buildDecorations(state: EditorState): DecorationSet {
     });
   }
 
-  items.sort((a, b) => a.from - b.from || a.to - b.to);
-  for (const it of items) builder.add(it.from, it.to, it.deco);
-  return builder.finish();
+  // 不能手工 sort 后塞 RangeSetBuilder：CM 的 builder 还要求同 from 位置上 startSide 升序，
+  // 而 startSide 是 Decoration 的内部属性（mark/replace/block 各不相同），按业务字段没法排对。
+  // 交给 Decoration.set(ranges, true) 让 CM 自己用完整规则排，是公开 API 的标准用法。
+  return Decoration.set(items.map(it => it.deco.range(it.from, it.to)), true);
 }
 
 // block widgets 必须通过 StateField 注入，ViewPlugin 提供的会被静默丢弃
