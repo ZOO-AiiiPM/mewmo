@@ -1,0 +1,213 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - button "Skip to content" [ref=e4] [cursor=pointer]:
+      - generic [ref=e6]: Skip to content
+    - button "Accessibility Feedback" [ref=e7] [cursor=pointer]:
+      - generic [ref=e9]: Accessibility Feedback
+    - generic [ref=e10]:
+      - link "Back to Bing search" [ref=e11] [cursor=pointer]:
+        - /url: /?FORM=Z9FD1
+        - heading "Back to Bing search" [level=1] [ref=e12]
+      - search [ref=e13]:
+        - button "Search" [ref=e16] [cursor=pointer]
+        - searchbox "Enter your search here - Search suggestions will show as you type" [ref=e17]: sqlite-vec tauri 搜索 github
+    - complementary "Account Rewards and Preferences" [ref=e18]:
+      - button "Microsoft Rewards" [ref=e19] [cursor=pointer]:
+        - generic [ref=e21]:
+          - generic [ref=e22]: Rewards
+          - img [ref=e24]
+      - link "Sign in" [ref=e36] [cursor=pointer]:
+        - /url: javascript:void(0)
+        - generic "Sign in" [ref=e37]
+    - generic:
+      - generic "国内版" [ref=e38] [cursor=pointer]
+      - generic "国际版" [ref=e39]
+    - navigation "Search Filter" [ref=e40]:
+      - list [ref=e41]:
+        - listitem [ref=e42]:
+          - link "All" [ref=e43] [cursor=pointer]:
+            - /url: /?scope=web&FORM=HDRSC1
+        - listitem [ref=e44]:
+          - link "Images" [ref=e45] [cursor=pointer]:
+            - /url: https://www.bing.com/ck/a?!&&p=22f15514bdcc4a59611731aed8f026261a1183b11b7c6e839006881717a48416JmltdHM9MTc3OTMyMTYwMA&ptn=3&ver=2&hsh=4&fclid=3f8647e5-e74b-6803-16d5-50aee6996943&u=a1L2ltYWdlcy9zZWFyY2g_cT1zcWxpdGUtdmVjK3RhdXJpKyVlNiU5MCU5YyVlNyViNCVhMitnaXRodWImRk9STT1IRFJTQzI&ntb=1
+        - listitem [ref=e46]:
+          - link "Videos" [ref=e47] [cursor=pointer]:
+            - /url: https://www.bing.com/ck/a?!&&p=1664bdce36e7fdd858377bd68cfc39fddfc87e9f5e4144c1ff729b391f973794JmltdHM9MTc3OTMyMTYwMA&ptn=3&ver=2&hsh=4&fclid=3f8647e5-e74b-6803-16d5-50aee6996943&u=a1L3ZpZGVvcy9zZWFyY2g_cT1zcWxpdGUtdmVjK3RhdXJpKyVlNiU5MCU5YyVlNyViNCVhMitnaXRodWImRk9STT1IRFJTQzM&ntb=1
+  - generic [ref=e48]:
+    - main "Search Results" [ref=e49]:
+      - generic [ref=e51]: About 35,000 results
+      - list [ref=e52]:
+        - listitem [ref=e53]:
+          - link "sqlite.org" [ref=e55] [cursor=pointer]:
+            - /url: https://www.bing.com/ck/a?!&&p=2c61277ea32fd8a6b1ae7157d6f24c3f6a0d067f622daf2bbfd99ded10f59b2bJmltdHM9MTc3OTMyMTYwMA&ptn=3&ver=2&hsh=4&fclid=3f8647e5-e74b-6803-16d5-50aee6996943&u=a1aHR0cHM6Ly9zcWxpdGUub3JnL2luZGV4Lmh0bWw&ntb=1
+            - img "Global web icon" [ref=e59]
+            - generic [ref=e60]:
+              - generic [ref=e61]: sqlite.org
+              - generic [ref=e64]: https://sqlite.org › index.html
+          - heading "SQLite Home Page" [level=2] [ref=e65]:
+            - link "SQLite Home Page" [ref=e66] [cursor=pointer]:
+              - /url: https://www.bing.com/ck/a?!&&p=2c61277ea32fd8a6b1ae7157d6f24c3f6a0d067f622daf2bbfd99ded10f59b2bJmltdHM9MTc3OTMyMTYwMA&ptn=3&ver=2&hsh=4&fclid=3f8647e5-e74b-6803-16d5-50aee6996943&u=a1aHR0cHM6Ly9zcWxpdGUub3JnL2luZGV4Lmh0bWw&ntb=1
+              - strong [ref=e67]: SQLite
+              - text: Home Page
+          - paragraph [ref=e69]: Apr 23, 2026 · SQLite is a C-language library that implements a small, fast, self-contained, high-reliability, full-featured, SQL database engine. SQLite is the most used database engine in the world.
+        - listitem [ref=e70]:
+          - link "sqlitebrowser.org" [ref=e72] [cursor=pointer]:
+            - /url: https://www.bing.com/ck/a?!&&p=7c74e71f6a47d7c736e47970336111a2f07709000c11acacf22291bd277108faJmltdHM9MTc3OTMyMTYwMA&ptn=3&ver=2&hsh=4&fclid=3f8647e5-e74b-6803-16d5-50aee6996943&u=a1aHR0cHM6Ly9zcWxpdGVicm93c2VyLm9yZy8&ntb=1
+            - img "Global web icon" [ref=e76]
+            - generic [ref=e77]:
+              - generic [ref=e78]: sqlitebrowser.org
+              - generic [ref=e81]: https://sqlitebrowser.org
+          - heading "DB Browser for SQLite" [level=2] [ref=e82]:
+            - link "DB Browser for SQLite" [ref=e83] [cursor=pointer]:
+              - /url: https://www.bing.com/ck/a?!&&p=7c74e71f6a47d7c736e47970336111a2f07709000c11acacf22291bd277108faJmltdHM9MTc3OTMyMTYwMA&ptn=3&ver=2&hsh=4&fclid=3f8647e5-e74b-6803-16d5-50aee6996943&u=a1aHR0cHM6Ly9zcWxpdGVicm93c2VyLm9yZy8&ntb=1
+              - text: DB Browser for
+              - strong [ref=e84]: SQLite
+          - paragraph [ref=e86]: DB Browser for SQLite (DB4S) is a high quality, visual, open source tool designed for people who want to create, search, and edit SQLite or SQLCipher database files.
+        - listitem [ref=e87]:
+          - link "gizmodo.com" [ref=e89] [cursor=pointer]:
+            - /url: https://www.bing.com/ck/a?!&&p=d1c5f05de3aa2f52c11fbff00e74d53f6d396f1913f651b30862a65bc6c274f5JmltdHM9MTc3OTMyMTYwMA&ptn=3&ver=2&hsh=4&fclid=3f8647e5-e74b-6803-16d5-50aee6996943&u=a1aHR0cHM6Ly9naXptb2RvLmNvbS9kb3dubG9hZC9zcWxpdGU&ntb=1
+            - img "Global web icon" [ref=e93]
+            - generic [ref=e94]:
+              - generic [ref=e95]: gizmodo.com
+              - generic [ref=e98]: https://gizmodo.com › download › sqlite
+          - heading "Download SQLite (free) for Windows, macOS and Linux | Gizmodo" [level=2] [ref=e99]:
+            - link "Download SQLite (free) for Windows, macOS and Linux | Gizmodo" [ref=e100] [cursor=pointer]:
+              - /url: https://www.bing.com/ck/a?!&&p=d1c5f05de3aa2f52c11fbff00e74d53f6d396f1913f651b30862a65bc6c274f5JmltdHM9MTc3OTMyMTYwMA&ptn=3&ver=2&hsh=4&fclid=3f8647e5-e74b-6803-16d5-50aee6996943&u=a1aHR0cHM6Ly9naXptb2RvLmNvbS9kb3dubG9hZC9zcWxpdGU&ntb=1
+              - text: Download
+              - strong [ref=e101]: SQLite
+              - text: (free) for Windows, macOS and Linux | Gizmodo
+          - paragraph [ref=e103]: May 5, 2026 · Simplify data management with SQLite—a fast, lightweight, and reliable database engine that runs on Windows, macOS, Linux, iOS, and Android.
+        - listitem [ref=e104]:
+          - link "sqliteonline.com" [ref=e106] [cursor=pointer]:
+            - /url: https://www.bing.com/ck/a?!&&p=2d1aa918ecf3431a62e3403267e948be442a9eeae4df724ccb14a5afe5de76acJmltdHM9MTc3OTMyMTYwMA&ptn=3&ver=2&hsh=4&fclid=3f8647e5-e74b-6803-16d5-50aee6996943&u=a1aHR0cHM6Ly9zcWxpdGVvbmxpbmUuY29tLw&ntb=1
+            - img "Global web icon" [ref=e110]
+            - generic [ref=e111]:
+              - generic [ref=e112]: sqliteonline.com
+              - generic [ref=e115]: https://sqliteonline.com
+          - heading "SQL Online IDE - Fast SQL Editor | SQL Compiler" [level=2] [ref=e116]:
+            - link "SQL Online IDE - Fast SQL Editor | SQL Compiler" [ref=e117] [cursor=pointer]:
+              - /url: https://www.bing.com/ck/a?!&&p=2d1aa918ecf3431a62e3403267e948be442a9eeae4df724ccb14a5afe5de76acJmltdHM9MTc3OTMyMTYwMA&ptn=3&ver=2&hsh=4&fclid=3f8647e5-e74b-6803-16d5-50aee6996943&u=a1aHR0cHM6Ly9zcWxpdGVvbmxpbmUuY29tLw&ntb=1
+          - paragraph [ref=e119]: Settings SQLite storage → "Create SQLite DB" I recommend using the latest version of Chrome for OpFS History storage - clear old (30+ day) db history * сlose all other tabs with this site open, then …
+        - listitem [ref=e120]:
+          - link "geeksforgeeks.org" [ref=e122] [cursor=pointer]:
+            - /url: https://www.bing.com/ck/a?!&&p=90dd00213d90bd5955e10c21eea4d16624ada5167d05f5cd0fecb558b3a0cc93JmltdHM9MTc3OTMyMTYwMA&ptn=3&ver=2&hsh=4&fclid=3f8647e5-e74b-6803-16d5-50aee6996943&u=a1aHR0cHM6Ly93d3cuZ2Vla3Nmb3JnZWVrcy5vcmcvc3FsaXRlL3NxbGl0ZS10dXRvcmlhbC8&ntb=1
+            - img "Global web icon" [ref=e126]
+            - generic [ref=e127]:
+              - generic [ref=e128]: geeksforgeeks.org
+              - generic [ref=e131]: https://www.geeksforgeeks.org › sqlite › sqlite-tutorial
+          - heading "SQLite Tutorial - GeeksforGeeks" [level=2] [ref=e132]:
+            - link "SQLite Tutorial - GeeksforGeeks" [ref=e133] [cursor=pointer]:
+              - /url: https://www.bing.com/ck/a?!&&p=90dd00213d90bd5955e10c21eea4d16624ada5167d05f5cd0fecb558b3a0cc93JmltdHM9MTc3OTMyMTYwMA&ptn=3&ver=2&hsh=4&fclid=3f8647e5-e74b-6803-16d5-50aee6996943&u=a1aHR0cHM6Ly93d3cuZ2Vla3Nmb3JnZWVrcy5vcmcvc3FsaXRlL3NxbGl0ZS10dXRvcmlhbC8&ntb=1
+              - strong [ref=e134]: SQLite
+              - text: Tutorial - GeeksforGeeks
+          - paragraph [ref=e136]: Jul 23, 2025 · This SQLite Tutorial is your ultimate guide to mastering this powerful, lightweight database management system. SQLite is widely used in mobile applications, embedded systems, and small to …
+        - listitem [ref=e137]:
+          - link "github.com" [ref=e139] [cursor=pointer]:
+            - /url: https://www.bing.com/ck/a?!&&p=86319c407bab696a90592ce17adf7072b3954e0be1219a494f2ba550c3f7bac5JmltdHM9MTc3OTMyMTYwMA&ptn=3&ver=2&hsh=4&fclid=3f8647e5-e74b-6803-16d5-50aee6996943&u=a1aHR0cHM6Ly9naXRodWIuY29tL3NxbGl0ZS9zcWxpdGU&ntb=1
+            - img "Global web icon" [ref=e143]
+            - generic [ref=e144]:
+              - generic [ref=e145]: github.com
+              - generic [ref=e148]: https://github.com › sqlite › sqlite
+          - heading "Official Git mirror of the SQLite source tree - GitHub" [level=2] [ref=e149]:
+            - link "Official Git mirror of the SQLite source tree - GitHub" [ref=e150] [cursor=pointer]:
+              - /url: https://www.bing.com/ck/a?!&&p=86319c407bab696a90592ce17adf7072b3954e0be1219a494f2ba550c3f7bac5JmltdHM9MTc3OTMyMTYwMA&ptn=3&ver=2&hsh=4&fclid=3f8647e5-e74b-6803-16d5-50aee6996943&u=a1aHR0cHM6Ly9naXRodWIuY29tL3NxbGl0ZS9zcWxpdGU&ntb=1
+              - text: Official Git mirror of the
+              - strong [ref=e151]: SQLite
+              - text: source tree -
+              - strong [ref=e152]: GitHub
+          - paragraph [ref=e154]: Official Git mirror of the SQLite source tree. Contribute to sqlite/sqlite development by creating an account on GitHub.
+        - listitem [ref=e155]:
+          - link "sqldocs.org" [ref=e157] [cursor=pointer]:
+            - /url: https://www.bing.com/ck/a?!&&p=f0e2e6d9206d43ab5f398ef7ef7106fb38aeb5c32c09c240a4556dd22ddb2c96JmltdHM9MTc3OTMyMTYwMA&ptn=3&ver=2&hsh=4&fclid=3f8647e5-e74b-6803-16d5-50aee6996943&u=a1aHR0cHM6Ly9zcWxkb2NzLm9yZy9pbnN0YWxsLXNxbGl0ZTMtb24td2luZG93cy8&ntb=1
+            - img "Global web icon" [ref=e161]
+            - generic [ref=e162]:
+              - generic [ref=e163]: sqldocs.org
+              - generic [ref=e166]: https://sqldocs.org
+          - heading "Install SQLite3 on Windows - SQL Docs" [level=2] [ref=e167]:
+            - link "Install SQLite3 on Windows - SQL Docs" [ref=e168] [cursor=pointer]:
+              - /url: https://www.bing.com/ck/a?!&&p=f0e2e6d9206d43ab5f398ef7ef7106fb38aeb5c32c09c240a4556dd22ddb2c96JmltdHM9MTc3OTMyMTYwMA&ptn=3&ver=2&hsh=4&fclid=3f8647e5-e74b-6803-16d5-50aee6996943&u=a1aHR0cHM6Ly9zcWxkb2NzLm9yZy9pbnN0YWxsLXNxbGl0ZTMtb24td2luZG93cy8&ntb=1
+          - paragraph [ref=e170]: Dec 9, 2025 · Integrate SQLite with your programming language – Most languages include SQLite support in standard libraries (Python’s sqlite3 module) or through packages (Node.js better-sqlite3, …
+        - listitem [ref=e171]:
+          - link "sqlitetutorial.net" [ref=e173] [cursor=pointer]:
+            - /url: https://www.bing.com/ck/a?!&&p=3602f87c78269c152f9f1a908db6e3e4fe18b69a07229426d4deccaad700ecbdJmltdHM9MTc3OTMyMTYwMA&ptn=3&ver=2&hsh=4&fclid=3f8647e5-e74b-6803-16d5-50aee6996943&u=a1aHR0cHM6Ly93d3cuc3FsaXRldHV0b3JpYWwubmV0Lw&ntb=1
+            - img "Global web icon" [ref=e177]
+            - generic [ref=e178]:
+              - generic [ref=e179]: sqlitetutorial.net
+              - generic [ref=e182]: https://www.sqlitetutorial.net
+          - heading "SQLite Tutorial - An Easy Way to Master SQLite Fast" [level=2] [ref=e183]:
+            - link "SQLite Tutorial - An Easy Way to Master SQLite Fast" [ref=e184] [cursor=pointer]:
+              - /url: https://www.bing.com/ck/a?!&&p=3602f87c78269c152f9f1a908db6e3e4fe18b69a07229426d4deccaad700ecbdJmltdHM9MTc3OTMyMTYwMA&ptn=3&ver=2&hsh=4&fclid=3f8647e5-e74b-6803-16d5-50aee6996943&u=a1aHR0cHM6Ly93d3cuc3FsaXRldHV0b3JpYWwubmV0Lw&ntb=1
+              - strong [ref=e185]: SQLite
+              - text: Tutorial - An Easy Way to Master
+              - strong [ref=e186]: SQLite
+              - text: Fast
+          - paragraph [ref=e188]: This SQLite tutorial teaches you everything you need to know to start using SQLite effectively. You will learn SQLite via extensive hands-on practices.
+        - listitem [ref=e189]:
+          - link "runoob.com" [ref=e191] [cursor=pointer]:
+            - /url: https://www.bing.com/ck/a?!&&p=868958390465238fbe31dabf93fa77daa9404af4bf4cf7c5d802d5885f17eab1JmltdHM9MTc3OTMyMTYwMA&ptn=3&ver=2&hsh=4&fclid=3f8647e5-e74b-6803-16d5-50aee6996943&u=a1aHR0cHM6Ly93d3cucnVub29iLmNvbS9zcWxpdGUvc3FsaXRlLXR1dG9yaWFsLmh0bWw&ntb=1
+            - img "Global web icon" [ref=e195]
+            - generic [ref=e196]:
+              - generic [ref=e197]: runoob.com
+              - generic [ref=e200]: https://www.runoob.com › sqlite
+          - heading "SQLite - 菜鸟教程" [level=2] [ref=e201]:
+            - link "SQLite - 菜鸟教程" [ref=e202] [cursor=pointer]:
+              - /url: https://www.bing.com/ck/a?!&&p=868958390465238fbe31dabf93fa77daa9404af4bf4cf7c5d802d5885f17eab1JmltdHM9MTc3OTMyMTYwMA&ptn=3&ver=2&hsh=4&fclid=3f8647e5-e74b-6803-16d5-50aee6996943&u=a1aHR0cHM6Ly93d3cucnVub29iLmNvbS9zcWxpdGUvc3FsaXRlLXR1dG9yaWFsLmh0bWw&ntb=1
+              - strong [ref=e203]: SQLite
+              - text: "- 菜鸟教程"
+          - paragraph [ref=e205]: SQLite 教程 SQLite 是一个软件库，实现了自给自足的、无服务器的、零配置的、事务性的 SQL 数据库引擎。 SQLite 是在世界上最广泛部署的 SQL 数据库引擎。 SQLite 源代码不受版权限制。 本教程 …
+        - listitem [ref=e206]:
+          - link "letos.org" [ref=e208] [cursor=pointer]:
+            - /url: https://www.bing.com/ck/a?!&&p=34976789f7739f0eb9afcd59e5262a5142a46081f775d45a647f0ca1198adb39JmltdHM9MTc3OTMyMTYwMA&ptn=3&ver=2&hsh=4&fclid=3f8647e5-e74b-6803-16d5-50aee6996943&u=a1aHR0cHM6Ly9sZXRvcy5vcmcv&ntb=1
+            - img "Global web icon" [ref=e212]
+            - generic [ref=e213]:
+              - generic [ref=e214]: letos.org
+              - generic [ref=e217]: https://letos.org
+          - heading "Letos" [level=2] [ref=e218]:
+            - link "Letos" [ref=e219] [cursor=pointer]:
+              - /url: https://www.bing.com/ck/a?!&&p=34976789f7739f0eb9afcd59e5262a5142a46081f775d45a647f0ca1198adb39JmltdHM9MTc3OTMyMTYwMA&ptn=3&ver=2&hsh=4&fclid=3f8647e5-e74b-6803-16d5-50aee6996943&u=a1aHR0cHM6Ly9sZXRvcy5vcmcv&ntb=1
+          - paragraph [ref=e221]: May 7, 2026 · Letos Create, edit, browse SQLite databases. Formerly known as SQLiteStudio. Download Donate Free code signing provided by SignPath.io, certificate by SignPath Foundation. …
+        - listitem [ref=e222]:
+          - text: Some results are removed in response to a notice of local law requirement. For more information, please see
+          - link "here" [ref=e223] [cursor=pointer]:
+            - /url: https://www.bing.com/ck/a?!&&p=4d0fbb9d39bd567d368243718a8775aa890c147a324bcfeb6a885038cb49ab7fJmltdHM9MTc3OTMyMTYwMA&ptn=3&ver=2&hsh=4&fclid=3f8647e5-e74b-6803-16d5-50aee6996943&u=a1aHR0cDovL2dvLm1pY3Jvc29mdC5jb20vZndsaW5rLz9MaW5rSUQ9NjE3MzUw&ntb=1
+          - text: .
+        - listitem [ref=e224]:
+          - navigation "More results for sqlite-vec tauri 搜索 github":
+            - list:
+              - listitem [ref=e225]:
+                - generic "Page 1" [ref=e226]: "1"
+              - listitem [ref=e227]:
+                - link "Page 2" [ref=e228] [cursor=pointer]:
+                  - /url: /search?q=sqlite-vec+tauri+%e6%90%9c%e7%b4%a2+github&FPIG=D5D3A9872D394673A7422C324CE3AE1E&first=11&FORM=PERE
+                  - text: "2"
+              - listitem [ref=e229]:
+                - link "Page 3" [ref=e230] [cursor=pointer]:
+                  - /url: /search?q=sqlite-vec+tauri+%e6%90%9c%e7%b4%a2+github&FPIG=D5D3A9872D394673A7422C324CE3AE1E&first=21&FORM=PERE1
+                  - text: "3"
+              - listitem [ref=e231]:
+                - link "Next page" [ref=e232] [cursor=pointer]:
+                  - /url: /search?q=sqlite-vec+tauri+%e6%90%9c%e7%b4%a2+github&FPIG=D5D3A9872D394673A7422C324CE3AE1E&first=11&FORM=PORE
+    - complementary "Additional Results" [ref=e233]:
+      - list [ref=e234]:
+        - listitem [ref=e235]:
+          - heading "Search Tools" [level=2] [ref=e236]
+          - link "Turn off Hover Translation (关闭取词)" [ref=e237] [cursor=pointer]:
+            - /url: /search?q=sqlite-vec+tauri+%e6%90%9c%e7%b4%a2+github&hta=off
+    - complementary "Explore More"
+  - contentinfo [ref=e238]:
+    - list [ref=e240]:
+      - listitem [ref=e241]:
+        - link "增值电信业务经营许可证：合字B2-20090007" [ref=e242] [cursor=pointer]:
+          - /url: https://www.bing.com/ck/a?!&&p=4f91d6db1889788e4b9c720bae01283c1dc591724674873c6229bbbf7679c0a5JmltdHM9MTc3OTMyMTYwMA&ptn=3&ver=2&hsh=4&fclid=3f8647e5-e74b-6803-16d5-50aee6996943&u=a1aHR0cHM6Ly9keHpoZ2wubWlpdC5nb3YuY24vZHh4enNwL3hrei94a3pnbC9yZXNvdXJjZS9xaXllcmVwb3J0LmpzcD9udW09Y2FmMDRmYTQtYmQ4YS00ZDllLTgwYjYtMmFhMWI4NmMxNTA5JnR5cGU9eXJlcG9ydA&ntb=1
+      - listitem [ref=e243]:
+        - link "京ICP备10036305号-7" [ref=e244] [cursor=pointer]:
+          - /url: https://www.bing.com/ck/a?!&&p=3d7556fbb90d28cbac92967b5435eaef2d7d28aea1d4dee8dc210290562f5076JmltdHM9MTc3OTMyMTYwMA&ptn=3&ver=2&hsh=4&fclid=3f8647e5-e74b-6803-16d5-50aee6996943&u=a1aHR0cHM6Ly9iZWlhbi5taWl0Lmdvdi5jbg&ntb=1
+      - listitem [ref=e245]:
+        - link "京公网安备11010802047360号" [ref=e246] [cursor=pointer]:
+          - /url: https://www.bing.com/ck/a?!&&p=4288dfe05be13bf76e51d55f269ae786b5f4254ff76801685ba3a257da63168fJmltdHM9MTc3OTMyMTYwMA&ptn=3&ver=2&hsh=4&fclid=3f8647e5-e74b-6803-16d5-50aee6996943&u=a1aHR0cHM6Ly9iZWlhbi5tcHMuZ292LmNuLyMvcXVlcnkvd2ViU2VhcmNoP2NvZGU9MTEwMTA4MDIwNDczNjA&ntb=1
+      - listitem [ref=e247]:
+        - link "Privacy" [ref=e248] [cursor=pointer]:
+          - /url: https://www.bing.com/ck/a?!&&p=13f607ad456ac0d6c574e20992c57919e802e570b8f398ae3542318eda7ac706JmltdHM9MTc3OTMyMTYwMA&ptn=3&ver=2&hsh=4&fclid=3f8647e5-e74b-6803-16d5-50aee6996943&u=a1aHR0cDovL2dvLm1pY3Jvc29mdC5jb20vZndsaW5rLz9MaW5rSWQ9NTIxODM5&ntb=1
+      - listitem [ref=e249]:
+        - link "Terms" [ref=e250] [cursor=pointer]:
+          - /url: https://www.bing.com/ck/a?!&&p=a0ee8c6859b2f466e2eb51dae69db8509cd9664ea518dd40c0b54cb5747be2beJmltdHM9MTc3OTMyMTYwMA&ptn=3&ver=2&hsh=4&fclid=3f8647e5-e74b-6803-16d5-50aee6996943&u=a1aHR0cDovL2dvLm1pY3Jvc29mdC5jb20vZndsaW5rLz9MaW5rSUQ9MjQ2MzM4&ntb=1
