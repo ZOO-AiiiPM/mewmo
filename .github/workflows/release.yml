@@ -58,7 +58,7 @@ jobs:
         with:
           projectPath: .
           tagName: ${{ github.ref_name }}
-          releaseName: vibe-coding ${{ github.ref_name }}
+          releaseName: mewmo ${{ github.ref_name }}
           releaseBody: See CHANGELOG.md. Current demo builds are unsigned.
           releaseDraft: true
           prerelease: false
