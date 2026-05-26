@@ -106,6 +106,15 @@ export function ClipReader({
     return sanitizeHtml(marked.parse(clip.content_md) as string);
   }, [clip?.content_md]);
 
+  // contentHtml 变化时手动写 innerHTML，绕开 dangerouslySetInnerHTML 在每次
+  // 父组件 re-render 时（如 scroll 触发 setTitleInToolbar）重设整个 DOM 子树
+  // 的行为——之前用户看到的「向下滚动整个画面刷新一次」就是这个重设。
+  useEffect(() => {
+    const root = contentRef.current;
+    if (!root) return;
+    root.innerHTML = contentHtml;
+  }, [contentHtml]);
+
   // 深色模式下剥掉灰阶 inline color，保留彩色装饰；切主题或 DOM 重渲染时同步刷新。
   // ⚠️ 必须监听 contentRef 子树变化：React 在某些 re-render 时机会重设 dangerouslySetInnerHTML
   // 的 DOM 子树，覆盖我们改过的 inline style。subtree childList 监听到重设后立即 reapply。
@@ -483,7 +492,12 @@ export function ClipReader({
       {/* 阅读内容 */}
       <div ref={scrollRef} className={`flex-1 overflow-y-auto transition-[padding] duration-200 ease-out ${aiOpen ? 'pr-[300px]' : ''} ${addOpen ? '' : '-mt-12 pt-12'}`}>
         <div className="max-w-2xl mx-auto px-10 pt-6 pb-16">
-          <h1 ref={titleRef} className="text-[28px] font-bold tracking-tight text-stone-900 dark:text-stone-50 leading-tight mb-3">
+          <h1
+            ref={titleRef}
+            className={`text-[28px] font-bold tracking-tight text-stone-900 dark:text-stone-50 leading-tight mb-3 transition-opacity duration-200 ${
+              titleInToolbar ? 'opacity-0' : 'opacity-100'
+            }`}
+          >
             {clip.title || '无标题'}
           </h1>
 
@@ -512,11 +526,7 @@ export function ClipReader({
           )}
 
           {contentHtml ? (
-            <div
-              ref={contentRef}
-              className="clip-prose"
-              dangerouslySetInnerHTML={{ __html: contentHtml }}
-            />
+            <div ref={contentRef} className="clip-prose" />
           ) : (
             <div className="text-stone-400 dark:text-stone-500 text-sm italic">暂无正文内容</div>
           )}

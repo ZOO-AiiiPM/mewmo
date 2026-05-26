@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import type { FeedEntry, SubscriptionSource } from '../types';
 import { sanitizeHtml } from '../lib/sanitizeHtml';
@@ -39,7 +39,21 @@ export function EntryReader({
 }: Props) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const h1Ref = useRef<HTMLHeadingElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const [showTitleInBar, setShowTitleInBar] = useState(false);
+
+  // 缓存 sanitize 结果 + 手动写 innerHTML 绕开 dangerouslySetInnerHTML 在父
+  // 组件 re-render（如 scroll 触发 setShowTitleInBar）时整块重设 DOM 子树的
+  // 行为——之前用户报「向下滚动整个画面刷新一次」就是这个重设造成的。
+  const contentHtml = useMemo(
+    () => (entry?.content_html ? sanitizeHtml(entry.content_html) : ''),
+    [entry?.content_html],
+  );
+  useEffect(() => {
+    const root = contentRef.current;
+    if (!root) return;
+    root.innerHTML = contentHtml;
+  }, [contentHtml]);
 
   // 切 entry 时回到顶部 + 重置 title fade
   useEffect(() => {
@@ -110,7 +124,7 @@ export function EntryReader({
 
           {/* 正文 */}
           {entry.content_html ? (
-            <div className="clip-prose" dangerouslySetInnerHTML={{ __html: sanitizeHtml(entry.content_html) }} />
+            <div ref={contentRef} className="clip-prose" />
           ) : (
             <div className="text-stone-400 dark:text-stone-500 text-sm italic">暂无正文内容</div>
           )}
