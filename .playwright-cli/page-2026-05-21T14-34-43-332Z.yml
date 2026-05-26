@@ -1,0 +1,49 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - button "Skip to content" [ref=e4] [cursor=pointer]:
+      - generic [ref=e6]: Skip to content
+    - button "Accessibility Feedback" [ref=e7] [cursor=pointer]:
+      - generic [ref=e9]: Accessibility Feedback
+    - generic [ref=e10]:
+      - link "Back to Bing search" [ref=e11] [cursor=pointer]:
+        - /url: /?FORM=Z9FD1
+        - heading "Back to Bing search" [level=1] [ref=e12]
+      - search [ref=e13]:
+        - button "Search" [ref=e16] [cursor=pointer]
+        - searchbox "Enter your search here - Search suggestions will show as you type" [ref=e17]: tauri sqlite fts5 full text search
+    - complementary "Account Rewards and Preferences" [ref=e18]:
+      - button "Microsoft Rewards"
+      - link "Sign in" [ref=e19] [cursor=pointer]:
+        - /url: javascript:void(0)
+        - generic "Sign in" [ref=e20]
+    - generic:
+      - generic "国内版" [ref=e21] [cursor=pointer]
+      - generic "国际版" [ref=e22]
+    - navigation "Search Filter" [ref=e23]:
+      - list [ref=e24]:
+        - listitem [ref=e25]:
+          - link "All" [ref=e26] [cursor=pointer]:
+            - /url: /?scope=web&FORM=HDRSC1
+        - listitem [ref=e27]:
+          - link "Images" [ref=e28] [cursor=pointer]:
+            - /url: https://www.bing.com/ck/a?!&&p=72a50ae764ac206b56b0e7dd7965548cfce834342e5cbc508c49fde8293e8560JmltdHM9MTc3OTMyMTYwMA&ptn=3&ver=2&hsh=4&fclid=3f8647e5-e74b-6803-16d5-50aee6996943&u=a1L2ltYWdlcy9zZWFyY2g_cT10YXVyaStzcWxpdGUrZnRzNStmdWxsK3RleHQrc2VhcmNoJkZPUk09SERSU0My&ntb=1
+        - listitem [ref=e29]:
+          - link "Videos" [ref=e30] [cursor=pointer]:
+            - /url: https://www.bing.com/ck/a?!&&p=c320c1ebb99772fb1747e5abe4f250ec14867595ff20d57cef33461557cac3c0JmltdHM9MTc3OTMyMTYwMA&ptn=3&ver=2&hsh=4&fclid=3f8647e5-e74b-6803-16d5-50aee6996943&u=a1L3ZpZGVvcy9zZWFyY2g_cT10YXVyaStzcWxpdGUrZnRzNStmdWxsK3RleHQrc2VhcmNoJkZPUk09SERSU0Mz&ntb=1
+  - contentinfo [ref=e31]:
+    - list [ref=e33]:
+      - listitem [ref=e34]:
+        - link "增值电信业务经营许可证：合字B2-20090007" [ref=e35] [cursor=pointer]:
+          - /url: https://www.bing.com/ck/a?!&&p=4f91d6db1889788e4b9c720bae01283c1dc591724674873c6229bbbf7679c0a5JmltdHM9MTc3OTMyMTYwMA&ptn=3&ver=2&hsh=4&fclid=3f8647e5-e74b-6803-16d5-50aee6996943&u=a1aHR0cHM6Ly9keHpoZ2wubWlpdC5nb3YuY24vZHh4enNwL3hrei94a3pnbC9yZXNvdXJjZS9xaXllcmVwb3J0LmpzcD9udW09Y2FmMDRmYTQtYmQ4YS00ZDllLTgwYjYtMmFhMWI4NmMxNTA5JnR5cGU9eXJlcG9ydA&ntb=1
+      - listitem [ref=e36]:
+        - link "京ICP备10036305号-7" [ref=e37] [cursor=pointer]:
+          - /url: https://www.bing.com/ck/a?!&&p=3d7556fbb90d28cbac92967b5435eaef2d7d28aea1d4dee8dc210290562f5076JmltdHM9MTc3OTMyMTYwMA&ptn=3&ver=2&hsh=4&fclid=3f8647e5-e74b-6803-16d5-50aee6996943&u=a1aHR0cHM6Ly9iZWlhbi5taWl0Lmdvdi5jbg&ntb=1
+      - listitem [ref=e38]:
+        - link "京公网安备11010802047360号" [ref=e39] [cursor=pointer]:
+          - /url: https://www.bing.com/ck/a?!&&p=4288dfe05be13bf76e51d55f269ae786b5f4254ff76801685ba3a257da63168fJmltdHM9MTc3OTMyMTYwMA&ptn=3&ver=2&hsh=4&fclid=3f8647e5-e74b-6803-16d5-50aee6996943&u=a1aHR0cHM6Ly9iZWlhbi5tcHMuZ292LmNuLyMvcXVlcnkvd2ViU2VhcmNoP2NvZGU9MTEwMTA4MDIwNDczNjA&ntb=1
+      - listitem [ref=e40]:
+        - link "Privacy" [ref=e41] [cursor=pointer]:
+          - /url: https://www.bing.com/ck/a?!&&p=13f607ad456ac0d6c574e20992c57919e802e570b8f398ae3542318eda7ac706JmltdHM9MTc3OTMyMTYwMA&ptn=3&ver=2&hsh=4&fclid=3f8647e5-e74b-6803-16d5-50aee6996943&u=a1aHR0cDovL2dvLm1pY3Jvc29mdC5jb20vZndsaW5rLz9MaW5rSWQ9NTIxODM5&ntb=1
+      - listitem [ref=e42]:
+        - link "Terms" [ref=e43] [cursor=pointer]:
+          - /url: https://www.bing.com/ck/a?!&&p=a0ee8c6859b2f466e2eb51dae69db8509cd9664ea518dd40c0b54cb5747be2beJmltdHM9MTc3OTMyMTYwMA&ptn=3&ver=2&hsh=4&fclid=3f8647e5-e74b-6803-16d5-50aee6996943&u=a1aHR0cDovL2dvLm1pY3Jvc29mdC5jb20vZndsaW5rLz9MaW5rSUQ9MjQ2MzM4&ntb=1

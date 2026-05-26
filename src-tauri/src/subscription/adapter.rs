@@ -62,7 +62,7 @@ pub async fn fetch_one(
 
     let mut req = client
         .get(url)
-        .header(USER_AGENT, "vibe-coding/0.1 (+https://github.com/...)");
+        .header(USER_AGENT, "mewmo/0.1 (+https://github.com/...)");
 
     let mut sent_conditional = false;
     if let Some(etag) = if_none_match {
