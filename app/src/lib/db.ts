@@ -1,30 +1,9 @@
-import { invoke } from '@tauri-apps/api/core';
 import type { Note, Clip, SearchResults } from '../types';
+import { call } from './tauriCall';
 
 // DB access is routed through Tauri invoke commands; Rust owns SQLite CRUD.
-// 接口签名保持不变 → 组件代码（listNotes() / createNote() / ...）零改动
-
-// __TAURI_INTERNALS__ 注入有时序窗口,webview 启动到注入完成有几十毫秒间隙;
-// React useEffect 可能落在这个窗口里,invoke 会同步 throw `Cannot read invoke of undefined`。
-// 包装一层短延迟重试,最多覆盖 ~500ms(10 × 50ms)—— 实际通常 1-2 次就成功。
-async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-  let lastErr: unknown;
-  for (let i = 0; i < 10; i++) {
-    try {
-      return await invoke<T>(cmd, args);
-    } catch (e) {
-      const msg = String(e);
-      // 只对"Tauri 还没注入"类错误重试,业务错误立即抛
-      if (msg.includes('undefined') || msg.includes('__TAURI')) {
-        lastErr = e;
-        await new Promise(r => setTimeout(r, 50));
-        continue;
-      }
-      throw e;
-    }
-  }
-  throw lastErr;
-}
+// 接口签名保持不变 → 组件代码（listNotes() / createNote() / ...）零改动。
+// __TAURI_INTERNALS__ 注入时序窗口的 retry 由 tauriCall.ts 的 call<T> 统一处理。
 
 export async function listNotes(): Promise<Note[]> {
   return call<Note[]>('list_notes');
