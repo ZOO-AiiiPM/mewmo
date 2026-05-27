@@ -28,7 +28,7 @@ pub fn list_notes(db: State<Db>) -> Result<Vec<Note>, String> {
         .prepare(
             "SELECT id, title, substr(content_md, 1, 160) AS content_md, 0 AS content_loaded, \
                     '' AS tags_text, created_at, updated_at \
-             FROM notes ORDER BY updated_at DESC",
+             FROM notes ORDER BY created_at DESC",
         )
         .map_err(|e| e.to_string())?;
     let rows = stmt
