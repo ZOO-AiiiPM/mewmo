@@ -58,17 +58,28 @@ On macOS, the app stores its SQLite database and attachments under:
 
 No notes, clips, feeds, or attachments are uploaded by the app itself.
 
+## Privacy & Security
+
+- The app is local-first. Your notes, clips, feeds, and attachments stay in the
+  macOS application data directory unless you move or share them yourself.
+- The AI panel is optional. It only sends requests to the OpenAI-compatible
+  endpoint you configure after you save an API key and actively use the AI
+  assistant.
+- Public release builds do not include a developer API key.
+- Current demo builds are unsigned. If macOS blocks first launch, right-click
+  the app in Finder and choose Open. If it is still blocked, open System
+  Settings -> Privacy & Security and choose Open Anyway for mewmo.
+
 ## Release
 
 GitHub Actions builds draft macOS releases when a `v*` tag is pushed:
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag v1.0.0
+git push origin v1.0.0
 ```
 
-Current demo builds are unsigned. On first launch, macOS may require
-right-clicking the app and choosing Open.
+Only download demo builds from the GitHub Releases page.
 
 ## License
 

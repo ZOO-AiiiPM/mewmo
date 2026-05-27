@@ -54,16 +54,27 @@ macOS 上 app 把 SQLite 数据库和附件存在:
 
 App 本身不会上传任何笔记、剪藏、订阅或附件。
 
+## 隐私与安全
+
+- mewmo 是本地优先应用。笔记、剪藏、订阅和附件默认留在 macOS 应用数据目录,
+  除非你自己移动或分享它们。
+- AI 面板是可选功能。只有在你保存 API key 并主动使用 AI 助手后,它才会向你
+  配置的 OpenAI 兼容 endpoint 发起请求。
+- 公开 release 构建不会内置任何开发者 API key。
+- 当前 demo 构建未签名。首次启动如果 macOS 拦截,先在 Finder 里右键 app 选择
+  "打开"。如果仍被拦截,打开 系统设置 -> 隐私与安全性,为 mewmo 选择
+  "仍要打开"。
+
 ## 发布
 
 push `v*` tag 时 GitHub Actions 会构建 macOS draft release:
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag v1.0.0
+git push origin v1.0.0
 ```
 
-当前 demo 构建未签名。首次启动时 macOS 可能要求右键选择"打开"。
+只建议从 GitHub Releases 页面下载 demo 构建。
 
 ## 协议
 

@@ -1,6 +1,6 @@
 [package]
 name = "mewmo"
-version = "0.1.3"
+version = "1.0.0"
 description = "Local-first AI information manager."
 authors = ["mewmo contributors"]
 license = "MIT"
