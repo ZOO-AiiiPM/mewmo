@@ -27,7 +27,7 @@ export function NoteList({
       style={{ width: hidden ? 0 : undefined }}
       className={`shrink-0 border-r border-black/[0.1] dark:border-white/[0.1] flex flex-col overflow-hidden transition-[width] duration-200 ease-out ${hidden ? '' : 'w-56'}`}
     >
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto sidebar-scroll">
         {notes.length === 0 ? (
           <div className="p-6 text-center text-stone-500 dark:text-stone-400 text-sm">
             <div className="mb-2">还没有笔记 ✨</div>
@@ -41,9 +41,9 @@ export function NoteList({
         ) : (
           groups.map((g, idx) => (
             <section key={g.bucket}>
-              <h2 className={`sticky top-0 z-10 h-12 px-3 flex items-center justify-between text-[15px] font-semibold text-stone-800 dark:text-stone-100 bg-white/95 dark:bg-stone-900/95 select-none border-b border-black/[0.1] dark:border-white/[0.1] ${idx > 0 ? 'border-t' : ''}`}>
+              <h2 className={`sticky top-0 z-10 h-12 px-3 flex items-center justify-between text-[15px] font-semibold text-stone-800 dark:text-stone-100 bg-white/70 dark:bg-stone-900/70 backdrop-blur-md select-none border-b border-black/[0.1] dark:border-white/[0.1] ${idx > 0 ? 'border-t' : ''}`}>
                 <span>{BUCKET_LABEL[g.bucket]}</span>
-                <span className="text-[11px] font-medium text-stone-500 dark:text-stone-400 tabular-nums">
+                <span className="text-[11px] font-normal text-stone-400 dark:text-stone-500 tabular-nums">
                   {g.items.length}
                 </span>
               </h2>
@@ -62,15 +62,15 @@ export function NoteList({
                         layout: { duration: 0.24, ease: [0.22, 0.61, 0.36, 1] },
                       }}
                       onClick={() => onSelect(n.id)}
-                      className={`pl-10 pr-3 py-2.5 cursor-pointer transition-colors ${
+                      className={`pl-10 pr-3 py-2.5 rounded-lg cursor-pointer transition-colors ${
                         selectedId === n.id
-                          ? 'bg-black/[0.06] dark:bg-white/[0.08]'
-                          : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.04]'
+                          ? 'bg-black/[0.10] dark:bg-white/[0.12]'
+                          : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.05]'
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
-                          <div className="text-[15px] font-medium text-stone-900 dark:text-stone-100 truncate pr-12">
+                          <div className="text-[13px] font-medium text-stone-900 dark:text-stone-100 truncate pr-12">
                             {n.title || '无标题'}
                           </div>
                           <div className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 truncate">
