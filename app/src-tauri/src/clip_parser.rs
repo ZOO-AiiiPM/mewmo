@@ -420,8 +420,31 @@ fn page_favicon(document: &scraper::Html, base_url: &str) -> String {
     String::new()
 }
 
-/// 封面图：og:image 优先；twitter:image 备选
+/// 封面图：公众号 1:1 正方形封面优先（cdn_url_1_1）→ og:image → twitter:image。
+///
+/// 公众号文章作者后台可以同时上传两张封面：
+/// - 横版（用于分享卡片 / 朋友圈外链预览）→ 落到 og:image / twitter:image meta
+/// - 正方形（用于公众号自家文章列表小卡片）→ 落到 inline JS 变量 `cdn_url_1_1: '...'`
+///
+/// ClipInbox 列表缩略图用方形版本视觉更好（不被 object-cover 裁掉横版两端）。即使作者
+/// 没上传方形版，公众号 HTML 仍会发 cdn_url_1_1（值跟 og:image 一致或稍异），所以这条
+/// 路径在公众号场景几乎总命中；非公众号站点 fallback 走 og:image。
 fn page_cover(document: &scraper::Html, base_url: &str) -> String {
+    // 扫 inline <script> 里的 `cdn_url_1_1: '...'` 字面，提第一处
+    let script_selector = scraper::Selector::parse("script").expect("script selector");
+    for script in document.select(&script_selector) {
+        let text: String = script.text().collect();
+        if let Some(start) = text.find("cdn_url_1_1: '") {
+            let after = &text[start + "cdn_url_1_1: '".len()..];
+            if let Some(end) = after.find('\'') {
+                let url = &after[..end];
+                if !url.is_empty() {
+                    return resolve_url(url, base_url);
+                }
+            }
+        }
+    }
+
     for key in &["og:image", "twitter:image", "og:image:url"] {
         if let Some(s) = meta_content(document, key) {
             return resolve_url(&s, base_url);
