@@ -1,4 +1,3 @@
-import { AnimatePresence, motion } from 'framer-motion';
 import type { Note } from '../types';
 import { BUCKET_LABEL, formatListItemDate, groupByBucket } from '../lib/dateBuckets';
 import { ListItemContextMenu } from './ListItemContextMenu';
@@ -49,17 +48,9 @@ export function NoteList({
                   {g.items.length}
                 </span>
               </h2>
-              <AnimatePresence initial={false} mode="popLayout">
               {g.items.map(n => (
                 <ListItemContextMenu key={n.id} onDelete={() => onDelete(n.id)}>
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.96 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.94, x: -16 }}
-                    transition={{
-                      duration: 0.18,
-                      ease: [0.22, 0.61, 0.36, 1],
-                    }}
+                  <div
                     onClick={() => onSelect(n.id)}
                     className={`pl-10 pr-3 py-2.5 rounded-lg cursor-pointer transition-colors ${
                       selectedId === n.id
@@ -80,10 +71,9 @@ export function NoteList({
                         {formatListItemDate(n.created_at, g.bucket)}
                       </div>
                     </div>
-                  </motion.div>
+                  </div>
                 </ListItemContextMenu>
               ))}
-              </AnimatePresence>
             </section>
           ))
         )}

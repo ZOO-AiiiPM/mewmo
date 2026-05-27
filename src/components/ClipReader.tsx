@@ -159,18 +159,20 @@ export function ClipReader({
   // 用 h1 相对 scrollRef 顶部的距离，避免 main 不在 viewport 顶部时阈值算错
   useEffect(() => {
     const root = scrollRef.current;
-    if (!root) {
-      setTitleInToolbar(false);
-      return;
-    }
+    if (!root) return;
+    // 切 clip 时直接 reset 到顶部 + 隐藏 toolbar 标题（不依赖测量）。
+    // 之前 effect 里立即同步调 onScroll() 会拿到前一个 clip 的 stale H1 rect →
+    // setTitleInToolbar(true) → paint 完后真 scroll 触发又切 false → 肉眼闪两下。
+    // 订阅 EntryReader 用同样的"直接 reset"思路就不闪。
+    root.scrollTop = 0;
+    setTitleInToolbar(false);
     const onScroll = () => {
       const h1 = titleRef.current;
-      if (!h1) { setTitleInToolbar(false); return; }
+      if (!h1) return;
       const rootTop = root.getBoundingClientRect().top;
       const h1BottomRel = h1.getBoundingClientRect().bottom - rootTop;
       setTitleInToolbar(h1BottomRel < 56);
     };
-    onScroll();
     root.addEventListener('scroll', onScroll, { passive: true });
     return () => root.removeEventListener('scroll', onScroll);
   }, [clip?.id]);
