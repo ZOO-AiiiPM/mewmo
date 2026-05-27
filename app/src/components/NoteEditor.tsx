@@ -256,18 +256,20 @@ export function NoteEditor({ note, onChange, theme, onDelete, onCreate, aiOpen, 
   useEffect(() => {
     if (noteId == null) return;
     const root = scrollRef.current;
-    if (!root) {
-      setTitleInToolbar(false);
-      return;
-    }
+    if (!root) return;
+    // 切笔记时直接 reset 到顶部 + 隐藏 toolbar 标题（不依赖测量）。
+    // 之前 effect 里立即同步调 onScroll() 会拿到前一个 note 的 stale title rect →
+    // setTitleInToolbar(true) → paint 完后真 scroll 触发又切 false → 肉眼闪两下。
+    // 订阅 EntryReader 用同样的"直接 reset"思路就不闪。
+    root.scrollTop = 0;
+    setTitleInToolbar(false);
     const onScroll = () => {
       const titleEl = titleInputRef.current;
-      if (!titleEl) { setTitleInToolbar(false); return; }
+      if (!titleEl) return;
       const rootTop = root.getBoundingClientRect().top;
       const titleBottomRel = titleEl.getBoundingClientRect().bottom - rootTop;
       setTitleInToolbar(titleBottomRel < 56);
     };
-    onScroll();
     root.addEventListener('scroll', onScroll, { passive: true });
     return () => root.removeEventListener('scroll', onScroll);
   }, [noteId]);

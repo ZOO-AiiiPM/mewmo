@@ -15,11 +15,11 @@ export function ListItemContextMenu({ children, onDelete, deleteLabel = '删除'
       <ContextMenu.Trigger asChild>{children}</ContextMenu.Trigger>
       <ContextMenu.Portal>
         <ContextMenu.Content
-          className="min-w-[140px] p-1 rounded-xl bg-white dark:bg-stone-800 ring-1 ring-black/[0.06] dark:ring-white/[0.08] shadow-[0_8px_24px_rgba(0,0,0,0.15)] dark:shadow-[0_8px_24px_rgba(0,0,0,0.5)] z-50"
+          className="min-w-[140px] p-1 rounded-xl bg-white dark:bg-stone-800 shadow-[0_8px_24px_rgba(0,0,0,0.15)] dark:shadow-[0_8px_24px_rgba(0,0,0,0.5)] z-50"
         >
           <ContextMenu.Item
             onSelect={onDelete}
-            className="flex items-center gap-2 px-2.5 py-1.5 text-[13px] text-red-600 dark:text-red-400 rounded-md outline-none cursor-pointer data-[highlighted]:bg-red-500/10 dark:data-[highlighted]:bg-red-500/15 transition-colors"
+            className="flex items-center gap-2 px-2.5 py-1.5 text-[13px] text-red-600 dark:text-red-400 rounded-md outline-none cursor-pointer data-[highlighted]:bg-red-500 data-[highlighted]:text-white dark:data-[highlighted]:bg-red-500 dark:data-[highlighted]:text-white transition-colors"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M3 6h18" />
