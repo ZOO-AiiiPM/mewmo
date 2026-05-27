@@ -1,5 +1,6 @@
-import { invoke, convertFileSrc } from '@tauri-apps/api/core';
+import { convertFileSrc } from '@tauri-apps/api/core';
 import { join } from '@tauri-apps/api/path';
+import { call } from './tauriCall';
 
 const ALLOWED_EXT = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'heic'];
 
@@ -7,7 +8,7 @@ let cachedAppDataDir: string | null = null;
 
 async function getAppDataDir(): Promise<string> {
   if (cachedAppDataDir) return cachedAppDataDir;
-  cachedAppDataDir = await invoke<string>('get_app_data_dir');
+  cachedAppDataDir = await call<string>('get_app_data_dir');
   return cachedAppDataDir;
 }
 
@@ -25,7 +26,7 @@ export async function uploadImage(file: File | Blob, fallbackName?: string): Pro
   const ext = pickExt(file, fallbackName);
   const buf = await file.arrayBuffer();
   const bytes = Array.from(new Uint8Array(buf));
-  return await invoke<string>('save_attachment', { ext, bytes });
+  return await call<string>('save_attachment', { ext, bytes });
 }
 
 /** 笔记里的相对路径 → webview 能加载的 asset URL */
@@ -43,5 +44,5 @@ export function isImageFile(file: File | Blob): boolean {
 
 /** 清理孤儿附件：后端扫描笔记正文引用并删除其余文件（60s 内修改的跳过） */
 export async function cleanupOrphans(): Promise<number> {
-  return await invoke<number>('cleanup_orphan_attachments');
+  return await call<number>('cleanup_orphan_attachments');
 }

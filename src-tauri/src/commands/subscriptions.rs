@@ -393,6 +393,71 @@ pub fn delete_source(db: State<'_, Db>, source_id: i64) -> Result<(), String> {
     Ok(())
 }
 
+/// 单 source refresh 的结果分类，主循环按它累加 summary。
+enum SourceRefreshOutcome {
+    NotModified,
+    Updated { new_entries: i64 },
+    Failed,
+}
+
+/// 抓一个 source + 写库 + 失败计数。lock / tx / mark_ok / record_failure 这些
+/// 「与 summary 无关」的细节封在这里，主循环只关心 outcome 累加。
+async fn fetch_and_update_one_source(
+    db: &Db,
+    source: &Source,
+) -> Result<SourceRefreshOutcome, String> {
+    // 旧 source 还没有 favicon 时强制走 200（不发条件请求），让 metadata 能补全
+    let use_conditional = source.favicon_url.is_some();
+    let if_none_match = if use_conditional { source.etag.as_deref() } else { None };
+    let if_modified_since = if use_conditional { source.last_modified.as_deref() } else { None };
+
+    let result = adapter::fetch_one(&source.feed_url, if_none_match, if_modified_since).await;
+
+    match result {
+        Ok(FetchOutcome::NotModified) => {
+            // 仅刷 last_fetched_at + 重置 failure
+            let conn = db.conn.lock().map_err(|e| e.to_string())?;
+            if let Err(e) = mark_source_fetched_ok(&conn, source.id, None, None, None) {
+                eprintln!("[refresh] mark ok failed for {}: {}", source.id, e);
+            }
+            Ok(SourceRefreshOutcome::NotModified)
+        }
+        Ok(FetchOutcome::Updated {
+            feed_meta,
+            entries,
+            etag,
+            last_modified,
+        }) => {
+            let inserted = {
+                let mut conn = db.conn.lock().map_err(|e| e.to_string())?;
+                let tx = conn.transaction().map_err(|e| format!("DB_ERROR: {}", e))?;
+                let inserted = insert_entries(&tx, source.id, &entries)?;
+                tx.commit().map_err(|e| format!("DB_ERROR: {}", e))?;
+                inserted
+            };
+
+            let conn = db.conn.lock().map_err(|e| e.to_string())?;
+            if let Err(e) = mark_source_fetched_ok(
+                &conn,
+                source.id,
+                Some(&feed_meta),
+                etag.as_deref(),
+                last_modified.as_deref(),
+            ) {
+                eprintln!("[refresh] mark ok failed for {}: {}", source.id, e);
+            }
+            Ok(SourceRefreshOutcome::Updated { new_entries: inserted })
+        }
+        Err(err_msg) => {
+            let conn = db.conn.lock().map_err(|e| e.to_string())?;
+            if let Err(e) = record_source_failure(&conn, source.id, &err_msg) {
+                eprintln!("[refresh] record failure failed for {}: {}", source.id, e);
+            }
+            Ok(SourceRefreshOutcome::Failed)
+        }
+    }
+}
+
 #[tauri::command]
 pub async fn refresh_all_subscriptions(db: State<'_, Db>) -> Result<RefreshSummary, String> {
     let started_at = chrono_now();
@@ -420,63 +485,21 @@ pub async fn refresh_all_subscriptions(db: State<'_, Db>) -> Result<RefreshSumma
     };
 
     for s in &sources {
-        // 旧 source 还没有 favicon 时强制走 200（不发条件请求），让 metadata 能补全
-        let use_conditional = s.favicon_url.is_some();
-        let if_none_match = if use_conditional {
-            s.etag.as_deref()
-        } else {
-            None
-        };
-        let if_modified_since = if use_conditional {
-            s.last_modified.as_deref()
-        } else {
-            None
-        };
-
-        let result = adapter::fetch_one(&s.feed_url, if_none_match, if_modified_since).await;
-
-        match result {
-            Ok(FetchOutcome::NotModified) => {
-                // 仅刷 last_fetched_at + 重置 failure
-                let conn = db.conn.lock().map_err(|e| e.to_string())?;
-                if let Err(e) = mark_source_fetched_ok(&conn, s.id, None, None, None) {
-                    eprintln!("[refresh] mark ok failed for {}: {}", s.id, e);
-                }
+        match fetch_and_update_one_source(db.inner(), s).await {
+            Ok(SourceRefreshOutcome::NotModified) => {
                 summary.skipped_304 += 1;
                 summary.success += 1;
             }
-            Ok(FetchOutcome::Updated {
-                feed_meta,
-                entries,
-                etag,
-                last_modified,
-            }) => {
-                let inserted = {
-                    let mut conn = db.conn.lock().map_err(|e| e.to_string())?;
-                    let tx = conn.transaction().map_err(|e| format!("DB_ERROR: {}", e))?;
-                    let inserted = insert_entries(&tx, s.id, &entries)?;
-                    tx.commit().map_err(|e| format!("DB_ERROR: {}", e))?;
-                    inserted
-                };
-
-                let conn = db.conn.lock().map_err(|e| e.to_string())?;
-                if let Err(e) = mark_source_fetched_ok(
-                    &conn,
-                    s.id,
-                    Some(&feed_meta),
-                    etag.as_deref(),
-                    last_modified.as_deref(),
-                ) {
-                    eprintln!("[refresh] mark ok failed for {}: {}", s.id, e);
-                }
-                summary.new_entries += inserted;
+            Ok(SourceRefreshOutcome::Updated { new_entries }) => {
+                summary.new_entries += new_entries;
                 summary.success += 1;
             }
-            Err(err_msg) => {
-                let conn = db.conn.lock().map_err(|e| e.to_string())?;
-                if let Err(e) = record_source_failure(&conn, s.id, &err_msg) {
-                    eprintln!("[refresh] record failure failed for {}: {}", s.id, e);
-                }
+            Ok(SourceRefreshOutcome::Failed) => {
+                summary.failed += 1;
+            }
+            Err(e) => {
+                // 基础设施级错误（lock / DB error）。业务级失败已经在 helper 内 record_failure 了。
+                eprintln!("[refresh] source {} infra error: {}", s.id, e);
                 summary.failed += 1;
             }
         }

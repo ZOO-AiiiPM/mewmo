@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import type { FeedEntry, SubscriptionSource } from '../types';
 import { sanitizeHtml } from '../lib/sanitizeHtml';
+import { smoothScrollToTop } from '../lib/scrollToTop';
 
 type Props = {
   entry: FeedEntry | null;
@@ -39,7 +40,22 @@ export function EntryReader({
 }: Props) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const h1Ref = useRef<HTMLHeadingElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const [showTitleInBar, setShowTitleInBar] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  // 缓存 sanitize 结果 + 手动写 innerHTML 绕开 dangerouslySetInnerHTML 在父
+  // 组件 re-render（如 scroll 触发 setShowTitleInBar）时整块重设 DOM 子树的
+  // 行为——之前用户报「向下滚动整个画面刷新一次」就是这个重设造成的。
+  const contentHtml = useMemo(
+    () => (entry?.content_html ? sanitizeHtml(entry.content_html) : ''),
+    [entry?.content_html],
+  );
+  useEffect(() => {
+    const root = contentRef.current;
+    if (!root) return;
+    root.innerHTML = contentHtml;
+  }, [contentHtml]);
 
   // 切 entry 时回到顶部 + 重置 title fade
   useEffect(() => {
@@ -77,6 +93,15 @@ export function EntryReader({
     if (!entry.link) return;
     openUrl(entry.link);
   };
+  const copyLink = () => {
+    if (!entry.link) return;
+    navigator.clipboard.writeText(entry.link)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1200);
+      })
+      .catch(e => console.error('[entry] copy link failed:', e));
+  };
 
   return (
     <main className="relative flex-1 flex flex-col overflow-hidden">
@@ -84,7 +109,7 @@ export function EntryReader({
       <div
         ref={scrollerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto"
+        className="flex-1 overflow-y-auto sidebar-scroll"
       >
         <div className="max-w-2xl mx-auto px-10 pt-[72px] pb-16">
           {/* 标题 */}
@@ -110,7 +135,7 @@ export function EntryReader({
 
           {/* 正文 */}
           {entry.content_html ? (
-            <div className="clip-prose" dangerouslySetInnerHTML={{ __html: sanitizeHtml(entry.content_html) }} />
+            <div ref={contentRef} className="clip-prose" />
           ) : (
             <div className="text-stone-400 dark:text-stone-500 text-sm italic">暂无正文内容</div>
           )}
@@ -118,7 +143,9 @@ export function EntryReader({
       </div>
 
       {/* toolbar 浮层：absolute top:0，不透明背景，避免全屏切换时 GPU 持续 invalidate */}
-      <div className="absolute top-0 inset-x-0 z-10 h-12 flex items-center pl-3 pr-2 gap-0.5 bg-white dark:bg-stone-900">
+      <div className="absolute top-0 inset-x-0 z-10 h-12 flex items-center pl-3 pr-2 gap-0.5 bg-white/70 dark:bg-stone-900/70 backdrop-blur-md">
+        {/* 滚动后显现的底部分隔线：左右收 12px 留呼吸 */}
+        <div className={`absolute bottom-0 left-3 right-3 h-px transition-colors duration-200 ${showTitleInBar ? 'bg-black/[0.1] dark:bg-white/[0.1]' : 'bg-transparent'}`} />
         {/* 左：title 渐显（h1 滚出 viewport 后），直接 truncate 不用 mask 避免 GPU 重计算 */}
         <div
           className="flex-1 min-w-0 text-[15px] font-semibold text-stone-900 dark:text-stone-100 truncate transition-opacity duration-150 select-none pr-3"
@@ -167,24 +194,57 @@ export function EntryReader({
               </svg>
             </button>
           )}
+          {entry.link && (
+            <button
+              onClick={copyLink}
+              title={copied ? '已复制' : '复制链接'}
+              className="w-8 h-8 grid place-items-center rounded-md text-stone-600 dark:text-stone-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+            >
+              {copied ? (
+                /* check icon (lucide check) */
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              ) : (
+                /* link icon (lucide link) */
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                </svg>
+              )}
+            </button>
+          )}
+          <span className="mx-1 h-4 w-px bg-black/10 dark:bg-white/10" />
+          <button
+            onClick={() => smoothScrollToTop(scrollerRef.current)}
+            title="回到顶部"
+            className="w-8 h-8 grid place-items-center rounded-md text-stone-600 dark:text-stone-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+          >
+            {/* arrow-up-to-line icon (lucide) */}
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 3h14" />
+              <path d="m18 13-6-6-6 6" />
+              <path d="M12 7v14" />
+            </svg>
+          </button>
           <button
             onClick={onExpand}
             title={expanded ? '收起' : '专注模式'}
             className="w-8 h-8 grid place-items-center rounded-md text-stone-600 dark:text-stone-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
           >
             {expanded ? (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M8 3v3a2 2 0 0 1-2 2H3" />
-                <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
-                <path d="M3 16h3a2 2 0 0 1 2 2v3" />
-                <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="10 5 10 10 5 10" />
+                <line x1="10" y1="10" x2="3" y2="3" />
+                <polyline points="14 19 14 14 19 14" />
+                <line x1="14" y1="14" x2="21" y2="21" />
               </svg>
             ) : (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 8V5a2 2 0 0 1 2-2h3" />
-                <path d="M16 3h3a2 2 0 0 1 2 2v3" />
-                <path d="M21 16v3a2 2 0 0 1-2 2h-3" />
-                <path d="M8 21H5a2 2 0 0 1-2-2v-3" />
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="8 3 3 3 3 8" />
+                <line x1="3" y1="3" x2="10" y2="10" />
+                <polyline points="16 21 21 21 21 16" />
+                <line x1="14" y1="14" x2="21" y2="21" />
               </svg>
             )}
           </button>

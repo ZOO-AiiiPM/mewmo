@@ -87,20 +87,20 @@ export function Sidebar({ open, onToggle, active, onSelect, counts = {}, theme, 
   return (
     <aside
       style={{ width: hidden ? 0 : (open ? undefined : 48) }}
-      className={`shrink-0 flex flex-col overflow-hidden ${
-        !hidden && open ? 'w-56' : ''
+      className={`shrink-0 flex flex-col overflow-hidden transition-[width] duration-200 ease-out ${
+        !hidden && open ? 'w-[168px]' : ''
       }`}
     >
       {/* 顶部条：高度对齐顶部 toolbar (h-12)。折叠态走 px-0.5 + px-3 py-3 同 nav 节奏，按钮 44×44 居中 */}
       {open ? (
         <div className="shrink-0 h-12 flex items-center px-3 gap-2">
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-stone-800 to-stone-950 dark:from-stone-100 dark:to-stone-300 flex items-center justify-center text-white dark:text-stone-900 select-none shrink-0">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M 3 14 C 5 8, 8 8, 10 13 S 13 19, 15 14 S 19 9, 21 12" />
-            </svg>
-          </div>
+          <img
+            src="/logo.png"
+            alt="mewmo"
+            className="w-7 h-7 rounded-lg select-none shrink-0 ring-1 ring-black/5 dark:ring-white/10 dark:invert"
+          />
           <span className="flex-1 min-w-0 text-[15px] font-bold text-stone-900 dark:text-stone-100 select-none truncate">
-            vibe 笔记
+            mewmo
           </span>
           <button
             onClick={onToggle}

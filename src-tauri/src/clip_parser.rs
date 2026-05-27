@@ -61,14 +61,17 @@ fn element_to_md(el: scraper::ElementRef<'_>, base_url: &str) -> String {
 
     let inner_t = inner.trim().to_string();
 
-    // 注意：<img> 没有 inner content 也要保留，所以在判空之前处理
+    // 注意：<img> 没有 inner content 也要保留，所以在判空之前处理。
+    // 用 <img> HTML 标签而不是 ![]() markdown 形式：image 经常被外层 <span style="..">
+    // 包裹（公众号每段套灰色 span），marked 不解析 inline HTML 内的 markdown，会把 ![]()
+    // 字面输出。HTML img tag 在 span 嵌套里能正常渲染，不依赖 marked 解析。
     if tag == "img" {
         let alt = el.value().attr("alt").unwrap_or("");
         if let Some(src) = extract_img_src(el) {
             let resolved = resolve_url(&src, base_url);
-            // alt 里如有 ] / [ 会破坏 Markdown，做最简单转义
-            let safe_alt = alt.replace(['[', ']'], " ");
-            return format!("\n![{}]({})\n\n", safe_alt, resolved);
+            let safe_alt = alt.replace('"', "&quot;").replace('<', "&lt;").replace('>', "&gt;");
+            let safe_src = resolved.replace('"', "&quot;");
+            return format!("\n<img src=\"{}\" alt=\"{}\" />\n\n", safe_src, safe_alt);
         }
         return String::new();
     }
@@ -100,28 +103,22 @@ fn element_to_md(el: scraper::ElementRef<'_>, base_url: &str) -> String {
         "h4" | "h5" | "h6" => format!("#### {}\n\n", wrap(&inner_t)),
         "p" => format!("{}\n\n", wrap(&inner_t)),
         "strong" | "b" => {
-            // markdown 的 ** emphasis 跨 HTML 边界（**<span>...</span>**）时 marked 不配对，
-            // 会把 ** 当字面字符渲染。inner 含 HTML 子节点或自身带 style 时直接用 <strong>。
-            if inline_style.is_some() || inner_t.contains('<') {
-                let attr = inline_style
-                    .as_ref()
-                    .map(|s| format!(" style=\"{}\"", s))
-                    .unwrap_or_default();
-                format!("<strong{}>{}</strong>", attr, inner_t)
-            } else {
-                format!("**{}**", inner_t)
-            }
+            // 永远输出 <strong> HTML 而不是 ** markdown：strong / em / a / img 这类 inline
+            // element 经常被外层 <span style=".."> 包裹（公众号每段套 span），marked 不解析
+            // inline HTML 内的 markdown，会把 **粗体** 字面输出。HTML 形式在 span 嵌套里
+            // 始终渲染。
+            let attr = inline_style
+                .as_ref()
+                .map(|s| format!(" style=\"{}\"", s))
+                .unwrap_or_default();
+            format!("<strong{}>{}</strong>", attr, inner_t)
         }
         "em" | "i" => {
-            if inline_style.is_some() || inner_t.contains('<') {
-                let attr = inline_style
-                    .as_ref()
-                    .map(|s| format!(" style=\"{}\"", s))
-                    .unwrap_or_default();
-                format!("<em{}>{}</em>", attr, inner_t)
-            } else {
-                format!("*{}*", inner_t)
-            }
+            let attr = inline_style
+                .as_ref()
+                .map(|s| format!(" style=\"{}\"", s))
+                .unwrap_or_default();
+            format!("<em{}>{}</em>", attr, inner_t)
         }
         "code" if !inner_t.contains('\n') => format!("`{}`", inner_t),
         "pre" | "code" => format!("\n```\n{}\n```\n\n", inner_t),
@@ -133,12 +130,15 @@ fn element_to_md(el: scraper::ElementRef<'_>, base_url: &str) -> String {
                 + "\n"
         }
         "a" => {
+            // 用 <a> HTML 而不是 [text](url) markdown：理由同 strong / em / img——被 inline
+            // <span> 包裹时 markdown link 不解析。
             let href = el.value().attr("href").unwrap_or("");
             if href.starts_with("javascript") || href.is_empty() {
                 wrap(&inner_t)
             } else {
                 let resolved = resolve_url(href, base_url);
-                format!("[{}]({})", wrap(&inner_t), resolved)
+                let safe_href = resolved.replace('"', "&quot;");
+                format!("<a href=\"{}\">{}</a>", safe_href, inner_t)
             }
         }
         "li" => format!("- {}\n", wrap(&inner_t)),
@@ -420,8 +420,31 @@ fn page_favicon(document: &scraper::Html, base_url: &str) -> String {
     String::new()
 }
 
-/// 封面图：og:image 优先；twitter:image 备选
+/// 封面图：公众号 1:1 正方形封面优先（cdn_url_1_1）→ og:image → twitter:image。
+///
+/// 公众号文章作者后台可以同时上传两张封面：
+/// - 横版（用于分享卡片 / 朋友圈外链预览）→ 落到 og:image / twitter:image meta
+/// - 正方形（用于公众号自家文章列表小卡片）→ 落到 inline JS 变量 `cdn_url_1_1: '...'`
+///
+/// ClipInbox 列表缩略图用方形版本视觉更好（不被 object-cover 裁掉横版两端）。即使作者
+/// 没上传方形版，公众号 HTML 仍会发 cdn_url_1_1（值跟 og:image 一致或稍异），所以这条
+/// 路径在公众号场景几乎总命中；非公众号站点 fallback 走 og:image。
 fn page_cover(document: &scraper::Html, base_url: &str) -> String {
+    // 扫 inline <script> 里的 `cdn_url_1_1: '...'` 字面，提第一处
+    let script_selector = scraper::Selector::parse("script").expect("script selector");
+    for script in document.select(&script_selector) {
+        let text: String = script.text().collect();
+        if let Some(start) = text.find("cdn_url_1_1: '") {
+            let after = &text[start + "cdn_url_1_1: '".len()..];
+            if let Some(end) = after.find('\'') {
+                let url = &after[..end];
+                if !url.is_empty() {
+                    return resolve_url(url, base_url);
+                }
+            }
+        }
+    }
+
     for key in &["og:image", "twitter:image", "og:image:url"] {
         if let Some(s) = meta_content(document, key) {
             return resolve_url(&s, base_url);
@@ -549,16 +572,22 @@ fn dedup_images(content_md: &str, cover_url: &str) -> String {
     let mut out = String::new();
     for line in content_md.lines() {
         let t = line.trim_start();
-        if t.starts_with("![") {
-            if let Some(open) = t.find("](") {
-                let after = &t[open + 2..];
-                if let Some(close) = after.find(')') {
-                    let img_url = &after[..close];
-                    let key = image_match_key(img_url);
-                    if !key.is_empty() && !seen.insert(key) {
-                        continue;
-                    }
-                }
+        // 抽 image url：兼容新格式 <img src="url" ...> 和旧格式 ![](url)（老 clip 残留）
+        let img_url: Option<&str> = if t.starts_with("<img") {
+            t.find("src=\"")
+                .map(|i| &t[i + 5..])
+                .and_then(|after| after.find('"').map(|end| &after[..end]))
+        } else if t.starts_with("![") {
+            t.find("](")
+                .map(|i| &t[i + 2..])
+                .and_then(|after| after.find(')').map(|end| &after[..end]))
+        } else {
+            None
+        };
+        if let Some(url) = img_url {
+            let key = image_match_key(url);
+            if !key.is_empty() && !seen.insert(key) {
+                continue;
             }
         }
         out.push_str(line);

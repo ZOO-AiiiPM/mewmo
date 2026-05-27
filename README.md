@@ -1,5 +1,7 @@
 # mewmo
 
+English | [简体中文](README.zh-CN.md)
+
 Local-first AI information manager for macOS. It combines notes, web clipping,
 RSS/Atom subscriptions, local SQLite search, and an optional AI assistant.
 

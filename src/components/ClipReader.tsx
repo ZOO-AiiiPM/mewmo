@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { marked } from 'marked';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import type { Clip } from '../types';
 import { sanitizeHtml } from '../lib/sanitizeHtml';
+import { smoothScrollToTop } from '../lib/scrollToTop';
+import { ConfirmDialog } from './ConfirmDialog';
 
 marked.use({ gfm: true, breaks: true });
 
@@ -92,6 +95,7 @@ export function ClipReader({
 
   // 添加链接：toolbar 右组 ⊕ 控制
   const [addOpen, setAddOpen] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [input, setInput] = useState('');
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState('');
@@ -99,12 +103,27 @@ export function ClipReader({
   const [batchInput, setBatchInput] = useState('');
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [batchErrors, setBatchErrors] = useState<string[]>([]);
+  const [copied, setCopied] = useState(false);
   const batchUrls = useMemo(() => parseUrlLines(batchInput), [batchInput]);
 
   const contentHtml = useMemo(() => {
     if (!clip?.content_md) return '';
-    return sanitizeHtml(marked.parse(clip.content_md) as string);
+    // 剥掉公众号等来源 clip_parser 没处理掉的 inline <span> styling 标签。
+    // marked 对 inline HTML 内部的 markdown 不当 markdown 解析（直接 raw 透传），
+    // 导致 <span style="...">![](url)</span> 里的 ![](url) 显示成字面字符串没渲染成
+    // <img>。剥 span 保留内容，让 image / bold / em 等 markdown 暴露给 marked 解析。
+    const stripped = clip.content_md.replace(/<\/?span\b[^>]*>/gi, '');
+    return sanitizeHtml(marked.parse(stripped) as string);
   }, [clip?.content_md]);
+
+  // contentHtml 变化时手动写 innerHTML，绕开 dangerouslySetInnerHTML 在每次
+  // 父组件 re-render 时（如 scroll 触发 setTitleInToolbar）重设整个 DOM 子树
+  // 的行为——之前用户看到的「向下滚动整个画面刷新一次」就是这个重设。
+  useEffect(() => {
+    const root = contentRef.current;
+    if (!root) return;
+    root.innerHTML = contentHtml;
+  }, [contentHtml]);
 
   // 深色模式下剥掉灰阶 inline color，保留彩色装饰；切主题或 DOM 重渲染时同步刷新。
   // ⚠️ 必须监听 contentRef 子树变化：React 在某些 re-render 时机会重设 dangerouslySetInnerHTML
@@ -140,18 +159,20 @@ export function ClipReader({
   // 用 h1 相对 scrollRef 顶部的距离，避免 main 不在 viewport 顶部时阈值算错
   useEffect(() => {
     const root = scrollRef.current;
-    if (!root) {
-      setTitleInToolbar(false);
-      return;
-    }
+    if (!root) return;
+    // 切 clip 时直接 reset 到顶部 + 隐藏 toolbar 标题（不依赖测量）。
+    // 之前 effect 里立即同步调 onScroll() 会拿到前一个 clip 的 stale H1 rect →
+    // setTitleInToolbar(true) → paint 完后真 scroll 触发又切 false → 肉眼闪两下。
+    // 订阅 EntryReader 用同样的"直接 reset"思路就不闪。
+    root.scrollTop = 0;
+    setTitleInToolbar(false);
     const onScroll = () => {
       const h1 = titleRef.current;
-      if (!h1) { setTitleInToolbar(false); return; }
+      if (!h1) return;
       const rootTop = root.getBoundingClientRect().top;
       const h1BottomRel = h1.getBoundingClientRect().bottom - rootTop;
       setTitleInToolbar(h1BottomRel < 56);
     };
-    onScroll();
     root.addEventListener('scroll', onScroll, { passive: true });
     return () => root.removeEventListener('scroll', onScroll);
   }, [clip?.id]);
@@ -159,6 +180,16 @@ export function ClipReader({
   // 测量已不需要——改用 grid-cols-[1fr_auto] 让标题列自动占剩余空间，
   // mask-image 让超出部分从右往左渐隐，自然解决"装不下"的视觉问题
   // 保留 titleRef 用于 scroll 检测；不再测 fits
+
+  const copyLink = () => {
+    if (!clip) return;
+    navigator.clipboard.writeText(clip.url)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1200);
+      })
+      .catch(e => console.error('[clip] copy link failed:', e));
+  };
 
   const handleRefetch = async () => {
     if (!clip || !onRefetch || refetching) return;
@@ -238,7 +269,9 @@ export function ClipReader({
   /// 顶栏 Toolbar：grid-cols-[1fr_auto]——左列标题占剩余空间 + mask-image 右边渐隐，
   /// 右列 icons 自动宽。撞 icons 不再发生（grid 自动给 icons 让位）。
   const Toolbar = (
-    <div className={`absolute top-0 left-0 right-0 z-[5] h-12 grid grid-cols-[1fr_auto] items-center gap-3 pl-10 bg-white/95 dark:bg-stone-900/95 transition-[padding] duration-200 ease-out ${aiOpen ? 'pr-[323px]' : 'pr-3'}`}>
+    <div className={`absolute top-0 left-0 right-0 z-[5] h-12 grid grid-cols-[1fr_auto] items-center gap-3 pl-10 bg-white/70 dark:bg-stone-900/70 backdrop-blur-md transition-[padding-right] duration-200 ease-out ${aiOpen ? 'pr-[323px]' : 'pr-3'}`}>
+      {/* 滚动后显现的底部分隔线：左右收 12px 留呼吸；aiOpen 时右端跟 toolbar pr 同步内移 */}
+      <div className={`absolute bottom-0 left-3 h-px transition-[right,background-color] duration-200 ease-out ${aiOpen ? 'right-[323px]' : 'right-3'} ${titleInToolbar ? 'bg-black/[0.1] dark:bg-white/[0.1]' : 'bg-transparent'}`} />
       {/* 标题列：mask 让超出右边的部分渐隐到透明 */}
       <div className="min-w-0 overflow-hidden">
         {clip && (
@@ -285,6 +318,24 @@ export function ClipReader({
                 <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
               </svg>
             </button>
+            <button
+              onClick={copyLink}
+              title={copied ? '已复制' : '复制链接'}
+              className={BTN}
+            >
+              {copied ? (
+                /* check icon (lucide check) */
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              ) : (
+                /* link icon (lucide link) */
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                </svg>
+              )}
+            </button>
           </>
         )}
         {onSave && (
@@ -320,6 +371,23 @@ export function ClipReader({
             </svg>
           </button>
         )}
+        {clip && (
+          <>
+            <div className="w-px h-5 bg-black/10 dark:bg-white/10 mx-1.5" />
+            <button
+              onClick={() => smoothScrollToTop(scrollRef.current)}
+              title="回到顶部"
+              className={BTN}
+            >
+              {/* arrow-up-to-line icon (lucide) */}
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M5 3h14" />
+                <path d="m18 13-6-6-6 6" />
+                <path d="M12 7v14" />
+              </svg>
+            </button>
+          </>
+        )}
         <button onClick={onExpand} title={expanded ? '收起' : '专注模式'} className={BTN}>
           {expanded ? (
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -339,9 +407,7 @@ export function ClipReader({
         </button>
         {clip && onDelete && (
           <button
-            onClick={() => {
-              if (confirm(`删除「${clip.title || '无标题'}」？`)) onDelete(clip.id);
-            }}
+            onClick={() => setConfirmDeleteOpen(true)}
             title="删除剪藏"
             className={BTN_DELETE}
           >
@@ -358,9 +424,27 @@ export function ClipReader({
     </div>
   );
 
-  /// 添加输入区——toolbar 下方 inline 展开
-  const AddPanel = addOpen && onSave && (
-    <div className="px-4 pb-3 border-b border-black/[0.05] dark:border-white/[0.05] shrink-0">
+  /// 添加输入区——浮层 Dialog（AnimatePresence + motion 跟 AddSourceDialog 同模式）
+  const AddPanel = (
+    <AnimatePresence>
+      {addOpen && onSave && (
+        <motion.div
+          onClick={() => closeAdd()}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+          className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center"
+        >
+          <motion.div
+            onClick={e => e.stopPropagation()}
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.96 }}
+            transition={{ duration: 0.15, ease: [0.22, 0.61, 0.36, 1] }}
+            className="w-[520px] max-w-[calc(100%-64px)] bg-white dark:bg-stone-800 rounded-xl shadow-2xl ring-1 ring-black/5 dark:ring-white/10 overflow-hidden"
+          >
+            <div className="px-5 py-5">
       {batchMode ? (
         <div className="space-y-1.5 max-w-2xl mx-auto">
           <div className="flex items-center justify-between text-[11px] text-stone-500 dark:text-stone-400 px-0.5">
@@ -457,18 +541,22 @@ export function ClipReader({
           )}
         </div>
       )}
-    </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 
   if (!clip) {
     return (
       <main className="relative flex-1 flex flex-col overflow-hidden">
         {Toolbar}
-        <div className="pt-12 shrink-0">{AddPanel}</div>
         <div className="flex-1 flex flex-col items-center justify-center gap-2 text-stone-400 dark:text-stone-500 text-sm">
           <div className="text-2xl">📋</div>
           <div>点击右上角 ⊕ 添加第一条链接</div>
         </div>
+        {AddPanel}
       </main>
     );
   }
@@ -478,12 +566,16 @@ export function ClipReader({
   return (
     <main className="relative flex-1 flex flex-col overflow-hidden">
       {Toolbar}
-      <div className="pt-12 shrink-0">{AddPanel}</div>
 
       {/* 阅读内容 */}
-      <div ref={scrollRef} className={`flex-1 overflow-y-auto transition-[padding] duration-200 ease-out ${aiOpen ? 'pr-[300px]' : ''} ${addOpen ? '' : '-mt-12 pt-12'}`}>
+      <div ref={scrollRef} className={`flex-1 overflow-y-auto sidebar-scroll transition-[padding-right] duration-200 ease-out ${aiOpen ? 'pr-[300px]' : ''} pt-12`}>
         <div className="max-w-2xl mx-auto px-10 pt-6 pb-16">
-          <h1 ref={titleRef} className="text-[28px] font-bold tracking-tight text-stone-900 dark:text-stone-50 leading-tight mb-3">
+          <h1
+            ref={titleRef}
+            className={`text-[28px] font-bold tracking-tight text-stone-900 dark:text-stone-50 leading-tight mb-3 transition-opacity duration-200 ${
+              titleInToolbar ? 'opacity-0' : 'opacity-100'
+            }`}
+          >
             {clip.title || '无标题'}
           </h1>
 
@@ -512,16 +604,25 @@ export function ClipReader({
           )}
 
           {contentHtml ? (
-            <div
-              ref={contentRef}
-              className="clip-prose"
-              dangerouslySetInnerHTML={{ __html: contentHtml }}
-            />
+            <div ref={contentRef} className="clip-prose" />
           ) : (
             <div className="text-stone-400 dark:text-stone-500 text-sm italic">暂无正文内容</div>
           )}
         </div>
       </div>
+      {AddPanel}
+      <ConfirmDialog
+        open={confirmDeleteOpen}
+        title="删除剪藏"
+        description={`确定删除「${clip.title || '无标题'}」吗？`}
+        confirmLabel="删除"
+        variant="danger"
+        onConfirm={() => {
+          setConfirmDeleteOpen(false);
+          if (onDelete) onDelete(clip.id);
+        }}
+        onCancel={() => setConfirmDeleteOpen(false)}
+      />
     </main>
   );
 }

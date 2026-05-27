@@ -45,10 +45,33 @@ type Props = {
 };
 
 export function TabBar({ tabs, activeId, onSelect, onClose, onAddNew }: Props) {
+  const dragRegionRef = useRef<HTMLDivElement>(null);
+
+  // 双击 toggle maximize/unmaximize。Tauri 的 data-tauri-drag-region 内置一个 native
+  // dblclick handler 调 toggleMaximize（macOS 上跟 native zoom 状态不同步——「能扩大不能
+  // 缩小」），跟自定义 onDoubleClick 同时跑会出现 race「先扩再缩」抖动。
+  // 用 capture phase + stopImmediatePropagation 拦在内置 listener 之前，独占双击行为。
+  useEffect(() => {
+    const el = dragRegionRef.current;
+    if (!el) return;
+    const handler = async (e: MouseEvent) => {
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      const win = getCurrentWindow();
+      if (await win.isMaximized()) {
+        await win.unmaximize();
+      } else {
+        await win.maximize();
+      }
+    };
+    el.addEventListener('dblclick', handler, { capture: true });
+    return () => el.removeEventListener('dblclick', handler, { capture: true });
+  }, []);
+
   return (
     <div
+      ref={dragRegionRef}
       data-tauri-drag-region
-      onDoubleClick={() => getCurrentWindow().toggleMaximize()}
       className="h-10 shrink-0 flex items-center pl-22 pr-3"
     >
       <div

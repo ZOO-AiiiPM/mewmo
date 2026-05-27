@@ -55,3 +55,26 @@ export function groupByBucket<T>(
     .filter(b => map.has(b))
     .map(b => ({ bucket: b, items: map.get(b)! }));
 }
+
+const WEEKDAY = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+
+/** 列表项右侧的时间戳显示。bucket 决定粒度：
+ *  today → HH:mm / yesterday → 「昨天」 / week → 周X / month+year → M/D / older → YY/M/D
+ *  3 个 list 组件（NoteList / ClipInbox / EntryList）共用，避免之前一处「昨日」一处「昨天」的分叉。*/
+export function formatListItemDate(ts: number, bucket: Bucket): string {
+  const d = new Date(ts * 1000);
+  switch (bucket) {
+    case 'today':
+      return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+    case 'yesterday':
+      return '昨天';
+    case 'week':
+      return WEEKDAY[d.getDay()];
+    case 'month':
+    case 'year':
+      return d.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' });
+    case 'older':
+    default:
+      return d.toLocaleDateString('zh-CN', { year: '2-digit', month: 'numeric', day: 'numeric' });
+  }
+}

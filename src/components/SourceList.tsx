@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { SubscriptionSource } from '../types';
+import { ListItemContextMenu } from './ListItemContextMenu';
+import { ConfirmDialog } from './ConfirmDialog';
 
 type Props = {
   sources: SubscriptionSource[];
@@ -7,7 +9,7 @@ type Props = {
   onSelect: (id: number) => void;
   onAdd: () => void;
   onRefresh: () => void;
-  onManage: () => void;
+  onDelete?: (id: number) => void;
   refreshing: boolean;
   hidden?: boolean;
 };
@@ -46,17 +48,20 @@ export function SourceList({
   onSelect,
   onAdd,
   onRefresh,
-  onManage,
+  onDelete,
   refreshing,
   hidden = false,
 }: Props) {
+  const [confirmId, setConfirmId] = useState<number | null>(null);
+  const confirmSource = sources.find(s => s.id === confirmId) ?? null;
   return (
     <aside
       style={{ width: hidden ? 0 : undefined }}
-      className={`shrink-0 border-r border-black/[0.1] dark:border-white/[0.1] flex flex-col overflow-hidden ${hidden ? '' : 'w-56'}`}
+      className={`shrink-0 border-r border-black/[0.1] dark:border-white/[0.1] flex flex-col overflow-hidden transition-[width] duration-200 ease-out ${hidden ? '' : 'w-48'}`}
     >
       {/* col-header h-12，和其它列对齐 */}
-      <div className="shrink-0 h-12 px-3 flex items-center justify-between border-b border-black/[0.1] dark:border-white/[0.1]">
+      <div className="relative shrink-0 h-12 px-3 flex items-center justify-between">
+        <div className="absolute bottom-0 left-3 right-3 h-px bg-black/[0.1] dark:bg-white/[0.1]" />
         <div className="flex items-center gap-1.5 min-w-0">
           <span className="text-[15px] font-semibold text-stone-800 dark:text-stone-100">订阅源</span>
           {sources.length > 0 && (
@@ -88,16 +93,6 @@ export function SourceList({
             </svg>
           </button>
           <button
-            onClick={onManage}
-            title="管理订阅源"
-            className="w-7 h-7 grid place-items-center rounded-md text-stone-600 dark:text-stone-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-            </svg>
-          </button>
-          <button
             onClick={onAdd}
             title="添加订阅源"
             className="w-7 h-7 grid place-items-center rounded-md text-stone-600 dark:text-stone-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
@@ -124,20 +119,19 @@ export function SourceList({
         ) : (
           sources.map(s => {
             const isUnhealthy = s.status === 'unhealthy';
-            return (
+            const itemBody = (
               <div
-                key={s.id}
                 onClick={() => onSelect(s.id)}
-                className={`px-3 py-2.5 cursor-pointer flex items-center gap-2.5 transition-colors ${
+                className={`px-3 py-2.5 rounded-lg cursor-pointer flex items-center gap-2.5 transition-colors ${
                   selectedId === s.id
-                    ? 'bg-black/[0.06] dark:bg-white/[0.08]'
-                    : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.04]'
+                    ? 'bg-black/[0.10] dark:bg-white/[0.12]'
+                    : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.05]'
                 }`}
               >
                 {/* favicon: 真实 logo（feed metadata）→ fallback letter placeholder */}
                 <SourceFavicon source={s} unhealthy={isUnhealthy} />
                 <div className="min-w-0 flex-1">
-                  <div className="text-[14px] font-medium text-stone-900 dark:text-stone-100 truncate">
+                  <div className="text-[13px] font-medium text-stone-900 dark:text-stone-100 truncate">
                     {s.title || s.feed_url}
                   </div>
                   <div className={`text-[11px] truncate ${isUnhealthy ? 'text-red-500' : 'text-stone-500 dark:text-stone-400'}`}>
@@ -146,19 +140,46 @@ export function SourceList({
                       : (s.status === 'pending' ? '抓取中…' : fmtRelativeTime(s.last_fetched_at))}
                   </div>
                 </div>
-                {(s.unread_count ?? 0) > 0 && (
-                  <span className="shrink-0 text-[11px] font-semibold tabular-nums text-stone-700 dark:text-stone-100 bg-black/[0.06] dark:bg-white/[0.08] px-2 py-0.5 rounded-full">
-                    {s.unread_count}
-                  </span>
-                )}
               </div>
+            );
+            if (!onDelete) return <div key={s.id}>{itemBody}</div>;
+            return (
+              <ListItemContextMenu
+                key={s.id}
+                onDelete={() => setConfirmId(s.id)}
+                deleteLabel="取消订阅"
+              >
+                {itemBody}
+              </ListItemContextMenu>
             );
           })
         )}
       </div>
+
+      <ConfirmDialog
+        open={confirmId !== null}
+        title="取消订阅这个源？"
+        description={confirmSource?.title
+          ? `「${confirmSource.title}」及其下所有文章都会被永久删除`
+          : '该订阅源及其下所有文章都会被永久删除'}
+        confirmLabel="取消订阅"
+        variant="danger"
+        onConfirm={() => {
+          if (confirmId !== null) onDelete?.(confirmId);
+          setConfirmId(null);
+        }}
+        onCancel={() => setConfirmId(null)}
+      />
     </aside>
   );
 }
+
+/** 跨 mount 持久化"已知失败的 favicon URL"。
+ * SourceFavicon 每次 unmount/remount 都会 useState(0) 重置 idx → 重跑 fallback chain →
+ * 第一个 candidate 实际 404 时会经历"img onError → setIdx(1) → 显示首字母"两帧，
+ * 用户视觉上看到一闪（背景色从白底 placeholder 跳到彩色首字母）。
+ * Set 让"已确认失败"的 URL 在 session 内不再被尝试，下次 mount 直接渲染首字母。 */
+const failedFaviconUrls = new Set<string>();
 
 /** 三层 fallback：feed 声明的 favicon_url → 站点 /favicon.ico → 首字母 placeholder */
 function SourceFavicon({ source, unhealthy }: { source: SubscriptionSource; unhealthy: boolean }) {
@@ -177,9 +198,21 @@ function SourceFavicon({ source, unhealthy }: { source: SubscriptionSource; unhe
   }, [source.favicon_url, source.site_url]);
   const candidateKey = candidates.join('|');
 
-  const [idx, setIdx] = useState(0);
-  // candidates 变化时重置（如刷新拿到新 favicon_url）
-  useEffect(() => setIdx(0), [candidateKey]);
+  // 初始化时跳过已知失败的 candidates，直接定位到第一个未确认失败的（或越界 → 显示首字母）。
+  // 这样切 zone 重新 mount 后不会再触发"img 加载失败 → onError → setIdx(1)"的两帧闪烁。
+  const initialIdx = (() => {
+    let i = 0;
+    while (i < candidates.length && failedFaviconUrls.has(candidates[i])) i++;
+    return i;
+  })();
+  const [idx, setIdx] = useState(initialIdx);
+  // candidates 变化时（如刷新拿到新 favicon_url）重新跑跳过逻辑
+  useEffect(() => {
+    let i = 0;
+    while (i < candidates.length && failedFaviconUrls.has(candidates[i])) i++;
+    setIdx(i);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [candidateKey]);
 
   const useImg = !unhealthy && idx < candidates.length;
   return (
@@ -194,7 +227,10 @@ function SourceFavicon({ source, unhealthy }: { source: SubscriptionSource; unhe
           src={candidates[idx]}
           alt=""
           className="w-full h-full object-cover"
-          onError={() => setIdx(i => i + 1)}
+          onError={() => {
+            failedFaviconUrls.add(candidates[idx]);
+            setIdx(i => i + 1);
+          }}
           loading="lazy"
         />
       ) : (
