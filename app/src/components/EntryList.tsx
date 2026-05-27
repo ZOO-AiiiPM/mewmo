@@ -137,10 +137,14 @@ function EntryItem({
         >
           {entry.title || '无标题'}
         </div>
-        <div className="text-[11px] text-stone-400 dark:text-stone-500 mt-0.5 truncate">
-          {sourceTitle}
-          {sourceTitle && ' · '}
-          {formatListItemDate(entryTimestamp(entry), bucket)}
+        <div className="text-[11px] text-stone-400 dark:text-stone-500 mt-0.5 flex items-center gap-1">
+          {sourceTitle && (
+            <>
+              <span className="w-24 truncate">{sourceTitle}</span>
+              <span className="shrink-0 text-stone-300 dark:text-stone-600">·</span>
+            </>
+          )}
+          <span className="shrink-0 tabular-nums">{formatListItemDate(entryTimestamp(entry), bucket)}</span>
         </div>
       </div>
 

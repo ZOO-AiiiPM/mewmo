@@ -20,7 +20,7 @@ export function NoteList({
   onDelete,
   hidden = false,
 }: Props) {
-  const groups = groupByBucket(notes);
+  const groups = groupByBucket(notes, n => n.created_at);
 
   return (
     <aside
@@ -54,14 +54,12 @@ export function NoteList({
                 <ContextMenu.Root key={n.id}>
                   <ContextMenu.Trigger asChild>
                     <motion.div
-                      layout
                       initial={{ opacity: 0, scale: 0.96 }}
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.94, x: -16 }}
                       transition={{
                         duration: 0.18,
                         ease: [0.22, 0.61, 0.36, 1],
-                        layout: { duration: 0.24, ease: [0.22, 0.61, 0.36, 1] },
                       }}
                       onClick={() => onSelect(n.id)}
                       className={`pl-10 pr-3 py-2.5 rounded-lg cursor-pointer transition-colors ${
@@ -80,7 +78,7 @@ export function NoteList({
                           </div>
                         </div>
                         <div className="text-[11px] font-medium text-stone-500 dark:text-stone-400 shrink-0 mt-0.5 tabular-nums">
-                          {formatListItemDate(n.updated_at, g.bucket)}
+                          {formatListItemDate(n.created_at, g.bucket)}
                         </div>
                       </div>
                     </motion.div>
