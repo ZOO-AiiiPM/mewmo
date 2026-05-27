@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { marked } from 'marked';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import type { Clip } from '../types';
 import { sanitizeHtml } from '../lib/sanitizeHtml';
+import { ConfirmDialog } from './ConfirmDialog';
 
 marked.use({ gfm: true, breaks: true });
 
@@ -92,6 +94,7 @@ export function ClipReader({
 
   // 添加链接：toolbar 右组 ⊕ 控制
   const [addOpen, setAddOpen] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [input, setInput] = useState('');
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState('');
@@ -353,9 +356,7 @@ export function ClipReader({
         </button>
         {clip && onDelete && (
           <button
-            onClick={() => {
-              if (confirm(`删除「${clip.title || '无标题'}」？`)) onDelete(clip.id);
-            }}
+            onClick={() => setConfirmDeleteOpen(true)}
             title="删除剪藏"
             className={BTN_DELETE}
           >
@@ -372,9 +373,27 @@ export function ClipReader({
     </div>
   );
 
-  /// 添加输入区——toolbar 下方 inline 展开
-  const AddPanel = addOpen && onSave && (
-    <div className="px-4 pb-3 border-b border-black/[0.05] dark:border-white/[0.05] shrink-0">
+  /// 添加输入区——浮层 Dialog（AnimatePresence + motion 跟 AddSourceDialog 同模式）
+  const AddPanel = (
+    <AnimatePresence>
+      {addOpen && onSave && (
+        <motion.div
+          onClick={() => closeAdd()}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+          className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center"
+        >
+          <motion.div
+            onClick={e => e.stopPropagation()}
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.96 }}
+            transition={{ duration: 0.15, ease: [0.22, 0.61, 0.36, 1] }}
+            className="w-[520px] max-w-[calc(100%-64px)] bg-white dark:bg-stone-800 rounded-xl shadow-2xl ring-1 ring-black/5 dark:ring-white/10 overflow-hidden"
+          >
+            <div className="px-5 py-5">
       {batchMode ? (
         <div className="space-y-1.5 max-w-2xl mx-auto">
           <div className="flex items-center justify-between text-[11px] text-stone-500 dark:text-stone-400 px-0.5">
@@ -471,18 +490,22 @@ export function ClipReader({
           )}
         </div>
       )}
-    </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 
   if (!clip) {
     return (
       <main className="relative flex-1 flex flex-col overflow-hidden">
         {Toolbar}
-        <div className="pt-12 shrink-0">{AddPanel}</div>
         <div className="flex-1 flex flex-col items-center justify-center gap-2 text-stone-400 dark:text-stone-500 text-sm">
           <div className="text-2xl">📋</div>
           <div>点击右上角 ⊕ 添加第一条链接</div>
         </div>
+        {AddPanel}
       </main>
     );
   }
@@ -492,10 +515,9 @@ export function ClipReader({
   return (
     <main className="relative flex-1 flex flex-col overflow-hidden">
       {Toolbar}
-      <div className="pt-12 shrink-0">{AddPanel}</div>
 
       {/* 阅读内容 */}
-      <div ref={scrollRef} className={`flex-1 overflow-y-auto transition-[padding] duration-200 ease-out ${aiOpen ? 'pr-[300px]' : ''} ${addOpen ? '' : '-mt-12 pt-12'}`}>
+      <div ref={scrollRef} className={`flex-1 overflow-y-auto transition-[padding] duration-200 ease-out ${aiOpen ? 'pr-[300px]' : ''} pt-12`}>
         <div className="max-w-2xl mx-auto px-10 pt-6 pb-16">
           <h1
             ref={titleRef}
@@ -537,6 +559,19 @@ export function ClipReader({
           )}
         </div>
       </div>
+      {AddPanel}
+      <ConfirmDialog
+        open={confirmDeleteOpen}
+        title="删除剪藏"
+        description={`确定删除「${clip.title || '无标题'}」吗？`}
+        confirmLabel="删除"
+        variant="danger"
+        onConfirm={() => {
+          setConfirmDeleteOpen(false);
+          if (onDelete) onDelete(clip.id);
+        }}
+        onCancel={() => setConfirmDeleteOpen(false)}
+      />
     </main>
   );
 }
