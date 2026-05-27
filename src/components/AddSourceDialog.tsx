@@ -46,7 +46,7 @@ export function AddSourceDialog({ open, onClose, onSubmit }: Props) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.15 }}
-          className="absolute inset-0 z-50 bg-black/40 flex items-center justify-center"
+          className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center"
           onClick={(e) => {
             if (e.target === e.currentTarget) onClose();
           }}
@@ -56,7 +56,7 @@ export function AddSourceDialog({ open, onClose, onSubmit }: Props) {
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.96 }}
             transition={{ duration: 0.15, ease: [0.22, 0.61, 0.36, 1] }}
-            className="w-[460px] max-w-[calc(100%-64px)] bg-white dark:bg-stone-900 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.25)] p-6 border border-black/[0.05] dark:border-white/[0.05]"
+            className="w-[460px] max-w-[calc(100%-64px)] bg-white dark:bg-stone-800 rounded-xl shadow-2xl ring-1 ring-black/5 dark:ring-white/10 p-6 overflow-hidden"
           >
         <h3 className="text-[16px] font-semibold text-stone-900 dark:text-stone-100 mb-1.5">
           添加订阅源
