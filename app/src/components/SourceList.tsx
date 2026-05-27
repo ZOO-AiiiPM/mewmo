@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { SubscriptionSource } from '../types';
+import { ListItemContextMenu } from './ListItemContextMenu';
+import { ConfirmDialog } from './ConfirmDialog';
 
 type Props = {
   sources: SubscriptionSource[];
@@ -7,7 +9,7 @@ type Props = {
   onSelect: (id: number) => void;
   onAdd: () => void;
   onRefresh: () => void;
-  onManage: () => void;
+  onDelete?: (id: number) => void;
   refreshing: boolean;
   hidden?: boolean;
 };
@@ -46,10 +48,12 @@ export function SourceList({
   onSelect,
   onAdd,
   onRefresh,
-  onManage,
+  onDelete,
   refreshing,
   hidden = false,
 }: Props) {
+  const [confirmId, setConfirmId] = useState<number | null>(null);
+  const confirmSource = sources.find(s => s.id === confirmId) ?? null;
   return (
     <aside
       style={{ width: hidden ? 0 : undefined }}
@@ -89,16 +93,6 @@ export function SourceList({
             </svg>
           </button>
           <button
-            onClick={onManage}
-            title="管理订阅源"
-            className="w-7 h-7 grid place-items-center rounded-md text-stone-600 dark:text-stone-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-            </svg>
-          </button>
-          <button
             onClick={onAdd}
             title="添加订阅源"
             className="w-7 h-7 grid place-items-center rounded-md text-stone-600 dark:text-stone-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
@@ -125,9 +119,8 @@ export function SourceList({
         ) : (
           sources.map(s => {
             const isUnhealthy = s.status === 'unhealthy';
-            return (
+            const itemBody = (
               <div
-                key={s.id}
                 onClick={() => onSelect(s.id)}
                 className={`px-3 py-2.5 rounded-lg cursor-pointer flex items-center gap-2.5 transition-colors ${
                   selectedId === s.id
@@ -149,9 +142,34 @@ export function SourceList({
                 </div>
               </div>
             );
+            if (!onDelete) return <div key={s.id}>{itemBody}</div>;
+            return (
+              <ListItemContextMenu
+                key={s.id}
+                onDelete={() => setConfirmId(s.id)}
+                deleteLabel="取消订阅"
+              >
+                {itemBody}
+              </ListItemContextMenu>
+            );
           })
         )}
       </div>
+
+      <ConfirmDialog
+        open={confirmId !== null}
+        title="取消订阅这个源？"
+        description={confirmSource?.title
+          ? `「${confirmSource.title}」及其下所有文章都会被永久删除`
+          : '该订阅源及其下所有文章都会被永久删除'}
+        confirmLabel="取消订阅"
+        variant="danger"
+        onConfirm={() => {
+          if (confirmId !== null) onDelete?.(confirmId);
+          setConfirmId(null);
+        }}
+        onCancel={() => setConfirmId(null)}
+      />
     </aside>
   );
 }

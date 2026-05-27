@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import * as ContextMenu from '@radix-ui/react-context-menu';
 import type { Note } from '../types';
 import { BUCKET_LABEL, formatListItemDate, groupByBucket } from '../lib/dateBuckets';
+import { ListItemContextMenu } from './ListItemContextMenu';
 
 type Props = {
   notes: Note[];
@@ -51,56 +51,37 @@ export function NoteList({
               </h2>
               <AnimatePresence initial={false} mode="popLayout">
               {g.items.map(n => (
-                <ContextMenu.Root key={n.id}>
-                  <ContextMenu.Trigger asChild>
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.96 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.94, x: -16 }}
-                      transition={{
-                        duration: 0.18,
-                        ease: [0.22, 0.61, 0.36, 1],
-                      }}
-                      onClick={() => onSelect(n.id)}
-                      className={`pl-10 pr-3 py-2.5 rounded-lg cursor-pointer transition-colors ${
-                        selectedId === n.id
-                          ? 'bg-black/[0.10] dark:bg-white/[0.12]'
-                          : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.05]'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <div className="text-[13px] font-medium text-stone-900 dark:text-stone-100 truncate pr-12">
-                            {n.title || '无标题'}
-                          </div>
-                          <div className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 truncate">
-                            {n.content_md.replace(/[#*_`>\n]/g, ' ').slice(0, 40) || '空笔记'}
-                          </div>
+                <ListItemContextMenu key={n.id} onDelete={() => onDelete(n.id)}>
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.96 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.94, x: -16 }}
+                    transition={{
+                      duration: 0.18,
+                      ease: [0.22, 0.61, 0.36, 1],
+                    }}
+                    onClick={() => onSelect(n.id)}
+                    className={`pl-10 pr-3 py-2.5 rounded-lg cursor-pointer transition-colors ${
+                      selectedId === n.id
+                        ? 'bg-black/[0.10] dark:bg-white/[0.12]'
+                        : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.05]'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[13px] font-medium text-stone-900 dark:text-stone-100 truncate pr-12">
+                          {n.title || '无标题'}
                         </div>
-                        <div className="text-[11px] font-medium text-stone-500 dark:text-stone-400 shrink-0 mt-0.5 tabular-nums">
-                          {formatListItemDate(n.created_at, g.bucket)}
+                        <div className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 truncate">
+                          {n.content_md.replace(/[#*_`>\n]/g, ' ').slice(0, 40) || '空笔记'}
                         </div>
                       </div>
-                    </motion.div>
-                  </ContextMenu.Trigger>
-                  <ContextMenu.Portal>
-                    <ContextMenu.Content
-                      className="min-w-[200px] p-1.5 rounded-2xl bg-white dark:bg-stone-800 ring-1 ring-black/[0.06] dark:ring-white/[0.08] shadow-[0_12px_32px_rgba(0,0,0,0.18)] dark:shadow-[0_12px_32px_rgba(0,0,0,0.55)] z-50"
-                    >
-                      <ContextMenu.Item
-                        onSelect={() => onDelete(n.id)}
-                        className="flex items-center gap-3 px-3 py-2 text-[14px] text-red-600 dark:text-red-400 rounded-lg outline-none cursor-pointer data-[highlighted]:bg-red-500/10 dark:data-[highlighted]:bg-red-500/15 transition-colors"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M3 6h18" />
-                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                          <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                        </svg>
-                        <span>删除</span>
-                      </ContextMenu.Item>
-                    </ContextMenu.Content>
-                  </ContextMenu.Portal>
-                </ContextMenu.Root>
+                      <div className="text-[11px] font-medium text-stone-500 dark:text-stone-400 shrink-0 mt-0.5 tabular-nums">
+                        {formatListItemDate(n.created_at, g.bucket)}
+                      </div>
+                    </div>
+                  </motion.div>
+                </ListItemContextMenu>
               ))}
               </AnimatePresence>
             </section>
