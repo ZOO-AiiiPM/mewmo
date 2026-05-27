@@ -4,6 +4,7 @@ import { marked } from 'marked';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import type { Clip } from '../types';
 import { sanitizeHtml } from '../lib/sanitizeHtml';
+import { smoothScrollToTop } from '../lib/scrollToTop';
 import { ConfirmDialog } from './ConfirmDialog';
 
 marked.use({ gfm: true, breaks: true });
@@ -102,6 +103,7 @@ export function ClipReader({
   const [batchInput, setBatchInput] = useState('');
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [batchErrors, setBatchErrors] = useState<string[]>([]);
+  const [copied, setCopied] = useState(false);
   const batchUrls = useMemo(() => parseUrlLines(batchInput), [batchInput]);
 
   const contentHtml = useMemo(() => {
@@ -176,6 +178,16 @@ export function ClipReader({
   // 测量已不需要——改用 grid-cols-[1fr_auto] 让标题列自动占剩余空间，
   // mask-image 让超出部分从右往左渐隐，自然解决"装不下"的视觉问题
   // 保留 titleRef 用于 scroll 检测；不再测 fits
+
+  const copyLink = () => {
+    if (!clip) return;
+    navigator.clipboard.writeText(clip.url)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1200);
+      })
+      .catch(e => console.error('[clip] copy link failed:', e));
+  };
 
   const handleRefetch = async () => {
     if (!clip || !onRefetch || refetching) return;
@@ -255,7 +267,7 @@ export function ClipReader({
   /// 顶栏 Toolbar：grid-cols-[1fr_auto]——左列标题占剩余空间 + mask-image 右边渐隐，
   /// 右列 icons 自动宽。撞 icons 不再发生（grid 自动给 icons 让位）。
   const Toolbar = (
-    <div className={`absolute top-0 left-0 right-0 z-[5] h-12 grid grid-cols-[1fr_auto] items-center gap-3 pl-10 bg-white/95 dark:bg-stone-900/95 transition-[padding] duration-200 ease-out ${aiOpen ? 'pr-[323px]' : 'pr-3'}`}>
+    <div className={`absolute top-0 left-0 right-0 z-[5] h-12 grid grid-cols-[1fr_auto] items-center gap-3 pl-10 bg-white/70 dark:bg-stone-900/70 backdrop-blur-md transition-[padding-right] duration-200 ease-out ${aiOpen ? 'pr-[323px]' : 'pr-3'}`}>
       {/* 标题列：mask 让超出右边的部分渐隐到透明 */}
       <div className="min-w-0 overflow-hidden">
         {clip && (
@@ -300,6 +312,36 @@ export function ClipReader({
                 <circle cx="12" cy="12" r="10" />
                 <line x1="2" y1="12" x2="22" y2="12" />
                 <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+              </svg>
+            </button>
+            <button
+              onClick={copyLink}
+              title={copied ? '已复制' : '复制链接'}
+              className={BTN}
+            >
+              {copied ? (
+                /* check icon (lucide check) */
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              ) : (
+                /* link icon (lucide link) */
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                </svg>
+              )}
+            </button>
+            <button
+              onClick={() => smoothScrollToTop(scrollRef.current)}
+              title="回到顶部"
+              className={BTN}
+            >
+              {/* arrow-up-to-line icon (lucide) */}
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M5 3h14" />
+                <path d="m18 13-6-6-6 6" />
+                <path d="M12 7v14" />
               </svg>
             </button>
           </>
@@ -517,7 +559,7 @@ export function ClipReader({
       {Toolbar}
 
       {/* 阅读内容 */}
-      <div ref={scrollRef} className={`flex-1 overflow-y-auto transition-[padding] duration-200 ease-out ${aiOpen ? 'pr-[300px]' : ''} pt-12`}>
+      <div ref={scrollRef} className={`flex-1 overflow-y-auto sidebar-scroll transition-[padding-right] duration-200 ease-out ${aiOpen ? 'pr-[300px]' : ''} pt-12`}>
         <div className="max-w-2xl mx-auto px-10 pt-6 pb-16">
           <h1
             ref={titleRef}

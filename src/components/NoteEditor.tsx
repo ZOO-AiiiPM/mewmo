@@ -9,6 +9,7 @@ import { indentWithTab } from '@codemirror/commands';
 import { livePreview, tableNavigationKeymap, insertTable, toggleTask } from '../lib/livePreview';
 import { imagePasteDrop } from '../lib/imagePaste';
 import { linkClickHandler } from '../lib/linkClick';
+import { smoothScrollToTop } from '../lib/scrollToTop';
 import { TableOfContents } from './TableOfContents';
 import { ConfirmDialog } from './ConfirmDialog';
 import type { Note } from '../types';
@@ -284,7 +285,7 @@ export function NoteEditor({ note, onChange, theme, onDelete, onCreate, aiOpen, 
 
   return (
     <main className="relative flex-1 flex flex-col overflow-hidden">
-      <div className={`absolute top-0 left-0 right-0 z-[5] h-12 grid grid-cols-[1fr_auto] items-center gap-3 pl-10 bg-white/95 dark:bg-stone-900/95 transition-[padding] duration-200 ease-out ${aiOpen ? 'pr-[320px]' : 'pr-3'}`}>
+      <div className={`absolute top-0 left-0 right-0 z-[5] h-12 grid grid-cols-[1fr_auto] items-center gap-3 pl-10 bg-white/70 dark:bg-stone-900/70 backdrop-blur-md transition-[padding] duration-200 ease-out ${aiOpen ? 'pr-[320px]' : 'pr-3'}`}>
           {/* 标题列：滚动后 fade-in 显示当前笔记标题；mask 让超出 icons 那侧渐隐 */}
           <div className="min-w-0 overflow-hidden">
             <span
@@ -352,6 +353,18 @@ export function NoteEditor({ note, onChange, theme, onDelete, onCreate, aiOpen, 
               <path d="m9 12 2 2 4-4" />
             </svg>
           </button>
+          <button
+            onClick={() => smoothScrollToTop(scrollRef.current)}
+            title="回到顶部"
+            className="w-8 h-8 flex items-center justify-center rounded-md text-stone-600 dark:text-stone-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+          >
+            {/* arrow-up-to-line icon (lucide) */}
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 3h14" />
+              <path d="m18 13-6-6-6 6" />
+              <path d="M12 7v14" />
+            </svg>
+          </button>
           <div className="w-px h-5 bg-black/10 dark:bg-white/10 mx-1.5" />
           <button
             onClick={onExpand}
@@ -399,7 +412,7 @@ export function NoteEditor({ note, onChange, theme, onDelete, onCreate, aiOpen, 
           </button>
           </div>
         </div>
-      <div ref={scrollRef} className="flex-1 overflow-y-auto pt-12">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto sidebar-scroll pt-12">
         <div
           style={{
             opacity: contentVisible ? 1 : 0,

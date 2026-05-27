@@ -53,7 +53,7 @@ export function SourceList({
   return (
     <aside
       style={{ width: hidden ? 0 : undefined }}
-      className={`shrink-0 border-r border-black/[0.1] dark:border-white/[0.1] flex flex-col overflow-hidden transition-[width] duration-200 ease-out ${hidden ? '' : 'w-56'}`}
+      className={`shrink-0 border-r border-black/[0.1] dark:border-white/[0.1] flex flex-col overflow-hidden transition-[width] duration-200 ease-out ${hidden ? '' : 'w-48'}`}
     >
       {/* col-header h-12，和其它列对齐 */}
       <div className="shrink-0 h-12 px-3 flex items-center justify-between border-b border-black/[0.1] dark:border-white/[0.1]">
@@ -128,16 +128,16 @@ export function SourceList({
               <div
                 key={s.id}
                 onClick={() => onSelect(s.id)}
-                className={`px-3 py-2.5 cursor-pointer flex items-center gap-2.5 transition-colors ${
+                className={`px-3 py-2.5 rounded-lg cursor-pointer flex items-center gap-2.5 transition-colors ${
                   selectedId === s.id
-                    ? 'bg-black/[0.06] dark:bg-white/[0.08]'
-                    : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.04]'
+                    ? 'bg-black/[0.10] dark:bg-white/[0.12]'
+                    : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.05]'
                 }`}
               >
                 {/* favicon: 真实 logo（feed metadata）→ fallback letter placeholder */}
                 <SourceFavicon source={s} unhealthy={isUnhealthy} />
                 <div className="min-w-0 flex-1">
-                  <div className="text-[14px] font-medium text-stone-900 dark:text-stone-100 truncate">
+                  <div className="text-[13px] font-medium text-stone-900 dark:text-stone-100 truncate">
                     {s.title || s.feed_url}
                   </div>
                   <div className={`text-[11px] truncate ${isUnhealthy ? 'text-red-500' : 'text-stone-500 dark:text-stone-400'}`}>
@@ -146,11 +146,6 @@ export function SourceList({
                       : (s.status === 'pending' ? '抓取中…' : fmtRelativeTime(s.last_fetched_at))}
                   </div>
                 </div>
-                {(s.unread_count ?? 0) > 0 && (
-                  <span className="shrink-0 text-[11px] font-semibold tabular-nums text-stone-700 dark:text-stone-100 bg-black/[0.06] dark:bg-white/[0.08] px-2 py-0.5 rounded-full">
-                    {s.unread_count}
-                  </span>
-                )}
               </div>
             );
           })
