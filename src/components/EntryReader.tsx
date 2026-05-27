@@ -144,6 +144,8 @@ export function EntryReader({
 
       {/* toolbar 浮层：absolute top:0，不透明背景，避免全屏切换时 GPU 持续 invalidate */}
       <div className="absolute top-0 inset-x-0 z-10 h-12 flex items-center pl-3 pr-2 gap-0.5 bg-white/70 dark:bg-stone-900/70 backdrop-blur-md">
+        {/* 滚动后显现的底部分隔线：左右收 12px 留呼吸 */}
+        <div className={`absolute bottom-0 left-3 right-3 h-px transition-colors duration-200 ${showTitleInBar ? 'bg-black/[0.1] dark:bg-white/[0.1]' : 'bg-transparent'}`} />
         {/* 左：title 渐显（h1 滚出 viewport 后），直接 truncate 不用 mask 避免 GPU 重计算 */}
         <div
           className="flex-1 min-w-0 text-[15px] font-semibold text-stone-900 dark:text-stone-100 truncate transition-opacity duration-150 select-none pr-3"
@@ -212,6 +214,7 @@ export function EntryReader({
               )}
             </button>
           )}
+          <span className="mx-1 h-4 w-px bg-black/10 dark:bg-white/10" />
           <button
             onClick={() => smoothScrollToTop(scrollerRef.current)}
             title="回到顶部"
