@@ -13,6 +13,7 @@ import { listNotes, getNote, createNote, updateNote, deleteNote } from './lib/db
 import { listClips, getClip, saveClip, deleteClip, updateClip } from './lib/db';
 import {
   addSubscription,
+  deleteSource,
   listEntriesForSource,
   listSourcesWithUnread,
   markEntryRead,
@@ -211,6 +212,13 @@ export default function App() {
     const { source } = await addSubscription(url);
     await refreshSources();
     setSelectedSourceId(source.id);
+  }, [refreshSources]);
+
+  const handleDeleteSource = useCallback(async (id: number) => {
+    await deleteSource(id);
+    await refreshSources();
+    // 如果删的是当前选中的源 → 清掉 selected（EntryList useEffect 会跟随清 entries）
+    setSelectedSourceId(prev => (prev === id ? null : prev));
   }, [refreshSources]);
 
   const handleEntrySelect = useCallback(async (entry: FeedEntry) => {
@@ -566,6 +574,7 @@ export default function App() {
                 clips={clips}
                 selectedId={selectedClip?.id ?? null}
                 onSelect={handleClipSelect}
+                onDelete={handleClipDelete}
                 hidden={expanded}
               />
             </div>
@@ -592,6 +601,7 @@ export default function App() {
                 refreshing={refreshingSubs}
                 onRefresh={handleSubscriptionRefresh}
                 onAdd={handleSubscriptionAdd}
+                onDeleteSource={handleDeleteSource}
               />
             </div>
 

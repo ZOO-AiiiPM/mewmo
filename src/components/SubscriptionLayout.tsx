@@ -17,6 +17,7 @@ type Props = {
   refreshing: boolean;
   onRefresh: () => void;
   onAdd: (url: string) => Promise<void>;
+  onDeleteSource?: (id: number) => Promise<void> | void;
 };
 
 /** 订阅 zone 的 list 群（SourceList + EntryList + AddSourceDialog）。
@@ -34,6 +35,7 @@ export function SubscriptionLayout({
   refreshing,
   onRefresh,
   onAdd,
+  onDeleteSource,
 }: Props) {
   // 添加源 Dialog 的 open 是纯 UI 状态，留组件内部
   const [addOpen, setAddOpen] = useState(false);
@@ -46,7 +48,7 @@ export function SubscriptionLayout({
         onSelect={onSelectSource}
         onAdd={() => setAddOpen(true)}
         onRefresh={onRefresh}
-        onManage={() => alert('源管理（US3）尚未实现，目前先在 sqlite 里手动 DELETE')}
+        onDelete={onDeleteSource}
         refreshing={refreshing}
         hidden={hidden}
       />

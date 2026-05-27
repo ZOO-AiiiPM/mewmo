@@ -1,16 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Clip } from '../types';
 import { BUCKET_LABEL, formatListItemDate, groupByBucket } from '../lib/dateBuckets';
+import { ListItemContextMenu } from './ListItemContextMenu';
+import { ConfirmDialog } from './ConfirmDialog';
 
 type Props = {
   clips: Clip[];
   selectedId: number | null;
   onSelect: (id: number) => void;
+  onDelete?: (id: number) => void;
   hidden?: boolean;
 };
 
-export function ClipInbox({ clips, selectedId, onSelect, hidden = false }: Props) {
+export function ClipInbox({ clips, selectedId, onSelect, onDelete, hidden = false }: Props) {
   const groups = groupByBucket(clips, c => c.saved_at);
+  const [confirmId, setConfirmId] = useState<number | null>(null);
+  const confirmClip = clips.find(c => c.id === confirmId) ?? null;
 
   return (
     <aside
@@ -44,12 +49,26 @@ export function ClipInbox({ clips, selectedId, onSelect, hidden = false }: Props
                   bucket={g.bucket}
                   active={selectedId === c.id}
                   onSelect={onSelect}
+                  onRequestDelete={onDelete ? (id) => setConfirmId(id) : undefined}
                 />
               ))}
             </section>
           ))
         )}
       </div>
+
+      <ConfirmDialog
+        open={confirmId !== null}
+        title="删除这条剪藏？"
+        description={confirmClip?.title ? `「${confirmClip.title}」将被永久删除` : '该剪藏将被永久删除'}
+        confirmLabel="删除"
+        variant="danger"
+        onConfirm={() => {
+          if (confirmId !== null) onDelete?.(confirmId);
+          setConfirmId(null);
+        }}
+        onCancel={() => setConfirmId(null)}
+      />
     </aside>
   );
 }
@@ -59,11 +78,13 @@ function ClipItem({
   bucket,
   active,
   onSelect,
+  onRequestDelete,
 }: {
   clip: Clip;
   bucket: ReturnType<typeof groupByBucket>[number]['bucket'];
   active: boolean;
   onSelect: (id: number) => void;
+  onRequestDelete?: (id: number) => void;
 }) {
   const titleRef = useRef<HTMLDivElement>(null);
   const [titleOverflow, setTitleOverflow] = useState(false);
@@ -89,7 +110,7 @@ function ClipItem({
     ? { maskImage: titleFadeMask, WebkitMaskImage: titleFadeMask }
     : undefined;
 
-  return (
+  const itemBody = (
     <div
       onClick={() => onSelect(clip.id)}
       className={`group relative px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${
@@ -135,5 +156,12 @@ function ClipItem({
         )}
       </div>
     </div>
+  );
+
+  if (!onRequestDelete) return itemBody;
+  return (
+    <ListItemContextMenu onDelete={() => onRequestDelete(clip.id)}>
+      {itemBody}
+    </ListItemContextMenu>
   );
 }
