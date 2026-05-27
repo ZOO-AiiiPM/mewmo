@@ -27,36 +27,7 @@ export function NoteList({
       style={{ width: hidden ? 0 : undefined }}
       className={`shrink-0 border-r border-black/[0.1] dark:border-white/[0.1] flex flex-col overflow-hidden transition-[width] duration-200 ease-out ${hidden ? '' : 'w-56'}`}
     >
-      <div className="flex-1 overflow-y-auto notelist-scroll">
-        {/* 自定义滚动条：默认完全透明（不常驻），hover sidebar 时才浮出
-            +2px transparent border + background-clip 让 thumb 视觉变细变短 */}
-        <style>{`
-          .notelist-scroll::-webkit-scrollbar { width: 8px; }
-          .notelist-scroll::-webkit-scrollbar-track { background: transparent; }
-          .notelist-scroll::-webkit-scrollbar-thumb {
-            background: transparent;
-            border: 2px solid transparent;
-            background-clip: padding-box;
-            border-radius: 999px;
-            transition: background 200ms;
-          }
-          .notelist-scroll:hover::-webkit-scrollbar-thumb {
-            background: rgba(0, 0, 0, 0.20);
-            background-clip: padding-box;
-          }
-          .notelist-scroll:hover::-webkit-scrollbar-thumb:hover {
-            background: rgba(0, 0, 0, 0.32);
-            background-clip: padding-box;
-          }
-          html.dark .notelist-scroll:hover::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.18);
-            background-clip: padding-box;
-          }
-          html.dark .notelist-scroll:hover::-webkit-scrollbar-thumb:hover {
-            background: rgba(255, 255, 255, 0.32);
-            background-clip: padding-box;
-          }
-        `}</style>
+      <div className="flex-1 overflow-y-auto">
         {notes.length === 0 ? (
           <div className="p-6 text-center text-stone-500 dark:text-stone-400 text-sm">
             <div className="mb-2">还没有笔记 ✨</div>
