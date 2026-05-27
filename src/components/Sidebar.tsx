@@ -88,7 +88,7 @@ export function Sidebar({ open, onToggle, active, onSelect, counts = {}, theme, 
     <aside
       style={{ width: hidden ? 0 : (open ? undefined : 48) }}
       className={`shrink-0 flex flex-col overflow-hidden transition-[width] duration-200 ease-out ${
-        !hidden && open ? 'w-56' : ''
+        !hidden && open ? 'w-[168px]' : ''
       }`}
     >
       {/* 顶部条：高度对齐顶部 toolbar (h-12)。折叠态走 px-0.5 + px-3 py-3 同 nav 节奏，按钮 44×44 居中 */}

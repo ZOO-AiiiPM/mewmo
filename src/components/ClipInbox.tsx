@@ -14,7 +14,7 @@ export function ClipInbox({ clips, selectedId, onSelect, hidden = false }: Props
   return (
     <aside
       style={{ width: hidden ? 0 : undefined }}
-      className={`shrink-0 border-r border-black/[0.1] dark:border-white/[0.1] flex flex-col overflow-hidden transition-[width] duration-200 ease-out ${hidden ? '' : 'w-72'}`}
+      className={`shrink-0 border-r border-black/[0.1] dark:border-white/[0.1] flex flex-col overflow-hidden transition-[width] duration-200 ease-out ${hidden ? '' : 'w-56'}`}
     >
       <div className="flex-1 overflow-y-auto">
         {clips.length === 0 ? (
@@ -38,7 +38,7 @@ export function ClipInbox({ clips, selectedId, onSelect, hidden = false }: Props
                 <div
                   key={c.id}
                   onClick={() => onSelect(c.id)}
-                  className={`group relative pl-10 pr-3 py-2.5 cursor-pointer transition-colors ${
+                  className={`group relative pl-3 pr-3 py-2.5 cursor-pointer transition-colors ${
                     selectedId === c.id
                       ? 'bg-black/[0.06] dark:bg-white/[0.08]'
                       : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.04]'
