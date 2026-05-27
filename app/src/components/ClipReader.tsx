@@ -268,6 +268,8 @@ export function ClipReader({
   /// 右列 icons 自动宽。撞 icons 不再发生（grid 自动给 icons 让位）。
   const Toolbar = (
     <div className={`absolute top-0 left-0 right-0 z-[5] h-12 grid grid-cols-[1fr_auto] items-center gap-3 pl-10 bg-white/70 dark:bg-stone-900/70 backdrop-blur-md transition-[padding-right] duration-200 ease-out ${aiOpen ? 'pr-[323px]' : 'pr-3'}`}>
+      {/* 滚动后显现的底部分隔线：左右收 12px 留呼吸；aiOpen 时右端跟 toolbar pr 同步内移 */}
+      <div className={`absolute bottom-0 left-3 h-px transition-[right,background-color] duration-200 ease-out ${aiOpen ? 'right-[323px]' : 'right-3'} ${titleInToolbar ? 'bg-black/[0.1] dark:bg-white/[0.1]' : 'bg-transparent'}`} />
       {/* 标题列：mask 让超出右边的部分渐隐到透明 */}
       <div className="min-w-0 overflow-hidden">
         {clip && (
@@ -332,18 +334,6 @@ export function ClipReader({
                 </svg>
               )}
             </button>
-            <button
-              onClick={() => smoothScrollToTop(scrollRef.current)}
-              title="回到顶部"
-              className={BTN}
-            >
-              {/* arrow-up-to-line icon (lucide) */}
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M5 3h14" />
-                <path d="m18 13-6-6-6 6" />
-                <path d="M12 7v14" />
-              </svg>
-            </button>
           </>
         )}
         {onSave && (
@@ -378,6 +368,23 @@ export function ClipReader({
               <path d="M21 3v5h-5" />
             </svg>
           </button>
+        )}
+        {clip && (
+          <>
+            <div className="w-px h-5 bg-black/10 dark:bg-white/10 mx-1.5" />
+            <button
+              onClick={() => smoothScrollToTop(scrollRef.current)}
+              title="回到顶部"
+              className={BTN}
+            >
+              {/* arrow-up-to-line icon (lucide) */}
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M5 3h14" />
+                <path d="m18 13-6-6-6 6" />
+                <path d="M12 7v14" />
+              </svg>
+            </button>
+          </>
         )}
         <button onClick={onExpand} title={expanded ? '收起' : '专注模式'} className={BTN}>
           {expanded ? (

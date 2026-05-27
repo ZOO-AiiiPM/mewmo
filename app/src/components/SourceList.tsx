@@ -56,7 +56,8 @@ export function SourceList({
       className={`shrink-0 border-r border-black/[0.1] dark:border-white/[0.1] flex flex-col overflow-hidden transition-[width] duration-200 ease-out ${hidden ? '' : 'w-48'}`}
     >
       {/* col-header h-12，和其它列对齐 */}
-      <div className="shrink-0 h-12 px-3 flex items-center justify-between border-b border-black/[0.1] dark:border-white/[0.1]">
+      <div className="relative shrink-0 h-12 px-3 flex items-center justify-between">
+        <div className="absolute bottom-0 left-3 right-3 h-px bg-black/[0.1] dark:bg-white/[0.1]" />
         <div className="flex items-center gap-1.5 min-w-0">
           <span className="text-[15px] font-semibold text-stone-800 dark:text-stone-100">订阅源</span>
           {sources.length > 0 && (
@@ -155,6 +156,13 @@ export function SourceList({
   );
 }
 
+/** 跨 mount 持久化"已知失败的 favicon URL"。
+ * SourceFavicon 每次 unmount/remount 都会 useState(0) 重置 idx → 重跑 fallback chain →
+ * 第一个 candidate 实际 404 时会经历"img onError → setIdx(1) → 显示首字母"两帧，
+ * 用户视觉上看到一闪（背景色从白底 placeholder 跳到彩色首字母）。
+ * Set 让"已确认失败"的 URL 在 session 内不再被尝试，下次 mount 直接渲染首字母。 */
+const failedFaviconUrls = new Set<string>();
+
 /** 三层 fallback：feed 声明的 favicon_url → 站点 /favicon.ico → 首字母 placeholder */
 function SourceFavicon({ source, unhealthy }: { source: SubscriptionSource; unhealthy: boolean }) {
   const candidates = useMemo(() => {
@@ -172,9 +180,21 @@ function SourceFavicon({ source, unhealthy }: { source: SubscriptionSource; unhe
   }, [source.favicon_url, source.site_url]);
   const candidateKey = candidates.join('|');
 
-  const [idx, setIdx] = useState(0);
-  // candidates 变化时重置（如刷新拿到新 favicon_url）
-  useEffect(() => setIdx(0), [candidateKey]);
+  // 初始化时跳过已知失败的 candidates，直接定位到第一个未确认失败的（或越界 → 显示首字母）。
+  // 这样切 zone 重新 mount 后不会再触发"img 加载失败 → onError → setIdx(1)"的两帧闪烁。
+  const initialIdx = (() => {
+    let i = 0;
+    while (i < candidates.length && failedFaviconUrls.has(candidates[i])) i++;
+    return i;
+  })();
+  const [idx, setIdx] = useState(initialIdx);
+  // candidates 变化时（如刷新拿到新 favicon_url）重新跑跳过逻辑
+  useEffect(() => {
+    let i = 0;
+    while (i < candidates.length && failedFaviconUrls.has(candidates[i])) i++;
+    setIdx(i);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [candidateKey]);
 
   const useImg = !unhealthy && idx < candidates.length;
   return (
@@ -189,7 +209,10 @@ function SourceFavicon({ source, unhealthy }: { source: SubscriptionSource; unhe
           src={candidates[idx]}
           alt=""
           className="w-full h-full object-cover"
-          onError={() => setIdx(i => i + 1)}
+          onError={() => {
+            failedFaviconUrls.add(candidates[idx]);
+            setIdx(i => i + 1);
+          }}
           loading="lazy"
         />
       ) : (

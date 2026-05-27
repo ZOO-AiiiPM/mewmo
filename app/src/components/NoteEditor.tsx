@@ -286,6 +286,8 @@ export function NoteEditor({ note, onChange, theme, onDelete, onCreate, aiOpen, 
   return (
     <main className="relative flex-1 flex flex-col overflow-hidden">
       <div className={`absolute top-0 left-0 right-0 z-[5] h-12 grid grid-cols-[1fr_auto] items-center gap-3 pl-10 bg-white/70 dark:bg-stone-900/70 backdrop-blur-md transition-[padding] duration-200 ease-out ${aiOpen ? 'pr-[320px]' : 'pr-3'}`}>
+        {/* 滚动后显现的底部分隔线：左右收 12px 留呼吸；aiOpen 时右端跟 toolbar pr 同步内移 */}
+        <div className={`absolute bottom-0 left-3 h-px transition-[right,background-color] duration-200 ease-out ${aiOpen ? 'right-[320px]' : 'right-3'} ${titleInToolbar ? 'bg-black/[0.1] dark:bg-white/[0.1]' : 'bg-transparent'}`} />
           {/* 标题列：滚动后 fade-in 显示当前笔记标题；mask 让超出 icons 那侧渐隐 */}
           <div className="min-w-0 overflow-hidden">
             <span
