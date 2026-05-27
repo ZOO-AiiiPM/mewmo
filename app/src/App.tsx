@@ -8,12 +8,21 @@ import { ClipInbox } from './components/ClipInbox';
 import { ClipReader } from './components/ClipReader';
 import { EmptyTabHome } from './components/EmptyTabHome';
 import { SubscriptionLayout } from './components/SubscriptionLayout';
+import { EntryReader } from './components/EntryReader';
 import { listNotes, getNote, createNote, updateNote, deleteNote } from './lib/db';
 import { listClips, getClip, saveClip, deleteClip, updateClip } from './lib/db';
+import {
+  addSubscription,
+  listEntriesForSource,
+  listSourcesWithUnread,
+  markEntryRead,
+  refreshAllSubscriptions,
+  shouldAutoRefreshOnStartup,
+} from './lib/subscription';
 import { SearchOverlay } from './components/SearchOverlay';
 import { useTheme } from './lib/useTheme';
 import { cleanupOrphans } from './lib/attachments';
-import type { Note, Clip } from './types';
+import type { Note, Clip, SubscriptionSource, FeedEntry } from './types';
 import {
   canGoBack,
   canGoForward,
@@ -45,6 +54,12 @@ export default function App() {
   const { theme, toggle } = useTheme();
   const [notes, setNotes] = useState<Note[]>([]);
   const [clips, setClips] = useState<Clip[]>([]);
+  // 订阅 state 提到顶层（避免 SubscriptionLayout 切 zone 时 unmount 重 fetch 导致的"图片+title 闪一下"）
+  const [sources, setSources] = useState<SubscriptionSource[]>([]);
+  const [selectedSourceId, setSelectedSourceId] = useState<number | null>(null);
+  const [entries, setEntries] = useState<FeedEntry[]>([]);
+  const [entryBrowse, setEntryBrowse] = useState<HistoryState<FeedEntry>>(emptyHistory());
+  const [refreshingSubs, setRefreshingSubs] = useState(false);
   const [loading, setLoading] = useState(true);
   const [aiOpen, setAiOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -114,18 +129,110 @@ export default function App() {
     return list;
   }, []);
 
+  const refreshSources = useCallback(async () => {
+    const list = await listSourcesWithUnread();
+    setSources(list);
+    return list;
+  }, []);
+
+  const refreshEntries = useCallback(async (source_id: number) => {
+    const list = await listEntriesForSource(source_id);
+    setEntries(list);
+    return list;
+  }, []);
+
   useEffect(() => {
-    // notes + clips 必须都加载完再关 loading；否则 setLoading(false) 可能在 clips 还没回来时触发，
-    // 用户立刻切到剪藏区会看到短暂"空白"。
-    Promise.all([refresh(), refreshClips()])
-      .then(() => {
+    // notes + clips + sources 必须都加载完再关 loading；否则 setLoading(false) 可能在某个还没回来时触发，
+    // 用户立刻切到对应 zone 会看到短暂"空白"或刷新闪一下。
+    Promise.all([refresh(), refreshClips(), refreshSources()])
+      .then(async ([, , sourcesList]) => {
+        // 自动选第一个 source（如果有）→ 触发下面 entries effect
+        if (sourcesList.length > 0) {
+          setSelectedSourceId(prev => prev ?? sourcesList[0].id);
+        }
+        // 启动检查：今天没抓过 → 触发 batch refresh（异步、不 block 关闭 loading）
+        if (await shouldAutoRefreshOnStartup()) {
+          (async () => {
+            try {
+              await refreshAllSubscriptions();
+              await refreshSources();
+            } catch (e) {
+              console.error('[subscription] startup refresh failed:', e);
+            }
+          })();
+        }
         cleanupOrphans()
           .then(n => { if (n > 0) console.log(`[cleanup] removed ${n} orphan attachments`); })
           .catch(e => console.error('[cleanup] failed:', e));
       })
       .catch(e => console.error('[init] data load failed:', e))
       .finally(() => setLoading(false));
-  }, [refresh, refreshClips]);
+  }, [refresh, refreshClips, refreshSources]);
+
+  // 切 source → 拉对应 entries + 默认打开第一条
+  useEffect(() => {
+    if (selectedSourceId == null) {
+      setEntries([]);
+      setEntryBrowse(emptyHistory());
+      return;
+    }
+    refreshEntries(selectedSourceId)
+      .then(list => {
+        if (list.length > 0) {
+          setEntryBrowse({ history: [list[0]], idx: 0 });
+        } else {
+          setEntryBrowse(emptyHistory());
+        }
+      })
+      .catch(e => {
+        console.error('[subscription] load entries failed:', e);
+        setEntries([]);
+        setEntryBrowse(emptyHistory());
+      });
+  }, [selectedSourceId, refreshEntries]);
+
+  const handleSubscriptionRefresh = useCallback(async () => {
+    if (refreshingSubs) return;
+    setRefreshingSubs(true);
+    try {
+      await refreshAllSubscriptions();
+      await refreshSources();
+      if (selectedSourceId != null) {
+        await refreshEntries(selectedSourceId);
+      }
+    } catch (e) {
+      console.error('[subscription] refresh failed:', e);
+    } finally {
+      setRefreshingSubs(false);
+    }
+  }, [refreshingSubs, refreshSources, refreshEntries, selectedSourceId]);
+
+  const handleSubscriptionAdd = useCallback(async (url: string) => {
+    const { source } = await addSubscription(url);
+    await refreshSources();
+    setSelectedSourceId(source.id);
+  }, [refreshSources]);
+
+  const handleEntrySelect = useCallback(async (entry: FeedEntry) => {
+    setEntryBrowse(prev => pushHistory(prev, entry, (a, b) => a.id === b.id));
+    if (entry.read_at == null) {
+      await markEntryRead(entry.id);
+      const now = Math.floor(Date.now() / 1000);
+      setEntries(prev => prev.map(e => (e.id === entry.id ? { ...e, read_at: now } : e)));
+      await refreshSources(); // 更新 unread badge
+    }
+  }, [refreshSources]);
+
+  const handleEntryBack = useCallback(() => setEntryBrowse(goBack), []);
+  const handleEntryForward = useCallback(() => setEntryBrowse(goForward), []);
+
+  // 订阅 zone 当前显示的 entry / source（derive 一次，传给 list 群和 EntryReader）
+  const currentEntry = currentItem(entryBrowse);
+  const currentSource = selectedSourceId != null
+    ? sources.find(s => s.id === selectedSourceId) ?? null
+    : null;
+  const entryCanBack = canGoBack(entryBrowse);
+  const entryCanForward = canGoForward(entryBrowse);
 
   const ensureNoteLoaded = useCallback(async (id: number) => {
     if (loadingNoteIdsRef.current.has(id)) return;
@@ -448,62 +555,88 @@ export default function App() {
 
         {/* 主内容区：relative 是 AIPanel 的浮层定位锚点 */}
         <main className="flex-1 relative min-w-0">
-          {/* Layer 2：Content card（list + main 合并的圆角白卡，右/下 flush window 边缘） */}
+          {/* Layer 2：Content card（list + main 合并的圆角白卡，右/下 flush window 边缘）。
+              结构：list 群永驻（避免切 zone 销毁 list DOM 导致 favicon 重新加载），
+                  reader 区 conditional（释放正文图片内存）。 */}
           <div className="h-full flex bg-white dark:bg-stone-900 rounded-tl-2xl overflow-hidden shadow-[0_2px_16px_rgba(0,0,0,0.07),0_0_0_0.5px_rgba(0,0,0,0.05)] dark:shadow-[0_2px_16px_rgba(0,0,0,0.4),0_0_0_0.5px_rgba(255,255,255,0.05)]">
+            {/* 永驻 list 群：用 display 切换可见性，DOM 不销毁。
+                fragment 不能挂 style，所以每个 list zone 用一个 wrapper div + display:contents/none */}
+            <div style={{ display: activeZone === 'clipping' ? 'contents' : 'none' }}>
+              <ClipInbox
+                clips={clips}
+                selectedId={selectedClip?.id ?? null}
+                onSelect={handleClipSelect}
+                hidden={expanded}
+              />
+            </div>
+            <div style={{ display: activeZone === 'notes' ? 'contents' : 'none' }}>
+              <NoteList
+                notes={notes}
+                selectedId={selectedNote?.id ?? null}
+                onSelect={handleNoteSelect}
+                onCreate={handleCreateAndBind}
+                onDelete={handleDeleteNote}
+                hidden={expanded}
+              />
+            </div>
+            <div style={{ display: activeZone === 'subscribe' ? 'contents' : 'none' }}>
+              <SubscriptionLayout
+                hidden={expanded}
+                sources={sources}
+                selectedSourceId={selectedSourceId}
+                onSelectSource={setSelectedSourceId}
+                entries={entries}
+                currentEntry={currentEntry}
+                currentSource={currentSource}
+                onEntrySelect={handleEntrySelect}
+                refreshing={refreshingSubs}
+                onRefresh={handleSubscriptionRefresh}
+                onAdd={handleSubscriptionAdd}
+              />
+            </div>
+
+            {/* Reader 区：conditional unmount 让正文 img DOM 销毁 → 释放 decoded 图片内存 */}
             {activeZone === null ? (
               <EmptyTabHome onPick={handleEmptyPick} />
             ) : activeZone === 'clipping' ? (
-              <>
-                <ClipInbox
-                  clips={clips}
-                  selectedId={selectedClip?.id ?? null}
-                  onSelect={handleClipSelect}
-                  hidden={expanded}
-                />
-                <ClipReader
-                  clip={selectedClipReady}
-                  aiOpen={aiOpen}
-                  onRefetch={handleClipRefetch}
-                  onDelete={handleClipDelete}
-                  onSave={handleClipSave}
-                  onPrev={clipPrev}
-                  onNext={clipNext}
-                  hasPrev={hasClipPrev}
-                  hasNext={hasClipNext}
-                  expanded={expanded}
-                  onExpand={() => setExpanded(e => !e)}
-                />
-              </>
+              <ClipReader
+                clip={selectedClipReady}
+                aiOpen={aiOpen}
+                onRefetch={handleClipRefetch}
+                onDelete={handleClipDelete}
+                onSave={handleClipSave}
+                onPrev={clipPrev}
+                onNext={clipNext}
+                hasPrev={hasClipPrev}
+                hasNext={hasClipNext}
+                expanded={expanded}
+                onExpand={() => setExpanded(e => !e)}
+              />
             ) : activeZone === 'notes' ? (
-              <>
-                <NoteList
-                  notes={notes}
-                  selectedId={selectedNote?.id ?? null}
-                  onSelect={handleNoteSelect}
-                  onCreate={handleCreateAndBind}
-                  onDelete={handleDeleteNote}
-                  hidden={expanded}
-                />
-                <NoteEditor
-                  note={selectedNoteReady}
-                  onChange={handleUpdateNote}
-                  theme={theme}
-                  onDelete={() => selectedNote && handleDeleteNote(selectedNote.id)}
-                  onCreate={handleCreateAndBind}
-                  aiOpen={aiOpen}
-                  expanded={expanded}
-                  onExpand={() => setExpanded(e => !e)}
-                  canBack={canBack}
-                  canForward={canForward}
-                  onBack={handleNoteBack}
-                  onForward={handleNoteForward}
-                  newlyCreatedId={newlyCreatedNoteId}
-                  onCreateAnimDone={consumeNewlyCreated}
-                />
-              </>
+              <NoteEditor
+                note={selectedNoteReady}
+                onChange={handleUpdateNote}
+                theme={theme}
+                onDelete={() => selectedNote && handleDeleteNote(selectedNote.id)}
+                onCreate={handleCreateAndBind}
+                aiOpen={aiOpen}
+                expanded={expanded}
+                onExpand={() => setExpanded(e => !e)}
+                canBack={canBack}
+                canForward={canForward}
+                onBack={handleNoteBack}
+                onForward={handleNoteForward}
+                newlyCreatedId={newlyCreatedNoteId}
+                onCreateAnimDone={consumeNewlyCreated}
+              />
             ) : activeZone === 'subscribe' ? (
-              <SubscriptionLayout
-                hidden={expanded}
+              <EntryReader
+                entry={currentEntry}
+                source={currentSource}
+                onBack={handleEntryBack}
+                onForward={handleEntryForward}
+                canBack={entryCanBack}
+                canForward={entryCanForward}
                 expanded={expanded}
                 onExpand={() => setExpanded(e => !e)}
               />
