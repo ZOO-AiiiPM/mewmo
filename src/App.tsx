@@ -36,6 +36,7 @@ import {
 } from './lib/historyStack';
 
 import { AIPanel } from './components/AIPanel';
+import { VaultLayout } from './components/vault/VaultLayout';
 
 type Tab = {
   id: string;
@@ -49,6 +50,7 @@ const PLACEHOLDER_LABEL: Record<Zone, string> = {
   notes: '笔记',
   clipping: '剪藏',
   sediment: '沉淀',
+  vault: 'Vault',
 };
 
 export default function App() {
@@ -441,6 +443,7 @@ export default function App() {
     notes: notes.length,
     clipping: clips.length,
     sediment: 0,
+    vault: 0,
   };
 
   // tab pill：title 实时从 notes/clips 派生
@@ -453,7 +456,7 @@ export default function App() {
       } else if (t.zone === 'clipping') {
         const c = t.refId != null ? clips.find(x => x.id === t.refId) : null;
         title = c ? (c.title || '无标题') : PLACEHOLDER_LABEL.clipping;
-      } else if (t.zone === 'subscribe' || t.zone === 'sediment') {
+      } else if (t.zone === 'subscribe' || t.zone === 'sediment' || t.zone === 'vault') {
         title = PLACEHOLDER_LABEL[t.zone];
       }
       return { id: t.id, title, zone: t.zone };
@@ -650,6 +653,8 @@ export default function App() {
                 expanded={expanded}
                 onExpand={() => setExpanded(e => !e)}
               />
+            ) : activeZone === 'vault' ? (
+              <VaultLayout />
             ) : (
               <div className="flex-1 flex items-center justify-center text-stone-400 dark:text-stone-500 text-sm">
                 {PLACEHOLDER_LABEL[activeZone]} 敬请期待

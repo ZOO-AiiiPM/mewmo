@@ -1,6 +1,6 @@
 import type React from 'react';
 
-export type Zone = 'subscribe' | 'notes' | 'clipping' | 'sediment';
+export type Zone = 'subscribe' | 'notes' | 'clipping' | 'sediment' | 'vault';
 
 type Props = {
   open: boolean;
@@ -43,6 +43,13 @@ const icons = {
       <path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65" />
     </svg>
   ),
+  vault: (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 8v13H3V8" />
+      <path d="M1 3h22v5H1z" />
+      <path d="M10 12h4" />
+    </svg>
+  ),
   search: (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="11" cy="11" r="8" />
@@ -81,6 +88,7 @@ const NAV: Array<{ id: Zone; label: string }> = [
   { id: 'notes', label: '笔记' },
   { id: 'clipping', label: '剪藏' },
   { id: 'sediment', label: '沉淀' },
+  { id: 'vault', label: 'Vault' },
 ];
 
 export function Sidebar({ open, onToggle, active, onSelect, counts = {}, theme, onToggleTheme, hidden = false, onSearchClick }: Props) {

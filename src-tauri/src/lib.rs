@@ -4,6 +4,7 @@ mod clip_parser;
 mod commands;
 mod db;
 mod subscription;
+mod vault;
 
 #[cfg(target_os = "macos")]
 use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial, NSVisualEffectState};
@@ -43,6 +44,9 @@ pub fn run() {
             commands::subscriptions::delete_source,
             commands::subscriptions::refresh_all_subscriptions,
             commands::subscriptions::should_auto_refresh_on_startup,
+            commands::vault::vault_initialize,
+            commands::vault::vault_get_config,
+            commands::vault::vault_default_path,
         ])
         .setup(|app| {
             use tauri::Manager;
