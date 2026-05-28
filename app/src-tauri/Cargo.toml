@@ -34,3 +34,12 @@ feed-rs = "2"
 trash = "5.2.3"
 tauri-plugin-mcp-bridge = "0.2"
 tokio = { version = "1", features = ["sync", "time"] }
+
+# Phase 0 vault + wiki 架构骨架（spec 002-vault-wiki-foundation）
+notify-debouncer-full = "0.7"  # vault 文件 watcher，含 rename 配对（Obsidian atomic save 兼容）
+atomicwrites = "0.4"           # tmp + fsync + rename 原子写（IO 不变式 I1）
+sanitize-filename = "0.6"      # slug 跨平台不安全字符过滤（中文保留）
+gray_matter = "0.3"            # YAML frontmatter 解析（mewmo 唯一明确新增）
+pulldown-cmark = "0.13"        # markdown heading 提取（仅结构化解析用，非渲染）
+handlebars = "6.4"             # HTML 模板引擎（与 npm handlebars 同语法，Rust 渲染 + TS 预览同模板）
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }  # ISO 8601 时间戳（已是 transitive dep，提为 direct）
