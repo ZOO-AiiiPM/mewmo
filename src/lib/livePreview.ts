@@ -200,6 +200,31 @@ function collapseCellSelection(cell: HTMLElement, placeAtEnd: boolean) {
   }
 }
 
+// 写纯文本到剪贴板：用隐藏 textarea + execCommand('copy')。
+// 不走 copy 事件——多格选区时聚焦格只有收起的光标（没原生选区），execCommand 对空选区
+// 不触发 copy 事件，会导致"空内容 / 没选中文字时复制不出来"。textarea 自带可选内容，
+// 无论单元格空不空都能稳定复制。复制后复原焦点，避免表格选区视觉掉焦。
+function copyPlainText(text: string): boolean {
+  const active = document.activeElement as HTMLElement | null;
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.setAttribute('readonly', '');
+  ta.style.position = 'fixed';
+  ta.style.top = '-1000px';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  let ok = false;
+  try {
+    ok = document.execCommand('copy');
+  } catch {
+    ok = false;
+  }
+  document.body.removeChild(ta);
+  if (active && document.contains(active)) active.focus();
+  return ok;
+}
+
 function nearestCell(cells: HTMLElement[], x: number | null): HTMLElement | null {
   if (cells.length === 0) return null;
   if (x == null) return cells[0];
@@ -512,11 +537,106 @@ class TaskWidget extends WidgetType {
   }
 }
 
+type CellCoord = { r: number; c: number };
+
 class TableWidget extends WidgetType {
   source: string;
+  // 矩形选区：anchor=按下的格，focus=拖到的格。每个 cell 是独立 contentEditable，浏览器
+  // 原生 selection 无法跨多个 editing host，所以多格选区完全自己维护（CSS class 高亮 +
+  // 复制时按矩形重组 markdown）。单格（anchor==focus）不算多选，走原生编辑。
+  private selAnchor: CellCoord | null = null;
+  private selFocus: CellCoord | null = null;
   constructor(source: string) {
     super();
     this.source = source;
+  }
+  private cellCoord(table: HTMLTableElement, cell: HTMLElement): CellCoord | null {
+    const tr = cell.parentElement;
+    if (!tr) return null;
+    const rows = Array.from(table.querySelectorAll('tr'));
+    const r = rows.indexOf(tr as HTMLTableRowElement);
+    const c = Array.from(tr.children).indexOf(cell);
+    if (r < 0 || c < 0) return null;
+    return { r, c };
+  }
+  private selectionRect(): { r1: number; r2: number; c1: number; c2: number } | null {
+    const a = this.selAnchor;
+    const f = this.selFocus;
+    if (!a || !f) return null;
+    return {
+      r1: Math.min(a.r, f.r),
+      r2: Math.max(a.r, f.r),
+      c1: Math.min(a.c, f.c),
+      c2: Math.max(a.c, f.c),
+    };
+  }
+  private isMultiSelection(): boolean {
+    const rect = this.selectionRect();
+    return !!rect && !(rect.r1 === rect.r2 && rect.c1 === rect.c2);
+  }
+  private applyHighlight(table: HTMLTableElement) {
+    const rect = this.selectionRect();
+    const multi = !!rect && !(rect.r1 === rect.r2 && rect.c1 === rect.c2);
+    table.classList.toggle('cm-md-table-rangesel', multi);
+    const rows = Array.from(table.querySelectorAll('tr'));
+    rows.forEach((tr, r) => {
+      Array.from(tr.children).forEach((cellEl, c) => {
+        const on =
+          multi && rect && r >= rect.r1 && r <= rect.r2 && c >= rect.c1 && c <= rect.c2;
+        (cellEl as HTMLElement).classList.toggle('cm-md-cell-sel', !!on);
+      });
+    });
+  }
+  private clearSelection(table: HTMLTableElement) {
+    this.selAnchor = null;
+    this.selFocus = null;
+    this.applyHighlight(table);
+  }
+  // 把矩形选区按当前 DOM 文本重组成一张独立 markdown 表格（首行当表头 + 分隔行）。
+  // 单格 / 无选区返回 null（让原生复制处理纯文本）。
+  private buildSelectionMarkdown(table: HTMLTableElement): string | null {
+    const rect = this.selectionRect();
+    if (!rect || (rect.r1 === rect.r2 && rect.c1 === rect.c2)) return null;
+    const rows = Array.from(table.querySelectorAll('tr'));
+    const esc = (s: string) =>
+      s.replace(/\u00a0/g, ' ').replace(/\|/g, '\\|').replace(/\n/g, ' ').trim();
+    const grid: string[][] = [];
+    for (let r = rect.r1; r <= rect.r2; r++) {
+      const cells = Array.from(rows[r]?.children ?? []) as HTMLElement[];
+      const line: string[] = [];
+      for (let c = rect.c1; c <= rect.c2; c++) {
+        line.push(esc(cells[c]?.textContent ?? ''));
+      }
+      grid.push(line);
+    }
+    const cols = rect.c2 - rect.c1 + 1;
+    const lineFor = (cells: string[]) =>
+      '| ' + Array.from({ length: cols }, (_, i) => cells[i] || ' ').join(' | ') + ' |';
+    const sep = '| ' + Array.from({ length: cols }, () => '---').join(' | ') + ' |';
+    return [lineFor(grid[0]), sep, ...grid.slice(1).map(lineFor)].join('\n');
+  }
+  // text/html：给外部富文本目标（Numbers / Word）保留真表格结构
+  private buildSelectionHtml(table: HTMLTableElement): string | null {
+    const rect = this.selectionRect();
+    if (!rect || (rect.r1 === rect.r2 && rect.c1 === rect.c2)) return null;
+    const rows = Array.from(table.querySelectorAll('tr'));
+    const esc = (s: string) =>
+      s
+        .replace(/\u00a0/g, ' ')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .trim();
+    let html = '<table>';
+    for (let r = rect.r1; r <= rect.r2; r++) {
+      const cells = Array.from(rows[r]?.children ?? []) as HTMLElement[];
+      html += '<tr>';
+      for (let c = rect.c1; c <= rect.c2; c++) {
+        html += '<td>' + esc(cells[c]?.textContent ?? '') + '</td>';
+      }
+      html += '</tr>';
+    }
+    return html + '</table>';
   }
   // 用 widget DOM 在文档中的位置，反查表格当前的 from/to（避免缓存的位置因外部编辑失效）
   private locate(view: EditorView, wrap: HTMLElement): TableRange | null {
@@ -693,6 +813,19 @@ class TableWidget extends WidgetType {
       el.addEventListener('keydown', e => {
         // 阻止冒泡到 CM 的 keymap，避免 CM 同时处理这些键（导致 cursor 错位 / 编辑器抢焦点）
         e.stopPropagation();
+        // 多格选区下 Cmd/Ctrl+C：直接重组 markdown 写剪贴板（不依赖原生选区是否存在），
+        // 空单元格 / 没选中文字也能复制。
+        if ((e.metaKey || e.ctrlKey) && (e.key === 'c' || e.key === 'C') && this.isMultiSelection()) {
+          e.preventDefault();
+          const md = this.buildSelectionMarkdown(table);
+          if (md) copyPlainText(md);
+          return;
+        }
+        if (e.key === 'Escape' && this.isMultiSelection()) {
+          e.preventDefault();
+          this.clearSelection(table);
+          return;
+        }
         if (e.key === 'ArrowUp') {
           e.preventDefault();
           navigate(el, 'up');
@@ -724,6 +857,7 @@ class TableWidget extends WidgetType {
       el.addEventListener('mousedown', e => e.stopPropagation());
       el.addEventListener('input', e => {
         e.stopPropagation();
+        if (this.isMultiSelection()) this.clearSelection(table);
         view.requestMeasure();
       });
     };
@@ -754,6 +888,67 @@ class TableWidget extends WidgetType {
     });
     table.appendChild(tbody);
     wrap.appendChild(table);
+
+    // —— 鼠标拖拽选区（跨格）——
+    // mousedown 不 preventDefault（让单格点击仍能落 caret 编辑）；mousemove 拖到另一格时
+    // 接管：preventDefault + focus 目标格（焦点留在表内，wrap.focusout 的 guard 不会触发回写）
+    // + 画矩形高亮。监听挂 table 的 capture 阶段——cell 自己的 mousedown 在 bubble 阶段
+    // stopPropagation()，capture 先跑不受影响。
+    let dragSelecting = false;
+    table.addEventListener(
+      'mousedown',
+      e => {
+        const cell = (e.target as HTMLElement).closest('th,td') as HTMLElement | null;
+        if (!cell || !table.contains(cell)) return;
+        const coord = this.cellCoord(table, cell);
+        if (!coord) return;
+        if (e.shiftKey && this.selAnchor) {
+          e.preventDefault();
+          this.selFocus = coord;
+          this.applyHighlight(table);
+          cell.focus();
+          return;
+        }
+        this.selAnchor = coord;
+        this.selFocus = coord;
+        this.applyHighlight(table); // 单格 → 清掉旧的多格高亮
+        dragSelecting = true;
+      },
+      true,
+    );
+    table.addEventListener(
+      'mousemove',
+      e => {
+        if (!dragSelecting) return;
+        const cell = (e.target as HTMLElement).closest('th,td') as HTMLElement | null;
+        if (!cell || !table.contains(cell)) return;
+        const coord = this.cellCoord(table, cell);
+        if (!coord || !this.selAnchor) return;
+        if (coord.r === this.selFocus?.r && coord.c === this.selFocus?.c) return;
+        e.preventDefault();
+        this.selFocus = coord;
+        cell.focus();
+        this.applyHighlight(table);
+      },
+      true,
+    );
+    const onMouseUp = () => {
+      dragSelecting = false;
+    };
+    document.addEventListener('mouseup', onMouseUp);
+    (wrap as unknown as { __cleanupRange?: () => void }).__cleanupRange = () =>
+      document.removeEventListener('mouseup', onMouseUp);
+
+    // 多格选区复制：Cmd+C（cell keydown 转发的 execCommand）+ 右键 Copy 都会派发 copy 事件，
+    // 在 wrap 冒泡阶段拦下，先于 CM 在 contentDOM 上的 copy 处理器，覆写为重组的 markdown 表格。
+    wrap.addEventListener('copy', e => {
+      const md = this.buildSelectionMarkdown(table);
+      if (!md) return; // 单格 / 无选区 → 放行原生复制
+      e.preventDefault();
+      e.stopPropagation();
+      e.clipboardData?.setData('text/plain', md);
+      e.clipboardData?.setData('text/html', this.buildSelectionHtml(table) ?? md);
+    });
 
     // 焦点离开整张表才把 DOM 内容回写 markdown，避免 cell 间切换时 widget 重建丢光标
     wrap.addEventListener('focusout', e => {
@@ -797,6 +992,10 @@ class TableWidget extends WidgetType {
   }
   eq(other: TableWidget) {
     return this.source === other.source;
+  }
+  // widget DOM 被 CM 回收时，移除挂在 document 上的 mouseup 监听，避免泄漏
+  destroy(dom: HTMLElement) {
+    (dom as unknown as { __cleanupRange?: () => void }).__cleanupRange?.();
   }
   // cells 自己用 stopPropagation 隔离输入；这里返回 false 让 CM 能正常处理 widget 周围的 click
   // （返回 true 会让 CM 完全忽略 widget 范围的事件，导致 widget 附近的 cursor 定位失效）
