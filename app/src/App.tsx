@@ -654,7 +654,10 @@ export default function App() {
                 onExpand={() => setExpanded(e => !e)}
               />
             ) : activeZone === 'vault' ? (
-              <VaultLayout />
+              <VaultLayout
+                currentNote={selectedNoteReady}
+                currentClip={selectedClipReady}
+              />
             ) : (
               <div className="flex-1 flex items-center justify-center text-stone-400 dark:text-stone-500 text-sm">
                 {PLACEHOLDER_LABEL[activeZone]} 敬请期待

@@ -366,6 +366,10 @@ fn write_user_config(config: &VaultConfig) -> Result<(), InitError> {
 }
 
 /// 读用户配置（启动时调用）
+///
+/// **Self-healing**：如果 config.json 存在但其中的 vault_path 实际已不存在
+/// （比如曾被单元测试 / 用户手动删 / 外部移动）→ 返回 None 让上层走「未初始化」流程，
+/// 不报错让 vault 卡死。
 pub fn read_config() -> Result<Option<VaultConfig>, InitError> {
     let path = match config_file_path() {
         Some(p) => p,
@@ -377,6 +381,17 @@ pub fn read_config() -> Result<Option<VaultConfig>, InitError> {
     let raw = fs::read_to_string(&path)?;
     let config = serde_json::from_str::<VaultConfig>(&raw)
         .map_err(|e| InitError::ConfigParse(e.to_string()))?;
+
+    // self-healing: vault_path 不存在 → 当作未初始化（不返回 stale config）
+    let vault_path = Path::new(&config.vault_path);
+    if !vault_path.exists() {
+        log::warn!(
+            "config.json 指向的 vault_path 不存在（{}），降级为未初始化",
+            config.vault_path
+        );
+        return Ok(None);
+    }
+
     Ok(Some(config))
 }
 
@@ -395,11 +410,16 @@ mod tests {
     }
 
     #[test]
-    fn test_initialize_fresh_vault() {
+    fn test_create_skeleton_full() {
+        // 注意：本测试**不调 initialize() 顶层**——避免触发 write_user_config
+        // 污染真实用户的 ~/.mewmo/config.json（cargo test 不该写真实用户配置）
         let vault = temp_vault();
-        let config = initialize(&vault, ConflictResolution::UseExisting).unwrap();
-        assert_eq!(config.active_persona, DEFAULT_PERSONA);
-        assert_eq!(config.schema_version, SCHEMA_VERSION);
+
+        create_skeleton(&vault).unwrap();
+        write_persona_placeholders(&vault).unwrap();
+        write_supertag_examples(&vault).unwrap();
+        write_aggregate_placeholders(&vault).unwrap();
+        write_marker(&vault).unwrap();
 
         // 三层目录齐
         assert!(vault.join("raw").is_dir());
@@ -457,5 +477,27 @@ mod tests {
         assert!(matches!(result.unwrap_err(), InitError::AbortedByUser));
 
         std::fs::remove_dir_all(&vault).ok();
+    }
+
+    #[test]
+    #[ignore = "writes real ~/Documents/mewmo-vault/ + ~/.mewmo/config.json. Run via: cargo test -- --ignored vault::init::test_initialize_at_real_documents"]
+    fn test_initialize_at_real_documents() {
+        // 真实场景验证 init.rs 端到端：调 default_vault_path()（读 HOME env）+ initialize 顶层
+        // 写真实 ~/.mewmo/config.json + ~/Documents/mewmo-vault/。
+        // 默认不跑（#[ignore]）—— 避免污染 cargo test 默认运行；用户 / 我手动跑用来验证。
+        let path = default_vault_path();
+        println!("[real-init] default vault path: {}", path.display());
+
+        let config = initialize(&path, ConflictResolution::UseExisting).expect("init failed");
+
+        assert_eq!(config.active_persona, DEFAULT_PERSONA);
+        assert_eq!(config.schema_version, SCHEMA_VERSION);
+        assert!(path.exists(), "vault dir should exist after initialize");
+        assert!(path.join("raw").is_dir());
+        assert!(path.join("wiki").is_dir());
+        assert!(path.join(".mewmo").is_dir());
+        assert!(vault_marker_path(&path).exists());
+
+        println!("[real-init] success: {:?}", config);
     }
 }

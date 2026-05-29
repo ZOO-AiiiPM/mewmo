@@ -1,12 +1,25 @@
-use rusqlite::{params, OptionalExtension};
+//! 剪藏 Tauri commands —— vault markdown 实现层
+//!
+//! spec 003-notes-clips-to-vault, T020-T024
+//!
+//! 中文站点专属字段（cdn_url_1_1 / publish_ts / ip_location）保留率 100%（FR-008 + SC-002）
+//! 沿用现有 clip_parser.rs 抓取逻辑，仅改写入路径
+
+use std::path::PathBuf;
+
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
-use crate::db::Db;
+use crate::vault::{
+    ingest::{self, ClipMeta},
+    init,
+    meta_db::VaultMetaDb,
+    query, search,
+};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Clip {
-    pub id: i64,
+    pub id: String,
     pub url: String,
     pub title: String,
     pub content_md: String,
@@ -14,12 +27,14 @@ pub struct Clip {
     pub excerpt: String,
     pub site_name: String,
     pub favicon_url: String,
+    pub saved_at: i64,
     pub cover_image: String,
     pub author: String,
+    /// ISO 8601 字符串
     pub published_at: String,
+    /// 公众号 / 知乎 IP 属地
     pub ip_region: String,
     pub tags_text: String,
-    pub saved_at: i64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -36,121 +51,159 @@ pub struct ClipInput {
     pub ip_region: String,
 }
 
+fn require_vault() -> Result<PathBuf, String> {
+    let cfg = init::read_config()
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "VAULT_NOT_INITIALIZED".to_string())?;
+    Ok(PathBuf::from(&cfg.vault_path))
+}
+
+fn iso_to_unix(iso: Option<&str>) -> i64 {
+    iso.and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+        .map(|dt| dt.timestamp())
+        .unwrap_or(0)
+}
+
+fn input_to_meta(input: &ClipInput) -> ClipMeta {
+    ClipMeta {
+        url: input.url.clone(),
+        site_name: opt_string(&input.site_name),
+        favicon_url: opt_string(&input.favicon_url),
+        excerpt: opt_string(&input.excerpt),
+        author: opt_string(&input.author),
+        publish_ts: opt_string(&input.published_at),
+        cover_url: opt_string(&input.cover_image),
+        ip_location: opt_string(&input.ip_region),
+        legacy_id: None,
+    }
+}
+
+fn opt_string(s: &str) -> Option<String> {
+    if s.is_empty() {
+        None
+    } else {
+        Some(s.to_string())
+    }
+}
+
+fn full_to_clip(full: query::ClipFull, body_loaded: bool) -> Clip {
+    let body = if body_loaded {
+        full.body
+    } else {
+        // 列表 mode 取前 240 字预览
+        let mut chars: String = full.body.chars().take(240).collect();
+        if full.body.chars().count() > 240 {
+            chars.push_str("...");
+        }
+        chars
+    };
+    let saved_at = if let Some(s) = full.saved_at.as_deref() {
+        iso_to_unix(Some(s))
+    } else {
+        full.mtime as i64
+    };
+    Clip {
+        id: full.slug,
+        url: full.url,
+        title: full.title,
+        content_md: body,
+        content_loaded: body_loaded,
+        excerpt: full.excerpt.unwrap_or_default(),
+        site_name: full.site_name.unwrap_or_default(),
+        favicon_url: full.favicon_url.unwrap_or_default(),
+        saved_at,
+        cover_image: full.cover_url.unwrap_or_default(),
+        author: full.author.unwrap_or_default(),
+        published_at: full.publish_ts.unwrap_or_default(),
+        ip_region: full.ip_location.unwrap_or_default(),
+        tags_text: full.tags.join(", "),
+    }
+}
+
 #[tauri::command]
-pub fn list_clips(db: State<Db>) -> Result<Vec<Clip>, String> {
-    let conn = db.conn.lock().map_err(|e| e.to_string())?;
-    let mut stmt = conn
-        .prepare(
-            "SELECT id, url, title, substr(content_md, 1, 240) AS content_md, 0 AS content_loaded, \
-                    excerpt, site_name, favicon_url, \
-                    cover_image, author, published_at, ip_region, '' AS tags_text, saved_at \
-             FROM clips ORDER BY saved_at DESC",
-        )
+pub async fn list_clips() -> Result<Vec<Clip>, String> {
+    let vault = match require_vault() {
+        Ok(p) => p,
+        Err(_) => return Ok(Vec::new()),
+    };
+    let summaries = query::list_clips(&vault)
+        .await
         .map_err(|e| e.to_string())?;
-    let rows = stmt
-        .query_map([], |row| {
-            Ok(Clip {
-                id: row.get(0)?,
-                url: row.get(1)?,
-                title: row.get(2)?,
-                content_md: row.get(3)?,
-                content_loaded: row.get::<_, i64>(4)? != 0,
-                excerpt: row.get(5)?,
-                site_name: row.get(6)?,
-                favicon_url: row.get(7)?,
-                cover_image: row.get(8)?,
-                author: row.get(9)?,
-                published_at: row.get(10)?,
-                ip_region: row.get(11)?,
-                tags_text: row.get(12)?,
-                saved_at: row.get(13)?,
-            })
-        })
+    // list 已含 url / site_name / excerpt / saved_at —— 但需要 ClipFull 字段更全
+    // 简化：每条单独 read（list_clips 内部已 read 过一次，性能可接受 dogfood 规模）
+    let mut out = Vec::with_capacity(summaries.len());
+    for s in summaries {
+        match query::get_clip(&vault, &s.slug).await {
+            Ok(full) => out.push(full_to_clip(full, false)),
+            Err(_) => continue, // 损坏单条跳过
+        }
+    }
+    Ok(out)
+}
+
+#[tauri::command]
+pub async fn get_clip(id: String) -> Result<Option<Clip>, String> {
+    let vault = match require_vault() {
+        Ok(p) => p,
+        Err(_) => return Ok(None),
+    };
+    match query::get_clip(&vault, &id).await {
+        Ok(full) => Ok(Some(full_to_clip(full, true))),
+        Err(crate::vault::io::IoError::FileNotFound(_)) => Ok(None),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+#[tauri::command]
+pub async fn save_clip(meta: State<'_, VaultMetaDb>, clip: ClipInput) -> Result<String, String> {
+    let vault = require_vault()?;
+    let cmeta = input_to_meta(&clip);
+    let r = ingest::write_clip(&vault, &clip.title, &clip.content_md, &[], &cmeta)
+        .await
         .map_err(|e| e.to_string())?;
-    rows.collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())
+    let full = query::get_clip(&vault, &r.slug)
+        .await
+        .map_err(|e| e.to_string())?;
+    search::index_one_clip(&meta.conn, &full).map_err(|e| e.to_string())?;
+    Ok(r.slug)
 }
 
 #[tauri::command]
-pub fn get_clip(db: State<Db>, id: i64) -> Result<Option<Clip>, String> {
-    let conn = db.conn.lock().map_err(|e| e.to_string())?;
-    conn.query_row(
-        "SELECT id, url, title, content_md, 1 AS content_loaded, excerpt, site_name, favicon_url, \
-                cover_image, author, published_at, ip_region, '' AS tags_text, saved_at \
-         FROM clips WHERE id = ?",
-        params![id],
-        |row| {
-            Ok(Clip {
-                id: row.get(0)?,
-                url: row.get(1)?,
-                title: row.get(2)?,
-                content_md: row.get(3)?,
-                content_loaded: row.get::<_, i64>(4)? != 0,
-                excerpt: row.get(5)?,
-                site_name: row.get(6)?,
-                favicon_url: row.get(7)?,
-                cover_image: row.get(8)?,
-                author: row.get(9)?,
-                published_at: row.get(10)?,
-                ip_region: row.get(11)?,
-                tags_text: row.get(12)?,
-                saved_at: row.get(13)?,
-            })
-        },
+pub async fn update_clip(
+    meta: State<'_, VaultMetaDb>,
+    id: String,
+    patch: ClipInput,
+) -> Result<(), String> {
+    let vault = require_vault()?;
+    let existing = query::get_clip(&vault, &id)
+        .await
+        .map_err(|e| e.to_string())?;
+    let cmeta = input_to_meta(&patch);
+    // body 通常含 H1（write_clip 时自动加），更新时 caller 传的 content_md 也可能有 H1，简化：直接传
+    ingest::update_clip(
+        &vault,
+        &id,
+        &patch.title,
+        &patch.content_md,
+        &existing.tags,
+        &cmeta,
+        None,
     )
-    .optional()
-    .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub fn save_clip(db: State<Db>, clip: ClipInput) -> Result<i64, String> {
-    let conn = db.conn.lock().map_err(|e| e.to_string())?;
-    let tokens = crate::db::tokenize(&clip.content_md);
-    conn.execute(
-        "INSERT INTO clips (url, title, content_md, content_tokens, excerpt, site_name, favicon_url, \
-                            cover_image, author, published_at, ip_region) \
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        params![
-            clip.url, clip.title, clip.content_md, tokens, clip.excerpt,
-            clip.site_name, clip.favicon_url, clip.cover_image,
-            clip.author, clip.published_at, clip.ip_region
-        ],
-    )
+    .await
     .map_err(|e| e.to_string())?;
-    Ok(conn.last_insert_rowid())
-}
-
-#[tauri::command]
-pub fn update_clip(db: State<Db>, id: i64, patch: ClipInput) -> Result<(), String> {
-    let conn = db.conn.lock().map_err(|e| e.to_string())?;
-    let tokens = crate::db::tokenize(&patch.content_md);
-    conn.execute(
-        "UPDATE clips SET url=?, title=?, content_md=?, content_tokens=?, excerpt=?, site_name=?, \
-                          favicon_url=?, cover_image=?, author=?, published_at=?, ip_region=? \
-         WHERE id=?",
-        params![
-            patch.url,
-            patch.title,
-            patch.content_md,
-            tokens,
-            patch.excerpt,
-            patch.site_name,
-            patch.favicon_url,
-            patch.cover_image,
-            patch.author,
-            patch.published_at,
-            patch.ip_region,
-            id
-        ],
-    )
-    .map_err(|e| e.to_string())?;
+    let full = query::get_clip(&vault, &id)
+        .await
+        .map_err(|e| e.to_string())?;
+    search::index_one_clip(&meta.conn, &full).map_err(|e| e.to_string())?;
     Ok(())
 }
 
 #[tauri::command]
-pub fn delete_clip(db: State<Db>, id: i64) -> Result<(), String> {
-    let conn = db.conn.lock().map_err(|e| e.to_string())?;
-    conn.execute("DELETE FROM clips WHERE id = ?", params![id])
+pub async fn delete_clip(meta: State<'_, VaultMetaDb>, id: String) -> Result<(), String> {
+    let vault = require_vault()?;
+    ingest::delete_clip(&vault, &id)
+        .await
         .map_err(|e| e.to_string())?;
+    search::delete_index_clip(&meta.conn, &id).map_err(|e| e.to_string())?;
     Ok(())
 }

@@ -44,45 +44,17 @@ pub fn get_app_data_dir(app: tauri::AppHandle) -> Result<String, String> {
 }
 
 /// 删除 attachments/ 下没被任何笔记引用的孤儿文件。
+///
+/// spec 003 切 vault 后 SQLite notes/clips 表已 drop，本函数原扫 SQLite 找引用的实现失效。
+/// 临时 short-circuit return 0（不扫不删，最安全 = 不误删用户 attachment）；
+/// 完整 vault markdown 引用扫描留 spec 004。
 #[tauri::command]
 pub fn cleanup_orphan_attachments(
-    app: tauri::AppHandle,
-    db: State<'_, Db>,
+    _app: tauri::AppHandle,
+    _db: State<'_, Db>,
 ) -> Result<usize, String> {
-    let dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| e.to_string())?
-        .join("attachments");
-
-    if !dir.exists() {
-        return Ok(0);
-    }
-
-    let referenced_files = referenced_attachment_files(&db)?;
-    let entries = std::fs::read_dir(&dir).map_err(|e| e.to_string())?;
-    let mut deleted = 0usize;
-
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if !path.is_file() {
-            continue;
-        }
-        let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
-            continue;
-        };
-        if referenced_files.contains(name) {
-            continue;
-        }
-        if modified_less_than_60_seconds_ago(&entry) {
-            continue;
-        }
-        if trash::delete(&path).is_ok() {
-            deleted += 1;
-        }
-    }
-
-    Ok(deleted)
+    // spec 003: SQLite notes/clips 已 drop，老逻辑无法跑；安全降级不扫不删
+    Ok(0)
 }
 
 fn referenced_attachment_files(db: &Db) -> Result<HashSet<String>, String> {

@@ -5,10 +5,8 @@
 //! - 所有 IO 操作经此模块（spec 002-vault-wiki-foundation contracts/vault-io-trait.md 8 个不变式）
 //!
 //! ## 当前实现状态
-//! 第一批已实现：frontmatter / slug / locks / meta_db
-//! T010-T013 待实现：io.rs 主体（write_atomic / append_to_aggregate / read / list / integrity_check）
-//! T032-T036 待 LLM 架构讨论后实现：ingest.rs
-//! Phase 1 实现：query.rs
+//! spec 002 已实现：frontmatter / init / io / locks / meta_db / slug
+//! spec 003 实施中：ingest / query / search（笔记/剪藏切到 vault markdown）
 
 pub mod frontmatter;
 pub mod init;
@@ -16,3 +14,8 @@ pub mod io;
 pub mod locks;
 pub mod meta_db;
 pub mod slug;
+
+// spec 003-notes-clips-to-vault 新增模块
+pub mod ingest;
+pub mod query;
+pub mod search;
