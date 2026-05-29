@@ -387,6 +387,15 @@ function removeLastRow(src: string): string {
   return lines.join('\n');
 }
 
+// 删除整张表：从 range.from 删到 widgetTo（含尾随换行，不留空行）。
+function deleteTableAtRange(view: EditorView, range: TableRange) {
+  view.dispatch({
+    changes: { from: range.from, to: range.widgetTo, insert: '' },
+    selection: { anchor: range.from },
+  });
+  view.focus();
+}
+
 // 给外部使用：在当前光标位置插入一个 rows×cols 的空白表格（rows 含表头）
 export function insertTable(view: EditorView, rows = 3, cols = 2) {
   const head = '|' + '   |'.repeat(cols);
@@ -529,6 +538,7 @@ class TableWidget extends WidgetType {
       changes: { from: range.from, to: range.to, insert: next },
     });
   }
+  // 删除整张表统一走 editor 层 contextmenu（tableContextMenu extension），widget 不再单挂
   private markdownFromDOM(wrap: HTMLElement): string | null {
     const tbl = wrap.querySelector('table.cm-md-table') as HTMLTableElement | null;
     if (!tbl) return null;
@@ -777,6 +787,11 @@ class TableWidget extends WidgetType {
     mkBtn('cm-md-table-remove-row', '−', '删除末行', () =>
       this.rewrite(view, wrap, src => removeLastRow(src))
     );
+    // 删除整张表：放 +行/−行 同排水平左侧（CSS 定位）。叉号跟 +/− 统一风格，hover 变红
+    mkBtn('cm-md-table-delete', '×', '删除整张表格', () => {
+      const range = this.locate(view, wrap);
+      if (range) deleteTableAtRange(view, range);
+    });
 
     return wrap;
   }

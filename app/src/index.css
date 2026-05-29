@@ -230,11 +230,12 @@ html.dark .live-md-editor .cm-md-table tbody tr:nth-child(even) td {
   background: rgba(255, 255, 255, 0.04);
 }
 
-/* +列 / −列 / +行 / −行 按钮：默认隐藏，hover wrap 时浮出 */
+/* +列 / −列 / +行 / −行 / 删表 按钮：默认隐藏，hover wrap 时浮出 */
 .live-md-editor .cm-md-table-add-col,
 .live-md-editor .cm-md-table-add-row,
 .live-md-editor .cm-md-table-remove-col,
-.live-md-editor .cm-md-table-remove-row {
+.live-md-editor .cm-md-table-remove-row,
+.live-md-editor .cm-md-table-delete {
   position: absolute;
   width: 22px;
   height: 22px;
@@ -268,10 +269,16 @@ html.dark .live-md-editor .cm-md-table tbody tr:nth-child(even) td {
   bottom: -28px;
   left: calc(50% + 14px);
 }
+/* 删表 icon：跟 +行/−行 同排（bottom: -28px），水平在它们左侧（+行 左缘再往左一个按钮位 + 6px 间隙） */
+.live-md-editor .cm-md-table-delete {
+  bottom: -28px;
+  left: calc(50% - 42px);
+}
 .live-md-editor .cm-md-table-wrap:hover .cm-md-table-add-col,
 .live-md-editor .cm-md-table-wrap:hover .cm-md-table-add-row,
 .live-md-editor .cm-md-table-wrap:hover .cm-md-table-remove-col,
-.live-md-editor .cm-md-table-wrap:hover .cm-md-table-remove-row {
+.live-md-editor .cm-md-table-wrap:hover .cm-md-table-remove-row,
+.live-md-editor .cm-md-table-wrap:hover .cm-md-table-delete {
   opacity: 1;
 }
 .live-md-editor .cm-md-table-add-col:hover,
@@ -280,7 +287,8 @@ html.dark .live-md-editor .cm-md-table tbody tr:nth-child(even) td {
   color: #2563eb;
 }
 .live-md-editor .cm-md-table-remove-col:hover,
-.live-md-editor .cm-md-table-remove-row:hover {
+.live-md-editor .cm-md-table-remove-row:hover,
+.live-md-editor .cm-md-table-delete:hover {
   background: rgba(239, 68, 68, 0.15);
   color: #dc2626;
 }
