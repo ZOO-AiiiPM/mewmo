@@ -27,6 +27,7 @@ const MIGRATIONS: &[(u32, &str)] = &[
     (4, include_str!("migrations/v4_search.sql")),
     (6, include_str!("migrations/v6_subscription.sql")),
     (7, include_str!("migrations/v7_clip_ip_region.sql")),
+    (8, include_str!("migrations/v8_drop_notes_clips.sql")),
 ];
 
 pub fn init(app: &AppHandle) -> Result<Db, String> {

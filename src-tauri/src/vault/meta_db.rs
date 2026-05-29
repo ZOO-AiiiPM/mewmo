@@ -16,6 +16,7 @@ use std::sync::Mutex;
 /// 每条 migration 在事务内跑，失败回滚。
 const MIGRATIONS: &[(u32, &str)] = &[
     (1, include_str!("../migrations/vault_meta_v1.sql")),
+    (2, include_str!("../migrations/vault_meta_v2_fts_index.sql")),
 ];
 
 pub struct VaultMetaDb {
@@ -79,16 +80,17 @@ mod tests {
     }
 
     #[test]
-    fn test_init_creates_db_and_runs_v1() {
+    fn test_init_creates_db_and_runs_migrations() {
         let vault = temp_vault();
         let db = init(&vault).unwrap();
         let conn = db.conn.lock().unwrap();
         let v: i64 = conn
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .unwrap();
-        assert_eq!(v, 1);
+        // 当前最新 migration version（每次新增 migration 这里同步更新）
+        assert_eq!(v, 2, "应跑到最新 migration（v1 + v2 FTS index）");
 
-        // 验证 4 张表都存在
+        // 验证 v1 4 张表都存在
         for table in &["feed_stream", "activity_events", "notification_log", "cat_memory_metadata"] {
             let exists: bool = conn
                 .query_row(
@@ -98,6 +100,18 @@ mod tests {
                 )
                 .unwrap_or(false);
             assert!(exists, "表 {} 应存在", table);
+        }
+
+        // 验证 v2 FTS5 表 + indexed_files 存在
+        for table in &["notes_fts", "clips_fts", "indexed_files"] {
+            let exists: bool = conn
+                .query_row(
+                    "SELECT 1 FROM sqlite_master WHERE name=?1",
+                    [table],
+                    |_| Ok(true),
+                )
+                .unwrap_or(false);
+            assert!(exists, "v2 表 {} 应存在", table);
         }
 
         std::fs::remove_dir_all(&vault).ok();

@@ -1,5 +1,5 @@
 export type Note = {
-  id: number;
+  id: string;
   title: string;
   content_md: string;
   content_loaded?: boolean;
@@ -9,7 +9,7 @@ export type Note = {
 };
 
 export type Clip = {
-  id: number;
+  id: string;
   url: string;
   title: string;
   content_md: string;
@@ -28,14 +28,14 @@ export type Clip = {
 // ── 搜索 ──────────────────────────────────────────────────────────────────
 
 export type NoteHit = {
-  id: number;
+  id: string;
   title_html: string;    // 含 <mark> 高亮
   snippet: string;       // 32 字上下文 + <mark>
   updated_at: number;
 };
 
 export type ClipHit = {
-  id: number;
+  id: string;
   title_html: string;
   site_name: string;
   author: string;

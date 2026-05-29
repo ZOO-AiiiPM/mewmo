@@ -1,30 +1,30 @@
 import type { Note, Clip, SearchResults } from '../types';
 import { call } from './tauriCall';
 
-// DB access is routed through Tauri invoke commands; Rust owns SQLite CRUD.
+// DB access is routed through Tauri invoke commands; Rust owns vault markdown CRUD.
 // 接口签名保持不变 → 组件代码（listNotes() / createNote() / ...）零改动。
-// __TAURI_INTERNALS__ 注入时序窗口的 retry 由 tauriCall.ts 的 call<T> 统一处理。
+// spec 003-notes-clips-to-vault: id 类型从 number → string（vault slug），其余不变。
 
 export async function listNotes(): Promise<Note[]> {
   return call<Note[]>('list_notes');
 }
 
-export async function getNote(id: number): Promise<Note | null> {
+export async function getNote(id: string): Promise<Note | null> {
   return call<Note | null>('get_note', { id });
 }
 
-export async function createNote(): Promise<number> {
-  return call<number>('create_note');
+export async function createNote(): Promise<string> {
+  return call<string>('create_note');
 }
 
 export async function updateNote(
-  id: number,
+  id: string,
   patch: { title?: string; content_md?: string }
 ): Promise<void> {
   return call<void>('update_note', { id, patch });
 }
 
-export async function deleteNote(id: number): Promise<void> {
+export async function deleteNote(id: string): Promise<void> {
   return call<void>('delete_note', { id });
 }
 
@@ -34,22 +34,22 @@ export async function listClips(): Promise<Clip[]> {
   return call<Clip[]>('list_clips');
 }
 
-export async function getClip(id: number): Promise<Clip | null> {
+export async function getClip(id: string): Promise<Clip | null> {
   return call<Clip | null>('get_clip', { id });
 }
 
 export async function saveClip(
   clip: Omit<Clip, 'id' | 'saved_at' | 'tags_text'>
-): Promise<number> {
-  return call<number>('save_clip', { clip });
+): Promise<string> {
+  return call<string>('save_clip', { clip });
 }
 
-export async function deleteClip(id: number): Promise<void> {
+export async function deleteClip(id: string): Promise<void> {
   return call<void>('delete_clip', { id });
 }
 
 export async function updateClip(
-  id: number,
+  id: string,
   patch: Omit<Clip, 'id' | 'saved_at' | 'tags_text'>
 ): Promise<void> {
   return call<void>('update_clip', { id, patch });

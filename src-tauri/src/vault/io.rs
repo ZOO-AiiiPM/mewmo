@@ -17,6 +17,7 @@ use std::time::UNIX_EPOCH;
 
 use atomicwrites::{AtomicFile, OverwriteBehavior};
 use once_cell::sync::Lazy;
+use serde::Serialize;
 use tokio::sync::Mutex as TokioMutex;
 
 use super::frontmatter::{self, FrontmatterData};
@@ -27,7 +28,7 @@ use super::locks::{self, LockError};
 // ============================================================================
 
 /// 读结果（含 frontmatter typed view + 正文 + mtime）
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct ReadResult {
     pub frontmatter: Option<FrontmatterData>,
     pub body: String,
@@ -35,7 +36,7 @@ pub struct ReadResult {
 }
 
 /// list-summary-loading 模式：摘要不含完整 body（按需 read 加载）
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct EntrySummary {
     pub relative_path: String,
     pub kind: Option<String>,
@@ -85,7 +86,7 @@ static ABOUT_USER_MUTEX: Lazy<TokioMutex<()>> = Lazy::new(|| TokioMutex::new(())
 static TAGS_INDEX_MUTEX: Lazy<TokioMutex<()>> = Lazy::new(|| TokioMutex::new(()));
 
 /// vault 完整性检查报告（启动时调用 + lint 时调用）
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct IntegrityReport {
     pub vault_exists: bool,
     pub critical_dirs_present: Vec<String>,
