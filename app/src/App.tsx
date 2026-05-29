@@ -4,6 +4,8 @@ import { Sidebar, type Zone } from './components/Sidebar';
 import { TabBar, type Tab as TabPillModel } from './components/TabBar';
 import { NoteList } from './components/NoteList';
 import { NoteEditor } from './components/NoteEditor';
+import { HtmlReader } from './components/HtmlReader';
+import { ImportHtmlDialog } from './components/ImportHtmlDialog';
 import { ClipInbox } from './components/ClipInbox';
 import { ClipReader } from './components/ClipReader';
 import { EmptyTabHome } from './components/EmptyTabHome';
@@ -41,8 +43,8 @@ import { VaultLayout } from './components/vault/VaultLayout';
 type Tab = {
   id: string;
   zone: Zone | null;        // null = empty tab → 引导页
-  refId: number | null;     // notes/clipping 时绑定的文档 id
-  noteHistoryState: HistoryState<number>; // notes zone 笔记浏览历史，订阅区共用 lib/historyStack
+  refId: string | null;     // notes/clipping 时绑定的文档 id（vault slug，spec 003）
+  noteHistoryState: HistoryState<string>; // notes zone 笔记浏览历史，订阅区共用 lib/historyStack
 };
 
 const PLACEHOLDER_LABEL: Record<Zone, string> = {
@@ -63,6 +65,8 @@ export default function App() {
   const [entries, setEntries] = useState<FeedEntry[]>([]);
   const [entryBrowse, setEntryBrowse] = useState<HistoryState<FeedEntry>>(emptyHistory());
   const [refreshingSubs, setRefreshingSubs] = useState(false);
+  // HTML 导入对话框 state（NoteEditor / HtmlReader toolbar 触发）
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [aiOpen, setAiOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -72,11 +76,11 @@ export default function App() {
   const [searchOverlayOpen, setSearchOverlayOpen] = useState(false);
 
   // ── Tab 状态机 ────────────────────────────────────────────────────────────
-  const [tabs, setTabs] = useState<Tab[]>([{ id: 'tab_1', zone: null, refId: null, noteHistoryState: emptyHistory<number>() }]);
+  const [tabs, setTabs] = useState<Tab[]>([{ id: 'tab_1', zone: null, refId: null, noteHistoryState: emptyHistory<string>() }]);
   const [activeTabId, setActiveTabId] = useState<string>('tab_1');
   const tabIdSeqRef = useRef(2);
-  const loadingNoteIdsRef = useRef(new Set<number>());
-  const loadingClipIdsRef = useRef(new Set<number>());
+  const loadingNoteIdsRef = useRef(new Set<string>());
+  const loadingClipIdsRef = useRef(new Set<string>());
 
   const activeTab = useMemo(
     () => tabs.find(t => t.id === activeTabId) ?? null,
@@ -94,7 +98,7 @@ export default function App() {
 
   const addEmptyTab = useCallback(() => {
     const id = `tab_${tabIdSeqRef.current++}`;
-    setTabs(prev => [...prev, { id, zone: null, refId: null, noteHistoryState: emptyHistory<number>() }]);
+    setTabs(prev => [...prev, { id, zone: null, refId: null, noteHistoryState: emptyHistory<string>() }]);
     setActiveTabId(id);
   }, []);
 
@@ -107,7 +111,7 @@ export default function App() {
       if (next.length === 0) {
         const newId = `tab_${tabIdSeqRef.current++}`;
         setActiveTabId(newId);
-        return [{ id: newId, zone: null, refId: null, noteHistoryState: emptyHistory<number>() }];
+        return [{ id: newId, zone: null, refId: null, noteHistoryState: emptyHistory<string>() }];
       }
 
       // 关掉的是 active：跳到右邻，无右则左邻
@@ -244,7 +248,7 @@ export default function App() {
   const entryCanBack = canGoBack(entryBrowse);
   const entryCanForward = canGoForward(entryBrowse);
 
-  const ensureNoteLoaded = useCallback(async (id: number) => {
+  const ensureNoteLoaded = useCallback(async (id: string) => {
     if (loadingNoteIdsRef.current.has(id)) return;
     const current = notes.find(n => n.id === id);
     if (!current || current.content_loaded) return;
@@ -261,7 +265,7 @@ export default function App() {
     }
   }, [notes]);
 
-  const ensureClipLoaded = useCallback(async (id: number) => {
+  const ensureClipLoaded = useCallback(async (id: string) => {
     if (loadingClipIdsRef.current.has(id)) return;
     const current = clips.find(c => c.id === id);
     if (!current || current.content_loaded) return;
@@ -308,50 +312,82 @@ export default function App() {
   // ── 笔记操作 ──────────────────────────────────────────────────────────────
   // 刚创建的笔记 id 标记：仅 NoteEditor 切到这条时触发 fade 动画，用完即清
   // （单纯靠"内容空"反推会误命中其他空笔记，必须显式信号）
-  const [newlyCreatedNoteId, setNewlyCreatedNoteId] = useState<number | null>(null);
+  const [newlyCreatedNoteId, setNewlyCreatedNoteId] = useState<string | null>(null);
   const consumeNewlyCreated = useCallback(() => setNewlyCreatedNoteId(null), []);
 
   const handleCreateAndBind = useCallback(async () => {
     const id = await createNote();
-    await refresh();
+    // 不调 refresh()——refresh 把所有笔记 content_md 重置成 list 模式（content_loaded=false, content_md=''）
+    // 会覆盖用户在另一条笔记里已编辑但还没 flush 的 in-memory 内容。
+    // 改 optimistic prepend：直接把新笔记 mock 进 list 头部（title 用 slug 当 macOS 风格 file stem 显示）
+    const now = Math.floor(Date.now() / 1000);
+    setNotes(prev => [
+      {
+        id,
+        title: id,
+        content_md: '',
+        content_loaded: true,
+        tags_text: '',
+        created_at: now,
+        updated_at: now,
+      },
+      ...prev,
+    ]);
     setTabs(prev =>
       prev.map(t => {
         if (t.id !== activeTabId) return t;
-        // 新建笔记也算一次浏览：pushHistory 会截断 forward 之后追加新 id
         return { ...t, zone: 'notes', refId: id, noteHistoryState: pushHistory(t.noteHistoryState, id) };
       })
     );
     setNewlyCreatedNoteId(id);
-    setNotes(prev => prev.map(n => (n.id === id ? { ...n, content_md: '', content_loaded: true } : n)));
-  }, [refresh, activeTabId]);
+  }, [activeTabId]);
 
   const handleUpdateNote = useCallback(
-    async (patch: { title?: string; content_md?: string }, targetNoteId?: number) => {
+    async (patch: { title?: string; content_md?: string }, targetNoteId?: string) => {
       // 切笔记的 race：NoteEditor 在切换前 flush 旧 note 的 pending 时显式传旧 id，
       // 避免 onChange 默认走 activeTab.refId（已是新 id）把内容写到新笔记
       const noteId = targetNoteId ?? (
         activeTab?.zone === 'notes' && activeTab.refId != null ? activeTab.refId : null
       );
       if (noteId == null) return;
-      await updateNote(noteId, patch);
+      // 后端可能因 title 改 rename 文件 → slug 变 → 返回新 slug，前端 state/history 跟着替
+      const newSlug = await updateNote(noteId, patch);
+      const slugChanged = newSlug !== noteId;
       setNotes(prev =>
         prev.map(n =>
           n.id === noteId
             ? {
                 ...n,
                 ...patch,
+                id: newSlug,
                 content_loaded: n.content_loaded || patch.content_md !== undefined,
                 updated_at: Math.floor(Date.now() / 1000),
               }
             : n
         )
       );
+      if (slugChanged) {
+        setTabs(prev =>
+          prev.map(t => {
+            if (t.zone !== 'notes') return t;
+            return {
+              ...t,
+              refId: t.refId === noteId ? newSlug : t.refId,
+              noteHistoryState: {
+                ...t.noteHistoryState,
+                history: t.noteHistoryState.history.map(h => (h === noteId ? newSlug : h)),
+              },
+            };
+          })
+        );
+        setNewlyCreatedNoteId(prev => (prev === noteId ? newSlug : prev));
+      }
     },
     [activeTab]
   );
 
   const handleDeleteNote = useCallback(
-    async (id: number) => {
+    async (id: string) => {
       // 删除前 capture 邻接 id（按当前列表顺序——更新时间倒序）：
       // 优先下一项；如果删的是末尾就用上一项；列表只剩它自己 → null
       const oldIdx = notes.findIndex(n => n.id === id);
@@ -393,7 +429,7 @@ export default function App() {
     );
   }, [refreshClips, activeTabId]);
 
-  const handleClipDelete = useCallback(async (id: number) => {
+  const handleClipDelete = useCallback(async (id: string) => {
     await deleteClip(id);
     await refreshClips();
     setTabs(prev =>
@@ -483,7 +519,7 @@ export default function App() {
     updateActiveTab({ zone, refId: null });
   }, [updateActiveTab]);
 
-  const handleNoteSelect = useCallback((id: number) => {
+  const handleNoteSelect = useCallback((id: string) => {
     setTabs(prev =>
       prev.map(t => {
         if (t.id !== activeTabId) return t;
@@ -512,7 +548,7 @@ export default function App() {
     );
   }, [activeTabId]);
 
-  const handleClipSelect = useCallback((id: number) => {
+  const handleClipSelect = useCallback((id: string) => {
     updateActiveTab({ zone: 'clipping', refId: id });
   }, [updateActiveTab]);
 
@@ -626,22 +662,39 @@ export default function App() {
                 onExpand={() => setExpanded(e => !e)}
               />
             ) : activeZone === 'notes' ? (
-              <NoteEditor
-                note={selectedNoteReady}
-                onChange={handleUpdateNote}
-                theme={theme}
-                onDelete={() => selectedNote && handleDeleteNote(selectedNote.id)}
-                onCreate={handleCreateAndBind}
-                aiOpen={aiOpen}
-                expanded={expanded}
-                onExpand={() => setExpanded(e => !e)}
-                canBack={canBack}
-                canForward={canForward}
-                onBack={handleNoteBack}
-                onForward={handleNoteForward}
-                newlyCreatedId={newlyCreatedNoteId}
-                onCreateAnimDone={consumeNewlyCreated}
-              />
+              selectedNoteReady?.format === 'html' ? (
+                <HtmlReader
+                  note={selectedNoteReady}
+                  aiOpen={aiOpen}
+                  expanded={expanded}
+                  onExpand={() => setExpanded(e => !e)}
+                  onDelete={() => selectedNote && handleDeleteNote(selectedNote.id)}
+                  onCreate={handleCreateAndBind}
+                  onImport={() => setImportDialogOpen(true)}
+                  canBack={canBack}
+                  canForward={canForward}
+                  onBack={handleNoteBack}
+                  onForward={handleNoteForward}
+                />
+              ) : (
+                <NoteEditor
+                  note={selectedNoteReady}
+                  onChange={handleUpdateNote}
+                  theme={theme}
+                  onDelete={() => selectedNote && handleDeleteNote(selectedNote.id)}
+                  onCreate={handleCreateAndBind}
+                  onImport={() => setImportDialogOpen(true)}
+                  aiOpen={aiOpen}
+                  expanded={expanded}
+                  onExpand={() => setExpanded(e => !e)}
+                  canBack={canBack}
+                  canForward={canForward}
+                  onBack={handleNoteBack}
+                  onForward={handleNoteForward}
+                  newlyCreatedId={newlyCreatedNoteId}
+                  onCreateAnimDone={consumeNewlyCreated}
+                />
+              )
             ) : activeZone === 'subscribe' ? (
               <EntryReader
                 entry={currentEntry}
@@ -709,6 +762,15 @@ export default function App() {
           setSearchOverlayOpen(false);
         }}
         onClose={() => setSearchOverlayOpen(false)}
+      />
+
+      {/* HTML 导入对话框：NoteEditor / HtmlReader toolbar 触发 */}
+      <ImportHtmlDialog
+        open={importDialogOpen}
+        onClose={() => setImportDialogOpen(false)}
+        onImported={async () => {
+          await refresh();
+        }}
       />
     </div>
   );

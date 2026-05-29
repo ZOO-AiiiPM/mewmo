@@ -9,12 +9,17 @@
 //! - `get_clip(vault, slug) -> ClipFull`
 //!
 //! 内部走 spec 002 已实现的 [`vault::io::read`] / [`vault::io::list`]（解析 frontmatter）。
+//!
+//! HTML 笔记导入（spec 003+）：list_notes 同时扫 wiki/notes/*.html，get_note 在 .md
+//! 缺时回退 .html。HTML 不带 frontmatter，title 从 `<title>` / `<h1>` / 文件名 stem 推。
 
 use std::path::Path;
+use std::time::UNIX_EPOCH;
 
 use serde::Serialize;
 
 use super::io;
+use super::ingest;
 
 // ============================================================================
 // Public types（commands::notes / clips 的 typed view）
@@ -26,6 +31,8 @@ pub struct NoteSummary {
     pub title: String,
     pub tags: Vec<String>,
     pub mtime: u64,
+    /// "md"（标准笔记）或 "html"（外部 HTML 文件导入）
+    pub format: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -38,6 +45,8 @@ pub struct NoteFull {
     pub updated: Option<String>,
     pub mtime: u64,
     pub legacy_id: Option<i64>,
+    /// "md" 或 "html"。HTML 笔记的 body 是原始 HTML 字符串（前端 sanitize 后渲染）
+    pub format: String,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -76,7 +85,7 @@ pub struct ClipFull {
 // Note operations
 // ============================================================================
 
-/// 列出 `<vault>/wiki/notes/*.md`，按 mtime 倒序
+/// 列出 `<vault>/wiki/notes/*.md`（user-note 类型）+ `*.html`（HTML 笔记导入），按 mtime 倒序
 pub async fn list_notes(vault: &Path) -> Result<Vec<NoteSummary>, io::IoError> {
     let entries = io::list(vault, "wiki/notes", false, Some("user-note")).await?;
     let mut summaries: Vec<NoteSummary> = entries
@@ -86,28 +95,99 @@ pub async fn list_notes(vault: &Path) -> Result<Vec<NoteSummary>, io::IoError> {
             title: e.title.unwrap_or_else(|| "无标题".to_string()),
             tags: e.tags,
             mtime: e.mtime,
+            format: "md".to_string(),
         })
         .collect();
+
+    // 追加扫 wiki/notes/*.html（io::list 只认 .md，HTML 笔记单独走文件系统枚举）
+    let dir = vault.join("wiki/notes");
+    if dir.is_dir() {
+        if let Ok(entries) = std::fs::read_dir(&dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().and_then(|s| s.to_str()) != Some("html") {
+                    continue;
+                }
+                let stem = match path.file_stem().and_then(|s| s.to_str()) {
+                    Some(s) if !s.is_empty() => s.to_string(),
+                    _ => continue,
+                };
+                let mtime = entry
+                    .metadata()
+                    .ok()
+                    .and_then(|m| m.modified().ok())
+                    .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+                    .map(|d| d.as_secs())
+                    .unwrap_or(0);
+                // title：HTML <title> / <h1> 优先，缺则用文件 stem
+                let title = std::fs::read_to_string(&path)
+                    .ok()
+                    .and_then(|html| ingest::extract_html_title(&html))
+                    .unwrap_or_else(|| stem.clone());
+                summaries.push(NoteSummary {
+                    slug: stem,
+                    title,
+                    tags: Vec::new(),
+                    mtime,
+                    format: "html".to_string(),
+                });
+            }
+        }
+    }
+
     summaries.sort_by(|a, b| b.mtime.cmp(&a.mtime));
     Ok(summaries)
 }
 
-/// 读单条笔记完整内容
+/// 读单条笔记完整内容（先尝试 .md，缺则尝试 .html）
 pub async fn get_note(vault: &Path, slug: &str) -> Result<NoteFull, io::IoError> {
-    let relative = format!("wiki/notes/{}.md", slug);
-    let r = io::read(vault, &relative).await?;
-    let fm = r.frontmatter.unwrap_or_default();
-    let title = first_h1(&r.body).unwrap_or_else(|| slug.to_string());
-    let legacy_id = fm.extra.get("legacy_id").and_then(|v| v.as_i64());
+    let md_relative = format!("wiki/notes/{}.md", slug);
+    let md_path = vault.join(&md_relative);
+
+    if md_path.exists() {
+        let r = io::read(vault, &md_relative).await?;
+        let fm = r.frontmatter.unwrap_or_default();
+        let title = first_h1(&r.body).unwrap_or_else(|| slug.to_string());
+        let legacy_id = fm.extra.get("legacy_id").and_then(|v| v.as_i64());
+        return Ok(NoteFull {
+            slug: slug.to_string(),
+            title,
+            body: r.body,
+            tags: fm.tags,
+            created: fm.created,
+            updated: fm.updated,
+            mtime: r.mtime,
+            legacy_id,
+            format: "md".to_string(),
+        });
+    }
+
+    // .md 不存在 → 尝试 .html
+    let html_relative = format!("wiki/notes/{}.html", slug);
+    let html_path = vault.join(&html_relative);
+    if !html_path.exists() {
+        return Err(io::IoError::FileNotFound(slug.to_string()));
+    }
+    let html = std::fs::read_to_string(&html_path).map_err(io::IoError::Io)?;
+    let mtime = html_path
+        .metadata()
+        .map_err(io::IoError::Io)?
+        .modified()
+        .map_err(io::IoError::Io)?
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let title = ingest::extract_html_title(&html).unwrap_or_else(|| slug.to_string());
     Ok(NoteFull {
         slug: slug.to_string(),
         title,
-        body: r.body,
-        tags: fm.tags,
-        created: fm.created,
-        updated: fm.updated,
-        mtime: r.mtime,
-        legacy_id,
+        body: html, // 前端 sanitize + dangerouslySetInnerHTML
+        tags: Vec::new(),
+        created: None,
+        updated: None,
+        mtime,
+        legacy_id: None,
+        format: "html".to_string(),
     })
 }
 

@@ -173,14 +173,13 @@ pub async fn update_clip(
     meta: State<'_, VaultMetaDb>,
     id: String,
     patch: ClipInput,
-) -> Result<(), String> {
+) -> Result<String, String> {
     let vault = require_vault()?;
     let existing = query::get_clip(&vault, &id)
         .await
         .map_err(|e| e.to_string())?;
     let cmeta = input_to_meta(&patch);
-    // body 通常含 H1（write_clip 时自动加），更新时 caller 传的 content_md 也可能有 H1，简化：直接传
-    ingest::update_clip(
+    let r = ingest::update_clip(
         &vault,
         &id,
         &patch.title,
@@ -191,11 +190,14 @@ pub async fn update_clip(
     )
     .await
     .map_err(|e| e.to_string())?;
-    let full = query::get_clip(&vault, &id)
+    if r.slug != id {
+        search::delete_index_clip(&meta.conn, &id).map_err(|e| e.to_string())?;
+    }
+    let full = query::get_clip(&vault, &r.slug)
         .await
         .map_err(|e| e.to_string())?;
     search::index_one_clip(&meta.conn, &full).map_err(|e| e.to_string())?;
-    Ok(())
+    Ok(r.slug)
 }
 
 #[tauri::command]

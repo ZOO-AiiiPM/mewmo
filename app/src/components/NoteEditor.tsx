@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import CodeMirror, { type ReactCodeMirrorRef } from '@uiw/react-codemirror';
-import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
+import { markdown, markdownLanguage, insertNewlineContinueMarkup } from '@codemirror/lang-markdown';
 import { EditorView, keymap } from '@codemirror/view';
 import type { ViewUpdate } from '@codemirror/view';
 import { EditorSelection, Prec } from '@codemirror/state';
@@ -16,10 +16,11 @@ import type { Note } from '../types';
 
 type Props = {
   note: Note | null;
-  onChange: (patch: { title?: string; content_md?: string }, targetNoteId?: number) => void;
+  onChange: (patch: { title?: string; content_md?: string }, targetNoteId?: string) => void;
   theme: 'light' | 'dark';
   onDelete: () => void;
   onCreate: () => void;
+  onImport: () => void;
   aiOpen: boolean;
   expanded: boolean;
   onExpand: () => void;
@@ -28,7 +29,7 @@ type Props = {
   onBack: () => void;
   onForward: () => void;
   // 父层标记的"刚通过新建按钮创建的笔记 id"——只有切到这条才触发 fade 动画
-  newlyCreatedId: number | null;
+  newlyCreatedId: string | null;
   // fade 完成后通知父层清掉标记，避免再切回这条还触发动画
   onCreateAnimDone: () => void;
 };
@@ -142,11 +143,13 @@ const noSpellcheck = EditorView.contentAttributes.of({
   autocapitalize: 'off',
 });
 
-export function NoteEditor({ note, onChange, theme, onDelete, onCreate, aiOpen, expanded, onExpand, canBack, canForward, onBack, onForward, newlyCreatedId, onCreateAnimDone }: Props) {
+export function NoteEditor({ note, onChange, theme, onDelete, onCreate, onImport, aiOpen, expanded, onExpand, canBack, canForward, onBack, onForward, newlyCreatedId, onCreateAnimDone }: Props) {
   const noteId = note?.id;
   // content 用 debounce 避免连续打字每键都写 DB；title 短、改完会停 → 直接 onChange 即时保存
   const contentDebounceRef = useRef<number | null>(null);
-  const lastNoteIdRef = useRef<number | null>(null);
+  const titleDebounceRef = useRef<number | null>(null);
+  const titlePendingRef = useRef<string | null>(null);
+  const lastNoteIdRef = useRef<string | null>(null);
   const cmRef = useRef<ReactCodeMirrorRef>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -165,7 +168,7 @@ export function NoteEditor({ note, onChange, theme, onDelete, onCreate, aiOpen, 
   };
 
   // 立即把 content 待写值写入（切笔记前用；targetId 显式传旧 id 修 race）
-  const flushContent = useCallback((targetId?: number) => {
+  const flushContent = useCallback((targetId?: string) => {
     if (contentDebounceRef.current) {
       window.clearTimeout(contentDebounceRef.current);
       contentDebounceRef.current = null;
@@ -177,14 +180,32 @@ export function NoteEditor({ note, onChange, theme, onDelete, onCreate, aiOpen, 
     }
   }, [onChange]);
 
+  // 立即把 title 待写值写入。title 改可能触发后端 rename slug（Obsidian 风格），
+  // 用 debounce 避免每按一字符就 rename + setNotes 改 id + key={note.id} 触发 input 重建打断 IME。
+  const flushTitle = useCallback((targetId?: string) => {
+    if (titleDebounceRef.current) {
+      window.clearTimeout(titleDebounceRef.current);
+      titleDebounceRef.current = null;
+    }
+    const value = titlePendingRef.current;
+    titlePendingRef.current = null;
+    const id = targetId ?? lastNoteIdRef.current;
+    if (value !== null && id != null) {
+      // flush body pending 到同一 id 再走 title rename：rename 后旧 slug 失效，body pending 必须先落
+      flushContent(id);
+      onChange({ title: value }, id);
+    }
+  }, [onChange, flushContent]);
+
   useEffect(() => {
     if (!note || note.id === lastNoteIdRef.current) return;
 
-    // 切笔记前 flush 旧 note 的 content pending 到旧 id（修 race：
+    // 切笔记前 flush 旧 note 的 title / content pending 到旧 id（修 race：
     // 默认 onChange 走 activeTab.refId，但已被改成新 id → 必须显式传 prevId）
     const prevId = lastNoteIdRef.current;
-    if (prevId !== null && contentDebounceRef.current) {
-      flushContent(prevId);
+    if (prevId !== null) {
+      if (titleDebounceRef.current) flushTitle(prevId);
+      if (contentDebounceRef.current) flushContent(prevId);
     }
 
     // 替换 CM 内容 + 处理 focus 的实际工作
@@ -194,16 +215,19 @@ export function NoteEditor({ note, onChange, theme, onDelete, onCreate, aiOpen, 
       const content = note.content_md ?? '';
       view.dispatch({
         changes: { from: 0, to: view.state.doc.length, insert: content },
-        // 光标放到文档末尾，避免落在首行（首行常是表格 / 标题）让 livePreview 误判"用户在编辑首块"而不渲染 widget
-        selection: { anchor: content.length },
-        scrollIntoView: true,
+        // 切笔记永远从顶部展示：cursor 放 0；显式 scrollDOM.scrollTop = 0 兜底置顶。
+        // 副作用：首行若是 markdown widget（表格 / H1），livePreview 看 cursor 在该行
+        // → 显示原文不渲染。用户点别处一次 widget 就回来。「打开就置顶」优先于「首行立即渲染 widget」。
+        selection: { anchor: 0 },
       });
-      // 空笔记（新建或本就空）→ 光标落 title；否则 → body 编辑器
+      view.scrollDOM.scrollTop = 0;
       // 仅在没有其它输入控件已聚焦时（例如用户正在打 title）才抢，避免打断用户
       if (document.activeElement === document.body || document.activeElement === null) {
-        const isEmpty = !note.title && !content;
-        if (isEmpty && titleInputRef.current) {
+        // 新建笔记 → 全选 title input，用户直接打字覆盖默认 slug 命名（macOS Finder 风格）
+        const isNewlyCreated = newlyCreatedId === note.id;
+        if (isNewlyCreated && titleInputRef.current) {
           titleInputRef.current.focus();
+          titleInputRef.current.select();
         } else {
           view.focus();
         }
@@ -247,9 +271,15 @@ export function NoteEditor({ note, onChange, theme, onDelete, onCreate, aiOpen, 
     }, 1000);
   };
 
-  // title 不 debounce：直接同步写入，列表/Tab 标题立即反映
+  // title onChange debounce 600ms 后才调后端 update_note —— Obsidian 风格 rename 让 setNotes
+  // 改 id，input 上 key={note.id} 会触发重建。如果每按一字符就 rename，IME 中文输入会被
+  // 多次打断（「需求」可能只输到「需」就重建 input 丢光标）。debounce 让连续输入合并到一次。
+  // 代价：list / tab 标题显示有 ~600ms 延迟（input 自己受控显示即时）。
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onChange({ title: e.target.value });
+    const value = e.target.value;
+    titlePendingRef.current = value;
+    if (titleDebounceRef.current) window.clearTimeout(titleDebounceRef.current);
+    titleDebounceRef.current = window.setTimeout(() => flushTitle(), 600);
   };
 
   // 滚动监听：title input 底部滚到 toolbar 下沿之上 → toolbar 显示标题
@@ -392,6 +422,19 @@ export function NoteEditor({ note, onChange, theme, onDelete, onCreate, aiOpen, 
             )}
           </button>
           <button
+            onClick={onImport}
+            title="导入 HTML 文件 / 目录到笔记"
+            className="w-8 h-8 flex items-center justify-center rounded-md text-stone-600 dark:text-stone-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+          >
+            {/* lucide file-up icon */}
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <path d="M14 2v6h6" />
+              <path d="M12 18v-6" />
+              <path d="m9 15 3-3 3 3" />
+            </svg>
+          </button>
+          <button
             onClick={() => setConfirmOpen(true)}
             title="删除笔记"
             className="w-8 h-8 flex items-center justify-center rounded-md text-stone-600 dark:text-stone-300 hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 transition-colors"
@@ -480,6 +523,9 @@ export function NoteEditor({ note, onChange, theme, onDelete, onCreate, aiOpen, 
               }}
               extensions={[
                 markdown({ base: markdownLanguage, codeLanguages: [] }),
+                // markdown 列表回车续行：「- 」/「* 」/「1. 2. 3.」（自增）/「> 」/「- [ ]」
+                // 全部支持，空行末回车自动退出列表。Prec.high 让 livePreview / 默认 Enter 之前命中
+                Prec.high(keymap.of([{ key: 'Enter', run: insertNewlineContinueMarkup }])),
                 indentUnit.of('  '),
                 EditorView.lineWrapping,
                 baseTheme,

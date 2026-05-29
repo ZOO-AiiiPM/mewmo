@@ -89,6 +89,10 @@ pub async fn build_index(
     let notes = query::list_notes(vault).await?;
     let mut note_count = 0;
     for summary in &notes {
+        // HTML 笔记暂不进 FTS（HTML 标签直接喂 jieba 会污染索引；后续 spec 单独处理剥标签）
+        if summary.format == "html" {
+            continue;
+        }
         let full = query::get_note(vault, &summary.slug).await?;
         index_note_in_conn(meta_conn, &full)?;
         note_count += 1;
