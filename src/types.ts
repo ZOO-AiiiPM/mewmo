@@ -6,6 +6,8 @@ export type Note = {
   tags_text: string;
   created_at: number;
   updated_at: number;
+  /** 'md' = 标准 markdown 笔记（NoteEditor）；'html' = 外部 HTML 文件导入（HtmlReader 只读渲染） */
+  format: 'md' | 'html';
 };
 
 export type Clip = {

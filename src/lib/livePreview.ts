@@ -519,7 +519,11 @@ class TableWidget extends WidgetType {
   private rewrite(view: EditorView, wrap: HTMLElement, transform: (src: string) => string) {
     const range = this.locate(view, wrap);
     if (!range) return;
-    const current = view.state.doc.sliceString(range.from, range.to);
+    // 用户在 cell 里输入的内容只活在 DOM 里 —— 按钮 mousedown.preventDefault() 阻断了
+    // focusout 同步路径，doc 里仍是输入前的旧 markdown。直接读 doc 会让 +列/+行 之类的
+    // transform 把用户已输入但未同步的 cell 内容覆盖丢光。优先取 DOM 当前内容做 transform 源。
+    const fromDom = this.markdownFromDOM(wrap);
+    const current = fromDom ?? view.state.doc.sliceString(range.from, range.to);
     const next = transform(current);
     view.dispatch({
       changes: { from: range.from, to: range.to, insert: next },

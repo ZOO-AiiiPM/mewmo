@@ -96,13 +96,17 @@ fn tags_to_yaml(tags: &[String]) -> String {
     format!("[{}]", items.join(", "))
 }
 
-/// 扫描指定目录已有 .md 文件 stem，用于 unique_slug 碰撞检测（spec 002 FR-016）
+/// 扫描指定目录已有 .md / .html 文件 stem，用于 unique_slug 碰撞检测（spec 002 FR-016）
+///
+/// 同时认 .html — HTML 笔记导入和 .md 笔记共用 wiki/notes 目录，stem 不能撞
+/// （否则 list_notes 同 slug 会出两条，get_note 也分不清该走 .md 还是 .html）
 fn existing_slugs(dir: &Path) -> Vec<String> {
     let mut out = Vec::new();
     if let Ok(entries) = std::fs::read_dir(dir) {
         for entry in entries.flatten() {
             let path = entry.path();
-            if path.extension().and_then(|s| s.to_str()) == Some("md") {
+            let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
+            if ext == "md" || ext == "html" {
                 if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
                     out.push(stem.to_string());
                 }
@@ -124,7 +128,8 @@ fn final_slug_from_title(title: &str, existing: &[String]) -> String {
 
 /// 创建新笔记 → `<vault>/wiki/notes/<slug>.md`
 ///
-/// `legacy_id` 仅搬迁脚本传，新建笔记传 `None`。
+/// title 写入 frontmatter `title` 字段（不再注入 body H1，按 Obsidian 风格用文件名/frontmatter
+/// 承载 title，body 是纯内容）。`legacy_id` 仅搬迁脚本传，新建笔记传 `None`。
 pub async fn write_note(
     vault: &Path,
     title: &str,
@@ -137,8 +142,13 @@ pub async fn write_note(
     let existing = existing_slugs(&dir);
     let final_slug = final_slug_from_title(title, &existing);
 
+    // title 为空（如 commands::create_note 传 ""）→ frontmatter title 用 final_slug，
+    // 跟 macOS 系统新建文件「untitled-N」风格一致，list 直接显示 slug 不再「无标题」
+    let display_title = if title.is_empty() { final_slug.as_str() } else { title };
+
     let mut yaml = format!(
-        "type: user-note\ncreated: {created}\nupdated: {updated}\ntags: {tags}",
+        "type: user-note\ntitle: \"{title}\"\ncreated: {created}\nupdated: {updated}\ntags: {tags}",
+        title = yaml_escape(display_title),
         created = now,
         updated = now,
         tags = tags_to_yaml(tags),
@@ -147,14 +157,7 @@ pub async fn write_note(
         yaml.push_str(&format!("\nlegacy_id: {}", id));
     }
 
-    // 标题进 H1（spec 002 io::list 用 first_h1 当 title）
-    let body_with_h1 = if body.trim_start().starts_with("# ") {
-        body.to_string()
-    } else {
-        format!("# {}\n\n{}", title, body.trim_start_matches('\n'))
-    };
-
-    let content = frontmatter::build(&yaml, &body_with_h1);
+    let content = frontmatter::build(&yaml, body);
     let relative = format!("wiki/notes/{}.md", final_slug);
     let mtime = io::write_atomic(vault, &relative, &content, None).await?;
     Ok(WriteResult {
@@ -164,7 +167,10 @@ pub async fn write_note(
     })
 }
 
-/// 更新已有笔记。保留原 `created`，刷新 `updated`，覆盖 tags + body
+/// 更新已有笔记。保留原 `created`，刷新 `updated`，覆盖 tags + body。
+///
+/// title 变化时 → 重生 slug + 碰撞 dedup → atomic 写入新文件 + 删除旧文件（Obsidian 风格 rename）。
+/// 返回的 `WriteResult.slug` 可能跟传入的 `slug` 不同，caller 应据此更新前端 state / 索引。
 pub async fn update_note(
     vault: &Path,
     slug: &str,
@@ -173,16 +179,29 @@ pub async fn update_note(
     tags: &[String],
     expected_mtime: Option<u64>,
 ) -> Result<WriteResult, IngestError> {
-    let relative = format!("wiki/notes/{}.md", slug);
-    let existing = io::read(vault, &relative).await?;
+    let dir = vault.join("wiki/notes");
+    let old_relative = format!("wiki/notes/{}.md", slug);
+    let existing = io::read(vault, &old_relative).await?;
     let existing_fm = existing.frontmatter.unwrap_or_default();
 
     let created = existing_fm.created.unwrap_or_else(now_iso);
     let legacy_id = existing_fm.extra.get("legacy_id").and_then(|v| v.as_i64());
     let now = now_iso();
 
+    // title 变化 → slugify 重生 + 排除自己后 dedup；title 没变就保持 slug
+    let new_base = slug::slugify(title);
+    let target_slug = if new_base == slug {
+        slug.to_string()
+    } else {
+        let mut taken = existing_slugs(&dir);
+        taken.retain(|s| s != slug);
+        let refs: Vec<&str> = taken.iter().map(|s| s.as_str()).collect();
+        slug::unique_slug(&new_base, &refs)
+    };
+
     let mut yaml = format!(
-        "type: user-note\ncreated: {created}\nupdated: {updated}\ntags: {tags}",
+        "type: user-note\ntitle: \"{title}\"\ncreated: {created}\nupdated: {updated}\ntags: {tags}",
+        title = yaml_escape(title),
         created = created,
         updated = now,
         tags = tags_to_yaml(tags),
@@ -191,19 +210,26 @@ pub async fn update_note(
         yaml.push_str(&format!("\nlegacy_id: {}", id));
     }
 
-    let body_with_h1 = if body.trim_start().starts_with("# ") {
-        body.to_string()
-    } else {
-        format!("# {}\n\n{}", title, body.trim_start_matches('\n'))
-    };
+    let content = frontmatter::build(&yaml, body);
+    let new_relative = format!("wiki/notes/{}.md", target_slug);
 
-    let content = frontmatter::build(&yaml, &body_with_h1);
-    let mtime = io::write_atomic(vault, &relative, &content, expected_mtime).await?;
-    Ok(WriteResult {
-        slug: slug.to_string(),
-        relative_path: relative,
-        mtime,
-    })
+    if target_slug != slug {
+        // rename: 写新文件后删旧（不传 expected_mtime，新文件本来就不存在）
+        let mtime = io::write_atomic(vault, &new_relative, &content, None).await?;
+        std::fs::remove_file(vault.join(&old_relative)).map_err(io::IoError::Io)?;
+        Ok(WriteResult {
+            slug: target_slug,
+            relative_path: new_relative,
+            mtime,
+        })
+    } else {
+        let mtime = io::write_atomic(vault, &new_relative, &content, expected_mtime).await?;
+        Ok(WriteResult {
+            slug: target_slug,
+            relative_path: new_relative,
+            mtime,
+        })
+    }
 }
 
 /// 物理删除笔记（dogfood 阶段不要回收站）
@@ -214,7 +240,64 @@ pub async fn delete_note(vault: &Path, slug: &str) -> Result<(), IngestError> {
     if path.exists() {
         std::fs::remove_file(&path).map_err(io::IoError::Io)?;
     }
+    // 同 slug 的 .html 也一并删（HTML 导入笔记走 .html 后缀）
+    let html_relative = format!("wiki/notes/{}.html", slug);
+    io::validate_relative_path(&html_relative)?;
+    let html_path = vault.join(&html_relative);
+    if html_path.exists() {
+        std::fs::remove_file(&html_path).map_err(io::IoError::Io)?;
+    }
     Ok(())
+}
+
+// ============================================================================
+// HTML 笔记导入（保留原始 .html，不转 markdown）
+// ============================================================================
+
+/// 导入本地 HTML 文件作为笔记 → `<vault>/wiki/notes/<slug>.html`
+///
+/// 故意保留原始 HTML 不带 frontmatter——HTML 不是 markdown，强塞 YAML frontmatter
+/// 会让 .html 在浏览器里显示成乱码字符。元信息（title / mtime / format）由
+/// `query::list_notes` / `get_note` 走文件名 + 文件 mtime + 后缀推导。
+pub async fn write_html_note(
+    vault: &Path,
+    title: &str,
+    html_content: &str,
+) -> Result<WriteResult, IngestError> {
+    let dir = vault.join("wiki/notes");
+    let existing = existing_slugs(&dir);
+    let final_slug = final_slug_from_title(title, &existing);
+    let relative = format!("wiki/notes/{}.html", final_slug);
+    let mtime = io::write_atomic(vault, &relative, html_content, None).await?;
+    Ok(WriteResult {
+        slug: final_slug,
+        relative_path: relative,
+        mtime,
+    })
+}
+
+/// 从 HTML 文本里抽 `<title>` 标签内容；找不到则从首个 `<h1>` 抽；都没就返回 None。
+/// caller 会再 fallback 到文件名 stem。
+pub fn extract_html_title(html: &str) -> Option<String> {
+    use scraper::{Html, Selector};
+    let doc = Html::parse_document(html);
+    if let Ok(sel) = Selector::parse("title") {
+        if let Some(el) = doc.select(&sel).next() {
+            let t = el.text().collect::<String>().trim().to_string();
+            if !t.is_empty() {
+                return Some(t);
+            }
+        }
+    }
+    if let Ok(sel) = Selector::parse("h1") {
+        if let Some(el) = doc.select(&sel).next() {
+            let t = el.text().collect::<String>().trim().to_string();
+            if !t.is_empty() {
+                return Some(t);
+            }
+        }
+    }
+    None
 }
 
 // ============================================================================
@@ -238,13 +321,7 @@ pub async fn write_clip(
     let final_slug = final_slug_from_title(title, &existing);
 
     let yaml = build_clip_yaml(title, &now, tags, meta);
-    let body_with_h1 = if body.trim_start().starts_with("# ") {
-        body.to_string()
-    } else {
-        format!("# {}\n\n{}", title, body.trim_start_matches('\n'))
-    };
-
-    let content = frontmatter::build(&yaml, &body_with_h1);
+    let content = frontmatter::build(&yaml, body);
     let relative = format!("raw/clips/{}.md", final_slug);
     let mtime = io::write_atomic(vault, &relative, &content, None).await?;
     Ok(WriteResult {
@@ -254,8 +331,9 @@ pub async fn write_clip(
     })
 }
 
-/// 更新已有剪藏。保留原 `saved_at` + 中文专属字段（cdn_url_1_1 / publish_ts / ip_location 等），
-/// 刷新 tags + body。Caller 想改 url / site_name 时通过 meta 传入。
+/// 更新已有剪藏。保留原 `saved_at` + 中文专属字段，刷新 tags + body。
+///
+/// title 变化时按 Obsidian 风格 rename slug + 删旧文件。返回 `WriteResult.slug` 可能跟传入不同。
 pub async fn update_clip(
     vault: &Path,
     slug: &str,
@@ -265,8 +343,9 @@ pub async fn update_clip(
     meta: &ClipMeta,
     expected_mtime: Option<u64>,
 ) -> Result<WriteResult, IngestError> {
-    let relative = format!("raw/clips/{}.md", slug);
-    let existing = io::read(vault, &relative).await?;
+    let dir = vault.join("raw/clips");
+    let old_relative = format!("raw/clips/{}.md", slug);
+    let existing = io::read(vault, &old_relative).await?;
     let existing_fm = existing.frontmatter.unwrap_or_default();
 
     // 保留原 saved_at（如果存在）
@@ -277,19 +356,37 @@ pub async fn update_clip(
         .map(|s| s.to_string())
         .unwrap_or_else(now_iso);
 
-    let yaml = build_clip_yaml(title, &saved_at, tags, meta);
-    let body_with_h1 = if body.trim_start().starts_with("# ") {
-        body.to_string()
+    // title 变化 → slugify 重生 + 排除自己后 dedup
+    let new_base = slug::slugify(title);
+    let target_slug = if new_base == slug {
+        slug.to_string()
     } else {
-        format!("# {}\n\n{}", title, body.trim_start_matches('\n'))
+        let mut taken = existing_slugs(&dir);
+        taken.retain(|s| s != slug);
+        let refs: Vec<&str> = taken.iter().map(|s| s.as_str()).collect();
+        slug::unique_slug(&new_base, &refs)
     };
-    let content = frontmatter::build(&yaml, &body_with_h1);
-    let mtime = io::write_atomic(vault, &relative, &content, expected_mtime).await?;
-    Ok(WriteResult {
-        slug: slug.to_string(),
-        relative_path: relative,
-        mtime,
-    })
+
+    let yaml = build_clip_yaml(title, &saved_at, tags, meta);
+    let content = frontmatter::build(&yaml, body);
+    let new_relative = format!("raw/clips/{}.md", target_slug);
+
+    if target_slug != slug {
+        let mtime = io::write_atomic(vault, &new_relative, &content, None).await?;
+        std::fs::remove_file(vault.join(&old_relative)).map_err(io::IoError::Io)?;
+        Ok(WriteResult {
+            slug: target_slug,
+            relative_path: new_relative,
+            mtime,
+        })
+    } else {
+        let mtime = io::write_atomic(vault, &new_relative, &content, expected_mtime).await?;
+        Ok(WriteResult {
+            slug: target_slug,
+            relative_path: new_relative,
+            mtime,
+        })
+    }
 }
 
 /// 物理删除剪藏
