@@ -230,6 +230,25 @@ html.dark .live-md-editor .cm-md-table tbody tr:nth-child(even) td {
   background: rgba(255, 255, 255, 0.04);
 }
 
+/* —— 多格拖拽选区高亮 —— */
+/* !important 压过 :nth-child(even) 斑马纹 + :focus 蓝底 */
+.live-md-editor .cm-md-table th.cm-md-cell-sel,
+.live-md-editor .cm-md-table td.cm-md-cell-sel {
+  background: rgba(59, 130, 246, 0.18) !important;
+}
+html.dark .live-md-editor .cm-md-table th.cm-md-cell-sel,
+html.dark .live-md-editor .cm-md-table td.cm-md-cell-sel {
+  background: rgba(96, 165, 250, 0.25) !important;
+}
+/* 拖选时藏掉原生 selection 蓝条（接管阶段 focus 切到目标格会留单格原生高亮），只显示矩形高亮 */
+.live-md-editor .cm-md-table.cm-md-table-rangesel ::selection {
+  background: transparent;
+}
+.live-md-editor .cm-md-table.cm-md-table-rangesel th,
+.live-md-editor .cm-md-table.cm-md-table-rangesel td {
+  cursor: cell;
+}
+
 /* +列 / −列 / +行 / −行 / 删表 按钮：默认隐藏，hover wrap 时浮出 */
 .live-md-editor .cm-md-table-add-col,
 .live-md-editor .cm-md-table-add-row,
@@ -295,7 +314,8 @@ html.dark .live-md-editor .cm-md-table tbody tr:nth-child(even) td {
 html.dark .live-md-editor .cm-md-table-add-col,
 html.dark .live-md-editor .cm-md-table-add-row,
 html.dark .live-md-editor .cm-md-table-remove-col,
-html.dark .live-md-editor .cm-md-table-remove-row {
+html.dark .live-md-editor .cm-md-table-remove-row,
+html.dark .live-md-editor .cm-md-table-delete {
   background: rgba(255, 255, 255, 0.08);
   color: #d6d3d1;
   border-color: rgba(255, 255, 255, 0.1);
@@ -306,7 +326,8 @@ html.dark .live-md-editor .cm-md-table-add-row:hover {
   color: #60a5fa;
 }
 html.dark .live-md-editor .cm-md-table-remove-col:hover,
-html.dark .live-md-editor .cm-md-table-remove-row:hover {
+html.dark .live-md-editor .cm-md-table-remove-row:hover,
+html.dark .live-md-editor .cm-md-table-delete:hover {
   background: rgba(248, 113, 113, 0.2);
   color: #f87171;
 }
