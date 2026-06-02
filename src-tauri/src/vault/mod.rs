@@ -19,3 +19,6 @@ pub mod slug;
 pub mod ingest;
 pub mod query;
 pub mod search;
+
+// spec 004：vault 文件 watcher（外部写入后自动刷新，免重启）
+pub mod watcher;

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { Sidebar, type Zone } from './components/Sidebar';
 import { TabBar, type Tab as TabPillModel } from './components/TabBar';
 import { NoteList } from './components/NoteList';
@@ -136,6 +137,32 @@ export default function App() {
     return list;
   }, []);
 
+  // 外部写入（skill / Obsidian）触发的「外科式」合并刷新：拉最新 summary list 反映新增/删除/改名，
+  // 但对「已加载正文」的笔记保留内存里的 content_md/content_loaded —— 否则会把用户正在编辑但还没
+  // flush 的内容冲成 list 模式空串（这正是初始 refresh() 不能直接复用的原因）。
+  // 同 id + 同 content_md 的新对象不会打断编辑器：mountKey 不变不重挂载，切笔记 effect 也 early-return。
+  const mergeRefreshNotes = useCallback(async () => {
+    const fresh = await listNotes();
+    setNotes(prev => {
+      const byId = new Map(prev.map(n => [n.id, n]));
+      return fresh.map(f => {
+        const ex = byId.get(f.id);
+        return ex?.content_loaded ? { ...f, content_md: ex.content_md, content_loaded: true } : f;
+      });
+    });
+  }, []);
+
+  const mergeRefreshClips = useCallback(async () => {
+    const fresh = await listClips();
+    setClips(prev => {
+      const byId = new Map(prev.map(c => [c.id, c]));
+      return fresh.map(f => {
+        const ex = byId.get(f.id);
+        return ex?.content_loaded ? { ...f, content_md: ex.content_md, content_loaded: true } : f;
+      });
+    });
+  }, []);
+
   const refreshSources = useCallback(async () => {
     const list = await listSourcesWithUnread();
     setSources(list);
@@ -175,6 +202,16 @@ export default function App() {
       .catch(e => console.error('[init] data load failed:', e))
       .finally(() => setLoading(false));
   }, [refresh, refreshClips, refreshSources]);
+
+  // spec 004：Rust 端 vault watcher 监听到外部写入 → emit "vault-changed" → 这里合并刷新对应列表，
+  // 实现「skill 上传后免重启自动出现」。payload {notes,clips} 标明只刷哪个，省无谓拉取。
+  useEffect(() => {
+    const unlisten = listen<{ notes?: boolean; clips?: boolean }>('vault-changed', e => {
+      if (e.payload?.notes) mergeRefreshNotes();
+      if (e.payload?.clips) mergeRefreshClips();
+    });
+    return () => { unlisten.then(un => un()); };
+  }, [mergeRefreshNotes, mergeRefreshClips]);
 
   // 切 source → 拉对应 entries + 默认打开第一条
   useEffect(() => {

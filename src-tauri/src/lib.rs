@@ -88,6 +88,15 @@ pub fn run() {
                                 );
                             }
                             app.manage(meta_db);
+
+                            // spec 004：启动 vault 文件 watcher——外部（skill / Obsidian）写入
+                            // wiki/notes 或 raw/clips 后，增量更新 FTS + emit vault-changed 通知前端
+                            // 刷新列表，免重启。失败非致命（退化为「重启才更新」的旧行为）。
+                            if let Err(e) =
+                                vault::watcher::start(app.handle().clone(), vault_path.clone())
+                            {
+                                log::warn!("vault watcher 启动失败（非致命，回退到重启更新）: {e}");
+                            }
                         }
                         Err(e) => {
                             log::warn!("vault-meta.db init 失败（非致命，搜索将不可用）: {e}");
