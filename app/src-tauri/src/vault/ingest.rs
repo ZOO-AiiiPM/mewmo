@@ -144,7 +144,11 @@ pub async fn write_note(
 
     // title 为空（如 commands::create_note 传 ""）→ frontmatter title 用 final_slug，
     // 跟 macOS 系统新建文件「untitled-N」风格一致，list 直接显示 slug 不再「无标题」
-    let display_title = if title.is_empty() { final_slug.as_str() } else { title };
+    let display_title = if title.is_empty() {
+        final_slug.as_str()
+    } else {
+        title
+    };
 
     let mut yaml = format!(
         "type: user-note\ntitle: \"{title}\"\ncreated: {created}\nupdated: {updated}\ntags: {tags}",
@@ -179,6 +183,30 @@ pub async fn update_note(
     tags: &[String],
     expected_mtime: Option<u64>,
 ) -> Result<WriteResult, IngestError> {
+    update_note_inner(vault, slug, title, body, tags, expected_mtime, true).await
+}
+
+/// 更新笔记内容但固定写回原 slug。用于正文 autosave：正文保存不应触发文件 rename。
+pub async fn update_note_preserve_slug(
+    vault: &Path,
+    slug: &str,
+    title: &str,
+    body: &str,
+    tags: &[String],
+    expected_mtime: Option<u64>,
+) -> Result<WriteResult, IngestError> {
+    update_note_inner(vault, slug, title, body, tags, expected_mtime, false).await
+}
+
+async fn update_note_inner(
+    vault: &Path,
+    slug: &str,
+    title: &str,
+    body: &str,
+    tags: &[String],
+    expected_mtime: Option<u64>,
+    allow_rename: bool,
+) -> Result<WriteResult, IngestError> {
     let dir = vault.join("wiki/notes");
     let old_relative = format!("wiki/notes/{}.md", slug);
     let existing = io::read(vault, &old_relative).await?;
@@ -190,7 +218,7 @@ pub async fn update_note(
 
     // title 变化 → slugify 重生 + 排除自己后 dedup；title 没变就保持 slug
     let new_base = slug::slugify(title);
-    let target_slug = if new_base == slug {
+    let target_slug = if !allow_rename || new_base == slug {
         slug.to_string()
     } else {
         let mut taken = existing_slugs(&dir);
@@ -466,12 +494,11 @@ mod tests {
             .unwrap();
         assert_eq!(r.slug, "测试笔记");
         assert!(vault.join(&r.relative_path).exists());
-        let content =
-            std::fs::read_to_string(vault.join(&r.relative_path)).unwrap();
+        let content = std::fs::read_to_string(vault.join(&r.relative_path)).unwrap();
         assert!(content.contains("type: user-note"));
         assert!(content.contains("\"ai\""));
         assert!(content.contains("\"knowledge\""));
-        assert!(content.contains("# 测试笔记"));
+        assert!(content.contains("title: \"测试笔记\""));
         assert!(content.contains("这是正文"));
         std::fs::remove_dir_all(&vault).ok();
     }
@@ -516,6 +543,26 @@ mod tests {
         assert_ne!(fm.created, fm.updated, "created 应保留原值，updated 应刷新");
         assert!(parsed.body.contains("v2"));
         assert!(fm.tags.contains(&"new-tag".to_string()));
+        std::fs::remove_dir_all(&vault).ok();
+    }
+
+    #[tokio::test]
+    async fn test_update_note_preserve_slug_does_not_rename_on_body_save() {
+        let vault = temp_vault();
+        let r1 = write_note(&vault, "原标题", "v1", &[], None).await.unwrap();
+        let old_path = vault.join(&r1.relative_path);
+        let r2 = update_note_preserve_slug(&vault, &r1.slug, "新标题", "v2", &[], None)
+            .await
+            .unwrap();
+        assert_eq!(r2.slug, r1.slug);
+        assert!(old_path.exists());
+        let parsed = io::read(&vault, &r2.relative_path).await.unwrap();
+        let fm = parsed.frontmatter.unwrap();
+        assert_eq!(
+            fm.extra.get("title").and_then(|v| v.as_str()),
+            Some("新标题")
+        );
+        assert!(parsed.body.contains("v2"));
         std::fs::remove_dir_all(&vault).ok();
     }
 

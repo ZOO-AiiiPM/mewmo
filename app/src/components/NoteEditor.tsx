@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import CodeMirror, { type ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { markdown, markdownLanguage, insertNewlineContinueMarkup } from '@codemirror/lang-markdown';
 import { EditorView, keymap } from '@codemirror/view';
@@ -17,6 +17,7 @@ import type { Note } from '../types';
 type Props = {
   note: Note | null;
   onChange: (patch: { title?: string; content_md?: string }, targetNoteId?: string) => void;
+  onLocalContentChange: (id: string, content_md: string) => void;
   theme: 'light' | 'dark';
   onDelete: () => void;
   onCreate: () => void;
@@ -143,22 +144,52 @@ const noSpellcheck = EditorView.contentAttributes.of({
   autocapitalize: 'off',
 });
 
-export function NoteEditor({ note, onChange, theme, onDelete, onCreate, onImport, aiOpen, expanded, onExpand, canBack, canForward, onBack, onForward, newlyCreatedId, onCreateAnimDone }: Props) {
+export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDelete, onCreate, onImport, aiOpen, expanded, onExpand, canBack, canForward, onBack, onForward, newlyCreatedId, onCreateAnimDone }: Props) {
   const noteId = note?.id;
-  // content 用 debounce 避免连续打字每键都写 DB；title 短、改完会停 → 直接 onChange 即时保存
+  // content 立即更新前端内存，落盘 debounce，避免每键写文件 + 重建搜索索引。
   const contentDebounceRef = useRef<number | null>(null);
+  const contentPendingRef = useRef<{ id: string; value: string } | null>(null);
   const titleDebounceRef = useRef<number | null>(null);
   const titlePendingRef = useRef<string | null>(null);
+  const titleFocusedRef = useRef(false);
   const lastNoteIdRef = useRef<string | null>(null);
+  // title 改名（Obsidian 风格 slug rename）会让 note.id 变。若拿 note.id 当 title textarea /
+  // CodeMirror 的 React key，rename 会重挂载这两个组件 → 打断 IME 输入、焦点掉到 <body>、
+  // 光标跳回行首（用户报：空白笔记输第一个字，原英文 slug 蹦出来、光标在左）。
+  // renameFromRef 记下「自己刚发起改名的旧 slug」，让渲染期 + 切笔记 effect 把
+  // 「同一篇改名」和「真切换到别篇」区分开：改名时不重挂载、不重置光标。
+  const renameFromRef = useRef<string | null>(null);
   const cmRef = useRef<ReactCodeMirrorRef>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const titleInputRef = useRef<HTMLInputElement>(null);
+  const titleInputRef = useRef<HTMLTextAreaElement>(null);
   const [cursorLine, setCursorLine] = useState(1);
   const [confirmOpen, setConfirmOpen] = useState(false);
   // 切笔记淡入淡出：1=显示中，0=过渡中（不重建 CM、不 unmount，只调 opacity）
   const [contentVisible, setContentVisible] = useState(true);
   // 滚动后 title 滚出视野 → toolbar 中央 fade-in 显示标题（同 ClipReader）
   const [titleInToolbar, setTitleInToolbar] = useState(false);
+  // 编辑器重挂载 key：只在「真·切换笔记」时自增；title 改名导致的 note.id 变化保持不变。
+  // 用它替代 note.id 当 title textarea / CodeMirror 的 key（见 renameFromRef 注释）。
+  const [mountKey, setMountKey] = useState(0);
+  const [keyedNoteId, setKeyedNoteId] = useState<string | null>(note?.id ?? null);
+
+  // 渲染期决定是否重挂载：note.id 变了且不是「当前笔记改名」才 bump mountKey。
+  // key 必须在渲染期（而非 effect 里）定下来，重挂载才会和 applyNote 落在同一次 commit，
+  // 否则 applyNote 会作用在旧 view 上、被随后的重挂载丢弃。setState-during-render 由
+  // `note.id !== keyedNoteId` 守卫，幂等、StrictMode 安全。
+  if (note && note.id !== keyedNoteId) {
+    const isRename = renameFromRef.current !== null && renameFromRef.current === keyedNoteId;
+    setKeyedNoteId(note.id);
+    if (!isRename) setMountKey((k) => k + 1);
+    // renameFromRef 不在这里清——留给下方切笔记 effect 判断是否跳过 applyNote 的光标归零
+  }
+
+  const resizeTitleInput = useCallback(() => {
+    const el = titleInputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, []);
 
   const handleCmUpdate = (vu: ViewUpdate) => {
     if (vu.selectionSet || vu.docChanged) {
@@ -173,10 +204,11 @@ export function NoteEditor({ note, onChange, theme, onDelete, onCreate, onImport
       window.clearTimeout(contentDebounceRef.current);
       contentDebounceRef.current = null;
     }
-    const id = targetId ?? lastNoteIdRef.current;
-    const view = cmRef.current?.view;
-    if (id != null && view) {
-      onChange({ content_md: view.state.doc.toString() }, id);
+    const pending = contentPendingRef.current;
+    const id = targetId ?? pending?.id;
+    if (pending != null && pending.id === id) {
+      onChange({ content_md: pending.value }, pending.id);
+      contentPendingRef.current = null;
     }
   }, [onChange]);
 
@@ -193,12 +225,32 @@ export function NoteEditor({ note, onChange, theme, onDelete, onCreate, onImport
     if (value !== null && id != null) {
       // flush body pending 到同一 id 再走 title rename：rename 后旧 slug 失效，body pending 必须先落
       flushContent(id);
+      // 自发 flush（debounce 到点，targetId 未传）= 改的是当前笔记标题 → 可能触发 slug rename。
+      // 标记旧 slug，让渲染期 / 切笔记 effect 把「同一篇 rename」与「真切换」区分开。
+      // 切笔记前的 flush（targetId 已传）是「离开这篇」，不标记。
+      if (targetId === undefined) {
+        renameFromRef.current = id;
+        const marked = id;
+        // 兜底：rename 若没改 slug（同名）则上述两处都不消费它，定时清掉防 stale 误判后续切换
+        window.setTimeout(() => {
+          if (renameFromRef.current === marked) renameFromRef.current = null;
+        }, 800);
+      }
       onChange({ title: value }, id);
     }
   }, [onChange, flushContent]);
 
   useEffect(() => {
-    if (!note || note.id === lastNoteIdRef.current) return;
+    if (!note) {
+      const prevId = lastNoteIdRef.current;
+      if (prevId !== null) {
+        if (titleDebounceRef.current) flushTitle(prevId);
+        if (contentDebounceRef.current) flushContent(prevId);
+      }
+      return;
+    }
+
+    if (note.id === lastNoteIdRef.current) return;
 
     // 切笔记前 flush 旧 note 的 title / content pending 到旧 id（修 race：
     // 默认 onChange 走 activeTab.refId，但已被改成新 id → 必须显式传 prevId）
@@ -208,8 +260,22 @@ export function NoteEditor({ note, onChange, theme, onDelete, onCreate, onImport
       if (contentDebounceRef.current) flushContent(prevId);
     }
 
+    // 当前笔记被自己改了 title → slug rename → note.id 从 prevId 变成新 slug：同一篇笔记，
+    // 不是切换。重挂载已在渲染期通过 mountKey 跳过；这里再跳过 applyNote 的内容/光标/焦点重置，
+    // 让用户继续在标题里输入而不被打断（焦点、IME、光标位置全部原样保留）。
+    if (renameFromRef.current !== null && renameFromRef.current === prevId) {
+      renameFromRef.current = null;
+      lastNoteIdRef.current = note.id;
+      return;
+    }
+    renameFromRef.current = null;
+
     // 替换 CM 内容 + 处理 focus 的实际工作
     const applyNote = () => {
+      // 先认领当前 note id：切换检测、flushTitle 的 rename 都靠 lastNoteIdRef，
+      // 不能因为 CM view 还没就绪（重挂载后 view 异步创建）就 early-return 漏设 → 否则
+      // flushTitle 拿到 id=null 跳过 onChange，title 改名永远不触发。内容由 value prop 兜底同步。
+      lastNoteIdRef.current = note.id;
       const view = cmRef.current?.view;
       if (!view) return;
       const content = note.content_md ?? '';
@@ -221,18 +287,23 @@ export function NoteEditor({ note, onChange, theme, onDelete, onCreate, onImport
         selection: { anchor: 0 },
       });
       view.scrollDOM.scrollTop = 0;
-      // 仅在没有其它输入控件已聚焦时（例如用户正在打 title）才抢，避免打断用户
-      if (document.activeElement === document.body || document.activeElement === null) {
+      // 切笔记重挂载（mountKey 变）后焦点会落到 <body>。用 titleFocusedRef 记住"用户正在编辑
+      // title"，把焦点还给 title input 而不是抢到 CM body。（改名不再走这里——改名不重挂载，
+      // 焦点天然留在 title，见上方 renameFromRef 的 early-return。）
+      if (titleFocusedRef.current && titleInputRef.current) {
+        titleInputRef.current.focus();
+        resizeTitleInput();
+      } else if (document.activeElement === document.body || document.activeElement === null) {
         // 新建笔记 → 全选 title input，用户直接打字覆盖默认 slug 命名（macOS Finder 风格）
         const isNewlyCreated = newlyCreatedId === note.id;
         if (isNewlyCreated && titleInputRef.current) {
           titleInputRef.current.focus();
           titleInputRef.current.select();
+          resizeTitleInput();
         } else {
           view.focus();
         }
       }
-      lastNoteIdRef.current = note.id;
     };
 
     // 第一次 mount（lastNoteIdRef 还是 null）→ 直接应用，不淡入避免 app 启动闪烁
@@ -256,31 +327,47 @@ export function NoteEditor({ note, onChange, theme, onDelete, onCreate, onImport
       onCreateAnimDone();
     }, 150);
     return () => window.clearTimeout(t);
-  }, [note, newlyCreatedId, onCreateAnimDone, flushContent]);
+  }, [note, newlyCreatedId, onCreateAnimDone, flushContent, flushTitle, resizeTitleInput]);
 
   const handleContentChange = (value: string) => {
     // applyNote 用 view.dispatch 替换 doc 时也会触发这里的 onChange（CM update listener 不区分 user vs programmatic）。
     // 那次 value === note.content_md，直接 return 不启动 debounce，否则会留下 pending → 切笔记时被 flushContent
     // 当成"用户改动"写回 DB → updated_at 被无谓刷新（用户没编辑也变成"刚改过"）
     if (note && value === (note.content_md ?? '')) return;
+    const targetId = note?.id;
+    if (targetId == null) return;
+    contentPendingRef.current = { id: targetId, value };
+    onLocalContentChange(targetId, value);
     if (contentDebounceRef.current) window.clearTimeout(contentDebounceRef.current);
     contentDebounceRef.current = window.setTimeout(() => {
-      if (lastNoteIdRef.current !== null && note && value !== note.content_md) {
-        onChange({ content_md: value });
-      }
-    }, 1000);
+      flushContent(targetId);
+    }, 400);
   };
 
-  // title onChange debounce 600ms 后才调后端 update_note —— Obsidian 风格 rename 让 setNotes
-  // 改 id，input 上 key={note.id} 会触发重建。如果每按一字符就 rename，IME 中文输入会被
-  // 多次打断（「需求」可能只输到「需」就重建 input 丢光标）。debounce 让连续输入合并到一次。
+  // title onChange debounce 600ms 后才调后端 update_note —— Obsidian 风格 rename。
+  // debounce 让连续输入合并到一次 rename，避免每字符一次文件改名 + FTS 重建。
   // 代价：list / tab 标题显示有 ~600ms 延迟（input 自己受控显示即时）。
-  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
+  const handleTitleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    let value = e.target.value;
+    // 标题是单行：任何换行（含中文输入法确认候选词时漏进来的 Enter）都剥掉，
+    // 并即时修正 textarea 显示 + 光标，否则标题会被撑成两行（用户报的「回车变换行」）。
+    if (value.includes('\n')) {
+      const el = e.target;
+      const caret = el.selectionStart;
+      value = value.replace(/\n/g, '');
+      el.value = value;
+      const pos = Math.min(caret, value.length);
+      el.setSelectionRange(pos, pos);
+    }
+    resizeTitleInput();
     titlePendingRef.current = value;
     if (titleDebounceRef.current) window.clearTimeout(titleDebounceRef.current);
     titleDebounceRef.current = window.setTimeout(() => flushTitle(), 600);
   };
+
+  useLayoutEffect(() => {
+    resizeTitleInput();
+  }, [note?.id, note?.title, resizeTitleInput]);
 
   // 滚动监听：title input 底部滚到 toolbar 下沿之上 → toolbar 显示标题
   useEffect(() => {
@@ -468,16 +555,24 @@ export function NoteEditor({ note, onChange, theme, onDelete, onCreate, onImport
           }}
         >
           <div className={`pl-10 pt-4 pb-2 transition-[padding] duration-200 ease-out ${aiOpen ? 'pr-[320px]' : 'pr-10'}`}>
-            <input
+            <textarea
               ref={titleInputRef}
-              key={note.id}
+              key={mountKey}
               defaultValue={note.title}
+              rows={1}
               onChange={handleTitleChange}
+              onFocus={() => { titleFocusedRef.current = true; }}
+              onBlur={() => { titleFocusedRef.current = false; }}
               onKeyDown={(e) => {
+                // 输入法组字中（IME composition）：Enter 是「确认候选词」、ArrowDown 是「翻候选词」，
+                // 都该交给输入法，绝不能在这里 preventDefault 跳正文 / 漏掉导致 textarea 插入换行。
+                // isComposing 是标准信号；keyCode===229 是 WebKit 组字中的兜底标志。
+                if (e.nativeEvent.isComposing || e.keyCode === 229) return;
                 // Enter / ArrowDown 时把焦点切到 body 编辑器，光标定到首行
                 // title 是即时保存，无需 flush
                 if (e.key === 'Enter' || e.key === 'ArrowDown') {
                   e.preventDefault();
+                  titleFocusedRef.current = false;
                   const view = cmRef.current?.view;
                   if (view) {
                     view.focus();
@@ -486,7 +581,7 @@ export function NoteEditor({ note, onChange, theme, onDelete, onCreate, onImport
                 }
               }}
               placeholder="无标题"
-              className="w-full text-[32px] font-bold tracking-tight leading-tight bg-transparent outline-none text-stone-900 dark:text-stone-50 placeholder:text-stone-300 dark:placeholder:text-stone-600"
+              className="block w-full resize-none overflow-hidden text-[32px] font-bold tracking-tight leading-tight bg-transparent outline-none text-stone-900 dark:text-stone-50 placeholder:text-stone-300 dark:placeholder:text-stone-600"
             />
           </div>
           <div
@@ -499,6 +594,7 @@ export function NoteEditor({ note, onChange, theme, onDelete, onCreate, onImport
             }}
           >
             <CodeMirror
+              key={mountKey}
               ref={cmRef}
               value={note.content_md}
               onChange={handleContentChange}

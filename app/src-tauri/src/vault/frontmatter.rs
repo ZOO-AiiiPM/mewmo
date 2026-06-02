@@ -72,15 +72,16 @@ pub fn parse(content: &str) -> ParsedFrontmatter {
         }
     };
 
-    let frontmatter = parsed.data.and_then(|pod: gray_matter::Pod| {
-        match pod.deserialize::<FrontmatterData>() {
-            Ok(data) => Some(data),
-            Err(e) => {
-                log::warn!("frontmatter 反序列化失败（降级为无 frontmatter）: {e}");
-                None
-            }
-        }
-    });
+    let frontmatter =
+        parsed.data.and_then(
+            |pod: gray_matter::Pod| match pod.deserialize::<FrontmatterData>() {
+                Ok(data) => Some(data),
+                Err(e) => {
+                    log::warn!("frontmatter 反序列化失败（降级为无 frontmatter）: {e}");
+                    None
+                }
+            },
+        );
 
     ParsedFrontmatter {
         frontmatter,

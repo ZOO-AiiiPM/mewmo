@@ -132,10 +132,7 @@ pub fn index_one_clip(
 }
 
 /// 从 FTS 删除一条笔记
-pub fn delete_index_note(
-    meta_conn: &Mutex<Connection>,
-    slug: &str,
-) -> Result<(), SearchError> {
+pub fn delete_index_note(meta_conn: &Mutex<Connection>, slug: &str) -> Result<(), SearchError> {
     let conn = meta_conn
         .lock()
         .map_err(|e| SearchError::Lock(format!("meta_db poisoned: {e}")))?;
@@ -148,10 +145,7 @@ pub fn delete_index_note(
 }
 
 /// 从 FTS 删除一条剪藏
-pub fn delete_index_clip(
-    meta_conn: &Mutex<Connection>,
-    slug: &str,
-) -> Result<(), SearchError> {
+pub fn delete_index_clip(meta_conn: &Mutex<Connection>, slug: &str) -> Result<(), SearchError> {
     let conn = meta_conn
         .lock()
         .map_err(|e| SearchError::Lock(format!("meta_db poisoned: {e}")))?;
@@ -200,13 +194,7 @@ fn index_clip_in_conn(
     conn.execute("DELETE FROM clips_fts WHERE slug = ?1", params![clip.slug])?;
     conn.execute(
         "INSERT INTO clips_fts (slug, url, title, body, tags) VALUES (?1, ?2, ?3, ?4, ?5)",
-        params![
-            clip.slug,
-            clip.url,
-            title_tokens,
-            body_tokens,
-            tags_joined
-        ],
+        params![clip.slug, clip.url, title_tokens, body_tokens, tags_joined],
     )?;
     conn.execute(
         "INSERT OR REPLACE INTO indexed_files (slug, type, mtime, indexed_at) VALUES (?1, 'clip', ?2, unixepoch())",
@@ -257,7 +245,11 @@ pub fn search(
          LIMIT ?2",
     )?;
     let note_rows = stmt.query_map(params![&fts_query, limit as i64], |row| {
-        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, i64>(2)?))
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, i64>(2)?,
+        ))
     })?;
     for r in note_rows {
         let (slug, snippet, mtime) = r?;

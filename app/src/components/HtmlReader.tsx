@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import type { Note } from '../types';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -21,6 +21,13 @@ type Props = {
 const BTN = "w-8 h-8 flex items-center justify-center rounded-md text-stone-600 dark:text-stone-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors";
 const BTN_DISABLED = "w-8 h-8 flex items-center justify-center rounded-md text-stone-600 dark:text-stone-300 hover:bg-black/5 dark:hover:bg-white/10 disabled:hover:bg-transparent disabled:text-stone-300 disabled:dark:text-stone-600 disabled:cursor-not-allowed transition-colors";
 const BTN_DELETE = "w-8 h-8 flex items-center justify-center rounded-md text-stone-600 dark:text-stone-300 hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 transition-colors";
+
+/**
+ * mewmo 笔记（NoteEditor）正文字号，px。HTML 笔记按此动态缩放对齐：
+ * 量出 HTML 正文实际字号 → zoom = 15 / 实际字号 → 整篇等比缩，正文对齐笔记、heading 按同比例缩。
+ * NoteEditor baseTheme `'&': { fontSize: '15px' }` —— 改那边记得同步这里。
+ */
+const NOTE_BODY_FONT_PX = 15;
 
 /**
  * 启发式屏蔽 HTML 自带的目录区块（既然 mewmo 浮层有目录功能，原文目录冗余）
@@ -95,9 +102,26 @@ export function HtmlReader({
 }: Props) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const firstH1Ref = useRef<HTMLElement | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [titleInToolbar, setTitleInToolbar] = useState(false);
   // iframe load 后 +1 → HtmlTableOfContents useEffect 重抽 headings（hideAutoToc 之后才抽，避免目录条目串进去）
   const [tocRefreshKey, setTocRefreshKey] = useState(0);
+
+  const updateTitleInToolbar = useCallback(() => {
+    const root = scrollRef.current;
+    const iframe = iframeRef.current;
+    const h1 = firstH1Ref.current;
+    if (!root || !iframe || !h1) {
+      setTitleInToolbar(false);
+      return;
+    }
+
+    const rootTop = root.getBoundingClientRect().top;
+    const iframeTop = iframe.getBoundingClientRect().top;
+    const h1BottomRel = iframeTop + h1.getBoundingClientRect().bottom - rootTop;
+    setTitleInToolbar(h1BottomRel < 56);
+  }, []);
 
   // iframe 内容加载完：屏蔽自带目录 + 测高度撑开 + 监听链接 + 通知 TOC 重抽
   const handleIframeLoad = () => {
@@ -108,6 +132,35 @@ export function HtmlReader({
 
     // 1. 先屏蔽自带目录（必须在 TOC 抽 headings 之前，让被隐藏的 toc heading offsetParent 为 null）
     hideAutoToc(doc);
+    firstH1Ref.current =
+      Array.from(doc.querySelectorAll<HTMLElement>('h1'))
+        .find(el => el.offsetParent !== null && (el.textContent?.trim() ?? '').length > 0) ?? null;
+
+    // 2. 字号对齐笔记：量 HTML 正文实际字号 → zoom 等比缩到 15px。
+    //    zoom 设在 documentElement 整篇生效，heading / 间距 / 图片按同比例缩（CSS zoom = 浏览器 Cmd +/- 那种缩放）。
+    //    必须在 adjustHeight 之前设——zoom 改变内容高度，要先缩再量高度才准。
+    const bodyFontPx =
+      parseFloat(ifr.contentWindow?.getComputedStyle(doc.body).fontSize || '') || 16;
+    const zoomVal = NOTE_BODY_FONT_PX / bodyFontPx;
+
+    // 注入 <style> 设 zoom（比 inline documentElement.style 更强，!important 防文档自身规则覆盖）。
+    // 双保险：inline 也设一份。CSS zoom = 浏览器 Cmd +/- 那种等比缩放，WebKit/WKWebView 支持。
+    const STYLE_ID = 'mewmo-zoom-style';
+    doc.getElementById(STYLE_ID)?.remove();
+    const styleEl = doc.createElement('style');
+    styleEl.id = STYLE_ID;
+    styleEl.textContent = `
+      :root { zoom: ${zoomVal} !important; }
+      h1, h2, h3, h4, h5, h6 {
+        white-space: normal !important;
+        overflow-wrap: anywhere !important;
+        word-break: break-word !important;
+      }
+    `;
+    (doc.head || doc.documentElement).appendChild(styleEl);
+    doc.documentElement.style.setProperty('zoom', String(zoomVal));
+    console.log('[html-reader] bodyFontPx=', bodyFontPx, 'zoom=', zoomVal,
+      'applied=', doc.documentElement.style.zoom);
 
     const adjustHeight = () => {
       const h = Math.max(
@@ -134,8 +187,9 @@ export function HtmlReader({
       }
     });
 
-    // 2. 通知 HtmlTableOfContents 重抽 headings（此时 hideAutoToc 已隐藏 toc 段，filter offsetParent 自动跳过）
+    // 3. 通知 HtmlTableOfContents 重抽 headings（此时 hideAutoToc 已隐藏 toc 段，filter offsetParent 自动跳过）
     setTocRefreshKey(k => k + 1);
+    updateTitleInToolbar();
   };
 
   // 切笔记时 reader 区滚回顶部（iframe 自己 srcDoc 变会自动从头开始，但外层 scroll 也要重置）
@@ -143,7 +197,16 @@ export function HtmlReader({
     if (!note?.id) return;
     const root = scrollRef.current;
     if (root) root.scrollTop = 0;
+    firstH1Ref.current = null;
+    setTitleInToolbar(false);
   }, [note?.id]);
+
+  useEffect(() => {
+    const root = scrollRef.current;
+    if (!root) return;
+    root.addEventListener('scroll', updateTitleInToolbar, { passive: true });
+    return () => root.removeEventListener('scroll', updateTitleInToolbar);
+  }, [updateTitleInToolbar]);
 
   if (!note) {
     return (
@@ -158,24 +221,20 @@ export function HtmlReader({
 
   return (
     <main className="relative flex-1 flex flex-col overflow-hidden">
-      {/* Toolbar —— title 始终显示（HTML 笔记没有 H1 fade-in 机制，因为 iframe 隔离测不到原 HTML 的 H1 位置） */}
+      {/* Toolbar —— title 跟 NoteEditor 一样：正文 H1 滚过 toolbar 后淡入 */}
       <div className={`absolute top-0 left-0 right-0 z-[5] h-12 grid grid-cols-[1fr_auto] items-center gap-3 pl-10 bg-white/70 dark:bg-stone-900/70 backdrop-blur-md transition-[padding] duration-200 ease-out ${aiOpen ? 'pr-[320px]' : 'pr-3'}`}>
-        <div className={`absolute bottom-0 left-3 h-px bg-black/[0.08] dark:bg-white/[0.08] transition-[right] duration-200 ease-out ${aiOpen ? 'right-[320px]' : 'right-3'}`} />
-        <div className="min-w-0 overflow-hidden flex items-center gap-2">
+        <div className={`absolute bottom-0 left-3 h-px transition-[right,background-color] duration-200 ease-out ${aiOpen ? 'right-[320px]' : 'right-3'} ${titleInToolbar ? 'bg-black/[0.1] dark:bg-white/[0.1]' : 'bg-transparent'}`} />
+        <div className="min-w-0 overflow-hidden">
           <span
-            className="block whitespace-nowrap text-[14px] font-bold text-stone-800 dark:text-stone-100"
+            className={`block whitespace-nowrap text-[14px] font-bold text-stone-800 dark:text-stone-100 transition-opacity duration-200 ${
+              titleInToolbar ? 'opacity-100' : 'opacity-0'
+            }`}
             style={{
               maskImage: 'linear-gradient(to right, black calc(100% - 32px), transparent)',
               WebkitMaskImage: 'linear-gradient(to right, black calc(100% - 32px), transparent)',
             }}
           >
             {note.title || '无标题'}
-          </span>
-          <span
-            className="shrink-0 text-[9px] font-medium px-1 py-px rounded bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 uppercase tracking-wide leading-none"
-            title="导入的 HTML 笔记，浏览器原生渲染"
-          >
-            HTML
           </span>
         </div>
         <div className="flex items-center gap-0.5">

@@ -330,6 +330,7 @@ export default function App() {
         tags_text: '',
         created_at: now,
         updated_at: now,
+        format: 'md',
       },
       ...prev,
     ]);
@@ -386,6 +387,20 @@ export default function App() {
     [activeTab]
   );
 
+  const handleLocalNoteContentChange = useCallback((id: string, content_md: string) => {
+    setNotes(prev =>
+      prev.map(n =>
+        n.id === id
+          ? {
+              ...n,
+              content_md,
+              content_loaded: true,
+            }
+          : n
+      )
+    );
+  }, []);
+
   const handleDeleteNote = useCallback(
     async (id: string) => {
       // 删除前 capture 邻接 id（按当前列表顺序——更新时间倒序）：
@@ -439,7 +454,7 @@ export default function App() {
     );
   }, [refreshClips]);
 
-  const handleClipRefetch = useCallback(async (id: number, url: string) => {
+  const handleClipRefetch = useCallback(async (id: string, url: string) => {
     const fetched = await invoke<FetchedClip>('fetch_clip', { url });
     await updateClip(id, fetched);
     await refreshClips();
@@ -680,6 +695,7 @@ export default function App() {
                 <NoteEditor
                   note={selectedNoteReady}
                   onChange={handleUpdateNote}
+                  onLocalContentChange={handleLocalNoteContentChange}
                   theme={theme}
                   onDelete={() => selectedNote && handleDeleteNote(selectedNote.id)}
                   onCreate={handleCreateAndBind}

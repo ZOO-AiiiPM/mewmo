@@ -408,8 +408,16 @@ async fn fetch_and_update_one_source(
 ) -> Result<SourceRefreshOutcome, String> {
     // 旧 source 还没有 favicon 时强制走 200（不发条件请求），让 metadata 能补全
     let use_conditional = source.favicon_url.is_some();
-    let if_none_match = if use_conditional { source.etag.as_deref() } else { None };
-    let if_modified_since = if use_conditional { source.last_modified.as_deref() } else { None };
+    let if_none_match = if use_conditional {
+        source.etag.as_deref()
+    } else {
+        None
+    };
+    let if_modified_since = if use_conditional {
+        source.last_modified.as_deref()
+    } else {
+        None
+    };
 
     let result = adapter::fetch_one(&source.feed_url, if_none_match, if_modified_since).await;
 
@@ -446,7 +454,9 @@ async fn fetch_and_update_one_source(
             ) {
                 eprintln!("[refresh] mark ok failed for {}: {}", source.id, e);
             }
-            Ok(SourceRefreshOutcome::Updated { new_entries: inserted })
+            Ok(SourceRefreshOutcome::Updated {
+                new_entries: inserted,
+            })
         }
         Err(err_msg) => {
             let conn = db.conn.lock().map_err(|e| e.to_string())?;

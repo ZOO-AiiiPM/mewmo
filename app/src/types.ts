@@ -3,6 +3,8 @@ export type Note = {
   title: string;
   content_md: string;
   content_loaded?: boolean;
+  /** 列表用的正文预览（开头 ~100 字符，已跳过标题 H1）；content 加载后用 content_md，未加载时回退到这个 */
+  preview?: string;
   tags_text: string;
   created_at: number;
   updated_at: number;

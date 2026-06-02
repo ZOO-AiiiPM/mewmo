@@ -8,14 +8,14 @@ type Props = {
   open: boolean;
   notes: Note[];
   clips: Clip[];
-  onPickNote: (id: number) => void;
-  onPickClip: (id: number) => void;
+  onPickNote: (id: string) => void;
+  onPickClip: (id: string) => void;
   onClose: () => void;
 };
 
 type ActiveHit =
-  | { kind: 'note'; id: number }
-  | { kind: 'clip'; id: number }
+  | { kind: 'note'; id: string }
+  | { kind: 'clip'; id: string }
   | null;
 
 const EMPTY_NOTES: NoteHit[] = [];

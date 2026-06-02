@@ -83,7 +83,9 @@ pub fn run() {
                             if let Err(e) = tauri::async_runtime::block_on(async {
                                 vault::search::build_index(&vp, conn_ref).await
                             }) {
-                                log::warn!("vault::search::build_index 启动重建失败（非致命）: {e}");
+                                log::warn!(
+                                    "vault::search::build_index 启动重建失败（非致命）: {e}"
+                                );
                             }
                             app.manage(meta_db);
                         }

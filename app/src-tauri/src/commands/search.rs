@@ -55,10 +55,12 @@ pub fn search_all(meta: State<'_, VaultMetaDb>, query: String) -> Result<SearchR
 
     let vault = match require_vault() {
         Ok(p) => p,
-        Err(_) => return Ok(SearchResults {
-            notes: vec![],
-            clips: vec![],
-        }),
+        Err(_) => {
+            return Ok(SearchResults {
+                notes: vec![],
+                clips: vec![],
+            })
+        }
     };
 
     let hits = search::search(&vault, &meta.conn, q, 50).map_err(|e| e.to_string())?;

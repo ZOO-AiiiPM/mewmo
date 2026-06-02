@@ -1027,11 +1027,13 @@ const headingClasses: Record<number, string> = {
 // items 累加最终结果；lezerEmphasisRanges / lezerListMarkPositions 是 lezer pass
 // 收集给后续 regex patches 用的「已识别集合」，避免重复装饰。
 type Item = { from: number; to: number; deco: Decoration };
+type LineItem = { pos: number; deco: Decoration };
 
 interface DecorationCtx {
   state: EditorState;
   cursorLine: number;
   items: Item[];
+  lineItems: LineItem[];
   lezerEmphasisRanges: Array<[number, number]>;
   lezerListMarkPositions: Set<number>;
 }
@@ -1075,6 +1077,38 @@ function handleEntireNodeStyle(node: SyntaxNodeRef, ctx: DecorationCtx) {
     }
   }
 }
+
+// ── lezer FencedCode 节点 ──
+// 给代码块每一行加背景 line decoration + 等宽字体 mark。
+//
+// 注意：这里**不能**再用 Decoration.replace 去隐藏 ``` 围栏行。
+// CM 铁律：line decoration 的位置不能落在某个 replace 区间覆盖的范围内。
+// 之前给「每行（含围栏行）都加 line deco」+「对围栏行加跨换行符的 replace」会让
+// 围栏行的 line deco 落进 replace 区间 → CM 视图更新时抛错 → 受控 value 每次
+// re-render 重 dispatch → 抛错 → React 重渲染死循环（整个 app 卡死、正文存不进）。
+// 围栏 ``` 各自独立成行本来就是 markdown 源码形态，直接显示即可，不必隐藏。
+function handleFencedCode(node: SyntaxNodeRef, ctx: DecorationCtx) {
+  // 整个代码块套等宽字体 mark
+  ctx.items.push({
+    from: node.from,
+    to: node.to,
+    deco: Decoration.mark({ class: 'cm-fenced-code' }),
+  });
+
+  // 给每一行（含围栏行 / 空行）加 line decoration 做背景
+  const doc = ctx.state.doc;
+  const startLine = doc.lineAt(node.from).number;
+  const endLine = doc.lineAt(node.to).number;
+  for (let i = startLine; i <= endLine; i++) {
+    const line = doc.line(i);
+    ctx.lineItems.push({
+      pos: line.from,
+      deco: codeBlockLineDeco,
+    });
+  }
+}
+
+const codeBlockLineDeco = Decoration.line({ class: 'cm-fenced-code-line' });
 
 // ── lezer Image 节点 ──
 // 光标在该 Image 节点的行上时，显示原 markdown 让用户编辑；
@@ -1322,6 +1356,7 @@ function buildDecorations(state: EditorState): DecorationSet {
     state,
     cursorLine: state.doc.lineAt(state.selection.main.head).number,
     items: [],
+    lineItems: [],
     lezerEmphasisRanges: [],
     lezerListMarkPositions: new Set(),
   };
@@ -1354,6 +1389,10 @@ function buildDecorations(state: EditorState): DecorationSet {
       if (name === 'Image') {
         if (handleImage(node, ctx)) return false;
         return;
+      }
+      if (name === 'FencedCode') {
+        handleFencedCode(node, ctx);
+        return false;
       }
       if (name === 'Table') {
         if (handleTable(node, ctx)) return false;
@@ -1395,7 +1434,9 @@ function buildDecorations(state: EditorState): DecorationSet {
   // 不能手工 sort 后塞 RangeSetBuilder：CM 的 builder 还要求同 from 位置上 startSide 升序，
   // 而 startSide 是 Decoration 的内部属性（mark/replace/block 各不相同），按业务字段没法排对。
   // 交给 Decoration.set(ranges, true) 让 CM 自己用完整规则排，是公开 API 的标准用法。
-  return Decoration.set(ctx.items.map(it => it.deco.range(it.from, it.to)), true);
+  const ranges = ctx.items.map(it => it.deco.range(it.from, it.to));
+  const lineRanges = ctx.lineItems.map(it => it.deco.range(it.pos, it.pos));
+  return Decoration.set([...ranges, ...lineRanges], true);
 }
 
 // block widgets 必须通过 StateField 注入，ViewPlugin 提供的会被静默丢弃

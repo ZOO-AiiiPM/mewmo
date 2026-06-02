@@ -92,7 +92,7 @@ export function createTools(ctx: AgentContext) {
     read_note: tool({
       description: '按 id 读取一条笔记的完整内容。通常先用 search_notes 拿到 id 再调用。',
       inputSchema: z.object({
-        id: z.number().int().describe('笔记 id'),
+        id: z.string().describe('笔记 vault slug'),
       }),
       execute: async ({ id }) => {
         const n = await getNote(id);
@@ -139,7 +139,7 @@ export function createTools(ctx: AgentContext) {
     read_clip: tool({
       description: '按 id 读取一条剪藏的完整正文。先用 list_clips 拿到 id 再调用。',
       inputSchema: z.object({
-        id: z.number().int(),
+        id: z.string().describe('剪藏 vault slug'),
       }),
       execute: async ({ id }) => {
         const c = await getClip(id);

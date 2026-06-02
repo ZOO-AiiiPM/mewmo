@@ -12,8 +12,8 @@ marked.use({ gfm: true, breaks: true });
 type Props = {
   clip: Clip | null;
   aiOpen: boolean;
-  onRefetch?: (id: number, url: string) => Promise<void>;
-  onDelete?: (id: number) => void;
+  onRefetch?: (id: string, url: string) => Promise<void>;
+  onDelete?: (id: string) => void;
   onSave?: (url: string) => Promise<void>;
   onPrev?: () => void;
   onNext?: () => void;

@@ -127,6 +127,21 @@ html.dark .live-md-editor .cm-inline-code {
   color: #f9a8d4;
 }
 
+/* —— fenced code block —— */
+.live-md-editor .cm-fenced-code {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.88em;
+}
+.live-md-editor .cm-fenced-code-line {
+  background: rgba(0, 0, 0, 0.04);
+  padding: 1px 12px;
+  margin-left: -4px;
+  margin-right: -4px;
+}
+html.dark .live-md-editor .cm-fenced-code-line {
+  background: rgba(255, 255, 255, 0.05);
+}
+
 /* —— 引用 —— */
 .live-md-editor .cm-blockquote {
   color: #57534e;
