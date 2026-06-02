@@ -66,7 +66,9 @@ impl From<std::io::Error> for InitError {
 /// 默认 vault 路径 `~/Documents/mewmo-vault/`
 pub fn default_vault_path() -> PathBuf {
     if let Some(home) = std::env::var_os("HOME") {
-        PathBuf::from(home).join("Documents").join(DEFAULT_VAULT_DIR)
+        PathBuf::from(home)
+            .join("Documents")
+            .join(DEFAULT_VAULT_DIR)
     } else {
         std::env::current_dir()
             .unwrap_or_else(|_| PathBuf::from("."))
@@ -216,16 +218,8 @@ fn write_persona_placeholders(vault_path: &Path) -> Result<(), InitError> {
             "锐利",
             "直接犀利，看重效率。说话偏短，会指出问题。",
         ),
-        (
-            "casual",
-            "散漫",
-            "随意松弛，不端着。说话偏口语，会跑题。",
-        ),
-        (
-            "steady",
-            "沉稳",
-            "成熟克制，有耐心。说话偏中长句，不浮夸。",
-        ),
+        ("casual", "散漫", "随意松弛，不端着。说话偏口语，会跑题。"),
+        ("steady", "沉稳", "成熟克制，有耐心。说话偏中长句，不浮夸。"),
     ];
 
     let ts = now_iso();
@@ -347,20 +341,20 @@ fn write_marker(vault_path: &Path) -> Result<(), InitError> {
         "schema_version": SCHEMA_VERSION,
         "initialized_at": now_iso(),
     });
-    let pretty = serde_json::to_string_pretty(&body)
-        .map_err(|e| InitError::ConfigParse(e.to_string()))?;
+    let pretty =
+        serde_json::to_string_pretty(&body).map_err(|e| InitError::ConfigParse(e.to_string()))?;
     fs::write(&path, pretty)?;
     Ok(())
 }
 
 fn write_user_config(config: &VaultConfig) -> Result<(), InitError> {
-    let path = config_file_path()
-        .ok_or_else(|| InitError::InvalidPath("HOME env not set".to_string()))?;
+    let path =
+        config_file_path().ok_or_else(|| InitError::InvalidPath("HOME env not set".to_string()))?;
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
-    let raw = serde_json::to_string_pretty(config)
-        .map_err(|e| InitError::ConfigParse(e.to_string()))?;
+    let raw =
+        serde_json::to_string_pretty(config).map_err(|e| InitError::ConfigParse(e.to_string()))?;
     fs::write(&path, raw)?;
     Ok(())
 }
@@ -434,7 +428,11 @@ mod tests {
                 .join(format!("persona-{}.md", id))
                 .exists());
         }
-        assert!(vault.join(".mewmo").join("cat").join("voice-template.md").exists());
+        assert!(vault
+            .join(".mewmo")
+            .join("cat")
+            .join("voice-template.md")
+            .exists());
         assert!(vault.join(".mewmo").join("cat").join("active.txt").exists());
 
         // supertag 示例 + _index.md

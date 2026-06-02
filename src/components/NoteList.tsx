@@ -4,10 +4,10 @@ import { ListItemContextMenu } from './ListItemContextMenu';
 
 type Props = {
   notes: Note[];
-  selectedId: number | null;
-  onSelect: (id: number) => void;
+  selectedId: string | null;
+  onSelect: (id: string) => void;
   onCreate: () => void;
-  onDelete: (id: number) => void;
+  onDelete: (id: string) => void;
   hidden?: boolean;
 };
 
@@ -60,23 +60,13 @@ export function NoteList({
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5">
-                          <div className="text-[13px] font-medium text-stone-900 dark:text-stone-100 truncate pr-1">
-                            {n.title || '无标题'}
-                          </div>
-                          {n.format === 'html' && (
-                            <span
-                              className="shrink-0 text-[9px] font-medium px-1 py-px rounded bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 uppercase tracking-wide leading-none"
-                              title="导入的 HTML 笔记（只读）"
-                            >
-                              HTML
-                            </span>
-                          )}
+                        <div className="min-w-0 text-[13px] font-medium text-stone-900 dark:text-stone-100 truncate pr-1">
+                          {n.title || '无标题'}
                         </div>
                         <div className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 truncate">
                           {n.format === 'html'
                             ? '导入的 HTML 文件'
-                            : n.content_md.replace(/[#*_`>\n]/g, ' ').slice(0, 40) || '空笔记'}
+                            : (n.content_md || n.preview || '').replace(/[#*_`>\n]/g, ' ').slice(0, 40) || '空笔记'}
                         </div>
                       </div>
                       <div className="text-[11px] font-medium text-stone-500 dark:text-stone-400 shrink-0 mt-0.5 tabular-nums">

@@ -91,7 +91,12 @@ mod tests {
         assert_eq!(v, 2, "应跑到最新 migration（v1 + v2 FTS index）");
 
         // 验证 v1 4 张表都存在
-        for table in &["feed_stream", "activity_events", "notification_log", "cat_memory_metadata"] {
+        for table in &[
+            "feed_stream",
+            "activity_events",
+            "notification_log",
+            "cat_memory_metadata",
+        ] {
             let exists: bool = conn
                 .query_row(
                     "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?1",
@@ -105,11 +110,9 @@ mod tests {
         // 验证 v2 FTS5 表 + indexed_files 存在
         for table in &["notes_fts", "clips_fts", "indexed_files"] {
             let exists: bool = conn
-                .query_row(
-                    "SELECT 1 FROM sqlite_master WHERE name=?1",
-                    [table],
-                    |_| Ok(true),
-                )
+                .query_row("SELECT 1 FROM sqlite_master WHERE name=?1", [table], |_| {
+                    Ok(true)
+                })
                 .unwrap_or(false);
             assert!(exists, "v2 表 {} 应存在", table);
         }

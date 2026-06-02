@@ -6,15 +6,15 @@ import { ConfirmDialog } from './ConfirmDialog';
 
 type Props = {
   clips: Clip[];
-  selectedId: number | null;
-  onSelect: (id: number) => void;
-  onDelete?: (id: number) => void;
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  onDelete?: (id: string) => void;
   hidden?: boolean;
 };
 
 export function ClipInbox({ clips, selectedId, onSelect, onDelete, hidden = false }: Props) {
   const groups = groupByBucket(clips, c => c.saved_at);
-  const [confirmId, setConfirmId] = useState<number | null>(null);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
   const confirmClip = clips.find(c => c.id === confirmId) ?? null;
 
   return (
@@ -83,8 +83,8 @@ function ClipItem({
   clip: Clip;
   bucket: ReturnType<typeof groupByBucket>[number]['bucket'];
   active: boolean;
-  onSelect: (id: number) => void;
-  onRequestDelete?: (id: number) => void;
+  onSelect: (id: string) => void;
+  onRequestDelete?: (id: string) => void;
 }) {
   const titleRef = useRef<HTMLDivElement>(null);
   const [titleOverflow, setTitleOverflow] = useState(false);

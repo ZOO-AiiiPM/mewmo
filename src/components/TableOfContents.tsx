@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { parseHeadings } from '../lib/parseHeadings';
+import { useVisibleTocBarCount } from './useVisibleTocBarCount';
 
 type Props = {
   content: string;
@@ -25,8 +26,10 @@ function smoothScrollTo(el: HTMLElement, to: number, duration = 450) {
 }
 
 export function TableOfContents({ content, cursorLine, cmRef, scrollRef }: Props) {
+  const tocRef = useRef<HTMLDivElement | null>(null);
   const [hover, setHover] = useState(false);
   const headings = useMemo(() => parseHeadings(content), [content]);
+  const visibleBarCount = useVisibleTocBarCount(tocRef, headings.length);
 
   const activeIdx = useMemo(() => {
     let idx = -1;
@@ -70,17 +73,18 @@ export function TableOfContents({ content, cursorLine, cmRef, scrollRef }: Props
 
   return (
     <div
+      ref={tocRef}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
-      className="absolute top-[18%] right-0 bottom-6 z-10 flex items-start"
+      className="absolute top-[18%] right-0 bottom-[18%] z-10 flex items-start"
     >
       {/* 提示层：mini bars，按 level 阶梯递减 */}
       <div
-        className={`flex flex-col items-end gap-[13px] py-3 pr-4 transition-opacity duration-200 ${
+        className={`flex flex-col items-end gap-[13px] py-3 pr-4 overflow-hidden transition-opacity duration-200 ${
           hover ? 'opacity-0' : 'opacity-50 hover:opacity-80'
         }`}
       >
-        {headings.map((h, i) => (
+        {headings.slice(0, visibleBarCount).map((h, i) => (
           <div
             key={i}
             style={{ width: `${barWidth(h.level)}px` }}
@@ -95,7 +99,7 @@ export function TableOfContents({ content, cursorLine, cmRef, scrollRef }: Props
 
       {/* Hover 展开面板 */}
       <div
-        className={`absolute top-0 right-3 min-w-[150px] max-w-[200px] max-h-full overflow-y-auto py-4 rounded-xl bg-white/95 dark:bg-stone-800/95 backdrop-blur-sm shadow-[0_8px_24px_rgba(0,0,0,0.06)] dark:shadow-[0_8px_24px_rgba(0,0,0,0.35)] ring-1 ring-black/[0.04] dark:ring-white/[0.06] transition-all duration-[400ms] ease-out ${
+        className={`absolute top-0 right-3 w-[200px] max-h-full overflow-y-auto py-1.5 rounded-xl backdrop-blur-xl bg-white/75 dark:bg-stone-800/75 shadow-[0_8px_24px_rgba(0,0,0,0.06)] dark:shadow-[0_8px_24px_rgba(0,0,0,0.35)] ring-1 ring-black/[0.04] dark:ring-white/[0.06] transition-all duration-[400ms] ease-out ${
           hover
             ? 'opacity-100 translate-x-0'
             : 'opacity-0 translate-x-2 pointer-events-none'
@@ -105,8 +109,14 @@ export function TableOfContents({ content, cursorLine, cmRef, scrollRef }: Props
           <button
             key={i}
             onClick={() => jumpTo(h.line)}
-            style={{ paddingLeft: `${(h.level - 1) * 14 + 18}px` }}
-            className={`w-full text-left pr-5 py-2.5 text-[13px] leading-relaxed truncate transition-colors ${
+            style={{
+              paddingLeft: `${(h.level - 1) * 12 + 14}px`,
+              fontSize: '12px',
+              lineHeight: 1.5,
+              paddingTop: '2px',
+              paddingBottom: '2px',
+            }}
+            className={`w-full text-left pr-3 truncate transition-colors ${
               i === activeIdx
                 ? 'text-stone-900 dark:text-stone-50 font-bold'
                 : 'text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-50 hover:bg-black/[0.03] dark:hover:bg-white/[0.04]'

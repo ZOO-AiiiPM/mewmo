@@ -19,6 +19,9 @@ pub struct Note {
     pub title: String,
     pub content_md: String,
     pub content_loaded: bool,
+    /// 列表用的正文预览（开头 ~100 字符，跳过标题 H1）。get_note 时为空——
+    /// 列表不带完整 body（省 IPC 体积），但要展示描述，所以单带一个短预览。
+    pub preview: String,
     pub tags_text: String,
     /// ISO 8601 → unix ts（前端类型保 number 兼容现有 UI 时间显示）
     pub created_at: i64,
@@ -56,6 +59,20 @@ fn first_h1(body: &str) -> Option<String> {
     None
 }
 
+/// 列表用的正文预览：取正文开头 ~100 字符（按 char 截，UTF-8 安全）。
+/// 不跳过开头的 H1——title 是文件名（slug），正文里的 `# xxx` 是正文内容，
+/// 预览要跟点开后 content_md 渲染的一致。前端再做 markdown 符号清理。
+fn body_preview(body: &str) -> String {
+    body.lines()
+        .map(|l| l.trim())
+        .filter(|l| !l.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
+        .chars()
+        .take(100)
+        .collect()
+}
+
 #[tauri::command]
 pub async fn list_notes() -> Result<Vec<Note>, String> {
     // vault 未初始化时返回空 list（不 fail，让 UI 显示空状态）
@@ -63,14 +80,13 @@ pub async fn list_notes() -> Result<Vec<Note>, String> {
         Ok(p) => p,
         Err(_) => return Ok(Vec::new()),
     };
-    let summaries = query::list_notes(&vault)
-        .await
-        .map_err(|e| e.to_string())?;
+    let summaries = query::list_notes(&vault).await.map_err(|e| e.to_string())?;
     let mut out = Vec::with_capacity(summaries.len());
     for s in summaries {
         // 二次 read 拿 frontmatter created / updated（跟 get_note 一致），避免列表 mtime
-        // 跟点开后 frontmatter.created 不一致导致 sidebar 时间分组「今天」突跳到「本周」
-        let (created_at, updated_at) = match query::get_note(&vault, &s.slug).await {
+        // 跟点开后 frontmatter.created 不一致导致 sidebar 时间分组「今天」突跳到「本周」。
+        // 同一次 read 顺手算正文预览（body 本来就读出来了，不额外开销）。
+        let (created_at, updated_at, preview) = match query::get_note(&vault, &s.slug).await {
             Ok(full) => {
                 let c = if full.created.is_some() {
                     iso_to_unix(full.created.as_deref())
@@ -82,17 +98,18 @@ pub async fn list_notes() -> Result<Vec<Note>, String> {
                 } else {
                     full.mtime as i64
                 };
-                (c, u)
+                (c, u, body_preview(&full.body))
             }
-            Err(_) => (s.mtime as i64, s.mtime as i64),
+            Err(_) => (s.mtime as i64, s.mtime as i64, String::new()),
         };
         let tags_text = s.tags.join(", ");
-        // list-summary-loading：列表不带 body，按需 read 加载（沿用 spec 002 io::list 模式）
+        // list-summary-loading：列表不带完整 body，只带短预览（preview），按需 read 加载全文
         out.push(Note {
             id: s.slug,
             title: s.title,
             content_md: String::new(),
             content_loaded: false,
+            preview,
             tags_text,
             created_at,
             updated_at,
@@ -127,6 +144,7 @@ pub async fn get_note(id: String) -> Result<Option<Note>, String> {
                 title: full.title,
                 content_md: full.body,
                 content_loaded: true,
+                preview: String::new(),
                 tags_text,
                 created_at,
                 updated_at,
@@ -172,6 +190,7 @@ pub async fn update_note(
         return Err("HTML_NOTE_READONLY".to_string());
     }
 
+    let should_rename = patch.title.is_some();
     let new_body = match patch.content_md {
         Some(c) => c,
         None => existing.body.clone(),
@@ -180,9 +199,13 @@ pub async fn update_note(
 
     // body 直接传，不再 strip / 注入 H1（按 Obsidian 风格：title 走 frontmatter，body 是纯内容）。
     // 老笔记 body 里仍有的 H1 由用户编辑时手动清理，不强制迁移避免误剥。
-    let r = ingest::update_note(&vault, &id, &new_title, &new_body, &existing.tags, None)
-        .await
-        .map_err(|e| e.to_string())?;
+    let r = if should_rename {
+        ingest::update_note(&vault, &id, &new_title, &new_body, &existing.tags, None).await
+    } else {
+        ingest::update_note_preserve_slug(&vault, &id, &new_title, &new_body, &existing.tags, None)
+            .await
+    }
+    .map_err(|e| e.to_string())?;
 
     // title 改了 → slug 变了 → 删旧 FTS5 索引 + 索引新 slug；返回新 slug 给前端更新 state/refId
     if r.slug != id {

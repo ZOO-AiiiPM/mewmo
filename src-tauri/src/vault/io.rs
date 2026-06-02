@@ -104,7 +104,10 @@ pub enum IoError {
     Locked(String),
     FileNotFound(String),
     InvalidPath(String),
-    InvalidFrontmatter { file: String, reason: String },
+    InvalidFrontmatter {
+        file: String,
+        reason: String,
+    },
     MtimeConflict {
         path: String,
         expected: u64,
@@ -207,7 +210,10 @@ fn full_path(vault_path: &Path, relative: &str) -> Result<PathBuf, IoError> {
 fn get_mtime(path: &Path) -> Result<u64, IoError> {
     let meta = fs::metadata(path)?;
     let mtime = meta.modified()?;
-    let secs = mtime.duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
+    let secs = mtime
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
     Ok(secs)
 }
 
@@ -379,7 +385,13 @@ fn list_dir_inner(
             }
         }
 
-        let title = first_h1(&parsed.body);
+        let title = parsed
+            .frontmatter
+            .as_ref()
+            .and_then(|f| f.extra.get("title"))
+            .and_then(|v| v.as_str())
+            .map(String::from)
+            .or_else(|| first_h1(&parsed.body));
         let tags = parsed
             .frontmatter
             .as_ref()

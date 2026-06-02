@@ -126,9 +126,7 @@ pub async fn list_clips() -> Result<Vec<Clip>, String> {
         Ok(p) => p,
         Err(_) => return Ok(Vec::new()),
     };
-    let summaries = query::list_clips(&vault)
-        .await
-        .map_err(|e| e.to_string())?;
+    let summaries = query::list_clips(&vault).await.map_err(|e| e.to_string())?;
     // list 已含 url / site_name / excerpt / saved_at —— 但需要 ClipFull 字段更全
     // 简化：每条单独 read（list_clips 内部已 read 过一次，性能可接受 dogfood 规模）
     let mut out = Vec::with_capacity(summaries.len());

@@ -52,9 +52,7 @@ pub async fn lock(vault_path: &Path, resource: &str) -> Result<LockGuard, LockEr
     loop {
         match fs::create_dir(&lock_dir) {
             Ok(()) => {
-                return Ok(LockGuard {
-                    path: lock_dir,
-                });
+                return Ok(LockGuard { path: lock_dir });
             }
             Err(e) if e.kind() == ErrorKind::AlreadyExists => {
                 if is_stale(&lock_dir).unwrap_or(false) {
@@ -64,12 +62,7 @@ pub async fn lock(vault_path: &Path, resource: &str) -> Result<LockGuard, LockEr
                     continue;
                 }
 
-                if start
-                    .elapsed()
-                    .unwrap_or(Duration::ZERO)
-                    .as_secs()
-                    >= LOCK_WAIT_TIMEOUT_SECS
-                {
+                if start.elapsed().unwrap_or(Duration::ZERO).as_secs() >= LOCK_WAIT_TIMEOUT_SECS {
                     return Err(LockError::Timeout {
                         resource: resource.to_string(),
                     });
@@ -182,8 +175,7 @@ mod tests {
                     .as_nanos();
                 let n = COUNTER.fetch_add(1, Ordering::SeqCst);
                 let pid = std::process::id();
-                let path = std::env::temp_dir()
-                    .join(format!("mewmo-test-{}-{}-{}", pid, nanos, n));
+                let path = std::env::temp_dir().join(format!("mewmo-test-{}-{}-{}", pid, nanos, n));
                 std::fs::create_dir_all(&path).unwrap();
                 TempDir { path }
             }
@@ -237,7 +229,10 @@ mod tests {
     #[allow(dead_code)]
     mod filetime {
         use std::path::Path;
-        pub fn set_file_mtime(_p: &Path, _t: super::filetime_inline::FileTime) -> std::io::Result<()> {
+        pub fn set_file_mtime(
+            _p: &Path,
+            _t: super::filetime_inline::FileTime,
+        ) -> std::io::Result<()> {
             Ok(())
         }
     }

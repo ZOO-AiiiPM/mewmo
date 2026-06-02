@@ -18,8 +18,8 @@ use std::time::UNIX_EPOCH;
 
 use serde::Serialize;
 
-use super::io;
 use super::ingest;
+use super::io;
 
 // ============================================================================
 // Public types（commands::notes / clips 的 typed view）
@@ -147,7 +147,13 @@ pub async fn get_note(vault: &Path, slug: &str) -> Result<NoteFull, io::IoError>
     if md_path.exists() {
         let r = io::read(vault, &md_relative).await?;
         let fm = r.frontmatter.unwrap_or_default();
-        let title = first_h1(&r.body).unwrap_or_else(|| slug.to_string());
+        let title = fm
+            .extra
+            .get("title")
+            .and_then(|v| v.as_str())
+            .map(String::from)
+            .or_else(|| first_h1(&r.body))
+            .unwrap_or_else(|| slug.to_string());
         let legacy_id = fm.extra.get("legacy_id").and_then(|v| v.as_i64());
         return Ok(NoteFull {
             slug: slug.to_string(),
@@ -404,7 +410,10 @@ mod tests {
         assert_eq!(full.site_name, Some("知乎".to_string()));
         assert_eq!(full.author, Some("某大 V".to_string()));
         assert_eq!(full.ip_location, Some("北京".to_string()));
-        assert_eq!(full.publish_ts, Some("2026-05-01T08:00:00+08:00".to_string()));
+        assert_eq!(
+            full.publish_ts,
+            Some("2026-05-01T08:00:00+08:00".to_string())
+        );
         assert!(full.body.contains("回答正文"));
         std::fs::remove_dir_all(&vault).ok();
     }

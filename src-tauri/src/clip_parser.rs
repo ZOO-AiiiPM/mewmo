@@ -69,7 +69,10 @@ fn element_to_md(el: scraper::ElementRef<'_>, base_url: &str) -> String {
         let alt = el.value().attr("alt").unwrap_or("");
         if let Some(src) = extract_img_src(el) {
             let resolved = resolve_url(&src, base_url);
-            let safe_alt = alt.replace('"', "&quot;").replace('<', "&lt;").replace('>', "&gt;");
+            let safe_alt = alt
+                .replace('"', "&quot;")
+                .replace('<', "&lt;")
+                .replace('>', "&gt;");
             let safe_src = resolved.replace('"', "&quot;");
             return format!("\n<img src=\"{}\" alt=\"{}\" />\n\n", safe_src, safe_alt);
         }
