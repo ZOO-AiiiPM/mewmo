@@ -1,11 +1,13 @@
 import type { SyntaxNodeRef } from '@lezer/common';
 import { syntaxTree, ensureSyntaxTree } from '@codemirror/language';
-import { Prec, StateField, type EditorState, type Text } from '@codemirror/state';
+import { Facet, Prec, StateEffect, StateField, type EditorState, type Text } from '@codemirror/state';
 import {
   Decoration,
   type DecorationSet,
   EditorView,
   keymap,
+  ViewPlugin,
+  type ViewUpdate,
   WidgetType,
 } from '@codemirror/view';
 import { resolveAttachmentUrl } from './attachments';
@@ -1352,9 +1354,10 @@ function patchEmptyListMark(ctx: DecorationCtx) {
 }
 
 function buildDecorations(state: EditorState): DecorationSet {
+  const focused = state.facet(editorFocused);
   const ctx: DecorationCtx = {
     state,
-    cursorLine: state.doc.lineAt(state.selection.main.head).number,
+    cursorLine: focused ? state.doc.lineAt(state.selection.main.head).number : -1,
     items: [],
     lineItems: [],
     lezerEmphasisRanges: [],
@@ -1362,7 +1365,7 @@ function buildDecorations(state: EditorState): DecorationSet {
   };
 
   // 强制解析到文档尾，避免初次切换笔记时 syntax tree 还没含 Table / TaskMarker 节点 → 装饰漏建
-  ensureSyntaxTree(state, state.doc.length, 50);
+  ensureSyntaxTree(state, state.doc.length, 500);
 
   // StateField 不能限制为 visibleRanges（无法访问 view）；笔记体量小，整文档遍历可接受。
   // enter 函数本身只做 dispatch，每类节点由 handleXXX helper 处理；返回 false 跳过子节点。
@@ -1439,16 +1442,57 @@ function buildDecorations(state: EditorState): DecorationSet {
   return Decoration.set([...ranges, ...lineRanges], true);
 }
 
-// block widgets 必须通过 StateField 注入，ViewPlugin 提供的会被静默丢弃
-export const livePreview = StateField.define<DecorationSet>({
-  create(state) {
-    return buildDecorations(state);
-  },
-  update(deco, tr) {
-    if (tr.docChanged || tr.selection) {
-      return buildDecorations(tr.state);
-    }
-    return deco.map(tr.changes);
-  },
-  provide: f => EditorView.decorations.from(f),
+const editorFocused = Facet.define<boolean, boolean>({
+  combine: values => values.length > 0 ? values[0] : true,
 });
+
+const focusTracker = StateField.define<boolean>({
+  create() { return false; },
+  update(value, tr) {
+    for (const e of tr.effects) {
+      if (e.is(focusEffect)) return e.value;
+    }
+    return value;
+  },
+  provide: f => editorFocused.from(f),
+});
+
+export const focusEffect = StateEffect.define<boolean>();
+
+const focusListener = EditorView.focusChangeEffect.of((_, focused) => focusEffect.of(focused));
+
+const rebuildEffect = StateEffect.define<null>();
+
+export const livePreview = [
+  focusTracker,
+  focusListener,
+  StateField.define<DecorationSet>({
+    create(state) {
+      return buildDecorations(state);
+    },
+    update(deco, tr) {
+      if (tr.docChanged || tr.selection
+        || tr.effects.some(e => e.is(focusEffect) || e.is(rebuildEffect))) {
+        return buildDecorations(tr.state);
+      }
+      return deco;
+    },
+    provide: f => EditorView.decorations.from(f),
+  }),
+  ViewPlugin.fromClass(class {
+    pending = false;
+    update(update: ViewUpdate) {
+      if (update.docChanged) {
+        if (syntaxTree(update.state).length < update.state.doc.length) {
+          this.pending = true;
+        }
+      }
+      if (this.pending && syntaxTree(update.state).length >= update.state.doc.length) {
+        this.pending = false;
+        queueMicrotask(() => {
+          update.view.dispatch({ effects: [rebuildEffect.of(null)] });
+        });
+      }
+    }
+  }),
+];

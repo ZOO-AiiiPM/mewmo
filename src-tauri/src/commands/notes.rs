@@ -59,19 +59,6 @@ fn first_h1(body: &str) -> Option<String> {
     None
 }
 
-/// 列表用的正文预览：取正文开头 ~100 字符（按 char 截，UTF-8 安全）。
-/// 不跳过开头的 H1——title 是文件名（slug），正文里的 `# xxx` 是正文内容，
-/// 预览要跟点开后 content_md 渲染的一致。前端再做 markdown 符号清理。
-fn body_preview(body: &str) -> String {
-    body.lines()
-        .map(|l| l.trim())
-        .filter(|l| !l.is_empty())
-        .collect::<Vec<_>>()
-        .join(" ")
-        .chars()
-        .take(100)
-        .collect()
-}
 
 #[tauri::command]
 pub async fn list_notes() -> Result<Vec<Note>, String> {
@@ -83,33 +70,23 @@ pub async fn list_notes() -> Result<Vec<Note>, String> {
     let summaries = query::list_notes(&vault).await.map_err(|e| e.to_string())?;
     let mut out = Vec::with_capacity(summaries.len());
     for s in summaries {
-        // 二次 read 拿 frontmatter created / updated（跟 get_note 一致），避免列表 mtime
-        // 跟点开后 frontmatter.created 不一致导致 sidebar 时间分组「今天」突跳到「本周」。
-        // 同一次 read 顺手算正文预览（body 本来就读出来了，不额外开销）。
-        let (created_at, updated_at, preview) = match query::get_note(&vault, &s.slug).await {
-            Ok(full) => {
-                let c = if full.created.is_some() {
-                    iso_to_unix(full.created.as_deref())
-                } else {
-                    full.mtime as i64
-                };
-                let u = if full.updated.is_some() {
-                    iso_to_unix(full.updated.as_deref())
-                } else {
-                    full.mtime as i64
-                };
-                (c, u, body_preview(&full.body))
-            }
-            Err(_) => (s.mtime as i64, s.mtime as i64, String::new()),
+        let created_at = if s.created.is_some() {
+            iso_to_unix(s.created.as_deref())
+        } else {
+            s.mtime as i64
+        };
+        let updated_at = if s.updated.is_some() {
+            iso_to_unix(s.updated.as_deref())
+        } else {
+            s.mtime as i64
         };
         let tags_text = s.tags.join(", ");
-        // list-summary-loading：列表不带完整 body，只带短预览（preview），按需 read 加载全文
         out.push(Note {
             id: s.slug,
             title: s.title,
             content_md: String::new(),
             content_loaded: false,
-            preview,
+            preview: s.body_preview,
             tags_text,
             created_at,
             updated_at,

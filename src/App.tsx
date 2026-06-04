@@ -24,8 +24,10 @@ import {
   shouldAutoRefreshOnStartup,
 } from './lib/subscription';
 import { SearchOverlay } from './components/SearchOverlay';
+import { SettingsPanel } from './components/SettingsPanel';
 import { useTheme } from './lib/useTheme';
 import { cleanupOrphans } from './lib/attachments';
+import { groupByBucket } from './lib/dateBuckets';
 import type { Note, Clip, SubscriptionSource, FeedEntry } from './types';
 import {
   canGoBack,
@@ -57,7 +59,7 @@ const PLACEHOLDER_LABEL: Record<Zone, string> = {
 };
 
 export default function App() {
-  const { theme, toggle } = useTheme();
+  const { theme, mode, setMode } = useTheme();
   const [notes, setNotes] = useState<Note[]>([]);
   const [clips, setClips] = useState<Clip[]>([]);
   // 订阅 state 提到顶层（避免 SubscriptionLayout 切 zone 时 unmount 重 fetch 导致的"图片+title 闪一下"）
@@ -75,6 +77,7 @@ export default function App() {
 
   // ── 搜索弹窗 open/close（query/results 由 SearchOverlay 自管） ────────────
   const [searchOverlayOpen, setSearchOverlayOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // ── Tab 状态机 ────────────────────────────────────────────────────────────
   const [tabs, setTabs] = useState<Tab[]>([{ id: 'tab_1', zone: null, refId: null, noteHistoryState: emptyHistory<string>() }]);
@@ -522,9 +525,30 @@ export default function App() {
     }
   }, [selectedClip, ensureClipLoaded]);
 
-  // 笔记浏览历史前进/后退是否可用（仅在 notes zone 有意义）
-  const canBack = activeTab?.zone === 'notes' && canGoBack(activeTab.noteHistoryState);
-  const canForward = activeTab?.zone === 'notes' && canGoForward(activeTab.noteHistoryState);
+  // 笔记列表上一篇 / 下一篇：按视觉顺序（groupByBucket 展平）
+  const noteVisualOrder = useMemo(
+    () => groupByBucket(notes, n => n.created_at).flatMap(g => g.items),
+    [notes]
+  );
+  const noteIdx = selectedNote ? noteVisualOrder.findIndex(n => n.id === selectedNote.id) : -1;
+  const hasNotePrev = noteIdx > 0;
+  const hasNoteNext = noteIdx >= 0 && noteIdx < noteVisualOrder.length - 1;
+  const notePrev = useCallback(() => {
+    if (noteIdx > 0) {
+      const id = noteVisualOrder[noteIdx - 1].id;
+      setTabs(prev => prev.map(t =>
+        t.id !== activeTabId ? t : { ...t, zone: 'notes', refId: id, noteHistoryState: pushHistory(t.noteHistoryState, id) }
+      ));
+    }
+  }, [noteIdx, noteVisualOrder, activeTabId]);
+  const noteNext = useCallback(() => {
+    if (noteIdx >= 0 && noteIdx < noteVisualOrder.length - 1) {
+      const id = noteVisualOrder[noteIdx + 1].id;
+      setTabs(prev => prev.map(t =>
+        t.id !== activeTabId ? t : { ...t, zone: 'notes', refId: id, noteHistoryState: pushHistory(t.noteHistoryState, id) }
+      ));
+    }
+  }, [noteIdx, noteVisualOrder, activeTabId]);
 
   const counts: Record<Zone, number> = {
     subscribe: 0,
@@ -580,40 +604,25 @@ export default function App() {
     );
   }, [activeTabId]);
 
-  const handleNoteBack = useCallback(() => {
-    setTabs(prev =>
-      prev.map(t => {
-        if (t.id !== activeTabId) return t;
-        const next = goBack(t.noteHistoryState);
-        return { ...t, refId: currentItem(next), noteHistoryState: next };
-      })
-    );
-  }, [activeTabId]);
-
-  const handleNoteForward = useCallback(() => {
-    setTabs(prev =>
-      prev.map(t => {
-        if (t.id !== activeTabId) return t;
-        const next = goForward(t.noteHistoryState);
-        return { ...t, refId: currentItem(next), noteHistoryState: next };
-      })
-    );
-  }, [activeTabId]);
 
   const handleClipSelect = useCallback((id: string) => {
     updateActiveTab({ zone: 'clipping', refId: id });
   }, [updateActiveTab]);
 
-  // 剪藏列表上一条 / 下一条：clips 已按 saved_at desc，← 列表上面（更新）→ 列表下面（更早）
-  const clipIdx = selectedClip ? clips.findIndex(c => c.id === selectedClip.id) : -1;
+  // 剪藏列表上一条 / 下一条：按视觉顺序（groupByBucket 展平）走，避免 mtime≠saved_at 时跳过
+  const clipVisualOrder = useMemo(
+    () => groupByBucket(clips, c => c.saved_at).flatMap(g => g.items),
+    [clips]
+  );
+  const clipIdx = selectedClip ? clipVisualOrder.findIndex(c => c.id === selectedClip.id) : -1;
   const hasClipPrev = clipIdx > 0;
-  const hasClipNext = clipIdx >= 0 && clipIdx < clips.length - 1;
+  const hasClipNext = clipIdx >= 0 && clipIdx < clipVisualOrder.length - 1;
   const clipPrev = useCallback(() => {
-    if (clipIdx > 0) handleClipSelect(clips[clipIdx - 1].id);
-  }, [clipIdx, clips, handleClipSelect]);
+    if (clipIdx > 0) handleClipSelect(clipVisualOrder[clipIdx - 1].id);
+  }, [clipIdx, clipVisualOrder, handleClipSelect]);
   const clipNext = useCallback(() => {
-    if (clipIdx >= 0 && clipIdx < clips.length - 1) handleClipSelect(clips[clipIdx + 1].id);
-  }, [clipIdx, clips, handleClipSelect]);
+    if (clipIdx >= 0 && clipIdx < clipVisualOrder.length - 1) handleClipSelect(clipVisualOrder[clipIdx + 1].id);
+  }, [clipIdx, clipVisualOrder, handleClipSelect]);
 
   // 进 clipping zone 且无选中 → 自动选第一条
   useEffect(() => {
@@ -647,9 +656,8 @@ export default function App() {
           active={activeZone}
           onSelect={handleSidebarSelect}
           counts={counts}
-          theme={theme}
-          onToggleTheme={toggle}
           onSearchClick={() => setSearchOverlayOpen(true)}
+          onSettingsClick={() => setSettingsOpen(true)}
         />
 
         {/* 主内容区：relative 是 AIPanel 的浮层定位锚点 */}
@@ -723,10 +731,10 @@ export default function App() {
                   onDelete={() => selectedNote && handleDeleteNote(selectedNote.id)}
                   onCreate={handleCreateAndBind}
                   onImport={() => setImportDialogOpen(true)}
-                  canBack={canBack}
-                  canForward={canForward}
-                  onBack={handleNoteBack}
-                  onForward={handleNoteForward}
+                  canBack={hasNotePrev}
+                  canForward={hasNoteNext}
+                  onBack={notePrev}
+                  onForward={noteNext}
                 />
               ) : (
                 <NoteEditor
@@ -740,10 +748,10 @@ export default function App() {
                   aiOpen={aiOpen}
                   expanded={expanded}
                   onExpand={() => setExpanded(e => !e)}
-                  canBack={canBack}
-                  canForward={canForward}
-                  onBack={handleNoteBack}
-                  onForward={handleNoteForward}
+                  canBack={hasNotePrev}
+                  canForward={hasNoteNext}
+                  onBack={notePrev}
+                  onForward={noteNext}
                   newlyCreatedId={newlyCreatedNoteId}
                   onCreateAnimDone={consumeNewlyCreated}
                 />
@@ -824,6 +832,14 @@ export default function App() {
         onImported={async () => {
           await refresh();
         }}
+      />
+
+      {/* 设置面板 */}
+      <SettingsPanel
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        mode={mode}
+        onModeChange={setMode}
       />
     </div>
   );

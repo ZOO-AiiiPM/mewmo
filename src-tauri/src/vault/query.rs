@@ -31,6 +31,9 @@ pub struct NoteSummary {
     pub title: String,
     pub tags: Vec<String>,
     pub mtime: u64,
+    pub created: Option<String>,
+    pub updated: Option<String>,
+    pub body_preview: String,
     /// "md"（标准笔记）或 "html"（外部 HTML 文件导入）
     pub format: String,
 }
@@ -95,6 +98,9 @@ pub async fn list_notes(vault: &Path) -> Result<Vec<NoteSummary>, io::IoError> {
             title: e.title.unwrap_or_else(|| "无标题".to_string()),
             tags: e.tags,
             mtime: e.mtime,
+            created: e.created,
+            updated: e.updated,
+            body_preview: e.body_preview,
             format: "md".to_string(),
         })
         .collect();
@@ -129,6 +135,9 @@ pub async fn list_notes(vault: &Path) -> Result<Vec<NoteSummary>, io::IoError> {
                     title,
                     tags: Vec::new(),
                     mtime,
+                    created: None,
+                    updated: None,
+                    body_preview: String::new(),
                     format: "html".to_string(),
                 });
             }

@@ -1,34 +1,53 @@
 import { useEffect, useState } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
-type Theme = 'light' | 'dark';
+export type ThemeMode = 'light' | 'dark' | 'system';
+type ResolvedTheme = 'light' | 'dark';
 
 const STORAGE_KEY = 'vibe-theme';
 
-function getInitial(): Theme {
-  const saved = localStorage.getItem(STORAGE_KEY);
-  if (saved === 'light' || saved === 'dark') return saved;
+function getSystemTheme(): ResolvedTheme {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
+function getInitialMode(): ThemeMode {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved === 'light' || saved === 'dark' || saved === 'system') return saved;
+  return 'system';
+}
+
+function resolve(mode: ThemeMode): ResolvedTheme {
+  return mode === 'system' ? getSystemTheme() : mode;
+}
+
 export function useTheme() {
-  const [theme, setTheme] = useState<Theme>(getInitial);
+  const [mode, setMode] = useState<ThemeMode>(getInitialMode);
+  const [theme, setTheme] = useState<ResolvedTheme>(() => resolve(mode));
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, mode);
+    setTheme(resolve(mode));
+  }, [mode]);
+
+  useEffect(() => {
+    if (mode !== 'system') return;
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = () => setTheme(getSystemTheme());
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, [mode]);
 
   useEffect(() => {
     const root = document.documentElement;
     if (theme === 'dark') root.classList.add('dark');
     else root.classList.remove('dark');
-    localStorage.setItem(STORAGE_KEY, theme);
 
-    // 同步到 Tauri 窗口 NSAppearance —— 这样 vibrancy material 才会跟随切换深浅
     try {
       getCurrentWindow().setTheme(theme).catch(() => {});
-    } catch {
-      // Tauri API 还没注入（getCurrentWindow 同步 throw）—— 忽略，等下次 effect
-    }
+    } catch {}
   }, [theme]);
 
-  const toggle = () => setTheme(t => (t === 'dark' ? 'light' : 'dark'));
+  const toggle = () => setMode(m => (m === 'dark' ? 'light' : m === 'light' ? 'dark' : 'light'));
 
-  return { theme, toggle };
+  return { theme, mode, setMode, toggle };
 }
