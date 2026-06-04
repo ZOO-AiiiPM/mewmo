@@ -127,14 +127,29 @@ pub async fn list_clips() -> Result<Vec<Clip>, String> {
         Err(_) => return Ok(Vec::new()),
     };
     let summaries = query::list_clips(&vault).await.map_err(|e| e.to_string())?;
-    // list 已含 url / site_name / excerpt / saved_at —— 但需要 ClipFull 字段更全
-    // 简化：每条单独 read（list_clips 内部已 read 过一次，性能可接受 dogfood 规模）
     let mut out = Vec::with_capacity(summaries.len());
     for s in summaries {
-        match query::get_clip(&vault, &s.slug).await {
-            Ok(full) => out.push(full_to_clip(full, false)),
-            Err(_) => continue, // 损坏单条跳过
-        }
+        let saved_at = if let Some(ref sa) = s.saved_at {
+            iso_to_unix(Some(sa))
+        } else {
+            s.mtime as i64
+        };
+        out.push(Clip {
+            id: s.slug,
+            url: s.url,
+            title: s.title,
+            content_md: s.body_preview,
+            content_loaded: false,
+            excerpt: s.excerpt.unwrap_or_default(),
+            site_name: s.site_name.unwrap_or_default(),
+            favicon_url: s.favicon_url.unwrap_or_default(),
+            saved_at,
+            cover_image: s.cover_url.unwrap_or_default(),
+            author: s.author.unwrap_or_default(),
+            published_at: s.publish_ts.unwrap_or_default(),
+            ip_region: s.ip_location.unwrap_or_default(),
+            tags_text: s.tags.join(", "),
+        });
     }
     Ok(out)
 }
