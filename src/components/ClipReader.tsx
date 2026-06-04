@@ -108,12 +108,7 @@ export function ClipReader({
 
   const contentHtml = useMemo(() => {
     if (!clip?.content_md) return '';
-    // 剥掉公众号等来源 clip_parser 没处理掉的 inline <span> styling 标签。
-    // marked 对 inline HTML 内部的 markdown 不当 markdown 解析（直接 raw 透传），
-    // 导致 <span style="...">![](url)</span> 里的 ![](url) 显示成字面字符串没渲染成
-    // <img>。剥 span 保留内容，让 image / bold / em 等 markdown 暴露给 marked 解析。
-    const stripped = clip.content_md.replace(/<\/?span\b[^>]*>/gi, '');
-    return sanitizeHtml(marked.parse(stripped) as string);
+    return sanitizeHtml(marked.parse(clip.content_md) as string);
   }, [clip?.content_md]);
 
   // contentHtml 变化时手动写 innerHTML，绕开 dangerouslySetInnerHTML 在每次
@@ -165,6 +160,7 @@ export function ClipReader({
     // setTitleInToolbar(true) → paint 完后真 scroll 触发又切 false → 肉眼闪两下。
     // 订阅 EntryReader 用同样的"直接 reset"思路就不闪。
     root.scrollTop = 0;
+    root.scrollLeft = 0;
     setTitleInToolbar(false);
     const onScroll = () => {
       const h1 = titleRef.current;
@@ -550,7 +546,7 @@ export function ClipReader({
 
   if (!clip) {
     return (
-      <main className="relative flex-1 flex flex-col overflow-hidden">
+      <main className="relative flex-1 min-w-0 flex flex-col overflow-hidden">
         {Toolbar}
         <div className="flex-1 flex flex-col items-center justify-center gap-2 text-stone-400 dark:text-stone-500 text-sm">
           <div className="text-2xl">📋</div>
@@ -564,12 +560,12 @@ export function ClipReader({
   const publishedText = fmtPublished(clip.published_at);
 
   return (
-    <main className="relative flex-1 flex flex-col overflow-hidden">
+    <main className="relative flex-1 min-w-0 flex flex-col overflow-hidden">
       {Toolbar}
 
       {/* 阅读内容 */}
-      <div ref={scrollRef} className={`flex-1 overflow-y-auto sidebar-scroll transition-[padding-right] duration-200 ease-out ${aiOpen ? 'pr-[300px]' : ''} pt-12`}>
-        <div className="max-w-2xl mx-auto px-10 pt-6 pb-16">
+      <div ref={scrollRef} className={`flex-1 min-w-0 overflow-y-auto overflow-x-hidden sidebar-scroll transition-[padding-right] duration-200 ease-out ${aiOpen ? 'pr-[300px]' : ''} pt-12`}>
+        <div className="w-full min-w-0 max-w-2xl mx-auto px-10 pt-6 pb-16">
           <h1
             ref={titleRef}
             className={`text-[28px] font-bold tracking-tight text-stone-900 dark:text-stone-50 leading-tight mb-3 transition-opacity duration-200 ${

@@ -39,9 +39,15 @@ import {
   pushHistory,
   type HistoryState,
 } from './lib/historyStack';
-
 import { AIPanel } from './components/AIPanel';
 import { VaultLayout } from './components/vault/VaultLayout';
+
+function resetDocumentHorizontalScroll() {
+  requestAnimationFrame(() => {
+    document.documentElement.scrollLeft = 0;
+    document.body.scrollLeft = 0;
+  });
+}
 
 type Tab = {
   id: string;
@@ -478,11 +484,19 @@ export default function App() {
   const handleClipSave = useCallback(async (url: string) => {
     const fetched = await invoke<FetchedClip>('fetch_clip', { url });
     const id = await saveClip(fetched);
-    await refreshClips();
+    const [freshClips, fullClip] = await Promise.all([
+      listClips(),
+      getClip(id),
+    ]);
+    setClips(fullClip
+      ? freshClips.map(c => (c.id === id ? fullClip : c))
+      : freshClips
+    );
     setTabs(prev =>
       prev.map(t => (t.id === activeTabId ? { ...t, zone: 'clipping', refId: id } : t))
     );
-  }, [refreshClips, activeTabId]);
+    resetDocumentHorizontalScroll();
+  }, [activeTabId]);
 
   const handleClipDelete = useCallback(async (id: string) => {
     await deleteClip(id);
@@ -640,7 +654,7 @@ export default function App() {
   }
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden relative">
+    <div className="h-screen w-screen flex flex-col overflow-hidden relative">
       <TabBar
         tabs={tabPills}
         activeId={activeTabId}
@@ -648,7 +662,7 @@ export default function App() {
         onClose={closeTab}
         onAddNew={addEmptyTab}
       />
-      <div className="flex-1 flex overflow-hidden min-h-0">
+      <div className="flex-1 flex overflow-hidden min-h-0 min-w-0">
         <Sidebar
           open={sidebarOpen}
           hidden={expanded}
@@ -665,7 +679,7 @@ export default function App() {
           {/* Layer 2：Content card（list + main 合并的圆角白卡，右/下 flush window 边缘）。
               结构：list 群永驻（避免切 zone 销毁 list DOM 导致 favicon 重新加载），
                   reader 区 conditional（释放正文图片内存）。 */}
-          <div className="h-full flex bg-white dark:bg-stone-900 rounded-tl-2xl overflow-hidden shadow-[0_2px_16px_rgba(0,0,0,0.07),0_0_0_0.5px_rgba(0,0,0,0.05)] dark:shadow-[0_2px_16px_rgba(0,0,0,0.4),0_0_0_0.5px_rgba(255,255,255,0.05)]">
+          <div className="h-full flex min-w-0 bg-white dark:bg-stone-900 rounded-tl-2xl overflow-hidden shadow-[0_2px_16px_rgba(0,0,0,0.07),0_0_0_0.5px_rgba(0,0,0,0.05)] dark:shadow-[0_2px_16px_rgba(0,0,0,0.4),0_0_0_0.5px_rgba(255,255,255,0.05)]">
             {/* 永驻 list 群：用 display 切换可见性，DOM 不销毁。
                 fragment 不能挂 style，所以每个 list zone 用一个 wrapper div + display:contents/none */}
             <div style={{ display: activeZone === 'clipping' ? 'contents' : 'none' }}>
@@ -766,6 +780,7 @@ export default function App() {
                 canForward={entryCanForward}
                 expanded={expanded}
                 onExpand={() => setExpanded(e => !e)}
+                onClipSave={handleClipSave}
               />
             ) : activeZone === 'vault' ? (
               <VaultLayout
@@ -781,12 +796,14 @@ export default function App() {
 
           {/* Layer 3：AI 浮层（绝对定位浮在 content card 之上）。
               永久挂着 + open 控制 transform/opacity，否则首次 toggle 没起点状态 → 无 transition */}
-          <AIPanel
-            open={aiOpen}
-            currentNote={activeZone === 'notes' ? selectedNoteReady : null}
-            currentClip={activeZone === 'clipping' ? selectedClipReady : null}
-            zone={activeZone}
-          />
+          <div className="absolute inset-0 z-10 overflow-hidden pointer-events-none">
+            <AIPanel
+              open={aiOpen}
+              currentNote={activeZone === 'notes' ? selectedNoteReady : null}
+              currentClip={activeZone === 'clipping' ? selectedClipReady : null}
+              zone={activeZone}
+            />
+          </div>
         </main>
       </div>
 

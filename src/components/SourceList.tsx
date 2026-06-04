@@ -122,7 +122,7 @@ export function SourceList({
             const itemBody = (
               <div
                 onClick={() => onSelect(s.id)}
-                className={`px-3 py-2.5 rounded-lg cursor-pointer flex items-center gap-2.5 transition-colors ${
+                className={`pl-8 pr-3 py-2.5 rounded-lg cursor-pointer flex items-center gap-2.5 transition-colors ${
                   selectedId === s.id
                     ? 'bg-black/[0.10] dark:bg-white/[0.12]'
                     : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.05]'
@@ -217,7 +217,7 @@ function SourceFavicon({ source, unhealthy }: { source: SubscriptionSource; unhe
   const useImg = !unhealthy && idx < candidates.length;
   return (
     <div
-      className="w-7 h-7 rounded-md grid place-items-center text-white text-[11px] font-semibold shrink-0 overflow-hidden"
+      className="w-7 h-7 rounded-full grid place-items-center text-white text-[11px] font-semibold shrink-0 overflow-hidden"
       style={{ background: unhealthy ? '#ef4444' : (useImg ? '#fafaf9' : colorFor(source)) }}
     >
       {unhealthy ? (
