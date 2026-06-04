@@ -614,7 +614,7 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
                 syntaxHighlighting: false,
               }}
               extensions={[
-                markdown({ base: markdownLanguage, codeLanguages: [] }),
+                markdown({ base: markdownLanguage, codeLanguages: [], extensions: [{ remove: ['SetextHeading'] }] }),
                 // markdown 列表回车续行：「- 」/「* 」/「1. 2. 3.」（自增）/「> 」/「- [ ]」
                 // 全部支持，空行末回车自动退出列表。Prec.high 让 livePreview / 默认 Enter 之前命中
                 Prec.high(keymap.of([{ key: 'Enter', run: insertNewlineContinueMarkup }])),

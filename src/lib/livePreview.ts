@@ -1,5 +1,5 @@
 import type { SyntaxNodeRef } from '@lezer/common';
-import { syntaxTree, ensureSyntaxTree } from '@codemirror/language';
+import { syntaxTree, syntaxTreeAvailable, forceParsing, ensureSyntaxTree } from '@codemirror/language';
 import { Facet, Prec, StateEffect, StateField, type EditorState, type Text } from '@codemirror/state';
 import {
   Decoration,
@@ -1192,6 +1192,22 @@ function handleHeaderMark(node: SyntaxNodeRef, ctx: DecorationCtx) {
   });
 }
 
+const hrLineDeco = Decoration.line({ class: 'cm-md-hr' });
+const hrLineActiveDeco = Decoration.line({ class: 'cm-md-hr cm-md-hr-active' });
+
+function handleHorizontalRule(node: SyntaxNodeRef, ctx: DecorationCtx) {
+  const line = ctx.state.doc.lineAt(node.from);
+  const selLine = ctx.state.doc.lineAt(ctx.state.selection.main.head).number;
+  if (selLine === line.number) {
+    ctx.lineItems.push({ pos: line.from, deco: hrLineActiveDeco });
+  } else {
+    ctx.lineItems.push({ pos: line.from, deco: hrLineDeco });
+    if (line.to > line.from) {
+      ctx.items.push({ from: line.from, to: line.to, deco: Decoration.replace({}) });
+    }
+  }
+}
+
 // ── 列表标记 ──
 // 严格判定：必须 [-*+] + 空格 才识别为列表（光标后空格一打出就立即渲染，不要求内容；
 // 用户输 "-" 没空格时保留原字符）。
@@ -1401,6 +1417,10 @@ function buildDecorations(state: EditorState): DecorationSet {
         if (handleTable(node, ctx)) return false;
         return;
       }
+      if (name === 'HorizontalRule') {
+        handleHorizontalRule(node, ctx);
+        return false;
+      }
 
       // 行内格式标记（**, *, ~~, `）
       if (name === 'EmphasisMark' || name === 'StrikethroughMark' || name === 'CodeMark') {
@@ -1481,18 +1501,37 @@ export const livePreview = [
   }),
   ViewPlugin.fromClass(class {
     pending = false;
+    scheduled = false;
     update(update: ViewUpdate) {
       if (update.docChanged) {
-        if (syntaxTree(update.state).length < update.state.doc.length) {
+        if (!syntaxTreeAvailable(update.state, update.state.doc.length)) {
           this.pending = true;
+          this.scheduleRebuild(update.view);
         }
       }
-      if (this.pending && syntaxTree(update.state).length >= update.state.doc.length) {
+      if (this.pending && syntaxTreeAvailable(update.state, update.state.doc.length)) {
         this.pending = false;
+        this.scheduled = false;
         queueMicrotask(() => {
           update.view.dispatch({ effects: [rebuildEffect.of(null)] });
         });
       }
+    }
+    scheduleRebuild(view: EditorView) {
+      if (this.scheduled) return;
+      this.scheduled = true;
+      requestAnimationFrame(() => {
+        if (!this.pending) { this.scheduled = false; return; }
+        forceParsing(view, view.state.doc.length, 150);
+        if (syntaxTreeAvailable(view.state, view.state.doc.length)) {
+          this.pending = false;
+          this.scheduled = false;
+          view.dispatch({ effects: [rebuildEffect.of(null)] });
+        } else {
+          this.scheduled = false;
+          this.scheduleRebuild(view);
+        }
+      });
     }
   }),
 ];
