@@ -61,6 +61,11 @@ pub struct ClipSummary {
     pub favicon_url: Option<String>,
     pub excerpt: Option<String>,
     pub saved_at: Option<String>,
+    pub cover_url: Option<String>,
+    pub author: Option<String>,
+    pub publish_ts: Option<String>,
+    pub ip_location: Option<String>,
+    pub body_preview: String,
     pub tags: Vec<String>,
     pub mtime: u64,
 }
@@ -236,6 +241,11 @@ pub async fn list_clips(vault: &Path) -> Result<Vec<ClipSummary>, io::IoError> {
             favicon_url: extra_opt(&fm, "favicon_url"),
             excerpt: extra_opt(&fm, "excerpt"),
             saved_at: extra_opt(&fm, "saved_at"),
+            cover_url: extra_opt(&fm, "cover_url"),
+            author: fm.author.clone(),
+            publish_ts: extra_opt(&fm, "publish_ts"),
+            ip_location: extra_opt(&fm, "ip_location"),
+            body_preview: r.body.chars().take(240).collect(),
             tags: fm.tags,
             mtime: e.mtime,
         });
