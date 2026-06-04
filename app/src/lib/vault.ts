@@ -44,6 +44,9 @@ export type EntrySummary = {
   tags: string[];
   mtime: number;
   size: number;
+  created: string | null;
+  updated: string | null;
+  body_preview: string;
 };
 
 /**

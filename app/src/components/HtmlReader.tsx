@@ -103,9 +103,11 @@ export function HtmlReader({
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const firstH1Ref = useRef<HTMLElement | null>(null);
+  const roRef = useRef<ResizeObserver | null>(null);
+  const iframeDocRef = useRef<Document | null>(null);
+  const clickHandlerRef = useRef<((e: MouseEvent) => void) | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [titleInToolbar, setTitleInToolbar] = useState(false);
-  // iframe load 后 +1 → HtmlTableOfContents useEffect 重抽 headings（hideAutoToc 之后才抽，避免目录条目串进去）
   const [tocRefreshKey, setTocRefreshKey] = useState(0);
 
   const updateTitleInToolbar = useCallback(() => {
@@ -129,6 +131,13 @@ export function HtmlReader({
     if (!ifr) return;
     const doc = ifr.contentDocument;
     if (!doc) return;
+
+    // cleanup previous observers/listeners
+    if (roRef.current) { roRef.current.disconnect(); roRef.current = null; }
+    if (iframeDocRef.current && clickHandlerRef.current) {
+      iframeDocRef.current.removeEventListener('click', clickHandlerRef.current as EventListener);
+    }
+    iframeDocRef.current = doc;
 
     // 1. 先屏蔽自带目录（必须在 TOC 抽 headings 之前，让被隐藏的 toc heading offsetParent 为 null）
     hideAutoToc(doc);
@@ -174,9 +183,10 @@ export function HtmlReader({
     if (doc.body && typeof ResizeObserver !== 'undefined') {
       const ro = new ResizeObserver(adjustHeight);
       ro.observe(doc.body);
+      roRef.current = ro;
     }
 
-    doc.addEventListener('click', (e) => {
+    const clickHandler = (e: MouseEvent) => {
       const target = e.target as Element | null;
       const a = target?.closest?.('a');
       if (!a) return;
@@ -185,12 +195,25 @@ export function HtmlReader({
         e.preventDefault();
         openUrl(href).catch(err => console.error('[html-reader] open url failed:', err));
       }
-    });
+    };
+    doc.addEventListener('click', clickHandler as EventListener);
+    clickHandlerRef.current = clickHandler;
 
     // 3. 通知 HtmlTableOfContents 重抽 headings（此时 hideAutoToc 已隐藏 toc 段，filter offsetParent 自动跳过）
     setTocRefreshKey(k => k + 1);
     updateTitleInToolbar();
   };
+
+  useEffect(() => {
+    return () => {
+      if (roRef.current) { roRef.current.disconnect(); roRef.current = null; }
+      if (iframeDocRef.current && clickHandlerRef.current) {
+        iframeDocRef.current.removeEventListener('click', clickHandlerRef.current as EventListener);
+      }
+      iframeDocRef.current = null;
+      clickHandlerRef.current = null;
+    };
+  }, []);
 
   // 切笔记时 reader 区滚回顶部（iframe 自己 srcDoc 变会自动从头开始，但外层 scroll 也要重置）
   useEffect(() => {
@@ -238,13 +261,13 @@ export function HtmlReader({
           </span>
         </div>
         <div className="flex items-center gap-0.5">
-          <button onClick={onBack} disabled={!canBack} title="返回上一条笔记" className={BTN_DISABLED}>
+          <button onClick={onBack} disabled={!canBack} title="上一篇" className={BTN_DISABLED}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="m12 19-7-7 7-7" />
               <path d="M19 12H5" />
             </svg>
           </button>
-          <button onClick={onForward} disabled={!canForward} title="前进到下一条笔记" className={BTN_DISABLED}>
+          <button onClick={onForward} disabled={!canForward} title="下一篇" className={BTN_DISABLED}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M5 12h14" />
               <path d="m12 5 7 7-7 7" />

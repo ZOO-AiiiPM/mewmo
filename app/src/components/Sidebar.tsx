@@ -8,10 +8,9 @@ type Props = {
   active: Zone | null;
   onSelect: (zone: Zone) => void;
   counts?: Partial<Record<Zone, number>>;
-  theme: 'light' | 'dark';
-  onToggleTheme: () => void;
   hidden?: boolean;
   onSearchClick: () => void;
+  onSettingsClick: () => void;
 };
 
 const icons = {
@@ -81,6 +80,12 @@ const icons = {
       <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
     </svg>
   ),
+  settings: (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  ),
 };
 
 const NAV: Array<{ id: Zone; label: string }> = [
@@ -91,7 +96,7 @@ const NAV: Array<{ id: Zone; label: string }> = [
   { id: 'vault', label: 'Vault' },
 ];
 
-export function Sidebar({ open, onToggle, active, onSelect, counts = {}, theme, onToggleTheme, hidden = false, onSearchClick }: Props) {
+export function Sidebar({ open, onToggle, active, onSelect, counts = {}, hidden = false, onSearchClick, onSettingsClick }: Props) {
   return (
     <aside
       style={{ width: hidden ? 0 : (open ? undefined : 48) }}
@@ -168,19 +173,19 @@ export function Sidebar({ open, onToggle, active, onSelect, counts = {}, theme, 
         ))}
       </nav>
 
-      {/* 底部主题切换：pt-0.5(2px) 维持节奏，按钮 py-2 + icon 居中 */}
+      {/* 底部设置按钮 */}
       <div className="pt-0.5 px-0.5 pb-2 border-t border-black/5 dark:border-white/5">
         <button
-          onClick={onToggleTheme}
-          title={theme === 'dark' ? '切换到浅色' : '切换到深色'}
+          onClick={onSettingsClick}
+          title="设置"
           className="w-full flex items-center gap-2 px-3 py-3 rounded-lg text-stone-700 dark:text-stone-200 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-colors"
         >
           <span className="shrink-0">
-            {theme === 'dark' ? icons.sun : icons.moon}
+            {icons.settings}
           </span>
           {open && (
             <span className="text-[14px] font-medium truncate">
-              {theme === 'dark' ? '浅色' : '深色'}
+              设置
             </span>
           )}
         </button>

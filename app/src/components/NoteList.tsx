@@ -48,16 +48,17 @@ export function NoteList({
                   {g.items.length}
                 </span>
               </h2>
-              {g.items.map(n => (
+              {g.items.map((n, i) => (
                 <ListItemContextMenu key={n.id} onDelete={() => onDelete(n.id)}>
                   <div
                     onClick={() => onSelect(n.id)}
-                    className={`pl-10 pr-3 py-2.5 rounded-lg cursor-pointer transition-colors ${
+                    className={`relative pl-10 pr-3 py-2.5 rounded-lg cursor-pointer transition-colors ${
                       selectedId === n.id
                         ? 'bg-black/[0.10] dark:bg-white/[0.12]'
                         : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.05]'
                     }`}
                   >
+                    {i > 0 && <div className="absolute top-0 left-10 right-3 h-px bg-black/[0.06] dark:bg-white/[0.06]" />}
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
                         <div className="min-w-0 text-[13px] font-medium text-stone-900 dark:text-stone-100 truncate pr-1">

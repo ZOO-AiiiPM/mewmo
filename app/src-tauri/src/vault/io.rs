@@ -44,6 +44,9 @@ pub struct EntrySummary {
     pub tags: Vec<String>,
     pub mtime: u64,
     pub size: u64,
+    pub created: Option<String>,
+    pub updated: Option<String>,
+    pub body_preview: String,
 }
 
 /// 全局聚合页：mutex 保护的 5 个高频热点文件
@@ -397,6 +400,16 @@ fn list_dir_inner(
             .as_ref()
             .map(|f| f.tags.clone())
             .unwrap_or_default();
+        let created = parsed.frontmatter.as_ref().and_then(|f| f.created.clone());
+        let updated = parsed.frontmatter.as_ref().and_then(|f| f.updated.clone());
+        let body_preview = parsed.body.lines()
+            .map(|l| l.trim())
+            .filter(|l| !l.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ")
+            .chars()
+            .take(100)
+            .collect();
         let mtime = get_mtime(&path).unwrap_or(0);
         let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
 
@@ -412,6 +425,9 @@ fn list_dir_inner(
             tags,
             mtime,
             size,
+            created,
+            updated,
+            body_preview,
         });
     }
     Ok(())

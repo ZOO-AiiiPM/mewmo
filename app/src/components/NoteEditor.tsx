@@ -6,7 +6,7 @@ import type { ViewUpdate } from '@codemirror/view';
 import { EditorSelection, Prec } from '@codemirror/state';
 import { indentUnit } from '@codemirror/language';
 import { indentWithTab } from '@codemirror/commands';
-import { livePreview, tableNavigationKeymap, insertTable, toggleTask } from '../lib/livePreview';
+import { livePreview, focusEffect, tableNavigationKeymap, insertTable, toggleTask } from '../lib/livePreview';
 import { imagePasteDrop } from '../lib/imagePaste';
 import { linkClickHandler } from '../lib/linkClick';
 import { smoothScrollToTop } from '../lib/scrollToTop';
@@ -279,12 +279,11 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
       const view = cmRef.current?.view;
       if (!view) return;
       const content = note.content_md ?? '';
+      if (view.hasFocus) view.contentDOM.blur();
       view.dispatch({
         changes: { from: 0, to: view.state.doc.length, insert: content },
-        // 切笔记永远从顶部展示：cursor 放 0；显式 scrollDOM.scrollTop = 0 兜底置顶。
-        // 副作用：首行若是 markdown widget（表格 / H1），livePreview 看 cursor 在该行
-        // → 显示原文不渲染。用户点别处一次 widget 就回来。「打开就置顶」优先于「首行立即渲染 widget」。
         selection: { anchor: 0 },
+        effects: [focusEffect.of(false)],
       });
       view.scrollDOM.scrollTop = 0;
       // 切笔记重挂载（mountKey 变）后焦点会落到 <body>。用 titleFocusedRef 记住"用户正在编辑
@@ -294,14 +293,11 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
         titleInputRef.current.focus();
         resizeTitleInput();
       } else if (document.activeElement === document.body || document.activeElement === null) {
-        // 新建笔记 → 全选 title input，用户直接打字覆盖默认 slug 命名（macOS Finder 风格）
         const isNewlyCreated = newlyCreatedId === note.id;
         if (isNewlyCreated && titleInputRef.current) {
           titleInputRef.current.focus();
           titleInputRef.current.select();
           resizeTitleInput();
-        } else {
-          view.focus();
         }
       }
     };
@@ -425,7 +421,7 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
           <button
             onClick={onBack}
             disabled={!canBack}
-            title="返回上一条笔记"
+            title="上一篇"
             className="w-8 h-8 flex items-center justify-center rounded-md text-stone-600 dark:text-stone-300 hover:bg-black/5 dark:hover:bg-white/10 disabled:hover:bg-transparent disabled:text-stone-300 disabled:dark:text-stone-600 disabled:cursor-not-allowed transition-colors"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -436,7 +432,7 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
           <button
             onClick={onForward}
             disabled={!canForward}
-            title="前进到下一条笔记"
+            title="下一篇"
             className="w-8 h-8 flex items-center justify-center rounded-md text-stone-600 dark:text-stone-300 hover:bg-black/5 dark:hover:bg-white/10 disabled:hover:bg-transparent disabled:text-stone-300 disabled:dark:text-stone-600 disabled:cursor-not-allowed transition-colors"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

@@ -120,16 +120,16 @@ function ClipItem({
       }`}
     >
       <div className="flex items-start gap-2">
-        {clip.favicon_url ? (
+        {clip.favicon_url || clip.url ? (
           <img
-            src={clip.favicon_url}
+            src={clip.favicon_url || `https://www.google.com/s2/favicons?domain=${new URL(clip.url).hostname}&sz=32`}
             alt=""
             referrerPolicy="no-referrer"
-            className="w-4 h-4 mt-0.5 rounded-sm shrink-0 object-contain"
+            className="w-4 h-4 mt-0.5 rounded-full shrink-0 object-contain"
             onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
           />
         ) : (
-          <span className="w-4 h-4 mt-0.5 rounded-sm shrink-0 bg-stone-300 dark:bg-stone-600" />
+          <span className="w-4 h-4 mt-0.5 rounded-full shrink-0 bg-stone-300 dark:bg-stone-600" />
         )}
         <div className="flex-1 min-w-0">
           <div
