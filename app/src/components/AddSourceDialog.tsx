@@ -11,25 +11,39 @@ export function AddSourceDialog({ open, onClose, onSubmit }: Props) {
   const [url, setUrl] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<string | null>(null);
 
   const handleSubmit = async () => {
-    if (!url.trim() || busy) return;
+    const lines = url.split('\n').map(l => l.trim()).filter(l => l && l.startsWith('http'));
+    if (lines.length === 0 || busy) return;
     setBusy(true);
     setError(null);
+    setProgress(null);
     try {
-      await onSubmit(url.trim());
-      setUrl('');
-      onClose();
-    } catch (err) {
-      const raw = err instanceof Error ? err.message : String(err);
-      setError(prettifyError(raw));
+      const errors: string[] = [];
+      for (let i = 0; i < lines.length; i++) {
+        setProgress(`${i + 1}/${lines.length}`);
+        try {
+          await onSubmit(lines[i]);
+        } catch (err) {
+          const raw = err instanceof Error ? err.message : String(err);
+          errors.push(`${lines[i].slice(0, 40)}… → ${prettifyError(raw)}`);
+        }
+      }
+      if (errors.length === 0) {
+        setUrl('');
+        onClose();
+      } else {
+        setError(errors.join('\n'));
+      }
     } finally {
       setBusy(false);
+      setProgress(null);
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && e.metaKey) {
       e.preventDefault();
       handleSubmit();
     } else if (e.key === 'Escape') {
@@ -62,29 +76,29 @@ export function AddSourceDialog({ open, onClose, onSubmit }: Props) {
           添加订阅源
         </h3>
         <p className="text-[13px] text-stone-500 dark:text-stone-400 mb-4">
-          粘贴 RSS / Atom 链接（如 <code className="text-[12px] bg-black/[0.05] dark:bg-white/[0.08] px-1.5 py-0.5 rounded">https://example.com/feed</code>）。
+          粘贴 RSS / Atom 链接，支持多行批量添加。<kbd className="text-[11px] bg-black/[0.05] dark:bg-white/[0.08] px-1 py-0.5 rounded">⌘Enter</kbd> 提交。
         </p>
 
-        <input
-          type="text"
+        <textarea
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           onKeyDown={handleKeyDown}
           autoFocus
-          placeholder="https://stratechery.com/feed"
+          rows={3}
+          placeholder={"https://example.com/feed\nhttps://another.com/rss.xml"}
           disabled={busy}
-          className={`w-full px-3.5 py-2.5 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] text-[14px] text-stone-900 dark:text-stone-100 placeholder:text-stone-400 dark:placeholder:text-stone-500 focus:outline-none border ${
+          className={`w-full px-3.5 py-2.5 rounded-xl bg-black/[0.04] dark:bg-white/[0.06] text-[14px] text-stone-900 dark:text-stone-100 placeholder:text-stone-400 dark:placeholder:text-stone-500 focus:outline-none border resize-none ${
             error ? 'border-red-500/50 bg-red-500/[0.05]' : 'border-transparent focus:border-stone-400 dark:focus:border-stone-500'
           }`}
         />
 
         {error && (
-          <div className="mt-2 text-[12px] text-red-600 dark:text-red-400 flex items-start gap-1.5">
+          <div className="mt-2 text-[12px] text-red-600 dark:text-red-400 flex items-start gap-1.5 max-h-24 overflow-y-auto">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 mt-0.5">
               <circle cx="12" cy="12" r="10" />
               <path d="M12 8v4M12 16h.01" />
             </svg>
-            <span>{error}</span>
+            <span className="whitespace-pre-wrap">{error}</span>
           </div>
         )}
 
@@ -140,7 +154,7 @@ export function AddSourceDialog({ open, onClose, onSubmit }: Props) {
             disabled={busy || !url.trim()}
             className="px-4 py-2 rounded-lg text-[13px] font-medium bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900 hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {busy ? '抓取中…' : '添加'}
+            {busy ? (progress ? `添加中 ${progress}` : '抓取中…') : '添加'}
           </button>
         </div>
           </motion.div>

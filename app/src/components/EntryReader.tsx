@@ -13,6 +13,7 @@ type Props = {
   canForward: boolean;
   expanded: boolean;
   onExpand: () => void;
+  onClipSave?: (url: string) => Promise<void>;
 };
 
 function fmtPublished(ts: number | null): string {
@@ -37,12 +38,15 @@ export function EntryReader({
   canForward,
   expanded,
   onExpand,
+  onClipSave,
 }: Props) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const h1Ref = useRef<HTMLHeadingElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [showTitleInBar, setShowTitleInBar] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [clipping, setClipping] = useState(false);
+  const [clipped, setClipped] = useState(false);
 
   // 缓存 sanitize 结果 + 手动写 innerHTML 绕开 dangerouslySetInnerHTML 在父
   // 组件 re-render（如 scroll 触发 setShowTitleInBar）时整块重设 DOM 子树的
@@ -60,7 +64,11 @@ export function EntryReader({
   // 切 entry 时回到顶部 + 重置 title fade
   useEffect(() => {
     setShowTitleInBar(false);
-    scrollerRef.current?.scrollTo({ top: 0 });
+    const scroller = scrollerRef.current;
+    if (scroller) {
+      scroller.scrollTop = 0;
+      scroller.scrollLeft = 0;
+    }
   }, [entry?.id]);
 
   const handleScroll = () => {
@@ -78,7 +86,7 @@ export function EntryReader({
 
   if (!entry) {
     return (
-      <main className="flex-1 flex flex-col">
+      <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
         <div className="h-12 shrink-0" />
         <div className="flex-1 flex flex-col items-center justify-center gap-2 text-stone-400 dark:text-stone-500 text-sm">
           <div className="text-2xl">📰</div>
@@ -102,16 +110,29 @@ export function EntryReader({
       })
       .catch(e => console.error('[entry] copy link failed:', e));
   };
+  const clipEntry = async () => {
+    if (!entry.link || !onClipSave || clipping) return;
+    setClipping(true);
+    try {
+      await onClipSave(entry.link);
+      setClipped(true);
+      setTimeout(() => setClipped(false), 2000);
+    } catch (e) {
+      console.error('[entry] clip save failed:', e);
+    } finally {
+      setClipping(false);
+    }
+  };
 
   return (
-    <main className="relative flex-1 flex flex-col overflow-hidden">
+    <main className="relative flex-1 min-w-0 flex flex-col overflow-hidden">
       {/* 内容滚动容器：占满 main，pt 让出 toolbar + 呼吸空间 */}
       <div
         ref={scrollerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto sidebar-scroll"
+        className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden sidebar-scroll"
       >
-        <div className="max-w-2xl mx-auto px-10 pt-[72px] pb-16">
+        <div className="w-full min-w-0 max-w-2xl mx-auto px-10 pt-[72px] pb-16">
           {/* 标题 */}
           <h1
             ref={h1Ref}
@@ -210,6 +231,28 @@ export function EntryReader({
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
                   <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                </svg>
+              )}
+            </button>
+          )}
+          {entry.link && onClipSave && (
+            <button
+              onClick={clipEntry}
+              disabled={clipping}
+              title={clipped ? '已收藏' : '收藏到剪藏'}
+              className="w-8 h-8 grid place-items-center rounded-md text-stone-600 dark:text-stone-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors disabled:opacity-50"
+            >
+              {clipped ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
+                </svg>
+              ) : clipping ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="animate-pulse">
+                  <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
+                </svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
                 </svg>
               )}
             </button>

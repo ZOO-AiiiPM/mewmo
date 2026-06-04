@@ -149,7 +149,14 @@ fn element_to_md(el: scraper::ElementRef<'_>, base_url: &str) -> String {
         "br" => "\n".to_string(),
         "hr" => "\n---\n\n".to_string(),
         // 颜色 / 高亮 / 下划线等纯视觉标签：透传 HTML（marked 会原样渲染）
-        "span" => wrap(&inner_t),
+        "span" => {
+            // 微信公众号用 span 作为段落容器（span 内含 \n\n 说明子元素已产生段落分隔）
+            if inner.contains("\n\n") {
+                format!("{}\n\n", wrap(&inner_t))
+            } else {
+                wrap(&inner_t)
+            }
+        }
         "font" => {
             // <font color="red"> 优先按 color 属性来；否则 fall through 到通用 wrap
             if let Some(color) = el.value().attr("color") {
@@ -164,8 +171,18 @@ fn element_to_md(el: scraper::ElementRef<'_>, base_url: &str) -> String {
         "u" => format!("<u>{}</u>", wrap(&inner_t)),
         "sub" => format!("<sub>{}</sub>", wrap(&inner_t)),
         "sup" => format!("<sup>{}</sup>", wrap(&inner_t)),
-        // 容器（div / section / article 等）也走 wrap，让父级 inline style 不丢失
-        _ => wrap(&inner),
+        // 块级容器（div / section / article / figure 等）输出段落分隔
+        "div" | "section" | "article" | "figure" | "figcaption" | "details" | "summary" => {
+            format!("{}\n\n", wrap(&inner_t))
+        }
+        // 其他未识别标签：如果 inner 含段落分隔，按块处理；否则按 inline 处理
+        _ => {
+            if inner.contains("\n\n") {
+                format!("{}\n\n", wrap(&inner_t))
+            } else {
+                wrap(&inner_t)
+            }
+        }
     }
 }
 
@@ -614,6 +631,23 @@ fn dedup_images(content_md: &str, cover_url: &str) -> String {
     compact.trim().to_string()
 }
 
+/// 去掉正文开头跟 title 重复的 H1（避免 ClipReader 显示两遍标题）
+fn strip_leading_h1(content: &str, title: &str) -> String {
+    let trimmed = content.trim_start();
+    if let Some(rest) = trimmed.strip_prefix("# ") {
+        let first_line_end = rest.find('\n').unwrap_or(rest.len());
+        let h1_text = rest[..first_line_end].trim();
+        // 模糊匹配：去掉标点和空格后比较
+        let normalize = |s: &str| -> String {
+            s.chars().filter(|c| !c.is_whitespace() && !c.is_ascii_punctuation()).collect::<String>().to_lowercase()
+        };
+        if normalize(h1_text) == normalize(title) {
+            return rest[first_line_end..].trim_start().to_string();
+        }
+    }
+    content.to_string()
+}
+
 /// 提取 substring：从 haystack 中找 start...end 之间的内容（不含 start/end）
 fn extract_between<'a>(haystack: &'a str, start: &str, end: &str) -> Option<&'a str> {
     let s = haystack.find(start)?;
@@ -679,6 +713,8 @@ pub(crate) fn parse_clip_html(html: &str, url: String) -> Result<FetchedClip, St
     let ip_region = wx_ip_region(html).unwrap_or_default();
     let raw_content = extract_article_md(&doc, &url);
     let content_md = dedup_images(&raw_content, &cover_image);
+    // 去掉正文开头跟 title 重复的 H1（ClipReader 已单独显示 title）
+    let content_md = strip_leading_h1(&content_md, &title);
 
     Ok(FetchedClip {
         url,

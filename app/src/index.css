@@ -22,7 +22,9 @@ html,
 body,
 #root {
   height: 100%;
+  width: 100%;
   margin: 0;
+  overflow: hidden;
   background: transparent !important;
 }
 
@@ -149,6 +151,27 @@ html.dark .live-md-editor .cm-fenced-code-line {
 }
 html.dark .live-md-editor .cm-blockquote {
   color: #a8a29e;
+}
+
+/* —— 分隔线 --- —— */
+.live-md-editor .cm-md-hr {
+  position: relative;
+  height: 1.4em;
+}
+.live-md-editor .cm-md-hr::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; top: 50%;
+  border-top: 1px solid rgba(0, 0, 0, 0.15);
+}
+html.dark .live-md-editor .cm-md-hr::after {
+  border-top-color: rgba(255, 255, 255, 0.15);
+}
+.live-md-editor .cm-md-hr-active {
+  color: rgba(0, 0, 0, 0.25);
+}
+html.dark .live-md-editor .cm-md-hr-active {
+  color: rgba(255, 255, 255, 0.25);
 }
 
 /* —— 列表 bullet —— */
@@ -395,10 +418,35 @@ html.dark .live-md-editor .cm-task-done {
 
 /* ===== 剪藏阅读视图排版（.clip-prose） ===== */
 .clip-prose {
+  box-sizing: border-box;
   font-size: 15px;
   line-height: 1.75;
   color: #1c1917;
+  min-width: 0;
+  max-width: 100%;
   word-break: break-word;
+  overflow-wrap: anywhere;
+  overflow-x: hidden;
+}
+.clip-prose *,
+.clip-prose *::before,
+.clip-prose *::after {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+}
+.clip-prose :where(p, li, a, span, strong, em, b, i, code, blockquote, h1, h2, h3, h4, h5, h6) {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.clip-prose table {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+}
+.clip-prose pre {
+  overflow-x: auto;
+  white-space: pre;
 }
 html.dark .clip-prose { color: #e7e5e4; }
 
