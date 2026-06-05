@@ -1510,9 +1510,14 @@ export const livePreview = [
         }
       }
       if (this.pending && syntaxTreeAvailable(update.state, update.state.doc.length)) {
+        // IME 组字中（拼音还没选词上屏）绝不能 dispatch 重建装饰——会打断 composition，
+        // webview 把组字缓冲的拉丁字母直接 commit 成英文。保留 pending，等 compositionend
+        // 后 CM 自然发的 update 再补这次重建。
+        if (update.view.composing) return;
         this.pending = false;
         this.scheduled = false;
         queueMicrotask(() => {
+          if (update.view.composing) { this.pending = true; return; }
           update.view.dispatch({ effects: [rebuildEffect.of(null)] });
         });
       }
@@ -1522,6 +1527,8 @@ export const livePreview = [
       this.scheduled = true;
       requestAnimationFrame(() => {
         if (!this.pending) { this.scheduled = false; return; }
+        // 同 update()：IME 组字中放弃这轮调度，下次 update 再触发，避免打断输入法。
+        if (view.composing) { this.scheduled = false; return; }
         forceParsing(view, view.state.doc.length, 150);
         if (syntaxTreeAvailable(view.state, view.state.doc.length)) {
           this.pending = false;
