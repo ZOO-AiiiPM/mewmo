@@ -260,7 +260,7 @@ export function AIPanel({ open, currentNote, currentClip, zone }: Props) {
     <aside
       className={`absolute top-[14px] right-[14px] bottom-[22px] w-[280px] bg-white dark:bg-stone-900 rounded-2xl overflow-hidden flex flex-col z-10 shadow-[-3px_0_12px_-3px_rgba(0,0,0,0.08),0_4px_14px_-3px_rgba(0,0,0,0.06),0_0_0_0.5px_rgba(0,0,0,0.05)] dark:shadow-[-3px_0_12px_-3px_rgba(0,0,0,0.4),0_4px_14px_-3px_rgba(0,0,0,0.3),0_0_0_0.5px_rgba(255,255,255,0.06)] transition-[transform,opacity] duration-200 ease-out ${
         open
-          ? 'translate-x-0 opacity-100'
+          ? 'translate-x-0 opacity-100 pointer-events-auto'
           : 'translate-x-[calc(100%+14px)] opacity-0 pointer-events-none'
       }`}
       aria-hidden={!open}
