@@ -172,6 +172,8 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
   // 用它替代 note.id 当 title textarea / CodeMirror 的 key（见 renameFromRef 注释）。
   const [mountKey, setMountKey] = useState(0);
   const [keyedNoteId, setKeyedNoteId] = useState<string | null>(note?.id ?? null);
+  const [localContent, setLocalContent] = useState(note?.content_md ?? '');
+  const localContentRef = useRef(note?.content_md ?? '');
 
   // 渲染期决定是否重挂载：note.id 变了且不是「当前笔记改名」才 bump mountKey。
   // key 必须在渲染期（而非 effect 里）定下来，重挂载才会和 applyNote 落在同一次 commit，
@@ -194,7 +196,8 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
   const handleCmUpdate = (vu: ViewUpdate) => {
     if (vu.selectionSet || vu.docChanged) {
       const head = vu.state.selection.main.head;
-      setCursorLine(vu.state.doc.lineAt(head).number);
+      const line = vu.state.doc.lineAt(head).number;
+      setCursorLine(prev => (prev === line ? prev : line));
     }
   };
 
@@ -279,6 +282,8 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
       const view = cmRef.current?.view;
       if (!view) return;
       const content = note.content_md ?? '';
+      localContentRef.current = content;
+      setLocalContent(content);
       if (view.hasFocus) view.contentDOM.blur();
       view.dispatch({
         changes: { from: 0, to: view.state.doc.length, insert: content },
@@ -327,11 +332,13 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
 
   const handleContentChange = (value: string) => {
     // applyNote 用 view.dispatch 替换 doc 时也会触发这里的 onChange（CM update listener 不区分 user vs programmatic）。
-    // 那次 value === note.content_md，直接 return 不启动 debounce，否则会留下 pending → 切笔记时被 flushContent
+    // 那次 value === localContentRef.current，直接 return 不启动 debounce，否则会留下 pending → 切笔记时被 flushContent
     // 当成"用户改动"写回 DB → updated_at 被无谓刷新（用户没编辑也变成"刚改过"）
-    if (note && value === (note.content_md ?? '')) return;
+    if (value === localContentRef.current) return;
     const targetId = note?.id;
     if (targetId == null) return;
+    localContentRef.current = value;
+    setLocalContent(value);
     contentPendingRef.current = { id: targetId, value };
     onLocalContentChange(targetId, value);
     if (contentDebounceRef.current) window.clearTimeout(contentDebounceRef.current);
@@ -592,7 +599,7 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
             <CodeMirror
               key={mountKey}
               ref={cmRef}
-              value={note.content_md}
+              value={localContent}
               onChange={handleContentChange}
               onUpdate={handleCmUpdate}
               theme="none"
@@ -633,7 +640,7 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
           </div>
         </div>
       </div>
-      <TableOfContents content={note.content_md} cursorLine={cursorLine} cmRef={cmRef} scrollRef={scrollRef} />
+      <TableOfContents content={localContent} cursorLine={cursorLine} cmRef={cmRef} scrollRef={scrollRef} />
       <ConfirmDialog
         open={confirmOpen}
         title="删除笔记"

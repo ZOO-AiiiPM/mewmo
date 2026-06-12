@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { Sidebar, type Zone } from './components/Sidebar';
 import { TabBar, type Tab as TabPillModel } from './components/TabBar';
 import { NoteList } from './components/NoteList';
@@ -144,6 +145,28 @@ export default function App() {
     return list;
   }, []);
 
+  const mergeRefreshNotes = useCallback(async () => {
+    const fresh = await listNotes();
+    setNotes(prev => {
+      const byId = new Map(prev.map(n => [n.id, n]));
+      return fresh.map(f => {
+        const ex = byId.get(f.id);
+        return ex?.content_loaded ? { ...f, content_md: ex.content_md, content_loaded: true } : f;
+      });
+    });
+  }, []);
+
+  const mergeRefreshClips = useCallback(async () => {
+    const fresh = await listClips();
+    setClips(prev => {
+      const byId = new Map(prev.map(c => [c.id, c]));
+      return fresh.map(f => {
+        const ex = byId.get(f.id);
+        return ex?.content_loaded ? { ...f, content_md: ex.content_md, content_loaded: true } : f;
+      });
+    });
+  }, []);
+
   const refreshSources = useCallback(async () => {
     const list = await listSourcesWithUnread();
     setSources(list);
@@ -183,6 +206,14 @@ export default function App() {
       .catch(e => console.error('[init] data load failed:', e))
       .finally(() => setLoading(false));
   }, [refresh, refreshClips, refreshSources]);
+
+  useEffect(() => {
+    const unlisten = listen<{ notes?: boolean; clips?: boolean }>('vault-changed', e => {
+      if (e.payload?.notes) mergeRefreshNotes();
+      if (e.payload?.clips) mergeRefreshClips();
+    });
+    return () => { unlisten.then(un => un()); };
+  }, [mergeRefreshNotes, mergeRefreshClips]);
 
 
   // 切 source → 拉对应 entries + 默认打开第一条
@@ -417,17 +448,7 @@ export default function App() {
 
   const handleLocalNoteContentChange = useCallback((id: string, content_md: string) => {
     noteContentVersionRef.current.set(id, (noteContentVersionRef.current.get(id) ?? 0) + 1);
-    setNotes(prev =>
-      prev.map(n =>
-        n.id === id
-          ? {
-              ...n,
-              content_md,
-              content_loaded: true,
-            }
-          : n
-      )
-    );
+    void content_md;
   }, []);
 
   const handleDeleteNote = useCallback(
