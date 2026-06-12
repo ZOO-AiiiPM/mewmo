@@ -1,13 +1,11 @@
 import type { SyntaxNodeRef } from '@lezer/common';
-import { syntaxTree, syntaxTreeAvailable, forceParsing, ensureSyntaxTree } from '@codemirror/language';
-import { Facet, Prec, StateEffect, StateField, type EditorState, type Text } from '@codemirror/state';
+import { syntaxTree } from '@codemirror/language';
+import { Facet, Prec, StateEffect, StateField, type EditorState, type Text, type Transaction } from '@codemirror/state';
 import {
   Decoration,
   type DecorationSet,
   EditorView,
   keymap,
-  ViewPlugin,
-  type ViewUpdate,
   WidgetType,
 } from '@codemirror/view';
 import { resolveAttachmentUrl } from './attachments';
@@ -216,7 +214,7 @@ function copyPlainText(text: string): boolean {
   ta.style.opacity = '0';
   document.body.appendChild(ta);
   ta.select();
-  let ok = false;
+  let ok: boolean;
   try {
     ok = document.execCommand('copy');
   } catch {
@@ -1193,18 +1191,20 @@ function handleHeaderMark(node: SyntaxNodeRef, ctx: DecorationCtx) {
 }
 
 const hrLineDeco = Decoration.line({ class: 'cm-md-hr' });
-const hrLineActiveDeco = Decoration.line({ class: 'cm-md-hr cm-md-hr-active' });
+const hrLineActiveDeco = Decoration.line({ class: 'cm-md-hr-active' });
 
 function handleHorizontalRule(node: SyntaxNodeRef, ctx: DecorationCtx) {
   const line = ctx.state.doc.lineAt(node.from);
-  const selLine = ctx.state.doc.lineAt(ctx.state.selection.main.head).number;
-  if (selLine === line.number) {
+  const selectionTouchesLine = ctx.state.selection.ranges.some(range =>
+    range.from <= line.to && range.to >= line.from
+  );
+  if (selectionTouchesLine) {
     ctx.lineItems.push({ pos: line.from, deco: hrLineActiveDeco });
-  } else {
-    ctx.lineItems.push({ pos: line.from, deco: hrLineDeco });
-    if (line.to > line.from) {
-      ctx.items.push({ from: line.from, to: line.to, deco: Decoration.replace({}) });
-    }
+    return;
+  }
+  ctx.lineItems.push({ pos: line.from, deco: hrLineDeco });
+  if (line.to > line.from) {
+    ctx.items.push({ from: line.from, to: line.to, deco: Decoration.replace({}) });
   }
 }
 
@@ -1297,6 +1297,33 @@ function handleUrl(node: SyntaxNodeRef, ctx: DecorationCtx) {
   }
 }
 
+const PATCH_WINDOW_CHARS = 24000;
+
+function patchWindow(ctx: DecorationCtx) {
+  const doc = ctx.state.doc;
+  if (doc.length <= PATCH_WINDOW_CHARS) {
+    return {
+      from: 0,
+      to: doc.length,
+      text: doc.toString(),
+      startLine: 1,
+      endLine: doc.lines,
+    };
+  }
+
+  const half = Math.floor(PATCH_WINDOW_CHARS / 2);
+  const head = ctx.state.selection.main.head;
+  const start = doc.lineAt(Math.max(0, head - half)).from;
+  const end = doc.lineAt(Math.min(doc.length, head + half)).to;
+  return {
+    from: start,
+    to: end,
+    text: doc.sliceString(start, end),
+    startLine: doc.lineAt(start).number,
+    endLine: doc.lineAt(end).number,
+  };
+}
+
 // ── 链接的 [ ] ( ) ——光标不在所属链接时才隐藏 ──
 function handleLinkMark(node: SyntaxNodeRef, ctx: DecorationCtx) {
   if (isCursorOnNode(node, ctx)) return;
@@ -1312,16 +1339,17 @@ function handleLinkMark(node: SyntaxNodeRef, ctx: DecorationCtx) {
 // 跳过 lezer 已识别范围避免重复装饰。
 // 注意：regex 不能跨行匹配 emphasis（合规 markdown 不允许跨行），用 [^*\n] 限制。
 function patchUnicodeEmphasis(ctx: DecorationCtx) {
-  const docText = ctx.state.doc.toString();
+  const win = patchWindow(ctx);
+  if (!win.text.includes('*')) return;
   const isInLezerRange = (from: number, to: number) =>
     ctx.lezerEmphasisRanges.some(([f, t]) => from >= f && to <= t);
 
   // 先扫 ** ** （strong），再扫 * *（em）—— 顺序很重要，避免 ** 内层 * 误识别
   const strongRe = /\*\*([^*\n]+?)\*\*/g;
   let sm: RegExpExecArray | null;
-  while ((sm = strongRe.exec(docText)) !== null) {
-    const mFrom = sm.index;
-    const mTo = sm.index + sm[0].length;
+  while ((sm = strongRe.exec(win.text)) !== null) {
+    const mFrom = win.from + sm.index;
+    const mTo = mFrom + sm[0].length;
     if (isInLezerRange(mFrom, mTo)) continue;
     ctx.items.push({ from: mFrom, to: mTo, deco: Decoration.mark({ class: 'cm-strong' }) });
     // 隐藏 ** （光标不在该行）
@@ -1336,9 +1364,9 @@ function patchUnicodeEmphasis(ctx: DecorationCtx) {
   // em：避免误吃 strong 已处理过的 ** （isInLezerRange 已含 strong 范围）
   const emRe = /\*([^*\n]+?)\*/g;
   let em: RegExpExecArray | null;
-  while ((em = emRe.exec(docText)) !== null) {
-    const mFrom = em.index;
-    const mTo = em.index + em[0].length;
+  while ((em = emRe.exec(win.text)) !== null) {
+    const mFrom = win.from + em.index;
+    const mTo = mFrom + em[0].length;
     if (isInLezerRange(mFrom, mTo)) continue;
     ctx.items.push({ from: mFrom, to: mTo, deco: Decoration.mark({ class: 'cm-em' }) });
     const line = ctx.state.doc.lineAt(mFrom);
@@ -1352,8 +1380,8 @@ function patchUnicodeEmphasis(ctx: DecorationCtx) {
 // ── regex 补丁：lezer 对"`- ` 后无内容"的空 list item 不识别成 ListMark ──
 // 扫每行行首，匹配 `[-*+] + 空格`，且位置不在 lezer 已识别集合里 → 手动渲染圆点
 function patchEmptyListMark(ctx: DecorationCtx) {
-  const totalLines = ctx.state.doc.lines;
-  for (let lineNum = 1; lineNum <= totalLines; lineNum++) {
+  const win = patchWindow(ctx);
+  for (let lineNum = win.startLine; lineNum <= win.endLine; lineNum++) {
     const line = ctx.state.doc.line(lineNum);
     const m = line.text.match(/^(\s*)([-*+])\s/);
     if (!m) continue;
@@ -1380,10 +1408,8 @@ function buildDecorations(state: EditorState): DecorationSet {
     lezerListMarkPositions: new Set(),
   };
 
-  // 强制解析到文档尾，避免初次切换笔记时 syntax tree 还没含 Table / TaskMarker 节点 → 装饰漏建
-  ensureSyntaxTree(state, state.doc.length, 500);
-
-  // StateField 不能限制为 visibleRanges（无法访问 view）；笔记体量小，整文档遍历可接受。
+  // StateField 不能访问 visibleRanges；这里依赖 CodeMirror 的增量语法树，不主动 force parse
+  // 到文档末尾。长笔记若每键强制解析全文，会造成持续高 CPU / 高耗电。
   // enter 函数本身只做 dispatch，每类节点由 handleXXX helper 处理；返回 false 跳过子节点。
   syntaxTree(state).iterate({
     enter(node) {
@@ -1481,7 +1507,14 @@ export const focusEffect = StateEffect.define<boolean>();
 
 const focusListener = EditorView.focusChangeEffect.of((_, focused) => focusEffect.of(focused));
 
-const rebuildEffect = StateEffect.define<null>();
+function selectionNeedsDecorationRebuild(tr: Transaction): boolean {
+  if (!tr.selection) return false;
+  const prev = tr.startState.selection.main;
+  const next = tr.state.selection.main;
+  const prevLine = tr.startState.doc.lineAt(prev.head).number;
+  const nextLine = tr.state.doc.lineAt(next.head).number;
+  return prevLine !== nextLine || prev.empty !== next.empty;
+}
 
 export const livePreview = [
   focusTracker,
@@ -1491,54 +1524,12 @@ export const livePreview = [
       return buildDecorations(state);
     },
     update(deco, tr) {
-      if (tr.docChanged || tr.selection
-        || tr.effects.some(e => e.is(focusEffect) || e.is(rebuildEffect))) {
+      if (tr.docChanged || selectionNeedsDecorationRebuild(tr)
+        || tr.effects.some(e => e.is(focusEffect))) {
         return buildDecorations(tr.state);
       }
       return deco;
     },
     provide: f => EditorView.decorations.from(f),
-  }),
-  ViewPlugin.fromClass(class {
-    pending = false;
-    scheduled = false;
-    update(update: ViewUpdate) {
-      if (update.docChanged) {
-        if (!syntaxTreeAvailable(update.state, update.state.doc.length)) {
-          this.pending = true;
-          this.scheduleRebuild(update.view);
-        }
-      }
-      if (this.pending && syntaxTreeAvailable(update.state, update.state.doc.length)) {
-        // IME 组字中（拼音还没选词上屏）绝不能 dispatch 重建装饰——会打断 composition，
-        // webview 把组字缓冲的拉丁字母直接 commit 成英文。保留 pending，等 compositionend
-        // 后 CM 自然发的 update 再补这次重建。
-        if (update.view.composing) return;
-        this.pending = false;
-        this.scheduled = false;
-        queueMicrotask(() => {
-          if (update.view.composing) { this.pending = true; return; }
-          update.view.dispatch({ effects: [rebuildEffect.of(null)] });
-        });
-      }
-    }
-    scheduleRebuild(view: EditorView) {
-      if (this.scheduled) return;
-      this.scheduled = true;
-      requestAnimationFrame(() => {
-        if (!this.pending) { this.scheduled = false; return; }
-        // 同 update()：IME 组字中放弃这轮调度，下次 update 再触发，避免打断输入法。
-        if (view.composing) { this.scheduled = false; return; }
-        forceParsing(view, view.state.doc.length, 150);
-        if (syntaxTreeAvailable(view.state, view.state.doc.length)) {
-          this.pending = false;
-          this.scheduled = false;
-          view.dispatch({ effects: [rebuildEffect.of(null)] });
-        } else {
-          this.scheduled = false;
-          this.scheduleRebuild(view);
-        }
-      });
-    }
   }),
 ];
