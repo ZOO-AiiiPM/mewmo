@@ -1,6 +1,4 @@
-import { useEffect, useState } from 'react';
 import type { ThemeMode } from '../lib/useTheme';
-import { getVaultConfig } from '../lib/vault';
 
 type Props = {
   open: boolean;
@@ -16,14 +14,6 @@ const THEME_OPTIONS: Array<{ value: ThemeMode; label: string }> = [
 ];
 
 export function SettingsPanel({ open, onClose, mode, onModeChange }: Props) {
-  const [vaultPath, setVaultPath] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (open) {
-      getVaultConfig().then(c => setVaultPath(c?.vault_path ?? null));
-    }
-  }, [open]);
-
   if (!open) return null;
 
   return (
@@ -43,7 +33,7 @@ export function SettingsPanel({ open, onClose, mode, onModeChange }: Props) {
         </div>
 
         {/* 外观 */}
-        <section className="mb-5">
+        <section>
           <h3 className="text-[13px] font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-2">外观</h3>
           <div className="flex gap-2">
             {THEME_OPTIONS.map(opt => (
@@ -59,14 +49,6 @@ export function SettingsPanel({ open, onClose, mode, onModeChange }: Props) {
                 {opt.label}
               </button>
             ))}
-          </div>
-        </section>
-
-        {/* Vault */}
-        <section>
-          <h3 className="text-[13px] font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-2">Vault</h3>
-          <div className="px-3 py-2.5 rounded-lg bg-black/[0.03] dark:bg-white/[0.04] text-[13px] text-stone-600 dark:text-stone-300 font-mono break-all select-all">
-            {vaultPath ?? '未配置'}
           </div>
         </section>
       </div>

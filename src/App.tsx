@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
 import { Sidebar, type Zone } from './components/Sidebar';
 import { TabBar, type Tab as TabPillModel } from './components/TabBar';
 import { NoteList } from './components/NoteList';
@@ -40,7 +39,6 @@ import {
   type HistoryState,
 } from './lib/historyStack';
 import { AIPanel } from './components/AIPanel';
-import { VaultLayout } from './components/vault/VaultLayout';
 
 function resetDocumentHorizontalScroll() {
   requestAnimationFrame(() => {
@@ -52,7 +50,7 @@ function resetDocumentHorizontalScroll() {
 type Tab = {
   id: string;
   zone: Zone | null;        // null = empty tab → 引导页
-  refId: string | null;     // notes/clipping 时绑定的文档 id（vault slug，spec 003）
+  refId: string | null;     // notes/clipping 时绑定的文档 id
   noteHistoryState: HistoryState<string>; // notes zone 笔记浏览历史，订阅区共用 lib/historyStack
 };
 
@@ -61,7 +59,6 @@ const PLACEHOLDER_LABEL: Record<Zone, string> = {
   notes: '笔记',
   clipping: '剪藏',
   sediment: '沉淀',
-  vault: 'Vault',
 };
 
 export default function App() {
@@ -91,6 +88,7 @@ export default function App() {
   const tabIdSeqRef = useRef(2);
   const loadingNoteIdsRef = useRef(new Set<string>());
   const loadingClipIdsRef = useRef(new Set<string>());
+  const noteContentVersionRef = useRef(new Map<string, number>());
 
   const activeTab = useMemo(
     () => tabs.find(t => t.id === activeTabId) ?? null,
@@ -146,32 +144,6 @@ export default function App() {
     return list;
   }, []);
 
-  // 外部写入（skill / Obsidian）触发的「外科式」合并刷新：拉最新 summary list 反映新增/删除/改名，
-  // 但对「已加载正文」的笔记保留内存里的 content_md/content_loaded —— 否则会把用户正在编辑但还没
-  // flush 的内容冲成 list 模式空串（这正是初始 refresh() 不能直接复用的原因）。
-  // 同 id + 同 content_md 的新对象不会打断编辑器：mountKey 不变不重挂载，切笔记 effect 也 early-return。
-  const mergeRefreshNotes = useCallback(async () => {
-    const fresh = await listNotes();
-    setNotes(prev => {
-      const byId = new Map(prev.map(n => [n.id, n]));
-      return fresh.map(f => {
-        const ex = byId.get(f.id);
-        return ex?.content_loaded ? { ...f, content_md: ex.content_md, content_loaded: true } : f;
-      });
-    });
-  }, []);
-
-  const mergeRefreshClips = useCallback(async () => {
-    const fresh = await listClips();
-    setClips(prev => {
-      const byId = new Map(prev.map(c => [c.id, c]));
-      return fresh.map(f => {
-        const ex = byId.get(f.id);
-        return ex?.content_loaded ? { ...f, content_md: ex.content_md, content_loaded: true } : f;
-      });
-    });
-  }, []);
-
   const refreshSources = useCallback(async () => {
     const list = await listSourcesWithUnread();
     setSources(list);
@@ -212,15 +184,6 @@ export default function App() {
       .finally(() => setLoading(false));
   }, [refresh, refreshClips, refreshSources]);
 
-  // spec 004：Rust 端 vault watcher 监听到外部写入 → emit "vault-changed" → 这里合并刷新对应列表，
-  // 实现「skill 上传后免重启自动出现」。payload {notes,clips} 标明只刷哪个，省无谓拉取。
-  useEffect(() => {
-    const unlisten = listen<{ notes?: boolean; clips?: boolean }>('vault-changed', e => {
-      if (e.payload?.notes) mergeRefreshNotes();
-      if (e.payload?.clips) mergeRefreshClips();
-    });
-    return () => { unlisten.then(un => un()); };
-  }, [mergeRefreshNotes, mergeRefreshClips]);
 
   // 切 source → 拉对应 entries + 默认打开第一条
   useEffect(() => {
@@ -397,19 +360,38 @@ export default function App() {
         activeTab?.zone === 'notes' && activeTab.refId != null ? activeTab.refId : null
       );
       if (noteId == null) return;
+      const contentVersionAtSave = patch.content_md !== undefined
+        ? (noteContentVersionRef.current.get(noteId) ?? 0)
+        : null;
       // 后端可能因 title 改 rename 文件 → slug 变 → 返回新 slug，前端 state/history 跟着替
       const newSlug = await updateNote(noteId, patch);
       const slugChanged = newSlug !== noteId;
+      if (slugChanged) {
+        const version = noteContentVersionRef.current.get(noteId);
+        if (version !== undefined) {
+          noteContentVersionRef.current.set(newSlug, version);
+          noteContentVersionRef.current.delete(noteId);
+        }
+      }
       setNotes(prev =>
         prev.map(n =>
           n.id === noteId
-            ? {
-                ...n,
-                ...patch,
-                id: newSlug,
-                content_loaded: n.content_loaded || patch.content_md !== undefined,
-                updated_at: Math.floor(Date.now() / 1000),
-              }
+            ? (() => {
+                const nextPatch = { ...patch };
+                if (
+                  contentVersionAtSave !== null &&
+                  (noteContentVersionRef.current.get(newSlug) ?? noteContentVersionRef.current.get(noteId) ?? 0) > contentVersionAtSave
+                ) {
+                  delete nextPatch.content_md;
+                }
+                return {
+                  ...n,
+                  ...nextPatch,
+                  id: newSlug,
+                  content_loaded: n.content_loaded || patch.content_md !== undefined,
+                  updated_at: Math.floor(Date.now() / 1000),
+                };
+              })()
             : n
         )
       );
@@ -434,6 +416,7 @@ export default function App() {
   );
 
   const handleLocalNoteContentChange = useCallback((id: string, content_md: string) => {
+    noteContentVersionRef.current.set(id, (noteContentVersionRef.current.get(id) ?? 0) + 1);
     setNotes(prev =>
       prev.map(n =>
         n.id === id
@@ -569,7 +552,6 @@ export default function App() {
     notes: notes.length,
     clipping: clips.length,
     sediment: 0,
-    vault: 0,
   };
 
   // tab pill：title 实时从 notes/clips 派生
@@ -582,7 +564,7 @@ export default function App() {
       } else if (t.zone === 'clipping') {
         const c = t.refId != null ? clips.find(x => x.id === t.refId) : null;
         title = c ? (c.title || '无标题') : PLACEHOLDER_LABEL.clipping;
-      } else if (t.zone === 'subscribe' || t.zone === 'sediment' || t.zone === 'vault') {
+      } else if (t.zone === 'subscribe' || t.zone === 'sediment') {
         title = PLACEHOLDER_LABEL[t.zone];
       }
       return { id: t.id, title, zone: t.zone };
@@ -781,11 +763,6 @@ export default function App() {
                 expanded={expanded}
                 onExpand={() => setExpanded(e => !e)}
                 onClipSave={handleClipSave}
-              />
-            ) : activeZone === 'vault' ? (
-              <VaultLayout
-                currentNote={selectedNoteReady}
-                currentClip={selectedClipReady}
               />
             ) : (
               <div className="flex-1 flex items-center justify-center text-stone-400 dark:text-stone-500 text-sm">

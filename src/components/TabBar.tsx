@@ -34,13 +34,6 @@ const ZONE_ICONS: Record<Zone, React.ReactNode> = {
       <path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65" />
     </svg>
   ),
-  vault: (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 8v13H3V8" />
-      <path d="M1 3h22v5H1z" />
-      <path d="M10 12h4" />
-    </svg>
-  ),
 };
 
 type Props = {
