@@ -174,44 +174,49 @@ export function SourceList({
   );
 }
 
-/** 跨 mount 持久化"已知失败的 favicon URL"。
- * SourceFavicon 每次 unmount/remount 都会 useState(0) 重置 idx → 重跑 fallback chain →
- * 第一个 candidate 实际 404 时会经历"img onError → setIdx(1) → 显示首字母"两帧，
- * 用户视觉上看到一闪（背景色从白底 placeholder 跳到彩色首字母）。
- * Set 让"已确认失败"的 URL 在 session 内不再被尝试，下次 mount 直接渲染首字母。 */
-const failedFaviconUrls = new Set<string>();
+function normalizedImageUrl(raw: string): string | null {
+  try {
+    const u = new URL(raw);
+    if (u.protocol === 'http:') u.protocol = 'https:';
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
+function pushCandidate(list: string[], raw: string | null | undefined) {
+  if (!raw) return;
+  const normalized = normalizedImageUrl(raw);
+  if (normalized && !list.includes(normalized)) list.push(normalized);
+  if (normalized !== raw && !list.includes(raw)) list.push(raw);
+}
+
+function pushDomainFallback(list: string[], raw: string | null | undefined) {
+  if (!raw) return;
+  try {
+    const u = new URL(raw);
+    pushCandidate(list, `${u.protocol}//${u.host}/favicon.ico`);
+    pushCandidate(list, `https://www.google.com/s2/favicons?domain=${u.hostname}&sz=64`);
+  } catch {
+    /* invalid url，跳过 */
+  }
+}
 
 /** 三层 fallback：feed 声明的 favicon_url → 站点 /favicon.ico → 首字母 placeholder */
 function SourceFavicon({ source, unhealthy }: { source: SubscriptionSource; unhealthy: boolean }) {
   const candidates = useMemo(() => {
     const list: string[] = [];
-    if (source.favicon_url) list.push(source.favicon_url);
-    if (source.site_url) {
-      try {
-        const u = new URL(source.site_url);
-        list.push(`${u.protocol}//${u.host}/favicon.ico`);
-      } catch {
-        /* invalid site_url，跳过 */
-      }
-    }
+    pushCandidate(list, source.favicon_url);
+    pushDomainFallback(list, source.site_url);
+    pushDomainFallback(list, source.feed_url);
     return list;
-  }, [source.favicon_url, source.site_url]);
+  }, [source.favicon_url, source.site_url, source.feed_url]);
   const candidateKey = candidates.join('|');
 
-  // 初始化时跳过已知失败的 candidates，直接定位到第一个未确认失败的（或越界 → 显示首字母）。
-  // 这样切 zone 重新 mount 后不会再触发"img 加载失败 → onError → setIdx(1)"的两帧闪烁。
-  const initialIdx = (() => {
-    let i = 0;
-    while (i < candidates.length && failedFaviconUrls.has(candidates[i])) i++;
-    return i;
-  })();
-  const [idx, setIdx] = useState(initialIdx);
-  // candidates 变化时（如刷新拿到新 favicon_url）重新跑跳过逻辑
+  const [idx, setIdx] = useState(0);
+  // candidates 变化时（如刷新拿到新 favicon_url）从第一个候选重新尝试。
   useEffect(() => {
-    let i = 0;
-    while (i < candidates.length && failedFaviconUrls.has(candidates[i])) i++;
-    setIdx(i);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setIdx(0);
   }, [candidateKey]);
 
   const useImg = !unhealthy && idx < candidates.length;
@@ -228,7 +233,6 @@ function SourceFavicon({ source, unhealthy }: { source: SubscriptionSource; unhe
           alt=""
           className="w-full h-full object-cover"
           onError={() => {
-            failedFaviconUrls.add(candidates[idx]);
             setIdx(i => i + 1);
           }}
           loading="lazy"

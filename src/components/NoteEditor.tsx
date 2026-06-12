@@ -250,10 +250,26 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
         if (titleDebounceRef.current) flushTitle(prevId);
         if (contentDebounceRef.current) flushContent(prevId);
       }
+      lastNoteIdRef.current = null;
+      localContentRef.current = '';
+      setLocalContent('');
       return;
     }
 
-    if (note.id === lastNoteIdRef.current) return;
+    if (note.id === lastNoteIdRef.current) {
+      const content = note.content_md ?? '';
+      if (contentPendingRef.current?.id === note.id || content === localContentRef.current) return;
+      localContentRef.current = content;
+      setLocalContent(content);
+      const view = cmRef.current?.view;
+      if (view && view.state.doc.toString() !== content) {
+        view.dispatch({
+          changes: { from: 0, to: view.state.doc.length, insert: content },
+          effects: [focusEffect.of(false)],
+        });
+      }
+      return;
+    }
 
     // 切笔记前 flush 旧 note 的 title / content pending 到旧 id（修 race：
     // 默认 onChange 走 activeTab.refId，但已被改成新 id → 必须显式传 prevId）
@@ -279,11 +295,11 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
       // 不能因为 CM view 还没就绪（重挂载后 view 异步创建）就 early-return 漏设 → 否则
       // flushTitle 拿到 id=null 跳过 onChange，title 改名永远不触发。内容由 value prop 兜底同步。
       lastNoteIdRef.current = note.id;
-      const view = cmRef.current?.view;
-      if (!view) return;
       const content = note.content_md ?? '';
       localContentRef.current = content;
       setLocalContent(content);
+      const view = cmRef.current?.view;
+      if (!view) return;
       if (view.hasFocus) view.contentDOM.blur();
       view.dispatch({
         changes: { from: 0, to: view.state.doc.length, insert: content },

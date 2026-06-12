@@ -448,7 +448,17 @@ export default function App() {
 
   const handleLocalNoteContentChange = useCallback((id: string, content_md: string) => {
     noteContentVersionRef.current.set(id, (noteContentVersionRef.current.get(id) ?? 0) + 1);
-    void content_md;
+    setNotes(prev =>
+      prev.map(n =>
+        n.id === id
+          ? {
+              ...n,
+              content_md,
+              content_loaded: true,
+            }
+          : n
+      )
+    );
   }, []);
 
   const handleDeleteNote = useCallback(
