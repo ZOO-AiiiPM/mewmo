@@ -9,8 +9,8 @@ import { indentWithTab } from '@codemirror/commands';
 import { livePreview, focusEffect, tableNavigationKeymap, insertTable, toggleTask } from '../lib/livePreview';
 import { imagePasteDrop } from '../lib/imagePaste';
 import { linkClickHandler } from '../lib/linkClick';
-import { smoothScrollToTop } from '../lib/scrollToTop';
 import { TableOfContents } from './TableOfContents';
+import { ScrollToTopButton } from './ScrollToTopButton';
 import { ConfirmDialog } from './ConfirmDialog';
 import type { Note } from '../types';
 
@@ -493,18 +493,6 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
               <path d="m9 12 2 2 4-4" />
             </svg>
           </button>
-          <button
-            onClick={() => smoothScrollToTop(scrollRef.current)}
-            title="回到顶部"
-            className="w-8 h-8 flex items-center justify-center rounded-md text-stone-600 dark:text-stone-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-          >
-            {/* arrow-up-to-line icon (lucide) */}
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M5 3h14" />
-              <path d="m18 13-6-6-6 6" />
-              <path d="M12 7v14" />
-            </svg>
-          </button>
           <div className="w-px h-5 bg-black/10 dark:bg-white/10 mx-1.5" />
           <button
             onClick={onExpand}
@@ -669,6 +657,7 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
         }}
         onCancel={() => setConfirmOpen(false)}
       />
+      <ScrollToTopButton scrollRef={scrollRef} />
     </main>
   );
 }
