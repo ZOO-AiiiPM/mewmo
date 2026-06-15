@@ -9,14 +9,11 @@ type Props = {
   selectedId: string | null;
   onSelect: (id: string) => void;
   onDelete?: (id: string) => void;
-  onPin?: (id: string, pinned: boolean) => void;
   hidden?: boolean;
 };
 
-export function ClipInbox({ clips, selectedId, onSelect, onDelete, onPin, hidden = false }: Props) {
-  const pinnedClips = clips.filter(c => c.pinned);
-  const unpinnedClips = clips.filter(c => !c.pinned);
-  const groups = groupByBucket(unpinnedClips, c => c.saved_at);
+export function ClipInbox({ clips, selectedId, onSelect, onDelete, hidden = false }: Props) {
+  const groups = groupByBucket(clips, c => c.saved_at);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const confirmClip = clips.find(c => c.id === confirmId) ?? null;
 
@@ -36,32 +33,10 @@ export function ClipInbox({ clips, selectedId, onSelect, onDelete, onPin, hidden
           </div>
         ) : (
           <>
-            {pinnedClips.length > 0 && (
-              <section>
-                <h2 className="sticky top-0 z-10 h-12 px-3 flex items-center justify-between text-[15px] font-semibold text-stone-800 dark:text-stone-100 bg-white/70 dark:bg-stone-900/70 backdrop-blur-md select-none">
-                  <div className="absolute bottom-0 left-3 right-1 h-px bg-black/[0.1] dark:bg-white/[0.1]" />
-                  <span>置顶</span>
-                  <span className="text-[11px] font-normal text-stone-400 dark:text-stone-500 tabular-nums">
-                    {pinnedClips.length}
-                  </span>
-                </h2>
-                {pinnedClips.map(c => (
-                  <ClipItem
-                    key={c.id}
-                    clip={c}
-                    bucket="today"
-                    active={selectedId === c.id}
-                    onSelect={onSelect}
-                    onRequestDelete={onDelete ? (id) => setConfirmId(id) : undefined}
-                    onPin={onPin}
-                  />
-                ))}
-              </section>
-            )}
             {groups.map((g, idx) => (
               <section key={g.bucket}>
                 <h2 className="sticky top-0 z-10 h-12 px-3 flex items-center justify-between text-[15px] font-semibold text-stone-800 dark:text-stone-100 bg-white/70 dark:bg-stone-900/70 backdrop-blur-md select-none">
-                  {(idx > 0 || pinnedClips.length > 0) && <div className="absolute top-0 left-3 right-1 h-px bg-black/[0.1] dark:bg-white/[0.1]" />}
+                  {idx > 0 && <div className="absolute top-0 left-3 right-1 h-px bg-black/[0.1] dark:bg-white/[0.1]" />}
                   <div className="absolute bottom-0 left-3 right-1 h-px bg-black/[0.1] dark:bg-white/[0.1]" />
                   <span>{BUCKET_LABEL[g.bucket]}</span>
                   <span className="text-[11px] font-normal text-stone-400 dark:text-stone-500 tabular-nums">
@@ -76,7 +51,6 @@ export function ClipInbox({ clips, selectedId, onSelect, onDelete, onPin, hidden
                     active={selectedId === c.id}
                     onSelect={onSelect}
                     onRequestDelete={onDelete ? (id) => setConfirmId(id) : undefined}
-                    onPin={onPin}
                   />
                 ))}
               </section>
@@ -107,14 +81,12 @@ function ClipItem({
   active,
   onSelect,
   onRequestDelete,
-  onPin,
 }: {
   clip: Clip;
   bucket: ReturnType<typeof groupByBucket>[number]['bucket'];
   active: boolean;
   onSelect: (id: string) => void;
   onRequestDelete?: (id: string) => void;
-  onPin?: (id: string, pinned: boolean) => void;
 }) {
   const titleRef = useRef<HTMLDivElement>(null);
   const [titleOverflow, setTitleOverflow] = useState(false);
@@ -190,7 +162,7 @@ function ClipItem({
 
   if (!onRequestDelete) return itemBody;
   return (
-    <ListItemContextMenu onDelete={() => onRequestDelete(clip.id)} onPin={onPin ? () => onPin(clip.id, !clip.pinned) : undefined} pinLabel={clip.pinned ? '取消置顶' : '置顶'}>
+    <ListItemContextMenu onDelete={() => onRequestDelete(clip.id)}>
       {itemBody}
     </ListItemContextMenu>
   );

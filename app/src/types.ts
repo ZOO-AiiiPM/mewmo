@@ -28,7 +28,6 @@ export type Clip = {
   published_at: string; // ISO 8601 字符串，可能为空
   ip_region: string;    // 微信公众号 IP 属地（country 或 province），可能为空
   tags_text: string;
-  pinned: boolean;
 };
 
 // ── 搜索 ──────────────────────────────────────────────────────────────────
