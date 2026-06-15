@@ -28,6 +28,7 @@ pub struct Note {
     pub updated_at: i64,
     /// "md"（标准笔记）或 "html"（外部 HTML 文件导入），前端按此切渲染组件
     pub format: String,
+    pub pinned: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -91,8 +92,11 @@ pub async fn list_notes() -> Result<Vec<Note>, String> {
             created_at,
             updated_at,
             format: s.format,
+            pinned: s.pinned,
         });
     }
+    // 置顶的排在最前面，同组内按 updated_at 倒序
+    out.sort_by(|a, b| b.pinned.cmp(&a.pinned).then(b.updated_at.cmp(&a.updated_at)));
     Ok(out)
 }
 
@@ -126,6 +130,7 @@ pub async fn get_note(id: String) -> Result<Option<Note>, String> {
                 created_at,
                 updated_at,
                 format: full.format,
+                pinned: full.pinned,
             }))
         }
         Err(crate::vault::io::IoError::FileNotFound(_)) => Ok(None),
@@ -202,6 +207,46 @@ pub async fn delete_note(meta: State<'_, VaultMetaDb>, id: String) -> Result<(),
         .await
         .map_err(|e| e.to_string())?;
     search::delete_index_note(&meta.conn, &id).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn pin_note(id: String, pinned: bool) -> Result<(), String> {
+    let vault = require_vault()?;
+    let relative = format!("wiki/notes/{}.md", id);
+    let path = vault.join(&relative);
+    if !path.exists() {
+        return Err(format!("note not found: {}", id));
+    }
+    let content = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+
+    // 操作 frontmatter 块：在 --- 和 --- 之间找/改 pinned 字段
+    let updated = if content.starts_with("---\n") {
+        if let Some(end) = content[4..].find("\n---") {
+            let fm_content = &content[4..4 + end];
+            let after = &content[4 + end + 4..]; // skip \n---
+
+            let mut lines: Vec<&str> = fm_content.lines().collect();
+            // 移除已有的 pinned 行
+            lines.retain(|l| !l.trim_start().starts_with("pinned:"));
+            // 如果要置顶，追加 pinned: true
+            if pinned {
+                lines.push("pinned: true");
+            }
+            format!("---\n{}\n---{}", lines.join("\n"), after)
+        } else {
+            return Err("malformed frontmatter".to_string());
+        }
+    } else {
+        // 无 frontmatter，加一个
+        if pinned {
+            format!("---\npinned: true\n---\n\n{}", content)
+        } else {
+            return Ok(()); // 没有 frontmatter 且不需要 pin，什么都不做
+        }
+    };
+
+    std::fs::write(&path, updated).map_err(|e| e.to_string())?;
     Ok(())
 }
 

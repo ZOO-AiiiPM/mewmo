@@ -36,6 +36,7 @@ pub struct NoteSummary {
     pub body_preview: String,
     /// "md"（标准笔记）或 "html"（外部 HTML 文件导入）
     pub format: String,
+    pub pinned: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -50,6 +51,7 @@ pub struct NoteFull {
     pub legacy_id: Option<i64>,
     /// "md" 或 "html"。HTML 笔记的 body 是原始 HTML 字符串（前端 sanitize 后渲染）
     pub format: String,
+    pub pinned: bool,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -68,6 +70,7 @@ pub struct ClipSummary {
     pub body_preview: String,
     pub tags: Vec<String>,
     pub mtime: u64,
+    pub pinned: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -87,6 +90,7 @@ pub struct ClipFull {
     pub tags: Vec<String>,
     pub mtime: u64,
     pub legacy_id: Option<i64>,
+    pub pinned: bool,
 }
 
 // ============================================================================
@@ -107,6 +111,7 @@ pub async fn list_notes(vault: &Path) -> Result<Vec<NoteSummary>, io::IoError> {
             updated: e.updated,
             body_preview: e.body_preview,
             format: "md".to_string(),
+            pinned: e.pinned,
         })
         .collect();
 
@@ -144,6 +149,7 @@ pub async fn list_notes(vault: &Path) -> Result<Vec<NoteSummary>, io::IoError> {
                     updated: None,
                     body_preview: String::new(),
                     format: "html".to_string(),
+                    pinned: false,
                 });
             }
         }
@@ -169,6 +175,7 @@ pub async fn get_note(vault: &Path, slug: &str) -> Result<NoteFull, io::IoError>
             .or_else(|| first_h1(&r.body))
             .unwrap_or_else(|| slug.to_string());
         let legacy_id = fm.extra.get("legacy_id").and_then(|v| v.as_i64());
+        let pinned = fm.pinned.unwrap_or(false);
         return Ok(NoteFull {
             slug: slug.to_string(),
             title,
@@ -179,6 +186,7 @@ pub async fn get_note(vault: &Path, slug: &str) -> Result<NoteFull, io::IoError>
             mtime: r.mtime,
             legacy_id,
             format: "md".to_string(),
+            pinned,
         });
     }
 
@@ -208,6 +216,7 @@ pub async fn get_note(vault: &Path, slug: &str) -> Result<NoteFull, io::IoError>
         mtime,
         legacy_id: None,
         format: "html".to_string(),
+        pinned: false,
     })
 }
 
@@ -248,6 +257,7 @@ pub async fn list_clips(vault: &Path) -> Result<Vec<ClipSummary>, io::IoError> {
             body_preview: r.body.chars().take(240).collect(),
             tags: fm.tags,
             mtime: e.mtime,
+            pinned: e.pinned,
         });
     }
     summaries.sort_by(|a, b| b.mtime.cmp(&a.mtime));
@@ -294,6 +304,7 @@ pub async fn get_clip(vault: &Path, slug: &str) -> Result<ClipFull, io::IoError>
         tags: fm.tags,
         mtime: r.mtime,
         legacy_id,
+        pinned: fm.pinned.unwrap_or(false),
     })
 }
 

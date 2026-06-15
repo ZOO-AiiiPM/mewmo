@@ -12,8 +12,8 @@ import { ClipReader } from './components/ClipReader';
 import { EmptyTabHome } from './components/EmptyTabHome';
 import { SubscriptionLayout } from './components/SubscriptionLayout';
 import { EntryReader } from './components/EntryReader';
-import { listNotes, getNote, createNote, updateNote, deleteNote } from './lib/db';
-import { listClips, getClip, saveClip, deleteClip, updateClip } from './lib/db';
+import { listNotes, getNote, createNote, updateNote, deleteNote, pinNote } from './lib/db';
+import { listClips, getClip, saveClip, deleteClip, updateClip, pinClip } from './lib/db';
 import {
   addSubscription,
   deleteSource,
@@ -371,6 +371,7 @@ export default function App() {
         created_at: now,
         updated_at: now,
         format: 'md',
+        pinned: false,
       },
       ...prev,
     ]);
@@ -486,6 +487,16 @@ export default function App() {
     },
     [notes, refresh]
   );
+
+  const handlePinNote = useCallback(async (id: string, pinned: boolean) => {
+    await pinNote(id, pinned);
+    await refresh();
+  }, [refresh]);
+
+  const handlePinClip = useCallback(async (id: string, pinned: boolean) => {
+    await pinClip(id, pinned);
+    setClips(await listClips());
+  }, []);
 
   // ── 剪藏操作 ──────────────────────────────────────────────────────────────
   type FetchedClip = {
@@ -604,19 +615,20 @@ export default function App() {
 
   // ── 事件桥 ────────────────────────────────────────────────────────────────
   const handleSidebarSelect = useCallback((zone: Zone) => {
-    setTabs(prev =>
-      prev.map(t => {
-        if (t.id !== activeTabId) return t;
-        // 切到 notes zone 时默认打开最新笔记（避免落到"选一条笔记"空白引导态）；
-        // 这条笔记也算一次浏览，入历史栈让后退可用。其他 zone / 没有笔记时保持原行为。
-        if (zone === 'notes' && notes.length > 0) {
-          const id = notes[0].id;
-          return { ...t, zone, refId: id, noteHistoryState: pushHistory(t.noteHistoryState, id) };
-        }
-        return { ...t, zone, refId: null };
-      })
-    );
-  }, [activeTabId, notes]);
+    // 已有该 zone 的 tab → 切换过去
+    const existing = tabs.find(t => t.zone === zone);
+    if (existing) {
+      setActiveTabId(existing.id);
+      return;
+    }
+    // 没有 → 新增 tab
+    const id = `tab_${tabIdSeqRef.current++}`;
+    const newTab: Tab = zone === 'notes' && notes.length > 0
+      ? { id, zone, refId: notes[0].id, noteHistoryState: pushHistory(emptyHistory<string>(), notes[0].id) }
+      : { id, zone, refId: null, noteHistoryState: emptyHistory<string>() };
+    setTabs(prev => [...prev, newTab]);
+    setActiveTabId(id);
+  }, [tabs, notes]);
 
   const handleEmptyPick = useCallback((zone: Zone) => {
     updateActiveTab({ zone, refId: null });
@@ -701,6 +713,7 @@ export default function App() {
                 selectedId={selectedClip?.id ?? null}
                 onSelect={handleClipSelect}
                 onDelete={handleClipDelete}
+                onPin={handlePinClip}
                 hidden={expanded}
               />
             </div>
@@ -711,6 +724,7 @@ export default function App() {
                 onSelect={handleNoteSelect}
                 onCreate={handleCreateAndBind}
                 onDelete={handleDeleteNote}
+                onPin={handlePinNote}
                 hidden={expanded}
               />
             </div>

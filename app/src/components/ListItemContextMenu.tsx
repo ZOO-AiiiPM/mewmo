@@ -5,11 +5,11 @@ type Props = {
   children: ReactNode;
   onDelete: () => void;
   deleteLabel?: string;
+  onPin?: () => void;
+  pinLabel?: string;
 };
 
-/** 列表项右键菜单（紧凑、统一样式）。当前只挂删除项，未来可扩展更多 Item 槽。
- *  尺寸基线：menu min-w-[140px] / p-1，item py-1.5 px-2.5 text-[13px] / icon 14px / rounded-md。 */
-export function ListItemContextMenu({ children, onDelete, deleteLabel = '删除' }: Props) {
+export function ListItemContextMenu({ children, onDelete, deleteLabel = '删除', onPin, pinLabel = '置顶' }: Props) {
   return (
     <ContextMenu.Root>
       <ContextMenu.Trigger asChild>{children}</ContextMenu.Trigger>
@@ -17,6 +17,18 @@ export function ListItemContextMenu({ children, onDelete, deleteLabel = '删除'
         <ContextMenu.Content
           className="min-w-[140px] p-1 rounded-xl bg-white dark:bg-stone-800 shadow-[0_8px_24px_rgba(0,0,0,0.15)] dark:shadow-[0_8px_24px_rgba(0,0,0,0.5)] z-50"
         >
+          {onPin && (
+            <ContextMenu.Item
+              onSelect={onPin}
+              className="flex items-center gap-2 px-2.5 py-1.5 text-[13px] text-stone-700 dark:text-stone-200 rounded-md outline-none cursor-pointer data-[highlighted]:bg-stone-100 dark:data-[highlighted]:bg-stone-700 transition-colors"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 17v5" />
+                <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" />
+              </svg>
+              <span>{pinLabel}</span>
+            </ContextMenu.Item>
+          )}
           <ContextMenu.Item
             onSelect={onDelete}
             className="flex items-center gap-2 px-2.5 py-1.5 text-[13px] text-red-600 dark:text-red-400 rounded-md outline-none cursor-pointer data-[highlighted]:bg-red-500 data-[highlighted]:text-white dark:data-[highlighted]:bg-red-500 dark:data-[highlighted]:text-white transition-colors"

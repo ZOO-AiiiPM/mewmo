@@ -47,6 +47,8 @@ pub struct FrontmatterData {
     pub due: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub slug: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pinned: Option<bool>,
 
     /// 未识别字段（用户自定义 / 未来扩展）—— 跨语言保序（serde_json::Map 在 preserve_order feature 下保序，否则按插入顺序）
     #[serde(flatten)]

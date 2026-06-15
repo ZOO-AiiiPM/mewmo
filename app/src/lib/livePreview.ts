@@ -446,51 +446,50 @@ export function insertTable(view: EditorView, rows = 3, cols = 2) {
   view.focus();
 }
 
-// 给外部使用：把当前行切换为/取消待办，或切换勾选状态
+// 给外部使用：把当前行（或选中的多行）切换为/取消待办
+// 已是任务项（无论 [ ] 或 [x]）→ 移除 checkbox 前缀变回纯文本
+// 纯文本/无序列表 → 加上 - [ ] 前缀
 export function toggleTask(view: EditorView) {
   const { state } = view;
-  const pos = state.selection.main.head;
-  const line = state.doc.lineAt(pos);
-  const text = line.text;
+  const { from, to } = state.selection.main;
+  const startLine = state.doc.lineAt(from);
+  const endLine = state.doc.lineAt(to);
 
-  // 已是任务项 → 翻转勾选
-  let m = text.match(/^(\s*)([-*+])\s+\[([ xX])\]\s/);
-  if (m) {
-    const [full, indent, bullet, mark] = m;
-    const newMark = mark.toLowerCase() === 'x' ? ' ' : 'x';
-    const next = `${indent}${bullet} [${newMark}] `;
-    view.dispatch({
-      changes: { from: line.from, to: line.from + full.length, insert: next },
-    });
-    view.focus();
-    return;
+  const changes: Array<{ from: number; to: number; insert: string }> = [];
+
+  for (let lineNum = startLine.number; lineNum <= endLine.number; lineNum++) {
+    const line = state.doc.line(lineNum);
+    const text = line.text;
+
+    // 已是任务项 → 移除 checkbox 前缀，变回纯文本
+    const m = text.match(/^(\s*)([-*+])\s+\[([ xX])\]\s/);
+    if (m) {
+      const [full, indent] = m;
+      changes.push({ from: line.from, to: line.from + full.length, insert: indent });
+      continue;
+    }
+
+    // 普通无序列表 → 升级为任务项
+    const listMatch = text.match(/^(\s*)([-*+])\s+/);
+    if (listMatch) {
+      const [full, indent, bullet] = listMatch;
+      const next = `${indent}${bullet} [ ] `;
+      changes.push({ from: line.from, to: line.from + full.length, insert: next });
+      continue;
+    }
+
+    // 空行跳过
+    if (!text.trim()) continue;
+
+    // 纯文本 → 行首插入 "- [ ] "
+    const indentMatch = text.match(/^(\s*)/);
+    const indent = indentMatch ? indentMatch[1] : '';
+    changes.push({ from: line.from + indent.length, to: line.from + indent.length, insert: '- [ ] ' });
   }
 
-  // 普通无序列表 → 升级为任务项
-  m = text.match(/^(\s*)([-*+])\s+/);
-  if (m) {
-    const [full, indent, bullet] = m;
-    const next = `${indent}${bullet} [ ] `;
-    view.dispatch({
-      changes: { from: line.from, to: line.from + full.length, insert: next },
-    });
-    view.focus();
-    return;
+  if (changes.length) {
+    view.dispatch({ changes });
   }
-
-  // 空行或纯文本 → 行首插入 "- [ ] "
-  const indentMatch = text.match(/^(\s*)/);
-  const indent = indentMatch ? indentMatch[1] : '';
-  const insert = `- [ ] `;
-  view.dispatch({
-    changes: {
-      from: line.from + indent.length,
-      to: line.from + indent.length,
-      insert,
-    },
-    selection: { anchor: line.from + indent.length + insert.length + (text.length - indent.length) },
-    scrollIntoView: true,
-  });
   view.focus();
 }
 
