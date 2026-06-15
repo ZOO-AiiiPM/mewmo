@@ -76,7 +76,7 @@ export async function getClip(id: string): Promise<Clip | null> {
 }
 
 export async function saveClip(
-  clip: Omit<Clip, 'id' | 'saved_at' | 'tags_text' | 'pinned' | 'content_loaded'>
+  clip: Omit<Clip, 'id' | 'saved_at' | 'tags_text' | 'content_loaded'>
 ): Promise<string> {
   return call<string>('save_clip', { clip });
 }
@@ -85,13 +85,9 @@ export async function deleteClip(id: string): Promise<void> {
   return call<void>('delete_clip', { id });
 }
 
-export async function pinClip(id: string, pinned: boolean): Promise<void> {
-  return call<void>('pin_clip', { id, pinned });
-}
-
 export async function updateClip(
   id: string,
-  patch: Omit<Clip, 'id' | 'saved_at' | 'tags_text' | 'pinned' | 'content_loaded'>
+  patch: Omit<Clip, 'id' | 'saved_at' | 'tags_text' | 'content_loaded'>
 ): Promise<string> {
   return call<string>('update_clip', { id, patch });
 }

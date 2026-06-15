@@ -13,7 +13,7 @@ import { EmptyTabHome } from './components/EmptyTabHome';
 import { SubscriptionLayout } from './components/SubscriptionLayout';
 import { EntryReader } from './components/EntryReader';
 import { listNotes, getNote, createNote, updateNote, deleteNote, pinNote } from './lib/db';
-import { listClips, getClip, saveClip, deleteClip, updateClip, pinClip } from './lib/db';
+import { listClips, getClip, saveClip, deleteClip, updateClip } from './lib/db';
 import {
   addSubscription,
   deleteSource,
@@ -493,11 +493,6 @@ export default function App() {
     await refresh();
   }, [refresh]);
 
-  const handlePinClip = useCallback(async (id: string, pinned: boolean) => {
-    await pinClip(id, pinned);
-    setClips(await listClips());
-  }, []);
-
   // ── 剪藏操作 ──────────────────────────────────────────────────────────────
   type FetchedClip = {
     url: string; title: string; content_md: string;
@@ -713,7 +708,6 @@ export default function App() {
                 selectedId={selectedClip?.id ?? null}
                 onSelect={handleClipSelect}
                 onDelete={handleClipDelete}
-                onPin={handlePinClip}
                 hidden={expanded}
               />
             </div>
