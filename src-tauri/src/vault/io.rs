@@ -47,6 +47,7 @@ pub struct EntrySummary {
     pub created: Option<String>,
     pub updated: Option<String>,
     pub body_preview: String,
+    pub pinned: bool,
 }
 
 /// 全局聚合页：mutex 保护的 5 个高频热点文件
@@ -418,6 +419,10 @@ fn list_dir_inner(
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_else(|_| path.to_string_lossy().to_string());
 
+        let pinned = parsed.frontmatter.as_ref()
+            .and_then(|f| f.pinned)
+            .unwrap_or(false);
+
         out.push(EntrySummary {
             relative_path: relative,
             kind,
@@ -428,6 +433,7 @@ fn list_dir_inner(
             created,
             updated,
             body_preview,
+            pinned,
         });
     }
     Ok(())

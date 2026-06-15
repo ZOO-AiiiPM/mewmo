@@ -35,6 +35,7 @@ pub struct Clip {
     /// 公众号 / 知乎 IP 属地
     pub ip_region: String,
     pub tags_text: String,
+    pub pinned: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -117,6 +118,7 @@ fn full_to_clip(full: query::ClipFull, body_loaded: bool) -> Clip {
         published_at: full.publish_ts.unwrap_or_default(),
         ip_region: full.ip_location.unwrap_or_default(),
         tags_text: full.tags.join(", "),
+        pinned: full.pinned,
     }
 }
 
@@ -149,8 +151,11 @@ pub async fn list_clips() -> Result<Vec<Clip>, String> {
             published_at: s.publish_ts.unwrap_or_default(),
             ip_region: s.ip_location.unwrap_or_default(),
             tags_text: s.tags.join(", "),
+            pinned: s.pinned,
         });
     }
+    // 置顶排最前，同组按 saved_at 倒序
+    out.sort_by(|a, b| b.pinned.cmp(&a.pinned).then(b.saved_at.cmp(&a.saved_at)));
     Ok(out)
 }
 
@@ -220,5 +225,40 @@ pub async fn delete_clip(meta: State<'_, VaultMetaDb>, id: String) -> Result<(),
         .await
         .map_err(|e| e.to_string())?;
     search::delete_index_clip(&meta.conn, &id).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn pin_clip(id: String, pinned: bool) -> Result<(), String> {
+    let vault = require_vault()?;
+    let relative = format!("raw/clips/{}.md", id);
+    let path = vault.join(&relative);
+    if !path.exists() {
+        return Err(format!("clip not found: {}", id));
+    }
+    let content = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+
+    let updated = if content.starts_with("---\n") {
+        if let Some(end) = content[4..].find("\n---") {
+            let fm_content = &content[4..4 + end];
+            let after = &content[4 + end + 4..];
+            let mut lines: Vec<&str> = fm_content.lines().collect();
+            lines.retain(|l| !l.trim_start().starts_with("pinned:"));
+            if pinned {
+                lines.push("pinned: true");
+            }
+            format!("---\n{}\n---{}", lines.join("\n"), after)
+        } else {
+            return Err("malformed frontmatter".to_string());
+        }
+    } else {
+        if pinned {
+            format!("---\npinned: true\n---\n\n{}", content)
+        } else {
+            return Ok(());
+        }
+    };
+
+    std::fs::write(&path, updated).map_err(|e| e.to_string())?;
     Ok(())
 }

@@ -172,8 +172,8 @@ function TabPill({
           onClose();
         }}
         title="关闭标签"
-        className={`w-4 h-4 flex items-center justify-center rounded text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-black/10 dark:hover:bg-white/10 transition-opacity ${
-          active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+        className={`shrink-0 flex items-center justify-center rounded text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-black/10 dark:hover:bg-white/10 transition-all ${
+          active ? 'w-4 h-4 opacity-100' : 'w-0 h-4 opacity-0 overflow-hidden group-hover:w-4 group-hover:opacity-100'
         }`}
       >
         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

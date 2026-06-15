@@ -28,6 +28,10 @@ export async function deleteNote(id: string): Promise<void> {
   return call<void>('delete_note', { id });
 }
 
+export async function pinNote(id: string, pinned: boolean): Promise<void> {
+  return call<void>('pin_note', { id, pinned });
+}
+
 // ── HTML 笔记导入 ─────────────────────────────────────────────────────────
 
 export type HtmlFileInput = {
@@ -72,7 +76,7 @@ export async function getClip(id: string): Promise<Clip | null> {
 }
 
 export async function saveClip(
-  clip: Omit<Clip, 'id' | 'saved_at' | 'tags_text'>
+  clip: Omit<Clip, 'id' | 'saved_at' | 'tags_text' | 'pinned' | 'content_loaded'>
 ): Promise<string> {
   return call<string>('save_clip', { clip });
 }
@@ -81,9 +85,13 @@ export async function deleteClip(id: string): Promise<void> {
   return call<void>('delete_clip', { id });
 }
 
+export async function pinClip(id: string, pinned: boolean): Promise<void> {
+  return call<void>('pin_clip', { id, pinned });
+}
+
 export async function updateClip(
   id: string,
-  patch: Omit<Clip, 'id' | 'saved_at' | 'tags_text'>
+  patch: Omit<Clip, 'id' | 'saved_at' | 'tags_text' | 'pinned' | 'content_loaded'>
 ): Promise<string> {
   return call<string>('update_clip', { id, patch });
 }
