@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import type { FeedEntry, SubscriptionSource } from '../types';
 import { sanitizeHtml } from '../lib/sanitizeHtml';
-import { smoothScrollToTop } from '../lib/scrollToTop';
+import { ScrollToTopButton } from './ScrollToTopButton';
 
 type Props = {
   entry: FeedEntry | null;
@@ -259,18 +259,6 @@ export function EntryReader({
           )}
           <span className="mx-1 h-4 w-px bg-black/10 dark:bg-white/10" />
           <button
-            onClick={() => smoothScrollToTop(scrollerRef.current)}
-            title="回到顶部"
-            className="w-8 h-8 grid place-items-center rounded-md text-stone-600 dark:text-stone-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-          >
-            {/* arrow-up-to-line icon (lucide) */}
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M5 3h14" />
-              <path d="m18 13-6-6-6 6" />
-              <path d="M12 7v14" />
-            </svg>
-          </button>
-          <button
             onClick={onExpand}
             title={expanded ? '收起' : '专注模式'}
             className="w-8 h-8 grid place-items-center rounded-md text-stone-600 dark:text-stone-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
@@ -293,6 +281,7 @@ export function EntryReader({
           </button>
         </div>
       </div>
+      <ScrollToTopButton scrollRef={scrollerRef} />
     </main>
   );
 }

@@ -76,9 +76,19 @@ pub fn default_vault_path() -> PathBuf {
     }
 }
 
-/// 用户配置文件路径 `~/.mewmo/config.json`
+/// 用户配置文件路径，默认 `~/.mewmo/config.json`。
+/// dev 模式（debug build）使用 `~/.mewmo-dev/config.json`，与打包版隔离。
+/// 设置环境变量 `MEWMO_CONFIG_DIR` 可手动覆盖。
 pub fn config_file_path() -> Option<PathBuf> {
-    std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".mewmo").join("config.json"))
+    let dir = match std::env::var_os("MEWMO_CONFIG_DIR") {
+        Some(d) => PathBuf::from(d),
+        None => {
+            let home = std::env::var_os("HOME")?;
+            let folder = if cfg!(debug_assertions) { ".mewmo-dev" } else { ".mewmo" };
+            PathBuf::from(home).join(folder)
+        }
+    };
+    Some(dir.join("config.json"))
 }
 
 fn vault_marker_path(vault_path: &Path) -> PathBuf {
