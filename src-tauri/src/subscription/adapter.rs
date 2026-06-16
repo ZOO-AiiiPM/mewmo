@@ -13,6 +13,8 @@ use reqwest::header::{
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
+use crate::subscription::cover::cover_from_entry;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FetchedFeedMeta {
     pub title: String,
@@ -27,6 +29,7 @@ pub struct FetchedEntry {
     pub title: String,
     pub content_html: String,
     pub excerpt: String,
+    pub cover_image: String,
     pub link: Option<String>,
     pub author: String,
     pub published_at: Option<i64>, // unix epoch seconds
@@ -160,12 +163,12 @@ pub async fn fetch_one(
 fn map_entry(e: feed_rs::model::Entry) -> Option<FetchedEntry> {
     // guid = entry.id；空时 fallback 到 link；都没有则跳过这条 entry
     let guid = if !e.id.is_empty() {
-        e.id
+        e.id.clone()
     } else {
         e.links.first()?.href.clone()
     };
 
-    let title = e.title.map(|t| t.content).unwrap_or_default();
+    let title = e.title.as_ref().map(|t| t.content.clone()).unwrap_or_default();
 
     // content 优先取 content.body，其次 summary
     let content_html = e
@@ -208,11 +211,14 @@ fn map_entry(e: feed_rs::model::Entry) -> Option<FetchedEntry> {
     // published 优先，updated 兜底
     let published_at = e.published.or(e.updated).map(|dt| dt.timestamp());
 
+    let cover_image = cover_from_entry(&e, &content_html);
+
     Some(FetchedEntry {
         guid,
         title,
         content_html,
         excerpt,
+        cover_image,
         link,
         author,
         published_at,
