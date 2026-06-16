@@ -185,8 +185,21 @@ html.dark .live-md-editor .cm-bullet {
   color: #a8a29e;
 }
 
+
+/* —— 列表行 hanging indent —— */
+.live-md-editor .cm-list-line {
+  padding-left: 1em !important;
+}
+.live-md-editor .cm-list-line .cm-bullet {
+  margin-left: -1em;
+}
+.live-md-editor .cm-list-line .cm-task-checkbox {
+  margin-left: -1.35em;
+}
+
 /* —— 内联图片 widget —— */
 .live-md-editor .cm-image-wrap {
+  position: relative;
   display: inline-block;
   vertical-align: middle;
   max-width: 100%;
@@ -203,6 +216,30 @@ html.dark .live-md-editor .cm-bullet {
 }
 html.dark .live-md-editor .cm-image {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+.live-md-editor .cm-image-wrap.cm-image-selected .cm-image {
+  outline: 1px solid #a8a29e;
+  outline-offset: 2px;
+}
+html.dark .live-md-editor .cm-image-wrap.cm-image-selected .cm-image {
+  outline-color: #78716c;
+}
+.live-md-editor .cm-image-resize-handle {
+  display: none;
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  width: 8px;
+  height: 8px;
+  cursor: nwse-resize;
+  background: #78716c;
+  border-radius: 1px;
+}
+html.dark .live-md-editor .cm-image-resize-handle {
+  background: #a8a29e;
+}
+.live-md-editor .cm-image-wrap.cm-image-selected .cm-image-resize-handle {
+  display: block;
 }
 
 /* —— 链接 —— */

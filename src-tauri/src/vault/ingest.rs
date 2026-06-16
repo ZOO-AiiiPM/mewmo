@@ -609,7 +609,7 @@ mod tests {
         assert!(content.contains("publish_ts:"));
         assert!(content.contains("cdn_url_1_1.jpg"));
         assert!(content.contains("ip_location: \"上海\""));
-        assert!(content.contains("# 公众号文章"));
+        assert!(content.contains("title: \"公众号文章\""));
         std::fs::remove_dir_all(&vault).ok();
     }
 
@@ -635,7 +635,7 @@ mod tests {
             .unwrap()
             .to_string();
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-        update_clip(
+        let r2 = update_clip(
             &vault,
             &r1.slug,
             "新标题",
@@ -646,7 +646,7 @@ mod tests {
         )
         .await
         .unwrap();
-        let parsed2 = io::read(&vault, &r1.relative_path).await.unwrap();
+        let parsed2 = io::read(&vault, &r2.relative_path).await.unwrap();
         let fm = parsed2.frontmatter.unwrap();
         let saved_at_new = fm.extra.get("saved_at").and_then(|v| v.as_str()).unwrap();
         assert_eq!(saved_at_orig, saved_at_new, "update_clip 应保留原 saved_at");
