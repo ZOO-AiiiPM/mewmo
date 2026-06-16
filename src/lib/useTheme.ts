@@ -44,7 +44,7 @@ export function useTheme() {
 
     try {
       getCurrentWindow().setTheme(theme).catch(() => {});
-    } catch {}
+    } catch { /* Tauri API unavailable in browser preview */ }
   }, [theme]);
 
   const toggle = () => setMode(m => (m === 'dark' ? 'light' : m === 'light' ? 'dark' : 'light'));

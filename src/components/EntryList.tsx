@@ -88,7 +88,7 @@ function EntryItem({
   onSelect: (entry: FeedEntry) => void;
 }) {
   const isUnread = entry.read_at == null;
-  const thumbnail = extractThumbnail(entry.content_html);
+  const thumbnail = entry.cover_image || extractThumbnail(entry.content_html);
   const sourceTitle = source?.title || '';
   const [thumbFailed, setThumbFailed] = useState(false);
   const titleRef = useRef<HTMLDivElement>(null);
