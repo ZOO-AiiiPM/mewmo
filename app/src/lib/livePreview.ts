@@ -39,12 +39,18 @@ const urlCache = new Map<string, string>();
 class ImageWidget extends WidgetType {
   src: string;
   alt: string;
-  constructor(src: string, alt: string) {
+  width: number | null;
+  from: number;
+  to: number;
+  constructor(src: string, alt: string, width: number | null, from: number, to: number) {
     super();
     this.src = src;
     this.alt = alt;
+    this.width = width;
+    this.from = from;
+    this.to = to;
   }
-  toDOM() {
+  toDOM(view: EditorView) {
     const wrap = document.createElement('span');
     wrap.className = 'cm-image-wrap';
     wrap.contentEditable = 'false';
@@ -53,6 +59,7 @@ class ImageWidget extends WidgetType {
     img.alt = this.alt;
     img.className = 'cm-image';
     img.draggable = false;
+    if (this.width) img.style.width = `${this.width}px`;
 
     const cached = urlCache.get(this.src);
     if (cached) {
@@ -68,14 +75,79 @@ class ImageWidget extends WidgetType {
         });
     }
 
+    // resize handle
+    const handle = document.createElement('span');
+    handle.className = 'cm-image-resize-handle';
+
+    // click to select
+    wrap.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      document.querySelectorAll('.cm-image-selected').forEach(el => el.classList.remove('cm-image-selected'));
+      wrap.classList.add('cm-image-selected');
+    });
+
+    // click outside to deselect; keydown to delete
+    const cleanup = () => {
+      wrap.classList.remove('cm-image-selected');
+      document.removeEventListener('mousedown', deselect);
+      document.removeEventListener('keydown', onKey);
+    };
+    const deselect = (e: MouseEvent) => {
+      if (!wrap.contains(e.target as Node)) cleanup();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Backspace' || e.key === 'Delete') {
+        e.preventDefault();
+        cleanup();
+        view.dispatch({ changes: { from: widgetFrom, to: widgetTo, insert: '' } });
+      } else if (e.key === 'Escape') {
+        cleanup();
+      }
+    };
+    wrap.addEventListener('mousedown', () => {
+      setTimeout(() => {
+        document.addEventListener('mousedown', deselect);
+        document.addEventListener('keydown', onKey);
+      }, 0);
+    });
+
+    // drag to resize
+    const widgetFrom = this.from;
+    const widgetTo = this.to;
+    const altText = this.alt;
+    const srcText = this.src;
+    handle.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const startX = e.clientX;
+      const startW = img.offsetWidth;
+
+      const onMove = (ev: MouseEvent) => {
+        const newW = Math.max(60, startW + (ev.clientX - startX));
+        img.style.width = `${newW}px`;
+      };
+      const onUp = (ev: MouseEvent) => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        const finalW = Math.max(60, startW + (ev.clientX - startX));
+        const newAlt = altText ? `${altText}|${finalW}` : `|${finalW}`;
+        const newText = `![${newAlt}](${srcText})`;
+        view.dispatch({ changes: { from: widgetFrom, to: widgetTo, insert: newText } });
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+
     wrap.appendChild(img);
+    wrap.appendChild(handle);
     return wrap;
   }
   eq(other: ImageWidget) {
-    return this.src === other.src && this.alt === other.alt;
+    return this.src === other.src && this.alt === other.alt && this.width === other.width;
   }
   ignoreEvent() {
-    return false;
+    return true;
   }
 }
 
@@ -1117,14 +1189,15 @@ function handleImage(node: SyntaxNodeRef, ctx: DecorationCtx): boolean {
   if (isCursorOnNode(node, ctx)) return false;
 
   const text = ctx.state.doc.sliceString(node.from, node.to);
-  const m = text.match(/^!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/);
+  const m = text.match(/^!\[([^\]|]*)(?:\|(\d+))?\]\(([^)\s]+)(?:\s+"[^"]*")?\)/);
   if (!m) return false;
 
-  const [, alt, src] = m;
+  const [, alt, widthStr, src] = m;
+  const width = widthStr ? parseInt(widthStr, 10) : null;
   ctx.items.push({
     from: node.from,
     to: node.to,
-    deco: Decoration.replace({ widget: new ImageWidget(src, alt) }),
+    deco: Decoration.replace({ widget: new ImageWidget(src, alt, width, node.from, node.to) }),
   });
   return true;
 }
@@ -1191,6 +1264,7 @@ function handleHeaderMark(node: SyntaxNodeRef, ctx: DecorationCtx) {
 
 const hrLineDeco = Decoration.line({ class: 'cm-md-hr' });
 const hrLineActiveDeco = Decoration.line({ class: 'cm-md-hr-active' });
+const listLineDeco = Decoration.line({ class: 'cm-list-line' });
 
 function handleHorizontalRule(node: SyntaxNodeRef, ctx: DecorationCtx) {
   const line = ctx.state.doc.lineAt(node.from);
@@ -1222,6 +1296,16 @@ function handleListMark(node: SyntaxNodeRef, ctx: DecorationCtx) {
 
   ctx.lezerListMarkPositions.add(node.from);
 
+  // 数嵌套深度（两分支共用）
+  let depth = 0;
+  let cur = node.node.parent;
+  while (cur) {
+    if (cur.name === 'BulletList' || cur.name === 'OrderedList') {
+      depth++;
+    }
+    cur = cur.parent;
+  }
+
   if (/^\s*[-*+]\s+\[[ xX]\]\s/.test(lineText)) {
     // 任务项 → 隐藏 "- " 前缀
     const next = ctx.state.doc.sliceString(node.to, node.to + 1);
@@ -1231,23 +1315,16 @@ function handleListMark(node: SyntaxNodeRef, ctx: DecorationCtx) {
       to: hideTo,
       deco: Decoration.replace({}),
     });
-    return;
+  } else {
+    // 普通列表
+    ctx.items.push({
+      from: node.from,
+      to: node.to,
+      deco: depth >= 2 ? hollowBulletDeco : bulletDeco,
+    });
   }
 
-  // 普通列表：数嵌套深度
-  let depth = 0;
-  let cur = node.node.parent;
-  while (cur) {
-    if (cur.name === 'BulletList' || cur.name === 'OrderedList') {
-      depth++;
-    }
-    cur = cur.parent;
-  }
-  ctx.items.push({
-    from: node.from,
-    to: node.to,
-    deco: depth >= 2 ? hollowBulletDeco : bulletDeco,
-  });
+  ctx.lineItems.push({ pos: line.from, deco: listLineDeco });
 }
 
 // ── 任务标记 [ ] / [x] → 替换为可勾选 checkbox ──
