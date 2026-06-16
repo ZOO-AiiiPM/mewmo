@@ -82,6 +82,7 @@ export interface FeedEntry {
   title: string;
   content_html: string;
   excerpt: string;
+  cover_image: string;
   link: string | null;
   author: string;
   published_at: number | null;
@@ -102,6 +103,7 @@ export interface FetchedEntry {
   title: string;
   content_html: string;
   excerpt: string;
+  cover_image: string;
   link: string | null;
   author: string;
   published_at: number | null;

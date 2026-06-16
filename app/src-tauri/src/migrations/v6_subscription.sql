@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS feed_entries (
   title TEXT NOT NULL DEFAULT '',
   content_html TEXT NOT NULL DEFAULT '',
   excerpt TEXT NOT NULL DEFAULT '',
+  cover_image TEXT NOT NULL DEFAULT '',
   link TEXT,
   author TEXT NOT NULL DEFAULT '',
   published_at INTEGER,

@@ -126,7 +126,7 @@ const baseTheme = EditorView.theme({
   '.cm-cursor, .cm-dropCursor': {
     borderLeftColor: 'currentColor',
   },
-  '.cm-selectionBackground, ::selection': {
+  '::selection': {
     background: 'rgba(59, 130, 246, 0.18) !important',
   },
   '.cm-activeLine, .cm-activeLineGutter': {
@@ -179,12 +179,14 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
   // key 必须在渲染期（而非 effect 里）定下来，重挂载才会和 applyNote 落在同一次 commit，
   // 否则 applyNote 会作用在旧 view 上、被随后的重挂载丢弃。setState-during-render 由
   // `note.id !== keyedNoteId` 守卫，幂等、StrictMode 安全。
+  /* eslint-disable react-hooks/refs -- 渲染期读 ref 有意为之：必须同步判断是否 remount */
   if (note && note.id !== keyedNoteId) {
     const isRename = renameFromRef.current !== null && renameFromRef.current === keyedNoteId;
     setKeyedNoteId(note.id);
     if (!isRename) setMountKey((k) => k + 1);
     // renameFromRef 不在这里清——留给下方切笔记 effect 判断是否跳过 applyNote 的光标归零
   }
+  /* eslint-enable react-hooks/refs */
 
   const resizeTitleInput = useCallback(() => {
     const el = titleInputRef.current;
@@ -345,6 +347,8 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
     }, 150);
     return () => window.clearTimeout(t);
   }, [note, newlyCreatedId, onCreateAnimDone, flushContent, flushTitle, resizeTitleInput]);
+
+  const isBodyEmpty = localContent.trim().length === 0;
 
   const handleContentChange = (value: string) => {
     // applyNote 用 view.dispatch 替换 doc 时也会触发这里的 onChange（CM update listener 不区分 user vs programmatic）。
@@ -592,7 +596,7 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
             />
           </div>
           <div
-            className={`pl-10 cursor-text transition-[padding] duration-200 ease-out ${aiOpen ? 'pr-[280px]' : ''}`}
+            className={`relative pl-10 cursor-text transition-[padding] duration-200 ease-out ${aiOpen ? 'pr-[280px]' : ''}`}
             onClick={(e) => {
               // 点击 wrapper 空白区域时 focus body 编辑器；点击 CodeMirror 内部已有内容时让 CM 自己处理
               if (e.target === e.currentTarget) {
@@ -600,6 +604,11 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
               }
             }}
           >
+            {isBodyEmpty && (
+              <div className="pointer-events-none absolute left-10 top-0 text-[15px] leading-[1.7] text-stone-300 dark:text-stone-600 select-none">
+                写一点想法，或粘贴一段材料
+              </div>
+            )}
             <CodeMirror
               key={mountKey}
               ref={cmRef}
@@ -617,7 +626,7 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
                 closeBrackets: false,
                 autocompletion: false,
                 history: true,
-                drawSelection: true,
+                drawSelection: false,
                 dropCursor: true,
                 allowMultipleSelections: false,
                 crosshairCursor: false,

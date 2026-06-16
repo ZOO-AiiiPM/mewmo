@@ -99,6 +99,26 @@ fn run_migrations(conn: &mut Connection) -> Result<(), String> {
         log::info!("DB migrated to v{version}");
     }
 
+    ensure_subscription_cover_column(conn)?;
+
+    Ok(())
+}
+
+fn ensure_subscription_cover_column(conn: &mut Connection) -> Result<(), String> {
+    let exists: bool = conn
+        .query_row(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='feed_entries'",
+            [],
+            |_| Ok(true),
+        )
+        .unwrap_or(false);
+    if !exists {
+        return Ok(());
+    }
+
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+    ensure_column(&tx, "feed_entries", "cover_image")?;
+    tx.commit().map_err(|e| e.to_string())?;
     Ok(())
 }
 

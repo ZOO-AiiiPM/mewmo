@@ -45,6 +45,7 @@ pub struct Entry {
     pub title: String,
     pub content_html: String,
     pub excerpt: String,
+    pub cover_image: String,
     pub link: Option<String>,
     pub author: String,
     pub published_at: Option<i64>,
@@ -110,14 +111,15 @@ fn insert_entries(
         let n = tx
             .execute(
                 "INSERT OR IGNORE INTO feed_entries
-                 (source_id, guid, title, content_html, excerpt, link, author, published_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                 (source_id, guid, title, content_html, excerpt, cover_image, link, author, published_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                 params![
                     source_id,
                     e.guid,
                     e.title,
                     e.content_html,
                     e.excerpt,
+                    e.cover_image,
                     e.link,
                     e.author,
                     e.published_at
@@ -340,7 +342,7 @@ pub fn list_entries_for_source(db: State<'_, Db>, source_id: i64) -> Result<Vec<
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn
         .prepare(
-            "SELECT id, source_id, guid, title, content_html, excerpt, link, author,
+            "SELECT id, source_id, guid, title, content_html, excerpt, cover_image, link, author,
                     published_at, fetched_at, read_at
              FROM feed_entries
              WHERE source_id = ?1
@@ -357,11 +359,12 @@ pub fn list_entries_for_source(db: State<'_, Db>, source_id: i64) -> Result<Vec<
                 title: row.get(3)?,
                 content_html: row.get(4)?,
                 excerpt: row.get(5)?,
-                link: row.get(6)?,
-                author: row.get(7)?,
-                published_at: row.get(8)?,
-                fetched_at: row.get(9)?,
-                read_at: row.get(10)?,
+                cover_image: row.get(6)?,
+                link: row.get(7)?,
+                author: row.get(8)?,
+                published_at: row.get(9)?,
+                fetched_at: row.get(10)?,
+                read_at: row.get(11)?,
             })
         })
         .map_err(|e| format!("DB_ERROR: {}", e))?;
