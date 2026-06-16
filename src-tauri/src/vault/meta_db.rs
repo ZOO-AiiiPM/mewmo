@@ -17,6 +17,7 @@ use std::sync::Mutex;
 const MIGRATIONS: &[(u32, &str)] = &[
     (1, include_str!("../migrations/vault_meta_v1.sql")),
     (2, include_str!("../migrations/vault_meta_v2_fts_index.sql")),
+    (3, include_str!("../migrations/vault_meta_v3_knowledge_bases.sql")),
 ];
 
 pub struct VaultMetaDb {
@@ -88,7 +89,7 @@ mod tests {
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .unwrap();
         // 当前最新 migration version（每次新增 migration 这里同步更新）
-        assert_eq!(v, 2, "应跑到最新 migration（v1 + v2 FTS index）");
+        assert_eq!(v, 3, "应跑到最新 migration（v1 + v2 FTS index + v3 knowledge_bases）");
 
         // 验证 v1 4 张表都存在
         for table in &[
@@ -116,6 +117,16 @@ mod tests {
                 .unwrap_or(false);
             assert!(exists, "v2 表 {} 应存在", table);
         }
+
+        // 验证 v3 knowledge_bases 表存在
+        let exists: bool = conn
+            .query_row(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?1",
+                ["knowledge_bases"],
+                |_| Ok(true),
+            )
+            .unwrap_or(false);
+        assert!(exists, "v3 表 knowledge_bases 应存在");
 
         std::fs::remove_dir_all(&vault).ok();
     }
