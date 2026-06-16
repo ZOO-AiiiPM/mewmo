@@ -177,7 +177,12 @@ pub async fn list_notes(vault: &Path) -> Result<Vec<NoteSummary>, io::IoError> {
 
 /// 读单条笔记完整内容（先尝试 .md，缺则尝试 .html）
 pub async fn get_note(vault: &Path, slug: &str) -> Result<NoteFull, io::IoError> {
-    let md_relative = format!("wiki/notes/{}.md", slug);
+    // Library notes use the slug directly as relative path
+    let md_relative = if slug.starts_with("library/") {
+        format!("{}.md", slug)
+    } else {
+        format!("wiki/notes/{}.md", slug)
+    };
     let md_path = vault.join(&md_relative);
 
     if md_path.exists() {
@@ -207,7 +212,11 @@ pub async fn get_note(vault: &Path, slug: &str) -> Result<NoteFull, io::IoError>
     }
 
     // .md 不存在 → 尝试 .html
-    let html_relative = format!("wiki/notes/{}.html", slug);
+    let html_relative = if slug.starts_with("library/") {
+        format!("{}.html", slug)
+    } else {
+        format!("wiki/notes/{}.html", slug)
+    };
     let html_path = vault.join(&html_relative);
     if !html_path.exists() {
         return Err(io::IoError::FileNotFound(slug.to_string()));

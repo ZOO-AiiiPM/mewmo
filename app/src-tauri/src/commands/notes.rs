@@ -171,6 +171,10 @@ pub async fn update_note(
     if existing.format == "html" {
         return Err("HTML_NOTE_READONLY".to_string());
     }
+    // Library notes are read-only in notes zone (managed via KB zone)
+    if id.starts_with("library/") {
+        return Err("LIBRARY_NOTE_READONLY".to_string());
+    }
 
     let should_rename = patch.title.is_some();
     let new_body = match patch.content_md {
@@ -203,6 +207,10 @@ pub async fn update_note(
 #[tauri::command]
 pub async fn delete_note(meta: State<'_, VaultMetaDb>, id: String) -> Result<(), String> {
     let vault = require_vault()?;
+    // Library notes cannot be deleted via notes zone
+    if id.starts_with("library/") {
+        return Err("LIBRARY_NOTE_READONLY".to_string());
+    }
     ingest::delete_note(&vault, &id)
         .await
         .map_err(|e| e.to_string())?;
