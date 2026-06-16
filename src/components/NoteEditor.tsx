@@ -572,7 +572,10 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
               defaultValue={note.title}
               rows={1}
               onChange={handleTitleChange}
-              onFocus={() => { titleFocusedRef.current = true; }}
+              onFocus={() => {
+                titleFocusedRef.current = true;
+                cmRef.current?.view?.dispatch({ effects: [focusEffect.of(false)] });
+              }}
               onBlur={() => { titleFocusedRef.current = false; }}
               onKeyDown={(e) => {
                 // 输入法组字中（IME composition）：Enter 是「确认候选词」、ArrowDown 是「翻候选词」，
@@ -598,9 +601,17 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
           <div
             className={`relative pl-10 cursor-text transition-[padding] duration-200 ease-out ${aiOpen ? 'pr-[280px]' : ''}`}
             onClick={(e) => {
-              // 点击 wrapper 空白区域时 focus body 编辑器；点击 CodeMirror 内部已有内容时让 CM 自己处理
+              // 点击 wrapper 空白区域时进入正文末尾，而不是只 focus。
+              // 只 focus 会保留 CodeMirror 上一次 selection；如果上次 selection 在标题行，
+              // live preview 会继续认为那行是 active，于是没有点击标题时也露出 "# " 标记。
               if (e.target === e.currentTarget) {
-                cmRef.current?.view?.focus();
+                const view = cmRef.current?.view;
+                if (!view) return;
+                view.focus();
+                view.dispatch({
+                  selection: { anchor: view.state.doc.length },
+                  scrollIntoView: false,
+                });
               }
             }}
           >

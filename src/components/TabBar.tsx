@@ -2,6 +2,7 @@ import { Fragment, useEffect, useRef, useState } from 'react';
 import type React from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import type { Zone } from './Sidebar';
+import { getTabPillWidth, TAB_MAX_WIDTH } from './tabBarLayout';
 
 export type Tab = { id: string; title: string; zone: Zone | null };
 
@@ -46,6 +47,8 @@ type Props = {
 
 export function TabBar({ tabs, activeId, onSelect, onClose, onAddNew }: Props) {
   const dragRegionRef = useRef<HTMLDivElement>(null);
+  const railRef = useRef<HTMLDivElement>(null);
+  const [tabWidth, setTabWidth] = useState(TAB_MAX_WIDTH);
 
   // 双击 toggle maximize/unmaximize。Tauri 的 data-tauri-drag-region 内置一个 native
   // dblclick handler 调 toggleMaximize（macOS 上跟 native zoom 状态不同步——「能扩大不能
@@ -68,15 +71,30 @@ export function TabBar({ tabs, activeId, onSelect, onClose, onAddNew }: Props) {
     return () => el.removeEventListener('dblclick', handler, { capture: true });
   }, []);
 
+  useEffect(() => {
+    const el = railRef.current;
+    if (!el) return;
+
+    const update = () => {
+      setTabWidth(getTabPillWidth(el.clientWidth, tabs.length));
+    };
+    update();
+
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [tabs.length]);
+
   return (
     <div
       ref={dragRegionRef}
       data-tauri-drag-region
-      className="h-10 shrink-0 flex items-center pl-22 pr-3"
+      className="h-10 shrink-0 flex items-center pl-22 pr-12"
     >
       <div
+        ref={railRef}
         data-tauri-drag-region
-        className="flex items-center flex-1 overflow-x-auto min-w-0 no-scrollbar"
+        className="flex items-center flex-1 overflow-hidden min-w-0"
       >
         {tabs.map((tab, i) => {
           // active tab 自带背景，左右两侧分隔符隐去避免视觉重复
@@ -93,6 +111,7 @@ export function TabBar({ tabs, activeId, onSelect, onClose, onAddNew }: Props) {
               <TabPill
                 tab={tab}
                 active={tab.id === activeId}
+                width={tabWidth}
                 onSelect={() => onSelect(tab.id)}
                 onClose={() => onClose(tab.id)}
               />
@@ -116,11 +135,13 @@ export function TabBar({ tabs, activeId, onSelect, onClose, onAddNew }: Props) {
 function TabPill({
   tab,
   active,
+  width,
   onSelect,
   onClose,
 }: {
   tab: Tab;
   active: boolean;
+  width: number;
   onSelect: () => void;
   onClose: () => void;
 }) {
@@ -148,7 +169,8 @@ function TabPill({
   return (
     <div
       onClick={onSelect}
-      className={`group relative flex items-center gap-1.5 h-7 pl-2.5 pr-1.5 rounded-md cursor-pointer text-[12px] font-semibold w-[160px] shrink-0 transition-colors ${
+      style={{ width }}
+      className={`group relative flex items-center gap-1.5 h-7 pl-2.5 pr-1.5 rounded-md cursor-pointer text-[12px] font-semibold shrink-0 overflow-hidden transition-[background-color,color,box-shadow,width] duration-150 ease-out ${
         active
           ? 'bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-50 shadow-sm'
           : 'text-stone-800 dark:text-stone-200 hover:bg-black/5 dark:hover:bg-white/10'
