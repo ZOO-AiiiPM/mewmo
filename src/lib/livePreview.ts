@@ -550,10 +550,7 @@ export function toggleTask(view: EditorView) {
       continue;
     }
 
-    // 空行跳过
-    if (!text.trim()) continue;
-
-    // 纯文本 → 行首插入 "- [ ] "
+    // 纯文本或空行 → 行首插入 "- [ ] "
     const indentMatch = text.match(/^(\s*)/);
     const indent = indentMatch ? indentMatch[1] : '';
     changes.push({ from: line.from + indent.length, to: line.from + indent.length, insert: '- [ ] ' });
@@ -1128,8 +1125,6 @@ function handleEntireNodeStyle(node: SyntaxNodeRef, ctx: DecorationCtx) {
     ctx.items.push({ from: node.from, to: node.to, deco: Decoration.mark({ class: 'cm-strike' }) });
   } else if (name === 'InlineCode') {
     ctx.items.push({ from: node.from, to: node.to, deco: Decoration.mark({ class: 'cm-inline-code' }) });
-  } else if (name === 'Blockquote') {
-    ctx.items.push({ from: node.from, to: node.to, deco: Decoration.mark({ class: 'cm-blockquote' }) });
   } else if (name === 'Link' || name === 'Autolink') {
     // Autolink (CommonMark <url> 形式)：整段（含尖括号）套链接样式
     ctx.items.push({ from: node.from, to: node.to, deco: Decoration.mark({ class: 'cm-link' }) });
@@ -1180,6 +1175,48 @@ function handleFencedCode(node: SyntaxNodeRef, ctx: DecorationCtx) {
 }
 
 const codeBlockLineDeco = Decoration.line({ class: 'cm-fenced-code-line' });
+const blockquoteLineDeco = Decoration.line({ class: 'cm-blockquote-line' });
+
+// ── lezer Blockquote 节点 ──
+// 整段套 mark（文字颜色）+ 有内容的行加 line deco（左边框）+ 光标外隐藏 > 标记。
+function handleBlockquote(node: SyntaxNodeRef, ctx: DecorationCtx) {
+  const doc = ctx.state.doc;
+  const cursorInside = isCursorOnNode(node, ctx);
+
+  // 整段 mark（文字颜色）
+  ctx.items.push({
+    from: node.from,
+    to: node.to,
+    deco: Decoration.mark({ class: 'cm-blockquote' }),
+  });
+
+  // 只对有实际内容的行加 line decoration（跳过只含 > 的空引用行）
+  const startLine = doc.lineAt(node.from).number;
+  const endLine = doc.lineAt(node.to).number;
+  for (let i = startLine; i <= endLine; i++) {
+    const line = doc.line(i);
+    const text = doc.sliceString(line.from, line.to);
+    if (/^>\s*$/.test(text.trim())) continue;
+    ctx.lineItems.push({ pos: line.from, deco: blockquoteLineDeco });
+  }
+
+  // 光标不在时隐藏 QuoteMark（> 字符 + 后续空格）
+  if (!cursorInside) {
+    const treeCursor = node.node.cursor();
+    treeCursor.iterate(child => {
+      if (child.name === 'QuoteMark') {
+        let hideTo = child.to;
+        const next = doc.sliceString(child.to, child.to + 1);
+        if (next === ' ') hideTo += 1;
+        ctx.items.push({
+          from: child.from,
+          to: hideTo,
+          deco: Decoration.replace({}),
+        });
+      }
+    });
+  }
+}
 
 // ── lezer Image 节点 ──
 // 光标在该 Image 节点的行上时，显示原 markdown 让用户编辑；
@@ -1491,19 +1528,24 @@ function buildDecorations(state: EditorState): DecorationSet {
     enter(node) {
       const name = node.name;
 
-      // 整段节点 mark / heading / blockquote / link
+      // 整段节点 mark / heading / link
       if (
         name === 'StrongEmphasis' ||
         name === 'Emphasis' ||
         name === 'Strikethrough' ||
         name === 'InlineCode' ||
-        name === 'Blockquote' ||
         name === 'Link' ||
         name === 'Autolink' ||
         /^ATXHeading[1-6]$/.test(name)
       ) {
         handleEntireNodeStyle(node, ctx);
         return;
+      }
+
+      // Blockquote：独立 handler（line deco + 隐藏 > 标记）
+      if (name === 'Blockquote') {
+        handleBlockquote(node, ctx);
+        return false;
       }
 
       // 复合节点（widget + 跳过 children）
