@@ -54,6 +54,15 @@ pub fn run() {
             commands::vault::vault_read,
             commands::vault::vault_write_atomic,
             commands::vault::vault_list,
+            commands::knowledge_base::kb_list,
+            commands::knowledge_base::kb_create,
+            commands::knowledge_base::kb_delete,
+            commands::knowledge_base::kb_update_meta,
+            commands::knowledge_base::kb_folder_create,
+            commands::knowledge_base::kb_folder_rename,
+            commands::knowledge_base::kb_folder_delete,
+            commands::knowledge_base::kb_list_contents,
+            commands::knowledge_base::kb_create_note,
         ])
         .setup(|app| {
             use tauri::Manager;
