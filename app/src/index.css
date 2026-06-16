@@ -147,10 +147,17 @@ html.dark .live-md-editor .cm-fenced-code-line {
 /* —— 引用 —— */
 .live-md-editor .cm-blockquote {
   color: #57534e;
-  font-style: italic;
 }
 html.dark .live-md-editor .cm-blockquote {
   color: #a8a29e;
+}
+.live-md-editor .cm-blockquote-line {
+  border-left: 3px solid #d6d3d1;
+  padding-left: 12px;
+  margin-left: -4px;
+}
+html.dark .live-md-editor .cm-blockquote-line {
+  border-left-color: #57534e;
 }
 
 /* —— 分隔线 --- —— */

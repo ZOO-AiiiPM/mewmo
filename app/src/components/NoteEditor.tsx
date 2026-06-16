@@ -90,6 +90,29 @@ function deletePairBackward(view: EditorView): boolean {
   return false;
 }
 
+// 空行 Enter 退出 markup（引用/列表）：只要当前行是空的 markup 行，Enter 就清掉标记变普通行
+// CM6 内置 insertNewlineContinueMarkup 需要连续两个空行才退出，这里改为单次即退
+function exitEmptyMarkup(view: EditorView): boolean {
+  const state = view.state;
+  const sel = state.selection.main;
+  if (!sel.empty) return false;
+  const line = state.doc.lineAt(sel.head);
+  const text = line.text;
+  // 匹配空引用行: > 或 >  （可能多层 > > ）
+  // 匹配空列表行: - 、* 、+ 、1. 等后面没内容
+  // 匹配空任务行: - [ ] 或 - [x] 后面没内容
+  const emptyQuote = /^(\s*>)+\s*$/.test(text);
+  const emptyList = /^\s*(?:[-*+]|\d+[.)]) \s*$/.test(text);
+  const emptyTask = /^\s*[-*+] \[[ xX]\]\s*$/.test(text);
+  if (!emptyQuote && !emptyList && !emptyTask) return false;
+  // 清掉当前行内容，变成空行
+  view.dispatch({
+    changes: { from: line.from, to: line.to, insert: '' },
+    selection: EditorSelection.cursor(line.from),
+  });
+  return true;
+}
+
 // Prec.high 提升优先级，确保 Backspace 抢在 CM 默认 deleteCharBackward 之前；
 // Cmd+B/I 等格式快捷键也一并提升避免被其他 extension 拦截
 const formatKeymap = Prec.high(keymap.of([
@@ -485,6 +508,7 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
             </svg>
           </button>
           <button
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => {
               const view = cmRef.current?.view;
               if (view) toggleTask(view);
@@ -646,6 +670,8 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
               }}
               extensions={[
                 markdown({ base: markdownLanguage, codeLanguages: [], extensions: [{ remove: ['SetextHeading'] }] }),
+                // 空 markup 行（> / - / * / 1.）按 Enter 退出格式，优先于 continuation
+                Prec.highest(keymap.of([{ key: 'Enter', run: exitEmptyMarkup }])),
                 // markdown 列表回车续行：「- 」/「* 」/「1. 2. 3.」（自增）/「> 」/「- [ ]」
                 // 全部支持，空行末回车自动退出列表。Prec.high 让 livePreview / 默认 Enter 之前命中
                 Prec.high(keymap.of([{ key: 'Enter', run: insertNewlineContinueMarkup }])),
