@@ -196,6 +196,8 @@ fn create_skeleton(vault_path: &Path) -> Result<(), InitError> {
         "wiki/todos",
         "wiki/todos/active",
         "wiki/todos/done",
+        // library 层（知识库）
+        "library",
         // .mewmo 程序内部
         ".mewmo",
         ".mewmo/cat",
