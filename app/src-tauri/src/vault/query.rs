@@ -97,7 +97,7 @@ pub struct ClipFull {
 // Note operations
 // ============================================================================
 
-/// 列出 `<vault>/wiki/notes/*.md`（user-note 类型）+ `*.html`（HTML 笔记导入），按 mtime 倒序
+/// 列出 `<vault>/wiki/notes/*.md`（user-note 类型）+ `<vault>/library/**/*.md`（知识库内笔记）+ `*.html`（HTML 笔记导入），按 mtime 倒序
 pub async fn list_notes(vault: &Path) -> Result<Vec<NoteSummary>, io::IoError> {
     let entries = io::list(vault, "wiki/notes", false, Some("user-note")).await?;
     let mut summaries: Vec<NoteSummary> = entries
@@ -114,6 +114,22 @@ pub async fn list_notes(vault: &Path) -> Result<Vec<NoteSummary>, io::IoError> {
             pinned: e.pinned,
         })
         .collect();
+
+    // 也扫 library/ 下的递归笔记（知识库内创建的笔记）
+    let lib_entries = io::list(vault, "library", true, Some("user-note")).await?;
+    for e in lib_entries {
+        summaries.push(NoteSummary {
+            slug: path_to_slug(&e.relative_path),
+            title: e.title.unwrap_or_else(|| "无标题".to_string()),
+            tags: e.tags,
+            mtime: e.mtime,
+            created: e.created,
+            updated: e.updated,
+            body_preview: e.body_preview,
+            format: "md".to_string(),
+            pinned: e.pinned,
+        });
+    }
 
     // 追加扫 wiki/notes/*.html（io::list 只认 .md，HTML 笔记单独走文件系统枚举）
     let dir = vault.join("wiki/notes");
