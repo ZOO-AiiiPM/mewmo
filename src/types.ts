@@ -118,3 +118,31 @@ export type FetchOutcome =
       etag: string | null;
       last_modified: string | null;
     };
+
+// ── 知识库 ────────────────────────────────────────────────────────────────
+
+export type KnowledgeBase = {
+  dir_name: string;
+  name: string;
+  color: string;
+  description: string;
+  position: number;
+  note_count: number;
+};
+
+export type KbFolderEntry = {
+  name: string;
+  path: string;
+};
+
+export type KbNoteEntry = {
+  slug: string;
+  title: string;
+  preview: string;
+  updated_at: number;
+};
+
+export type KbContents = {
+  folders: KbFolderEntry[];
+  notes: KbNoteEntry[];
+};
