@@ -521,23 +521,42 @@ export function insertTable(view: EditorView, rows = 3, cols = 2) {
 // 给外部使用：把当前行（或选中的多行）切换为/取消待办
 // 已是任务项（无论 [ ] 或 [x]）→ 移除 checkbox 前缀变回纯文本
 // 纯文本/无序列表 → 加上 - [ ] 前缀
-export function toggleTask(view: EditorView) {
-  const { state } = view;
-  const { from, to } = state.selection.main;
-  const startLine = state.doc.lineAt(from);
-  const endLine = state.doc.lineAt(to);
+export type TaskToggleRange = { from: number; to: number };
+type TaskToggleChange = { from: number; to: number; insert: string; selectionAnchor?: number };
 
-  const changes: Array<{ from: number; to: number; insert: string }> = [];
+export function getTaskToggleChanges(doc: Text, range: TaskToggleRange): TaskToggleChange[] {
+  const startLine = doc.lineAt(range.from);
+  const endLine = doc.lineAt(range.to);
+  const changes: TaskToggleChange[] = [];
 
   for (let lineNum = startLine.number; lineNum <= endLine.number; lineNum++) {
-    const line = state.doc.line(lineNum);
+    const line = doc.line(lineNum);
     const text = line.text;
+
+    // 兜底修复旧的错位产物：纯文本后面被追加了 "- [ ] " 时，归一化为行首任务项。
+    const misplacedTask = text.match(/^(\s*)(.+?)([-*+]\s+\[[ xX]\]\s*)$/);
+    if (misplacedTask && !/^\s*[-*+]\s+\[[ xX]\]\s/.test(text)) {
+      const [, indent, body, marker] = misplacedTask;
+      const insert = `${indent}${marker.trimEnd()} ${body.trimEnd()}`;
+      changes.push({
+        from: line.from,
+        to: line.to,
+        insert,
+        selectionAnchor: line.from + insert.length,
+      });
+      continue;
+    }
 
     // 已是任务项 → 移除 checkbox 前缀，变回纯文本
     const m = text.match(/^(\s*)([-*+])\s+\[([ xX])\]\s/);
     if (m) {
       const [full, indent] = m;
-      changes.push({ from: line.from, to: line.from + full.length, insert: indent });
+      changes.push({
+        from: line.from,
+        to: line.from + full.length,
+        insert: indent,
+        selectionAnchor: line.from + indent.length,
+      });
       continue;
     }
 
@@ -546,18 +565,41 @@ export function toggleTask(view: EditorView) {
     if (listMatch) {
       const [full, indent, bullet] = listMatch;
       const next = `${indent}${bullet} [ ] `;
-      changes.push({ from: line.from, to: line.from + full.length, insert: next });
+      const body = text.slice(full.length);
+      changes.push({
+        from: line.from,
+        to: line.from + full.length,
+        insert: next,
+        selectionAnchor: line.from + next.length + body.length,
+      });
       continue;
     }
 
     // 纯文本或空行 → 行首插入 "- [ ] "
     const indentMatch = text.match(/^(\s*)/);
     const indent = indentMatch ? indentMatch[1] : '';
-    changes.push({ from: line.from + indent.length, to: line.from + indent.length, insert: '- [ ] ' });
+    const body = text.slice(indent.length);
+    const insert = `${indent}- [ ] ${body}`;
+    changes.push({
+      from: line.from,
+      to: line.to,
+      insert,
+      selectionAnchor: line.from + insert.length,
+    });
   }
 
+  return changes;
+}
+
+export function toggleTask(view: EditorView, range?: TaskToggleRange) {
+  const { state } = view;
+  const selectedRange = range ?? state.selection.main;
+  const changes = getTaskToggleChanges(state.doc, selectedRange);
+
   if (changes.length) {
-    view.dispatch({ changes });
+    const anchor = changes.length === 1 ? changes[0].selectionAnchor : undefined;
+    const selection = typeof anchor === 'number' ? { anchor } : undefined;
+    view.dispatch({ changes, selection, scrollIntoView: Boolean(selection) });
   }
   view.focus();
 }
