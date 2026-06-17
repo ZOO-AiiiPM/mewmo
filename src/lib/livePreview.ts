@@ -604,6 +604,39 @@ export function toggleTask(view: EditorView, range?: TaskToggleRange) {
   view.focus();
 }
 
+// —— 图片光标删除 ——
+// 光标退到图片右边界时整段删除 ![alt|width](src)，而不是走 CM 默认 deleteCharBackward 逐字符啃。
+// 与 handleImage 用同一套图片正则（去掉 ^ 锚点 + 全局），保证「能删的范围」= 「渲染成 widget 的范围」。
+function imageStartEndingAt(lineText: string, endOffset: number): number | null {
+  const re = /!\[[^\]|]*(?:\|\d+)?\]\([^)\s]+(?:\s+"[^"]*")?\)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(lineText)) !== null) {
+    if (m.index + m[0].length === endOffset) return m.index;
+  }
+  return null;
+}
+
+// 空选区光标在 pos，返回应整段删除的图片 range；无图片边界则返回 null（交回默认删除）。
+export function getImageDeleteBackwardRange(doc: Text, pos: number): { from: number; to: number } | null {
+  const line = doc.lineAt(pos);
+  const offsetInLine = pos - line.from;
+
+  // 同行：光标紧贴某张图片右侧
+  if (offsetInLine > 0) {
+    const start = imageStartEndingAt(line.text, offsetInLine);
+    if (start !== null) return { from: line.from + start, to: pos };
+  }
+
+  // 下一行行首：上一行以图片结尾 → 删图片 + 中间换行（从图片正下方按一次 Backspace 整张消失）
+  if (offsetInLine === 0 && line.number > 1) {
+    const prev = doc.line(line.number - 1);
+    const start = imageStartEndingAt(prev.text, prev.text.length);
+    if (start !== null) return { from: prev.from + start, to: pos };
+  }
+
+  return null;
+}
+
 class TaskWidget extends WidgetType {
   checked: boolean;
   constructor(checked: boolean) {
