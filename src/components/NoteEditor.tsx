@@ -7,6 +7,7 @@ import { EditorSelection, Prec } from '@codemirror/state';
 import { indentUnit } from '@codemirror/language';
 import { indentWithTab } from '@codemirror/commands';
 import { livePreview, focusEffect, tableNavigationKeymap, insertTable, toggleTask } from '../lib/livePreview';
+import type { TaskToggleRange } from '../lib/livePreview';
 import { imagePasteDrop } from '../lib/imagePaste';
 import { linkClickHandler } from '../lib/linkClick';
 import { TableOfContents } from './TableOfContents';
@@ -183,6 +184,7 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
   // 「同一篇改名」和「真切换到别篇」区分开：改名时不重挂载、不重置光标。
   const renameFromRef = useRef<string | null>(null);
   const cmRef = useRef<ReactCodeMirrorRef>(null);
+  const bodySelectionRef = useRef<TaskToggleRange | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLTextAreaElement>(null);
   const [cursorLine, setCursorLine] = useState(1);
@@ -222,6 +224,10 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
     if (vu.selectionSet || vu.docChanged) {
       const head = vu.state.selection.main.head;
       const line = vu.state.doc.lineAt(head).number;
+      if (vu.view.hasFocus) {
+        const sel = vu.state.selection.main;
+        bodySelectionRef.current = { from: sel.from, to: sel.to };
+      }
       setCursorLine(prev => (prev === line ? prev : line));
     }
   };
@@ -276,6 +282,7 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
         if (contentDebounceRef.current) flushContent(prevId);
       }
       lastNoteIdRef.current = null;
+      bodySelectionRef.current = null;
       localContentRef.current = '';
       setLocalContent('');
       return;
@@ -331,6 +338,7 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
         selection: { anchor: 0 },
         effects: [focusEffect.of(false)],
       });
+      bodySelectionRef.current = { from: 0, to: 0 };
       view.scrollDOM.scrollTop = 0;
       // 切笔记重挂载（mountKey 变）后焦点会落到 <body>。用 titleFocusedRef 记住"用户正在编辑
       // title"，把焦点还给 title input 而不是抢到 CM body。（改名不再走这里——改名不重挂载，
@@ -508,10 +516,17 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
             </svg>
           </button>
           <button
-            onMouseDown={(e) => e.preventDefault()}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              const view = cmRef.current?.view;
+              if (view?.hasFocus) {
+                const sel = view.state.selection.main;
+                bodySelectionRef.current = { from: sel.from, to: sel.to };
+              }
+            }}
             onClick={() => {
               const view = cmRef.current?.view;
-              if (view) toggleTask(view);
+              if (view) toggleTask(view, bodySelectionRef.current ?? undefined);
             }}
             title="切换待办 / 勾选"
             className="w-8 h-8 flex items-center justify-center rounded-md text-stone-600 dark:text-stone-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
