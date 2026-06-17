@@ -424,7 +424,13 @@ export function ClipReader({
             transition={{ duration: 0.15, ease: [0.22, 0.61, 0.36, 1] }}
             className="w-[520px] max-w-[calc(100%-64px)] bg-white dark:bg-stone-800 rounded-xl shadow-2xl ring-1 ring-black/5 dark:ring-white/10 overflow-hidden"
           >
-            <div className="px-5 py-5">
+            <div className="px-6 py-6">
+        <h3 className="text-[16px] font-semibold text-stone-900 dark:text-stone-100 mb-1.5">
+          添加剪藏
+        </h3>
+        <p className="text-[13px] text-stone-500 dark:text-stone-400 mb-4">
+          粘贴文章 / 网页链接，单行单条、多行可批量添加。<kbd className="text-[11px] bg-black/[0.05] dark:bg-white/[0.08] px-1 py-0.5 rounded">⌘Enter</kbd> 提交。
+        </p>
       {batchMode ? (
         <div className="space-y-1.5 max-w-2xl mx-auto">
           <div className="flex items-center justify-between text-[11px] text-stone-500 dark:text-stone-400 px-0.5">
@@ -455,15 +461,6 @@ export function ClipReader({
             autoFocus
             className="w-full text-[12px] bg-black/[0.03] dark:bg-white/[0.04] border border-black/10 dark:border-white/10 rounded-lg px-2.5 py-1.5 outline-none text-stone-800 dark:text-stone-200 placeholder:text-stone-400 dark:placeholder:text-stone-600 disabled:opacity-50 resize-none font-mono leading-snug"
           />
-          <button
-            onClick={handleAddBatch}
-            disabled={adding || batchUrls.length === 0}
-            className="w-full text-[12px] py-1.5 rounded-lg bg-stone-900 dark:bg-stone-100 text-stone-50 dark:text-stone-900 hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
-          >
-            {adding && progress
-              ? `添加中… ${progress.done}/${progress.total}`
-              : `添加 ${batchUrls.length} 条`}
-          </button>
           {batchErrors.length > 0 && (
             <div className="text-[11px] text-red-500 dark:text-red-400 leading-snug px-0.5 max-h-24 overflow-y-auto space-y-0.5">
               <div className="font-medium">{batchErrors.length} 条失败（已保留）：</div>
@@ -500,27 +497,30 @@ export function ClipReader({
               autoFocus
               className="flex-1 min-w-0 text-[12px] bg-transparent outline-none text-stone-800 dark:text-stone-200 placeholder:text-stone-400 dark:placeholder:text-stone-600 disabled:opacity-50"
             />
-            {adding ? (
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                strokeLinecap="round" strokeLinejoin="round"
-                className="shrink-0 text-stone-400 animate-spin">
-                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-              </svg>
-            ) : input.trim() ? (
-              <button onClick={handleAddSingle}
-                className="shrink-0 text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-100 transition-colors">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
-                  strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M5 12h14M12 5l7 7-7 7" />
-                </svg>
-              </button>
-            ) : null}
           </div>
           {addError && (
             <p className="mt-1 text-[11px] text-red-500 dark:text-red-400 leading-snug px-0.5">{addError}</p>
           )}
         </div>
       )}
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            onClick={closeAdd}
+            disabled={adding}
+            className="px-4 py-2 rounded-lg text-[13px] font-medium text-stone-600 dark:text-stone-300 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-colors disabled:opacity-50"
+          >
+            取消
+          </button>
+          <button
+            onClick={batchMode ? handleAddBatch : handleAddSingle}
+            disabled={adding || (batchMode ? batchUrls.length === 0 : !input.trim())}
+            className="px-4 py-2 rounded-lg text-[13px] font-medium bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900 hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {adding
+              ? (progress ? `添加中 ${progress.done}/${progress.total}` : '添加中…')
+              : batchMode ? `添加 ${batchUrls.length} 条` : '添加'}
+          </button>
+        </div>
             </div>
           </motion.div>
         </motion.div>
