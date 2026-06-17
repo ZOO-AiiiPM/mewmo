@@ -8,6 +8,7 @@ import { indentUnit } from '@codemirror/language';
 import { indentWithTab } from '@codemirror/commands';
 import { livePreview, focusEffect, tableNavigationKeymap, insertTable, toggleTask, getImageDeleteBackwardRange } from '../lib/livePreview';
 import type { TaskToggleRange } from '../lib/livePreview';
+import { toggleHeading, toggleLinePrefix } from '../lib/markdownFormat';
 import { imagePasteDrop } from '../lib/imagePaste';
 import { linkClickHandler } from '../lib/linkClick';
 import { TableOfContents } from './TableOfContents';
@@ -63,6 +64,27 @@ function wrapSelection(marker: string) {
     dispatch(state.update(changes, { scrollIntoView: true, userEvent: 'input.format' }));
     return true;
   };
+}
+
+function insertLink(view: EditorView) {
+  const { state, dispatch } = view;
+  const changes = state.changeByRange((range) => {
+    if (range.empty) {
+      return {
+        changes: { from: range.from, insert: '[](url)' },
+        range: EditorSelection.cursor(range.from + 1),
+      };
+    }
+    return {
+      changes: [
+        { from: range.from, insert: '[' },
+        { from: range.to, insert: '](url)' },
+      ],
+      range: EditorSelection.range(range.to + 3, range.to + 6),
+    };
+  });
+  dispatch(state.update(changes, { scrollIntoView: true, userEvent: 'input.format' }));
+  return true;
 }
 
 // 光标退到图片右边界时，一次 Backspace 整段删除 ![alt|width](src)，而不是逐字符啃成残缺文本。
@@ -137,6 +159,18 @@ const formatKeymap = Prec.high(keymap.of([
   { key: 'Mod-i', run: wrapSelection('*') },
   { key: 'Mod-Shift-x', run: wrapSelection('~~') },
   { key: 'Mod-e', run: wrapSelection('`') },
+  { key: 'Mod-k', run: insertLink },
+  { key: 'Mod-Alt-1', run: toggleHeading(1) },
+  { key: 'Mod-Alt-2', run: toggleHeading(2) },
+  { key: 'Mod-Alt-3', run: toggleHeading(3) },
+  { key: 'Mod-Alt-4', run: toggleHeading(4) },
+  { key: 'Mod-Alt-5', run: toggleHeading(5) },
+  { key: 'Mod-Alt-6', run: toggleHeading(6) },
+  { key: 'Mod-Shift-.', run: toggleLinePrefix('quote') },
+  { key: 'Mod-Shift-8', run: toggleLinePrefix('bullet') },
+  { key: 'Mod-Shift-7', run: toggleLinePrefix('ordered') },
+  { key: 'Mod-Shift-9', run: (view) => { toggleTask(view); return true; } },
+  { key: 'Mod-Alt-t', run: (view) => { insertTable(view); return true; } },
   { key: 'Backspace', run: deleteImageBackward },
   { key: 'Backspace', run: deletePairBackward },
   indentWithTab,
@@ -519,7 +553,7 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
               const view = cmRef.current?.view;
               if (view) insertTable(view);
             }}
-            title="插入表格"
+            title="插入表格 (⌘⌥T)"
             className="w-8 h-8 flex items-center justify-center rounded-md text-stone-600 dark:text-stone-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -543,7 +577,7 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
               const view = cmRef.current?.view;
               if (view) toggleTask(view, bodySelectionRef.current ?? undefined);
             }}
-            title="切换待办 / 勾选"
+            title="切换待办 / 勾选 (⌘⇧9)"
             className="w-8 h-8 flex items-center justify-center rounded-md text-stone-600 dark:text-stone-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
