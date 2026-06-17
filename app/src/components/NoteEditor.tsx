@@ -6,7 +6,7 @@ import type { ViewUpdate } from '@codemirror/view';
 import { EditorSelection, Prec } from '@codemirror/state';
 import { indentUnit } from '@codemirror/language';
 import { indentWithTab } from '@codemirror/commands';
-import { livePreview, focusEffect, tableNavigationKeymap, insertTable, toggleTask } from '../lib/livePreview';
+import { livePreview, focusEffect, tableNavigationKeymap, insertTable, toggleTask, getImageDeleteBackwardRange } from '../lib/livePreview';
 import type { TaskToggleRange } from '../lib/livePreview';
 import { imagePasteDrop } from '../lib/imagePaste';
 import { linkClickHandler } from '../lib/linkClick';
@@ -65,6 +65,22 @@ function wrapSelection(marker: string) {
   };
 }
 
+// 光标退到图片右边界时，一次 Backspace 整段删除 ![alt|width](src)，而不是逐字符啃成残缺文本。
+// 边界识别逻辑（同行紧贴 / 下一行行首）抽在 livePreview.ts，这里只做 dispatch。
+function deleteImageBackward(view: EditorView): boolean {
+  const { state, dispatch } = view;
+  const sel = state.selection.main;
+  if (!sel.empty) return false;
+  const range = getImageDeleteBackwardRange(state.doc, sel.head);
+  if (!range) return false;
+  dispatch(state.update({
+    changes: { from: range.from, to: range.to, insert: '' },
+    selection: EditorSelection.cursor(range.from),
+    userEvent: 'delete.backward',
+  }));
+  return true;
+}
+
 // 检测光标处是否是空 wrap pair（**|** / *|* / ~~|~~ / `|`），是则一次性删除整段
 // 解决 Cmd+B/I 等插入成对标记后立即按 backspace 想"撤销"时的体感问题
 function deletePairBackward(view: EditorView): boolean {
@@ -121,6 +137,7 @@ const formatKeymap = Prec.high(keymap.of([
   { key: 'Mod-i', run: wrapSelection('*') },
   { key: 'Mod-Shift-x', run: wrapSelection('~~') },
   { key: 'Mod-e', run: wrapSelection('`') },
+  { key: 'Backspace', run: deleteImageBackward },
   { key: 'Backspace', run: deletePairBackward },
   indentWithTab,
 ]));
