@@ -396,8 +396,6 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
     return () => window.clearTimeout(t);
   }, [note, newlyCreatedId, onCreateAnimDone, flushContent, flushTitle, resizeTitleInput]);
 
-  const isBodyEmpty = localContent.trim().length === 0;
-
   const handleContentChange = (value: string) => {
     // applyNote 用 view.dispatch 替换 doc 时也会触发这里的 onChange（CM update listener 不区分 user vs programmatic）。
     // 那次 value === localContentRef.current，直接 return 不启动 debounce，否则会留下 pending → 切笔记时被 flushContent
@@ -671,11 +669,6 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
               }
             }}
           >
-            {isBodyEmpty && (
-              <div className="pointer-events-none absolute left-10 top-0 text-[15px] leading-[1.7] text-stone-300 dark:text-stone-600 select-none">
-                写一点想法，或粘贴一段材料
-              </div>
-            )}
             <CodeMirror
               key={mountKey}
               ref={cmRef}
