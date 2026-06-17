@@ -367,6 +367,7 @@ export function ClipReader({
             </svg>
           </button>
         )}
+        {clip && <div className="w-px h-5 bg-black/10 dark:bg-white/10 mx-1.5" />}
         <button onClick={onExpand} title={expanded ? '收起' : '专注模式'} className={BTN}>
           {expanded ? (
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
