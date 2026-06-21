@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import type { FeedEntry, SubscriptionSource } from '../types';
 import { sanitizeHtml } from '../lib/sanitizeHtml';
+import { getSessionScrollPosition, rememberSessionScrollPosition } from '../lib/sessionScrollMemory';
 import { ScrollToTopButton } from './ScrollToTopButton';
 
 type Props = {
@@ -14,6 +15,7 @@ type Props = {
   expanded: boolean;
   onExpand: () => void;
   onClipSave?: (url: string) => Promise<void>;
+  clippedUrls?: Set<string>;
 };
 
 function isNeutralColor(c: string): boolean {
@@ -58,6 +60,7 @@ export function EntryReader({
   expanded,
   onExpand,
   onClipSave,
+  clippedUrls,
 }: Props) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const h1Ref = useRef<HTMLHeadingElement>(null);
@@ -65,7 +68,9 @@ export function EntryReader({
   const [showTitleInBar, setShowTitleInBar] = useState(false);
   const [copied, setCopied] = useState(false);
   const [clipping, setClipping] = useState(false);
-  const [clipped, setClipped] = useState(false);
+  const [justClipped, setJustClipped] = useState(false);
+  const isClipped = justClipped || (!!entry?.link && !!clippedUrls?.has(entry.link));
+  const entryScrollKey = entry ? `entry:${entry.id}` : null;
 
   // 缓存 sanitize 结果 + 手动写 innerHTML 绕开 dangerouslySetInnerHTML 在父
   // 组件 re-render（如 scroll 触发 setShowTitleInBar）时整块重设 DOM 子树的
@@ -106,15 +111,28 @@ export function EntryReader({
     };
   }, [entry?.id]);
 
-  // 切 entry 时回到顶部 + 重置 title fade
+  // 切 entry 时恢复本次运行内的阅读位置；没有记录才回到顶部。
   useEffect(() => {
-    setShowTitleInBar(false);
-    const scroller = scrollerRef.current;
-    if (scroller) {
-      scroller.scrollTop = 0;
-      scroller.scrollLeft = 0;
+    if (!entryScrollKey) {
+      setShowTitleInBar(false);
+      return;
     }
-  }, [entry?.id]);
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    scroller.scrollTop = getSessionScrollPosition(entryScrollKey) ?? 0;
+    scroller.scrollLeft = 0;
+    const h1 = h1Ref.current;
+    if (h1) {
+      const rect = h1.getBoundingClientRect();
+      const scrollerRect = scroller.getBoundingClientRect();
+      setShowTitleInBar(rect.bottom - scrollerRect.top < 24);
+    } else {
+      setShowTitleInBar(false);
+    }
+    return () => {
+      rememberSessionScrollPosition(entryScrollKey, scroller.scrollTop);
+    };
+  }, [entryScrollKey]);
 
   const handleScroll = () => {
     const scroller = scrollerRef.current;
@@ -127,6 +145,9 @@ export function EntryReader({
     const h1BottomFromTop = rect.bottom - scrollerRect.top;
     // h1 底边滚出 toolbar 范围（48px）后，toolbar 备用 title 渐显
     setShowTitleInBar(h1BottomFromTop < 24);
+    if (entryScrollKey) {
+      rememberSessionScrollPosition(entryScrollKey, scroller.scrollTop);
+    }
   };
 
   if (!entry) {
@@ -160,8 +181,7 @@ export function EntryReader({
     setClipping(true);
     try {
       await onClipSave(entry.link);
-      setClipped(true);
-      setTimeout(() => setClipped(false), 2000);
+      setJustClipped(true);
     } catch (e) {
       console.error('[entry] clip save failed:', e);
     } finally {
@@ -283,11 +303,11 @@ export function EntryReader({
           {entry.link && onClipSave && (
             <button
               onClick={clipEntry}
-              disabled={clipping}
-              title={clipped ? '已收藏' : '收藏到剪藏'}
+              disabled={clipping || isClipped}
+              title={isClipped ? '已收藏' : '收藏到剪藏'}
               className="w-8 h-8 grid place-items-center rounded-md text-stone-600 dark:text-stone-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors disabled:opacity-50"
             >
-              {clipped ? (
+              {isClipped ? (
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
                 </svg>

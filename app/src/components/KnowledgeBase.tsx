@@ -846,6 +846,22 @@ export function KnowledgeBase({
   >(null);
   const [importMenuOpen, setImportMenuOpen] = useState(false);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const importMenuRef = useRef<HTMLDivElement>(null);
+  const addMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!importMenuOpen && !addMenuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (importMenuOpen && importMenuRef.current && !importMenuRef.current.contains(e.target as Node)) {
+        setImportMenuOpen(false);
+      }
+      if (addMenuOpen && addMenuRef.current && !addMenuRef.current.contains(e.target as Node)) {
+        setAddMenuOpen(false);
+      }
+    };
+    window.addEventListener('mousedown', handler);
+    return () => window.removeEventListener('mousedown', handler);
+  }, [importMenuOpen, addMenuOpen]);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importFilter, setImportFilter] = useState<'all' | 'notes' | 'clips'>('all');
   const [newlyCreatedNoteId, setNewlyCreatedNoteId] = useState<string | null>(null);
@@ -1376,9 +1392,7 @@ export function KnowledgeBase({
               <ImportIcon />
             </button>
             {importMenuOpen && (
-              <>
-              <div className="fixed inset-0 z-20" onClick={() => setImportMenuOpen(false)} onKeyDown={() => {}} role="presentation" />
-              <div className="absolute right-0 top-[calc(100%_+_6px)] z-30 w-40 overflow-hidden rounded-xl bg-white p-1 shadow-[0_10px_28px_rgba(0,0,0,0.16)] ring-1 ring-black/[0.06] dark:bg-stone-800 dark:ring-white/[0.08]">
+              <div ref={importMenuRef} className="absolute right-0 top-[calc(100%_+_6px)] z-30 w-40 overflow-hidden rounded-xl bg-white p-1 shadow-[0_10px_28px_rgba(0,0,0,0.16)] ring-1 ring-black/[0.06] dark:bg-stone-800 dark:ring-white/[0.08]">
                 <ActionMenuItem
                   icon={<NoteIcon />}
                   label="笔记"
@@ -1389,7 +1403,7 @@ export function KnowledgeBase({
                   }}
                 />
                 <ActionMenuItem
-                  icon={<ImportIcon />}
+                  icon={<ClipIcon />}
                   label="剪藏"
                   onClick={() => {
                     setImportMenuOpen(false);
@@ -1398,7 +1412,6 @@ export function KnowledgeBase({
                   }}
                 />
               </div>
-              </>
             )}
           </div>
           <div className="relative">
@@ -1414,9 +1427,7 @@ export function KnowledgeBase({
               <PlusIcon />
             </button>
             {addMenuOpen && (
-              <>
-              <div className="fixed inset-0 z-20" onClick={() => setAddMenuOpen(false)} onKeyDown={() => {}} role="presentation" />
-              <div className="absolute right-0 top-[calc(100%_+_6px)] z-30 w-36 overflow-hidden rounded-xl bg-white p-1 shadow-[0_10px_28px_rgba(0,0,0,0.16)] ring-1 ring-black/[0.06] dark:bg-stone-800 dark:ring-white/[0.08]">
+              <div ref={addMenuRef} className="absolute right-0 top-[calc(100%_+_6px)] z-30 w-36 overflow-hidden rounded-xl bg-white p-1 shadow-[0_10px_28px_rgba(0,0,0,0.16)] ring-1 ring-black/[0.06] dark:bg-stone-800 dark:ring-white/[0.08]">
                 <ActionMenuItem
                   icon={<NoteIcon />}
                   label="笔记"
@@ -1434,7 +1445,6 @@ export function KnowledgeBase({
                   }}
                 />
               </div>
-              </>
             )}
           </div>
         </div>

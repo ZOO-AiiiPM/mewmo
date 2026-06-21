@@ -284,6 +284,7 @@ export default function App() {
   const handleEntryForward = useCallback(() => setEntryBrowse(goForward), []);
 
   // 订阅 zone 当前显示的 entry / source（derive 一次，传给 list 群和 EntryReader）
+  const clippedUrls = useMemo(() => new Set(clips.map(c => c.url)), [clips]);
   const currentEntry = currentItem(entryBrowse);
   const currentSource = selectedSourceId != null
     ? sources.find(s => s.id === selectedSourceId) ?? null
@@ -860,6 +861,7 @@ export default function App() {
                 expanded={expanded}
                 onExpand={() => setExpanded(e => !e)}
                 onClipSave={handleClipSaveQuiet}
+                clippedUrls={clippedUrls}
               />
             ) : (
               <div className="flex-1 flex items-center justify-center text-stone-400 dark:text-stone-500 text-sm">

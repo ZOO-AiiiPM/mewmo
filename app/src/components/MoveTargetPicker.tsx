@@ -13,17 +13,19 @@ const KB_COVER: Record<string, string> = {
 };
 const coverColor = (color: string): string => KB_COVER[color] ?? '#60a5fa';
 
+type Selected = { kb: string; path: string };
+
 type Props = {
   open: boolean;
-  /** 被移动项标题（标题栏展示） */
-  itemLabel: string;
+  /** 被移动项标题（保留给调用方，不在 UI 显示） */
+  itemLabel?: string;
   /** 被移动项当前所在库 dir_name */
   sourceKb: string;
-  /** 当前所在文件夹相对路径（'' = 库根）；移动到这里是 no-op → 禁用 */
+  /** 当前所在文件夹相对路径（'' = 库根）；移动到这里是 no-op → 不可选 */
   sourceParentPath: string;
   /** 若正在移动文件夹，其在 sourceKb 中的 path；禁用它自身及子树作为目标 */
   movingFolderPath?: string;
-  /** 选定目标：targetKb + targetRelativePath（'' = 库根） */
+  /** 点「确定」后回调：targetKb + targetRelativePath（'' = 库根） */
   onPick: (targetKb: string, targetRelativePath: string) => void;
   onCancel: () => void;
 };
@@ -56,7 +58,6 @@ function Chevron({ open }: { open: boolean }) {
 
 export function MoveTargetPicker({
   open,
-  itemLabel,
   sourceKb,
   sourceParentPath,
   movingFolderPath,
@@ -66,16 +67,29 @@ export function MoveTargetPicker({
   const [kbs, setKbs] = useState<KnowledgeBase[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [childrenByKey, setChildrenByKey] = useState<Record<string, KbFolderEntry[]>>({});
+  const [selected, setSelected] = useState<Selected | null>(null);
 
   const nodeKey = (kb: string, path: string) => `${kb}::${path}`;
 
-  // 打开时拉取 KB 列表并重置展开/缓存
+  const loadChildren = useCallback(async (kb: string, path: string) => {
+    const key = nodeKey(kb, path);
+    try {
+      const data = await listKbContents(kb, path === '' ? undefined : path);
+      setChildrenByKey(prev => ({ ...prev, [key]: data.folders }));
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  // 打开时拉 KB 列表 + 重置；当前库的文件夹直接展开列出（不显示库节点本身）
   useEffect(() => {
     if (!open) return;
-    setExpanded(new Set());
+    setSelected(null);
     setChildrenByKey({});
+    setExpanded(new Set([nodeKey(sourceKb, '')]));
     listKbs().then(setKbs).catch(console.error);
-  }, [open]);
+    loadChildren(sourceKb, '');
+  }, [open, sourceKb, loadChildren]);
 
   // ESC 关闭
   useEffect(() => {
@@ -90,20 +104,23 @@ export function MoveTargetPicker({
     return () => window.removeEventListener('keydown', handler);
   }, [open, onCancel]);
 
-  const loadChildren = useCallback(
-    async (kb: string, path: string) => {
+  // 仅展开（不折叠、不改选中）——行点击「选择的同时并展开」用
+  const ensureExpanded = useCallback(
+    (kb: string, path: string) => {
       const key = nodeKey(kb, path);
-      try {
-        const data = await listKbContents(kb, path === '' ? undefined : path);
-        setChildrenByKey(prev => ({ ...prev, [key]: data.folders }));
-      } catch (e) {
-        console.error(e);
-      }
+      setExpanded(prev => {
+        if (prev.has(key)) return prev;
+        const next = new Set(prev);
+        next.add(key);
+        if (!childrenByKey[key]) loadChildren(kb, path);
+        return next;
+      });
     },
-    []
+    [childrenByKey, loadChildren]
   );
 
-  const toggle = useCallback(
+  // chevron 专用：纯切换展开/折叠
+  const toggleExpand = useCallback(
     (kb: string, path: string) => {
       const key = nodeKey(kb, path);
       setExpanded(prev => {
@@ -133,46 +150,88 @@ export function MoveTargetPicker({
     return false;
   };
 
+  // 行点击：可选则选中，并始终展开（点知识库 = 选中 + 展开）
+  const onRowClick = (kb: string, path: string, disabled: boolean) => {
+    if (!disabled) setSelected({ kb, path });
+    ensureExpanded(kb, path);
+  };
+
+  const isSelected = (kb: string, path: string) => selected?.kb === kb && selected?.path === path;
+
+  // 黑白主题：选中用中性灰高亮，不用蓝色
+  const rowClass = (kb: string, path: string, disabled: boolean) =>
+    `flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] transition-colors ${
+      disabled
+        ? 'cursor-not-allowed opacity-40'
+        : isSelected(kb, path)
+          ? 'bg-black/[0.10] font-medium text-stone-900 dark:bg-white/[0.16] dark:text-stone-50'
+          : 'text-stone-700 hover:bg-black/[0.05] dark:text-stone-200 dark:hover:bg-white/[0.06]'
+    }`;
+
   // 递归渲染某节点下的子文件夹
   const renderFolders = (kb: string, parentPath: string, depth: number) => {
     const key = nodeKey(kb, parentPath);
     const folders = childrenByKey[key];
     if (!expanded.has(key) || !folders) return null;
     return folders.map(f => {
-      const fkey = nodeKey(kb, f.path);
       const disabled = isDisabled(kb, f.path);
-      const isExpanded = expanded.has(fkey);
+      const isExpanded = expanded.has(nodeKey(kb, f.path));
       return (
-        <div key={fkey}>
+        <div key={nodeKey(kb, f.path)}>
           <div className="flex items-center" style={{ paddingLeft: `${depth * 16}px` }}>
             <button
               type="button"
-              onClick={() => toggle(kb, f.path)}
+              onClick={() => toggleExpand(kb, f.path)}
               className="grid h-6 w-6 shrink-0 place-items-center rounded text-stone-400 hover:text-stone-600 dark:hover:text-stone-200"
               aria-label="展开"
             >
               <Chevron open={isExpanded} />
             </button>
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={() => onPick(kb, f.path)}
-              className={`flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] transition-colors ${
-                disabled
-                  ? 'cursor-not-allowed opacity-40'
-                  : 'hover:bg-black/[0.05] dark:hover:bg-white/[0.06]'
-              }`}
-            >
+            <button type="button" disabled={disabled} onClick={() => onRowClick(kb, f.path, disabled)} className={rowClass(kb, f.path, disabled)}>
               <span className="shrink-0 text-stone-400 dark:text-stone-500">
                 <FolderGlyph />
               </span>
-              <span className="min-w-0 flex-1 truncate text-stone-700 dark:text-stone-200">{f.name}</span>
+              <span className="min-w-0 flex-1 truncate">{f.name}</span>
             </button>
           </div>
           {renderFolders(kb, f.path, depth + 1)}
         </div>
       );
     });
+  };
+
+  // 渲染一个 KB 节点（书本封面色 + 名字）+ 其展开的文件夹 —— 仅「其他知识库」用
+  const renderKbNode = (kb: KnowledgeBase) => {
+    const disabled = isDisabled(kb.dir_name, '');
+    const isExpanded = expanded.has(nodeKey(kb.dir_name, ''));
+    return (
+      <div key={kb.dir_name}>
+        <div className="flex items-center">
+          <button
+            type="button"
+            onClick={() => toggleExpand(kb.dir_name, '')}
+            className="grid h-6 w-6 shrink-0 place-items-center rounded text-stone-400 hover:text-stone-600 dark:hover:text-stone-200"
+            aria-label="展开"
+          >
+            <Chevron open={isExpanded} />
+          </button>
+          <button type="button" disabled={disabled} onClick={() => onRowClick(kb.dir_name, '', disabled)} className={rowClass(kb.dir_name, '', disabled)}>
+            <span className="h-4 w-3 shrink-0 rounded-[2px]" style={{ background: coverColor(kb.color) }} />
+            <span className="min-w-0 flex-1 truncate">{kb.name}</span>
+          </button>
+        </div>
+        {renderFolders(kb.dir_name, '', 1)}
+      </div>
+    );
+  };
+
+  const otherKbs = kbs.filter(k => k.dir_name !== sourceKb);
+  const currentFolders = childrenByKey[nodeKey(sourceKb, '')];
+
+  const confirm = () => {
+    if (selected && !isDisabled(selected.kb, selected.path)) {
+      onPick(selected.kb, selected.path);
+    }
   };
 
   return (
@@ -195,52 +254,27 @@ export function MoveTargetPicker({
             transition={{ duration: 0.15, ease: [0.22, 0.61, 0.36, 1] }}
             className="flex max-h-[70vh] w-[400px] flex-col overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-black/5 dark:bg-stone-800 dark:ring-white/10"
           >
-            <div className="px-5 pt-4 pb-2">
-              <h2 className="text-[14px] font-semibold text-stone-900 dark:text-stone-50">移动到…</h2>
-              <p className="mt-1 truncate text-[12px] text-stone-500 dark:text-stone-400">
-                {itemLabel}
-              </p>
+            <div className="px-5 pb-1 pt-5">
+              <h2 className="text-[16px] font-semibold text-stone-900 dark:text-stone-100">移动文件/文件夹至</h2>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-2 py-1">
-              {kbs.map(kb => {
-                const rootKey = nodeKey(kb.dir_name, '');
-                const isExpanded = expanded.has(rootKey);
-                const disabled = isDisabled(kb.dir_name, '');
-                return (
-                  <div key={kb.dir_name}>
-                    <div className="flex items-center">
-                      <button
-                        type="button"
-                        onClick={() => toggle(kb.dir_name, '')}
-                        className="grid h-6 w-6 shrink-0 place-items-center rounded text-stone-400 hover:text-stone-600 dark:hover:text-stone-200"
-                        aria-label="展开"
-                      >
-                        <Chevron open={isExpanded} />
-                      </button>
-                      <button
-                        type="button"
-                        disabled={disabled}
-                        onClick={() => onPick(kb.dir_name, '')}
-                        className={`flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] transition-colors ${
-                          disabled
-                            ? 'cursor-not-allowed opacity-40'
-                            : 'hover:bg-black/[0.05] dark:hover:bg-white/[0.06]'
-                        }`}
-                      >
-                        <span
-                          className="h-4 w-3 shrink-0 rounded-[2px]"
-                          style={{ background: coverColor(kb.color) }}
-                        />
-                        <span className="min-w-0 flex-1 truncate font-medium text-stone-800 dark:text-stone-100">
-                          {kb.name}
-                        </span>
-                      </button>
-                    </div>
-                    {renderFolders(kb.dir_name, '', 1)}
+            <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
+              <div className="px-2 pb-1 text-[11px] font-medium uppercase tracking-wide text-stone-400 dark:text-stone-500">
+                当前知识库
+              </div>
+              {renderFolders(sourceKb, '', 0)}
+              {currentFolders && currentFolders.length === 0 && (
+                <div className="px-3 py-1.5 text-[12px] text-stone-400 dark:text-stone-500">暂无文件夹</div>
+              )}
+
+              {otherKbs.length > 0 && (
+                <>
+                  <div className="px-2 pb-1 pt-3 text-[11px] font-medium uppercase tracking-wide text-stone-400 dark:text-stone-500">
+                    其他知识库
                   </div>
-                );
-              })}
+                  {otherKbs.map(renderKbNode)}
+                </>
+              )}
             </div>
 
             <div className="flex items-center justify-end gap-2 border-t border-black/5 bg-stone-50 px-5 py-3 dark:border-white/5 dark:bg-stone-900/50">
@@ -250,6 +284,18 @@ export function MoveTargetPicker({
                 className="rounded-md px-3.5 py-1.5 text-[13px] font-medium text-stone-700 transition-colors hover:bg-black/[0.05] dark:text-stone-200 dark:hover:bg-white/[0.06]"
               >
                 取消
+              </button>
+              <button
+                type="button"
+                disabled={!selected}
+                onClick={confirm}
+                className={`rounded-md px-3.5 py-1.5 text-[13px] font-medium transition-colors ${
+                  selected
+                    ? 'bg-stone-900 text-white hover:bg-stone-700 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-white'
+                    : 'cursor-not-allowed bg-stone-200 text-stone-400 dark:bg-stone-700 dark:text-stone-500'
+                }`}
+              >
+                确定
               </button>
             </div>
           </motion.div>
