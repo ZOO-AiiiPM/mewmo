@@ -150,7 +150,12 @@ pub async fn fetch_one(
             .or_else(|| feed.logo.as_ref().map(|l| l.uri.clone())),
     };
 
-    let entries: Vec<FetchedEntry> = feed.entries.into_iter().filter_map(map_entry).collect();
+    let entries: Vec<FetchedEntry> = feed
+        .entries
+        .into_iter()
+        .filter_map(map_entry)
+        .filter(|e| e.content_html.len() > 100)
+        .collect();
 
     Ok(FetchOutcome::Updated {
         feed_meta,

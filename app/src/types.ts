@@ -128,18 +128,22 @@ export type KnowledgeBase = {
   description: string;
   position: number;
   note_count: number;
+  updated_at: number;
 };
 
 export type KbFolderEntry = {
   name: string;
   path: string;
+  count: number;
 };
 
 export type KbNoteEntry = {
   slug: string;
   title: string;
   preview: string;
+  tags: string[];
   updated_at: number;
+  kind: 'note' | 'clip' | 'html';
 };
 
 export type KbContents = {

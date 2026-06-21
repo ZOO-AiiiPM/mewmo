@@ -25,13 +25,6 @@ function groupEntries(entries: FeedEntry[]): Array<{ bucket: Bucket; items: Feed
   return ORDER.filter(b => map.has(b)).map(b => ({ bucket: b, items: map.get(b)! }));
 }
 
-/** 从 content_html 提取首张 image src 当 entry 缩略图；找不到返回 null */
-function extractThumbnail(html: string): string | null {
-  if (!html) return null;
-  const m = html.match(/<img[^>]+src=["']([^"']+)["']/i);
-  return m ? m[1] : null;
-}
-
 export function EntryList({ entries, source, selectedId, onSelect, hidden = false }: Props) {
   const groups = groupEntries(entries);
 
@@ -88,7 +81,7 @@ function EntryItem({
   onSelect: (entry: FeedEntry) => void;
 }) {
   const isUnread = entry.read_at == null;
-  const thumbnail = entry.cover_image || extractThumbnail(entry.content_html);
+  const thumbnail = entry.cover_image || null;
   const sourceTitle = source?.title || '';
   const [thumbFailed, setThumbFailed] = useState(false);
   const titleRef = useRef<HTMLDivElement>(null);

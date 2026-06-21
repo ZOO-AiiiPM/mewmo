@@ -5,10 +5,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { deleteNote, getClip, getNote, listClips, listNotes, updateNote } from '../lib/db';
 import {
   createKb,
+  createKbClip,
   createKbFolder,
   createKbNote,
   deleteKb,
   deleteKbFolder,
+  getKbClip,
   importKbFolder,
   listKbContents,
   listKbs,
@@ -18,6 +20,7 @@ import {
 import { addSubscription } from '../lib/subscription';
 import type { Clip, KnowledgeBase as KBType, KbContents, KbFolderEntry, KbNoteEntry, Note } from '../types';
 import { AddSourceDialog } from './AddSourceDialog';
+import { ClipReader } from './ClipReader';
 import { ConfirmDialog } from './ConfirmDialog';
 import { NoteEditor } from './NoteEditor';
 
@@ -36,6 +39,14 @@ function NoteIcon({ className = '' }: { className?: string }) {
       <path d="M14 2v6h6" />
       <path d="M16 13H8" />
       <path d="M16 17H8" />
+    </svg>
+  );
+}
+
+function ClipIcon({ className = '' }: { className?: string }) {
+  return (
+    <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
     </svg>
   );
 }
@@ -100,14 +111,6 @@ function RssIcon() {
   );
 }
 
-function BackIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="m15 18-6-6 6-6" />
-    </svg>
-  );
-}
-
 function ActionMenuItem({
   icon,
   label,
@@ -135,13 +138,6 @@ function ActionMenuItem({
   );
 }
 
-function Disclosure({ open }: { open: boolean }) {
-  return (
-    <span className={`grid h-4 w-4 shrink-0 place-items-center text-[10px] text-stone-400 transition-transform duration-150 ${open ? 'rotate-90' : ''}`}>
-      ▶
-    </span>
-  );
-}
 
 const FOLDER_COLORS = [
   { key: 'blue', label: '蓝', bg: 'from-blue-400 to-blue-500', shadow: 'shadow-blue-500/20' },
@@ -164,10 +160,22 @@ function colorIndex(color: string): number {
 }
 
 function LibraryFolderIcon({ colorIndex: ci }: { colorIndex: number }) {
-  const color = FOLDER_COLORS[ci % FOLDER_COLORS.length];
+  const fills = [
+    { cover: '#60a5fa', spine: '#2563eb', tag: '#bfdbfe' },
+    { cover: '#fbbf24', spine: '#d97706', tag: '#fde68a' },
+    { cover: '#34d399', spine: '#059669', tag: '#a7f3d0' },
+    { cover: '#a78bfa', spine: '#7c3aed', tag: '#ddd6fe' },
+    { cover: '#f43f5e', spine: '#be123c', tag: '#fda4af' },
+  ];
+  const f = fills[ci % fills.length];
   return (
-    <div className={`relative h-8 w-7 overflow-hidden rounded-md bg-gradient-to-br ${color.bg}`}>
-      <div className="absolute inset-x-1 inset-y-1.5 rounded-sm bg-white/30" />
+    <div className="h-12 w-10 shrink-0 overflow-hidden rounded-md" style={{ background: f.cover }}>
+      <div className="flex h-full">
+        <div className="w-2.5 shrink-0" style={{ background: f.spine }} />
+        <div className="relative flex-1">
+          <div className="absolute right-1 top-1.5 h-3 w-2" style={{ background: f.tag }} />
+        </div>
+      </div>
     </div>
   );
 }
@@ -187,14 +195,14 @@ function LibraryList({ libraries, onOpen, onCreate, onEdit, onDelete }: {
         <button
           type="button"
           onClick={onCreate}
-          className="group flex min-h-[130px] flex-col items-start gap-3 rounded-2xl border border-stone-200/60 bg-stone-50/50 p-5 transition-colors hover:bg-stone-100/80 dark:border-white/[0.08] dark:bg-white/[0.03] dark:hover:bg-white/[0.06]"
+          className="group flex min-h-[130px] flex-col items-start gap-3 rounded-2xl border border-dashed border-stone-300/50 p-5 transition-colors hover:bg-stone-100/50 dark:border-white/[0.10] dark:hover:bg-white/[0.04]"
         >
-          <div className="grid h-8 w-8 place-items-center rounded-full bg-stone-200/80 dark:bg-stone-700/60">
+          <div className="grid h-12 w-12 place-items-center rounded-full bg-stone-200/80 dark:bg-stone-700/60">
             <PlusIcon />
           </div>
           <div className="text-left">
-            <div className="text-[14px] font-semibold text-stone-600 dark:text-stone-300">新建知识库</div>
-            <div className="mt-0.5 text-[12px] text-stone-400 dark:text-stone-500">点击创建新的空间</div>
+            <div className="text-[15px] font-bold text-stone-600 dark:text-stone-300">新建知识库</div>
+            <div className="mt-1 text-[12px] text-stone-400 dark:text-stone-500">点击创建新的空间</div>
           </div>
         </button>
         {libraries.map((lib) => (
@@ -223,13 +231,15 @@ function LibraryList({ libraries, onOpen, onCreate, onEdit, onDelete }: {
                 e.stopPropagation();
                 setOpenMenu(openMenu === lib.dir_name ? null : lib.dir_name);
               }}
-              className="absolute right-3 top-3 grid h-7 w-7 place-items-center rounded-lg text-stone-400 opacity-0 transition-all hover:bg-black/[0.06] hover:text-stone-700 group-hover:opacity-100 dark:hover:bg-white/[0.08] dark:hover:text-stone-100"
+              className="absolute bottom-4 right-4 grid h-7 w-7 place-items-center rounded-lg text-stone-400 opacity-0 transition-all hover:bg-black/[0.06] hover:text-stone-700 group-hover:opacity-100 dark:hover:bg-white/[0.08] dark:hover:text-stone-100"
               title="更多"
             >
               <MoreIcon />
             </button>
             {openMenu === lib.dir_name && (
-              <div className="absolute right-3 top-11 z-20 w-36 overflow-hidden rounded-xl bg-white p-1 shadow-[0_10px_28px_rgba(0,0,0,0.16)] ring-1 ring-black/[0.06] dark:bg-stone-800 dark:ring-white/[0.08]">
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setOpenMenu(null)} onKeyDown={() => {}} role="presentation" />
+                <div className="absolute bottom-[-4px] right-3 z-20 w-36 translate-y-full overflow-hidden rounded-xl bg-white p-1 shadow-[0_10px_28px_rgba(0,0,0,0.16)] ring-1 ring-black/[0.06] dark:bg-stone-800 dark:ring-white/[0.08]">
                 <ActionMenuItem
                   icon={<EditIcon />}
                   label="编辑"
@@ -248,6 +258,7 @@ function LibraryList({ libraries, onOpen, onCreate, onEdit, onDelete }: {
                   }}
                 />
               </div>
+              </>
             )}
           </div>
         ))}
@@ -563,6 +574,7 @@ type TreeProps = {
   onRenameFolder: (folder: KbFolderEntry) => void;
   onDeleteFolder: (folder: KbFolderEntry) => void;
   onDeleteNote: (note: KbNoteEntry, folderPath?: string) => void;
+  onCreateInFolder: (folderPath: string) => void;
 };
 
 function TreeLevel({
@@ -578,6 +590,7 @@ function TreeLevel({
   onRenameFolder,
   onDeleteFolder,
   onDeleteNote,
+  onCreateInFolder,
 }: TreeProps) {
   const key = path ?? '';
   const contents = contentsByPath[key] ?? { folders: [], notes: [] };
@@ -597,16 +610,26 @@ function TreeLevel({
                     onSelectFolder(folder);
                     onToggleFolder(folder);
                   }}
-                  className={`flex min-h-9 w-full items-center gap-1.5 rounded-lg px-2 text-left text-[13px] font-semibold transition-colors ${
+                  className={`group/folder flex min-h-9 w-full items-center gap-1.5 rounded-lg px-2 text-left text-[13px] font-semibold transition-colors ${
                     isActive
                       ? 'bg-black/[0.10] dark:bg-white/[0.12]'
                       : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.05]'
                   }`}
                 >
-                  <Disclosure open={isOpen} />
-                  <FolderIcon className="shrink-0 text-stone-500 dark:text-stone-400" />
+                  <span className="relative grid h-4 w-4 shrink-0 place-items-center">
+                    <FolderIcon className="text-stone-500 transition-opacity group-hover/folder:opacity-0 dark:text-stone-400" />
+                    <span className={`absolute inset-0 grid place-items-center text-[10px] text-stone-500 opacity-0 transition-opacity group-hover/folder:opacity-100 ${isOpen ? 'rotate-90' : ''}`}>▶</span>
+                  </span>
                   <span className="min-w-0 flex-1 truncate text-stone-900 dark:text-stone-100">{folder.name}</span>
-                  <span className="shrink-0 text-[11px] font-medium tabular-nums text-stone-400 dark:text-stone-500">{folder.count}</span>
+                  <span
+                    className="grid h-5 w-5 shrink-0 place-items-center rounded text-stone-400 opacity-0 transition-all hover:bg-black/[0.06] hover:text-stone-700 group-hover/folder:opacity-100 dark:hover:bg-white/[0.08] dark:hover:text-stone-100"
+                    onClick={(e) => { e.stopPropagation(); onCreateInFolder(folder.path); }}
+                    onKeyDown={() => {}}
+                    role="button"
+                    tabIndex={-1}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14" /><path d="M12 5v14" /></svg>
+                  </span>
                 </button>
               </ContextMenu.Trigger>
               <ContextMenuContent onRename={() => onRenameFolder(folder)} onDelete={() => onDeleteFolder(folder)} />
@@ -629,6 +652,7 @@ function TreeLevel({
                     onRenameFolder={onRenameFolder}
                     onDeleteFolder={onDeleteFolder}
                     onDeleteNote={onDeleteNote}
+                    onCreateInFolder={onCreateInFolder}
                   />
                 )}
               </div>
@@ -643,25 +667,15 @@ function TreeLevel({
             <button
               type="button"
               onClick={() => onSelectNote(note, path)}
-              className={`flex w-full items-start gap-2 rounded-lg px-2 py-2 text-left transition-colors ${
+              className={`flex min-h-9 w-full items-center gap-2 rounded-lg px-2 text-left transition-colors ${
                 selectedNoteSlug === note.slug
                   ? 'bg-black/[0.10] dark:bg-white/[0.12]'
                   : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.05]'
               }`}
             >
-              <NoteIcon className="mt-0.5 shrink-0 text-stone-500 dark:text-stone-400" />
-              <span className="min-w-0 flex-1">
-                <span className={`block truncate text-[13px] leading-tight text-stone-900 dark:text-stone-100 ${selectedNoteSlug === note.slug ? 'font-semibold' : 'font-medium'}`}>
-                  {note.title || '无标题'}
-                </span>
-                <span className="mt-1 flex min-w-0 items-center gap-1.5 overflow-hidden text-[11px] text-stone-400 dark:text-stone-500">
-                  {note.tags.slice(0, 2).map(tag => (
-                    <span key={tag} className="inline-flex h-4 shrink-0 items-center rounded bg-black/[0.05] px-1.5 text-[10px] font-semibold text-stone-600 dark:bg-white/[0.08] dark:text-stone-300">
-                      {tag}
-                    </span>
-                  ))}
-                  <span className="shrink-0 tabular-nums">{formatDate(note.updated_at)}</span>
-                </span>
+              <NoteIcon className="shrink-0 text-stone-500 dark:text-stone-400" />
+              <span className={`min-w-0 flex-1 truncate text-[13px] leading-tight text-stone-900 dark:text-stone-100 ${selectedNoteSlug === note.slug ? 'font-semibold' : 'font-medium'}`}>
+                {note.title || '无标题'}
               </span>
             </button>
           </ContextMenu.Trigger>
@@ -672,7 +686,15 @@ function TreeLevel({
   );
 }
 
-export function KnowledgeBase({ hidden = false }: { hidden?: boolean }) {
+export function KnowledgeBase({
+  hidden = false,
+  selectedKbDirName = null,
+  onOpenKb,
+}: {
+  hidden?: boolean;
+  selectedKbDirName?: string | null;
+  onOpenKb?: (kb: KBType) => void;
+}) {
   const [kbs, setKbs] = useState<KBType[]>([]);
   const [loadingKbs, setLoadingKbs] = useState(true);
   const [selectedKb, setSelectedKb] = useState<KBType | null>(null);
@@ -743,6 +765,23 @@ export function KnowledgeBase({ hidden = false }: { hidden?: boolean }) {
     setSelectedNoteFolderPath(undefined);
     loadContents(kb.dir_name).catch(console.error);
   }, [loadContents]);
+
+  useEffect(() => {
+    if (selectedKbDirName == null) {
+      if (onOpenKb && selectedKb !== null) {
+        setSelectedKb(null);
+        setContentsByPath({});
+        setExpanded(new Set());
+        setActiveFolderPath(undefined);
+        setSelectedNote(null);
+        setSelectedNoteFolderPath(undefined);
+      }
+      return;
+    }
+    if (selectedKb?.dir_name === selectedKbDirName) return;
+    const kb = kbs.find(item => item.dir_name === selectedKbDirName);
+    if (kb) openKb(kb);
+  }, [kbs, onOpenKb, openKb, selectedKb, selectedKbDirName]);
 
   const handleSaveKb = useCallback(async (values: { name: string; color: string }) => {
     if (!kbDialog) return;
@@ -827,6 +866,18 @@ export function KnowledgeBase({ hidden = false }: { hidden?: boolean }) {
       console.error(err);
     }
   }, [activeFolderPath, refreshPath, selectNote, selectedKb]);
+
+  const handleCreateInFolder = useCallback(async (folderPath: string) => {
+    if (!selectedKb) return;
+    try {
+      const note = await createKbNote(selectedKb.dir_name, folderPath, '无标题');
+      await refreshPath(folderPath);
+      setNewlyCreatedNoteId(note.slug);
+      await selectNote(note, folderPath);
+    } catch (err) {
+      console.error(err);
+    }
+  }, [refreshPath, selectNote, selectedKb]);
 
   const handleCreateFolder = useCallback(async () => {
     if (!selectedKb) return;
@@ -1009,19 +1060,27 @@ export function KnowledgeBase({ hidden = false }: { hidden?: boolean }) {
     </>
   );
 
+  if (selectedKbDirName != null && !selectedKb) {
+    return (
+      <div className={`flex h-full flex-col overflow-hidden ${hidden ? 'w-0' : 'flex-1'}`}>
+        <div className="flex flex-1 items-center justify-center text-sm text-stone-400">加载中…</div>
+      </div>
+    );
+  }
+
   if (!selectedKb) {
     return (
       <>
         <div className={`flex h-full flex-col overflow-hidden ${hidden ? 'w-0' : 'flex-1'}`}>
-          <div className="flex h-12 shrink-0 items-center justify-between px-5">
-            <div className="flex items-center gap-2">
-              <span className="text-[15px] font-bold text-stone-900 dark:text-stone-100">知识库</span>
+          <div className="flex shrink-0 items-center justify-between border-b border-stone-200/60 px-6 pb-4 pt-5 dark:border-white/[0.08]">
+            <div className="flex items-baseline gap-3">
+              <span className="text-[22px] font-bold text-stone-900 dark:text-stone-100">知识库</span>
               <span className="text-[13px] text-stone-400 dark:text-stone-500">全部 · {kbs.length}</span>
             </div>
             <button
               type="button"
               onClick={handleImportFolder}
-              className="flex items-center gap-1.5 rounded-lg bg-indigo-500 px-3 py-1.5 text-[12px] font-medium text-white shadow-sm transition-colors hover:bg-indigo-600"
+              className="flex items-center gap-1.5 rounded-lg bg-stone-900 px-3 py-1.5 text-[12px] font-medium text-white shadow-sm transition-colors hover:bg-stone-800 dark:bg-white dark:text-stone-900 dark:hover:bg-stone-200"
             >
               <ImportIcon />
               导入知识库
@@ -1032,7 +1091,7 @@ export function KnowledgeBase({ hidden = false }: { hidden?: boolean }) {
           ) : (
             <LibraryList
               libraries={kbs}
-              onOpen={openKb}
+              onOpen={onOpenKb ?? openKb}
               onCreate={() => setKbDialog({ mode: 'create' })}
               onEdit={(kb) => setKbDialog({ mode: 'edit', kb })}
               onDelete={setKbToDelete}
@@ -1049,20 +1108,9 @@ export function KnowledgeBase({ hidden = false }: { hidden?: boolean }) {
     <div className={`flex h-full overflow-hidden ${hidden ? 'w-0' : 'flex-1'}`}>
       <aside className="relative flex w-[261px] shrink-0 flex-col overflow-hidden border-r border-black/[0.10] bg-white dark:border-white/[0.10] dark:bg-stone-900">
         <div className="sticky top-0 z-10 flex h-12 shrink-0 items-center gap-2 border-b border-black/[0.06] bg-white/80 px-3 backdrop-blur-md dark:border-white/[0.06] dark:bg-stone-900/80">
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedKb(null);
-              setSelectedNote(null);
-              setSelectedNoteFolderPath(undefined);
-              setActiveFolderPath(undefined);
-            }}
-            className="flex items-center gap-0.5 text-[12px] font-medium text-stone-500 transition-colors hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100"
-          >
-            <BackIcon />
-            知识库
-          </button>
-          <div className="min-w-0 flex-1 truncate text-[14px] font-bold text-stone-900 dark:text-stone-100">{selectedKb.name}</div>
+          <div className="min-w-0 flex-1 truncate text-[14px] font-bold text-stone-900 dark:text-stone-100">
+            {selectedKb.name}
+          </div>
           <div className="relative">
             <button
               type="button"
@@ -1152,6 +1200,7 @@ export function KnowledgeBase({ hidden = false }: { hidden?: boolean }) {
               onRenameFolder={handleRenameFolder}
               onDeleteFolder={handleDeleteFolder}
               onDeleteNote={(note, folderPath) => handleDeleteSelectedNote(note.slug, folderPath)}
+              onCreateInFolder={handleCreateInFolder}
             />
           )}
         </div>

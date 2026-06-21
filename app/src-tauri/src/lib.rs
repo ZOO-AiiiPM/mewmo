@@ -64,6 +64,8 @@ pub fn run() {
             commands::knowledge_base::kb_folder_delete,
             commands::knowledge_base::kb_list_contents,
             commands::knowledge_base::kb_create_note,
+            commands::knowledge_base::kb_create_clip,
+            commands::knowledge_base::kb_get_clip,
             commands::knowledge_base::kb_import_folder,
         ])
         .setup(|app| {

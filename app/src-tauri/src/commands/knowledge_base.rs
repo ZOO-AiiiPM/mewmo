@@ -7,7 +7,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use rusqlite::params;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, State};
 
 use crate::vault::{init, meta_db::VaultMetaDb, slug};
@@ -39,12 +39,46 @@ pub struct KbNoteEntry {
     pub preview: String,
     pub tags: Vec<String>,
     pub updated_at: u64,
+    pub kind: String,
 }
 
 #[derive(Debug, Serialize)]
 pub struct KbContents {
     pub folders: Vec<KbFolderEntry>,
     pub notes: Vec<KbNoteEntry>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct KbClipInput {
+    pub url: String,
+    pub title: String,
+    pub content_md: String,
+    pub excerpt: String,
+    pub site_name: String,
+    pub favicon_url: String,
+    pub cover_image: String,
+    pub author: String,
+    pub published_at: String,
+    pub ip_region: String,
+    pub tags_text: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct KbClip {
+    pub id: String,
+    pub url: String,
+    pub title: String,
+    pub content_md: String,
+    pub content_loaded: bool,
+    pub excerpt: String,
+    pub site_name: String,
+    pub favicon_url: String,
+    pub saved_at: i64,
+    pub cover_image: String,
+    pub author: String,
+    pub published_at: String,
+    pub ip_region: String,
+    pub tags_text: String,
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -151,6 +185,72 @@ fn extract_tags(path: &PathBuf) -> Vec<String> {
         }
     }
     Vec::new()
+}
+
+fn extract_frontmatter_value(path: &PathBuf, key: &str) -> Option<String> {
+    let content = fs::read_to_string(path).ok()?;
+    if !content.starts_with("---") {
+        return None;
+    }
+    let prefix = format!("{}:", key);
+    for line in content.lines().skip(1) {
+        let trimmed = line.trim();
+        if trimmed == "---" {
+            break;
+        }
+        if let Some(rest) = trimmed.strip_prefix(&prefix) {
+            let value = rest.trim().trim_matches('"').trim_matches('\'');
+            if !value.is_empty() {
+                return Some(value.to_string());
+            }
+        }
+    }
+    None
+}
+
+fn extract_kind(path: &PathBuf) -> String {
+    if path.extension().and_then(|e| e.to_str()) == Some("html") {
+        return "html".to_string();
+    }
+    match extract_frontmatter_value(path, "type").as_deref() {
+        Some("clip") => "clip".to_string(),
+        _ => "note".to_string(),
+    }
+}
+
+fn yaml_escape(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
+fn optional_yaml_line(key: &str, value: &str) -> String {
+    if value.trim().is_empty() {
+        String::new()
+    } else {
+        format!("\n{}: \"{}\"", key, yaml_escape(value))
+    }
+}
+
+fn tags_text_to_yaml(tags_text: &str) -> String {
+    let tags: Vec<String> = tags_text
+        .split(',')
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .map(|s| format!("\"{}\"", yaml_escape(s)))
+        .collect();
+    format!("[{}]", tags.join(", "))
+}
+
+fn library_slug_to_md_path(slug: &str) -> Result<PathBuf, String> {
+    if !slug.starts_with("library/") {
+        return Err("INVALID_LIBRARY_SLUG".to_string());
+    }
+    let vault = require_vault()?;
+    let relative = format!("{}.md", slug);
+    let path = vault.join(relative);
+    if !path.exists() {
+        return Err(format!("NOT_FOUND: {}", slug));
+    }
+    Ok(path)
 }
 
 /// Extract first ~120 chars of body (after frontmatter) as preview
@@ -504,6 +604,7 @@ pub async fn kb_list_contents(dir_name: String, relative_path: Option<String>) -
                     preview: extract_preview(&path),
                     tags: extract_tags(&path),
                     updated_at: file_mtime_secs(&path),
+                    kind: extract_kind(&path),
                 });
             }
         }
@@ -566,7 +667,114 @@ pub async fn kb_create_note(
         preview: String::new(),
         tags: Vec::new(),
         updated_at: file_mtime_secs(&file_path),
+        kind: "note".to_string(),
     })
+}
+
+#[tauri::command]
+pub async fn kb_create_clip(
+    dir_name: String,
+    relative_path: Option<String>,
+    clip: KbClipInput,
+) -> Result<KbNoteEntry, String> {
+    let lib = library_dir()?;
+    let parent = if let Some(ref fp) = relative_path {
+        lib.join(&dir_name).join(fp)
+    } else {
+        lib.join(&dir_name)
+    };
+
+    if !parent.exists() {
+        fs::create_dir_all(&parent).map_err(|e| format!("mkdir parent: {e}"))?;
+    }
+
+    let base_slug = slug::slugify(if clip.title.trim().is_empty() { "剪藏" } else { &clip.title });
+    let existing: Vec<String> = fs::read_dir(&parent)
+        .map_err(|e| e.to_string())?
+        .flatten()
+        .filter_map(|e| {
+            e.path()
+                .file_stem()
+                .and_then(|s| s.to_str().map(String::from))
+        })
+        .collect();
+    let existing_refs: Vec<&str> = existing.iter().map(|s| s.as_str()).collect();
+    let file_stem = slug::unique_slug(&base_slug, &existing_refs);
+
+    let now = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let mut yaml = format!(
+        "type: clip\nsource: web\ntitle: \"{}\"\nurl: \"{}\"\nsaved_at: {}\ntags: {}",
+        yaml_escape(if clip.title.trim().is_empty() { "剪藏" } else { &clip.title }),
+        yaml_escape(&clip.url),
+        now,
+        tags_text_to_yaml(&clip.tags_text),
+    );
+    yaml.push_str(&optional_yaml_line("site_name", &clip.site_name));
+    yaml.push_str(&optional_yaml_line("favicon_url", &clip.favicon_url));
+    yaml.push_str(&optional_yaml_line("excerpt", &clip.excerpt.replace('\n', " ")));
+    yaml.push_str(&optional_yaml_line("author", &clip.author));
+    yaml.push_str(&optional_yaml_line("publish_ts", &clip.published_at));
+    yaml.push_str(&optional_yaml_line("cover_url", &clip.cover_image));
+    yaml.push_str(&optional_yaml_line("ip_location", &clip.ip_region));
+
+    let content = format!("---\n{}\n---\n\n{}", yaml, clip.content_md.trim_start_matches('\n'));
+    let file_path = parent.join(format!("{}.md", file_stem));
+    fs::write(&file_path, &content).map_err(|e| format!("write clip: {e}"))?;
+
+    let slug_path = if let Some(ref fp) = relative_path {
+        format!("library/{}/{}/{}", dir_name, fp, file_stem)
+    } else {
+        format!("library/{}/{}", dir_name, file_stem)
+    };
+
+    Ok(KbNoteEntry {
+        slug: slug_path,
+        title: if clip.title.trim().is_empty() { "剪藏".to_string() } else { clip.title },
+        preview: clip.content_md.chars().take(120).collect(),
+        tags: Vec::new(),
+        updated_at: file_mtime_secs(&file_path),
+        kind: "clip".to_string(),
+    })
+}
+
+#[tauri::command]
+pub async fn kb_get_clip(slug: String) -> Result<Option<KbClip>, String> {
+    let path = match library_slug_to_md_path(&slug) {
+        Ok(path) => path,
+        Err(e) if e.starts_with("NOT_FOUND") => return Ok(None),
+        Err(e) => return Err(e),
+    };
+    if extract_kind(&path) != "clip" {
+        return Ok(None);
+    }
+    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let body = if content.starts_with("---") {
+        if let Some(end) = content[3..].find("\n---") {
+            content[3 + end + 4..].trim_start_matches('\n').to_string()
+        } else {
+            content.clone()
+        }
+    } else {
+        content.clone()
+    };
+    let saved_at = file_mtime_secs(&path) as i64;
+    let tags = extract_tags(&path).join(", ");
+    Ok(Some(KbClip {
+        id: slug,
+        url: extract_frontmatter_value(&path, "url").unwrap_or_default(),
+        title: extract_title(&path),
+        content_md: body,
+        content_loaded: true,
+        excerpt: extract_frontmatter_value(&path, "excerpt").unwrap_or_default(),
+        site_name: extract_frontmatter_value(&path, "site_name").unwrap_or_default(),
+        favicon_url: extract_frontmatter_value(&path, "favicon_url").unwrap_or_default(),
+        saved_at,
+        cover_image: extract_frontmatter_value(&path, "cover_url").unwrap_or_default(),
+        author: extract_frontmatter_value(&path, "author").unwrap_or_default(),
+        published_at: extract_frontmatter_value(&path, "publish_ts").unwrap_or_default(),
+        ip_region: extract_frontmatter_value(&path, "ip_location").unwrap_or_default(),
+        tags_text: tags,
+    }))
 }
 
 // ─── Import Folder ──────────────────────────────────────────────────────────
