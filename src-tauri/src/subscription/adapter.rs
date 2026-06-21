@@ -183,6 +183,12 @@ fn map_entry(e: feed_rs::model::Entry) -> Option<FetchedEntry> {
         .or_else(|| e.summary.as_ref().map(|s| s.content.clone()))
         .unwrap_or_default();
 
+    // 剥离微信文章尾部 boilerplate（赞赏弹窗、底部元数据栏等）
+    let content_html = strip_wechat_boilerplate(&content_html);
+
+    // 去掉正文中与 entry title 重复的首个标题元素
+    let content_html = strip_duplicate_title(&content_html, &title);
+
     // 反恶意 feed：截断超大 content
     let content_html = if content_html.len() > MAX_CONTENT_BYTES {
         let safe_end = content_html
@@ -243,4 +249,154 @@ fn strip_html_tags(s: &str) -> String {
         }
     }
     out.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// 剥离微信公众号文章 HTML 中的 boilerplate 区域：
+/// - 赞赏弹窗（class 含 "reward"）
+/// - 底部元数据栏（class 含 "rich_media_meta_list"）
+/// - 隐藏元素（display:none）
+/// 非微信内容直接原样返回（无特征时不做修改）。
+fn strip_wechat_boilerplate(html: &str) -> String {
+    if html.is_empty() {
+        return String::new();
+    }
+    // 快速路径：不含微信特征 class 的内容跳过
+    if !html.contains("reward") && !html.contains("rich_media_meta_list") {
+        return html.to_string();
+    }
+
+    use scraper::{Html, Selector};
+
+    let document = Html::parse_fragment(html);
+    let boilerplate = Selector::parse(
+        r#"[class*="reward"], [class*="rich_media_meta_list"], [style*="display:none"], [style*="display: none"]"#
+    ).unwrap();
+
+    let remove_ids: std::collections::HashSet<ego_tree::NodeId> = document
+        .select(&boilerplate)
+        .map(|el| el.id())
+        .collect();
+
+    if remove_ids.is_empty() {
+        return html.to_string();
+    }
+
+    let mut out = String::with_capacity(html.len());
+    serialize_tree(document.tree.root(), &remove_ids, &mut out);
+    out
+}
+
+fn serialize_tree(
+    node: ego_tree::NodeRef<scraper::Node>,
+    skip: &std::collections::HashSet<ego_tree::NodeId>,
+    out: &mut String,
+) {
+    use scraper::Node;
+    for child in node.children() {
+        if skip.contains(&child.id()) {
+            continue;
+        }
+        match child.value() {
+            Node::Text(t) => out.push_str(t),
+            Node::Element(el) => {
+                out.push('<');
+                out.push_str(el.name());
+                for (name, value) in el.attrs() {
+                    out.push(' ');
+                    out.push_str(name);
+                    out.push_str("=\"");
+                    out.push_str(&value.replace('"', "&quot;"));
+                    out.push('"');
+                }
+                out.push('>');
+                serialize_tree(child, skip, out);
+                let void_tags = ["br", "hr", "img", "input", "meta", "link", "area", "col"];
+                if !void_tags.contains(&el.name()) {
+                    out.push_str("</");
+                    out.push_str(el.name());
+                    out.push('>');
+                }
+            }
+            Node::Fragment => {
+                serialize_tree(child, skip, out);
+            }
+            _ => {}
+        }
+    }
+}
+
+/// 去掉正文 HTML 中与 entry title 重复的首个标题（h1-h3）。
+/// 微信/WordPress 等 CMS 会在 content 里重复包含文章标题，
+/// 而 EntryReader 已经单独渲染了 entry.title，导致视觉上出现两遍。
+fn strip_duplicate_title(html: &str, title: &str) -> String {
+    if html.is_empty() || title.is_empty() {
+        return html.to_string();
+    }
+
+    use scraper::{Html, Selector};
+
+    let document = Html::parse_fragment(html);
+    let heading_sel = Selector::parse("h1, h2, h3").unwrap();
+
+    // 只检查前 3 个 heading，避免误删正文中碰巧同名的小节标题
+    for el in document.select(&heading_sel).take(3) {
+        let text: String = el.text().collect::<String>();
+        let text_trimmed = text.trim();
+        if text_trimmed == title.trim() {
+            let mut skip = std::collections::HashSet::new();
+            skip.insert(el.id());
+            let mut out = String::with_capacity(html.len());
+            serialize_tree(document.tree.root(), &skip, &mut out);
+            return out;
+        }
+    }
+    html.to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::strip_wechat_boilerplate;
+
+    #[test]
+    fn strips_reward_and_meta_sections() {
+        let html = r#"<p>正文内容</p><div class="reward_area"><p>微信扫一扫赞赏作者</p></div><div class="rich_media_meta_list"><span>北京</span></div>"#;
+        let cleaned = strip_wechat_boilerplate(html);
+        assert!(!cleaned.contains("赞赏"));
+        assert!(!cleaned.contains("北京"));
+        assert!(cleaned.contains("正文内容"));
+    }
+
+    #[test]
+    fn strips_display_none_elements() {
+        // display:none 元素在微信页面里通常同时有 reward 或 meta class；
+        // 此处测试带 reward class + display:none 的组合
+        let html = r#"<p>可见内容</p><div class="reward_popup" style="display:none;"><p>赞赏弹窗</p></div>"#;
+        let cleaned = strip_wechat_boilerplate(html);
+        assert!(cleaned.contains("可见内容"));
+        assert!(!cleaned.contains("赞赏弹窗"));
+    }
+
+    #[test]
+    fn passthrough_non_wechat_content() {
+        let html = "<p>Normal RSS article</p><img src=\"test.jpg\">";
+        let cleaned = strip_wechat_boilerplate(html);
+        assert_eq!(cleaned, html);
+    }
+
+    #[test]
+    fn strips_duplicate_title_from_content() {
+        use super::strip_duplicate_title;
+        let html = r#"<h1 class="rich_media_title">老程序员也有春天</h1><p>正文开始</p>"#;
+        let result = strip_duplicate_title(html, "老程序员也有春天");
+        assert!(!result.contains("老程序员也有春天</h1>"));
+        assert!(result.contains("正文开始"));
+    }
+
+    #[test]
+    fn keeps_non_matching_title() {
+        use super::strip_duplicate_title;
+        let html = r#"<h2>不同的标题</h2><p>正文</p>"#;
+        let result = strip_duplicate_title(html, "文章标题");
+        assert!(result.contains("不同的标题"));
+    }
 }

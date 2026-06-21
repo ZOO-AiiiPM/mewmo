@@ -2721,6 +2721,7 @@ version = "0.1.3"
 dependencies = [
  "atomicwrites",
  "chrono",
+ "ego-tree",
  "feed-rs",
  "gray_matter",
  "handlebars",
