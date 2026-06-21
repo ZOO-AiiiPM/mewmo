@@ -1,5 +1,5 @@
-import { EditorSelection, type Text } from '@codemirror/state';
-import type { EditorView } from '@codemirror/view';
+import { Annotation, EditorSelection, type Text, type TransactionSpec } from '@codemirror/state';
+import { EditorView } from '@codemirror/view';
 
 export type FormatRange = { from: number; to: number };
 type FormatChange = { from: number; to: number; insert: string };
@@ -168,3 +168,70 @@ export function toggleLinePrefix(mode: PrefixMode) {
     return dispatchLineFormat(view, changes, anchor);
   };
 }
+
+// ── 有序列表删行后自动 renumber ────────────────────────────────────────────
+
+const orderedRe = /^(\s*)\d+([.)]\s+)/;
+
+function findOrderedListBlock(doc: Text, lineNum: number) {
+  const startLine = doc.line(lineNum);
+  const baseMatch = startLine.text.match(orderedRe);
+  if (!baseMatch) return null;
+  const indent = baseMatch[1];
+
+  let first = lineNum;
+  while (first > 1) {
+    const prev = doc.line(first - 1);
+    const m = prev.text.match(orderedRe);
+    if (!m || m[1] !== indent) break;
+    first--;
+  }
+
+  let last = lineNum;
+  while (last < doc.lines) {
+    const next = doc.line(last + 1);
+    const m = next.text.match(orderedRe);
+    if (!m || m[1] !== indent) break;
+    last++;
+  }
+
+  return { first, last, indent };
+}
+
+function buildRenumberChanges(doc: Text, first: number, last: number, indent: string): TransactionSpec | null {
+  const changes: FormatChange[] = [];
+  for (let i = first; i <= last; i++) {
+    const line = doc.line(i);
+    const m = line.text.match(orderedRe);
+    if (!m) break;
+    const expected = i - first + 1;
+    const currentNum = parseInt(line.text.slice(indent.length), 10);
+    if (currentNum !== expected) {
+      const numStr = String(currentNum);
+      changes.push({
+        from: line.from + indent.length,
+        to: line.from + indent.length + numStr.length,
+        insert: String(expected),
+      });
+    }
+  }
+  if (changes.length === 0) return null;
+  return { changes, annotations: [renumberAnnotation.of(true)] };
+}
+
+const renumberAnnotation = Annotation.define<boolean>();
+
+export const orderedListRenumber = EditorView.updateListener.of((update) => {
+  if (!update.docChanged) return;
+  if (update.transactions.some(tr => tr.annotation(renumberAnnotation))) return;
+
+  const doc = update.state.doc;
+  const head = update.state.selection.main.head;
+  const lineNum = doc.lineAt(head).number;
+
+  const block = findOrderedListBlock(doc, lineNum);
+  if (!block) return;
+
+  const spec = buildRenumberChanges(doc, block.first, block.last, block.indent);
+  if (spec) update.view.dispatch(spec);
+});
