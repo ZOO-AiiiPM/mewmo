@@ -799,6 +799,8 @@ type TreeProps = {
   onCreateFolderInFolder: (folderPath: string) => void;
   onImportInFolder: (folderPath: string, filter: 'notes' | 'clips') => void;
   onEnsureExpanded: (folderPath: string) => void;
+  onMoveFolder: (folder: KbFolderEntry) => void;
+  onMoveNote: (note: KbNoteEntry, folderPath?: string) => void;
 };
 
 function TreeLevel({
@@ -818,6 +820,8 @@ function TreeLevel({
   onCreateFolderInFolder,
   onImportInFolder,
   onEnsureExpanded,
+  onMoveFolder,
+  onMoveNote,
 }: TreeProps) {
   const key = path ?? '';
   const contents = contentsByPath[key] ?? { folders: [], notes: [] };
@@ -897,6 +901,8 @@ function TreeLevel({
                     onCreateFolderInFolder={onCreateFolderInFolder}
                     onImportInFolder={onImportInFolder}
                     onEnsureExpanded={onEnsureExpanded}
+                    onMoveFolder={onMoveFolder}
+                    onMoveNote={onMoveNote}
                   />
                 )}
               </div>
@@ -1503,6 +1509,8 @@ export function KnowledgeBase({
               onCreateFolderInFolder={handleCreateFolderInFolder}
               onImportInFolder={handleImportInFolder}
               onEnsureExpanded={ensureExpanded}
+              onMoveFolder={() => {}}
+              onMoveNote={() => {}}
             />
           )}
         </div>

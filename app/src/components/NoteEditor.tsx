@@ -21,16 +21,16 @@ type Props = {
   onChange: (patch: { title?: string; content_md?: string }, targetNoteId?: string) => void;
   onLocalContentChange: (id: string, content_md: string) => void;
   theme: 'light' | 'dark';
-  onDelete: () => void;
+  onDelete?: () => void;
   onCreate: () => void;
   onImport?: () => void;
   aiOpen: boolean;
   expanded: boolean;
   onExpand: () => void;
-  canBack: boolean;
-  canForward: boolean;
-  onBack: () => void;
-  onForward: () => void;
+  canBack?: boolean;
+  canForward?: boolean;
+  onBack?: () => void;
+  onForward?: () => void;
   // 父层标记的"刚通过新建按钮创建的笔记 id"——只有切到这条才触发 fade 动画
   newlyCreatedId: string | null;
   // fade 完成后通知父层清掉标记，避免再切回这条还触发动画
@@ -525,29 +525,33 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
             </span>
           </div>
           <div className="flex items-center gap-0.5">
-          <button
-            onClick={onBack}
-            disabled={!canBack}
-            title="上一篇"
-            className="w-8 h-8 flex items-center justify-center rounded-md text-stone-600 dark:text-stone-300 hover:bg-black/5 dark:hover:bg-white/10 disabled:hover:bg-transparent disabled:text-stone-300 disabled:dark:text-stone-600 disabled:cursor-not-allowed transition-colors"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="m12 19-7-7 7-7" />
-              <path d="M19 12H5" />
-            </svg>
-          </button>
-          <button
-            onClick={onForward}
-            disabled={!canForward}
-            title="下一篇"
-            className="w-8 h-8 flex items-center justify-center rounded-md text-stone-600 dark:text-stone-300 hover:bg-black/5 dark:hover:bg-white/10 disabled:hover:bg-transparent disabled:text-stone-300 disabled:dark:text-stone-600 disabled:cursor-not-allowed transition-colors"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M5 12h14" />
-              <path d="m12 5 7 7-7 7" />
-            </svg>
-          </button>
-          <div className="w-px h-5 bg-black/10 dark:bg-white/10 mx-1.5" />
+          {onBack && onForward && (
+            <>
+            <button
+              onClick={onBack}
+              disabled={!canBack}
+              title="上一篇"
+              className="w-8 h-8 flex items-center justify-center rounded-md text-stone-600 dark:text-stone-300 hover:bg-black/5 dark:hover:bg-white/10 disabled:hover:bg-transparent disabled:text-stone-300 disabled:dark:text-stone-600 disabled:cursor-not-allowed transition-colors"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m12 19-7-7 7-7" />
+                <path d="M19 12H5" />
+              </svg>
+            </button>
+            <button
+              onClick={onForward}
+              disabled={!canForward}
+              title="下一篇"
+              className="w-8 h-8 flex items-center justify-center rounded-md text-stone-600 dark:text-stone-300 hover:bg-black/5 dark:hover:bg-white/10 disabled:hover:bg-transparent disabled:text-stone-300 disabled:dark:text-stone-600 disabled:cursor-not-allowed transition-colors"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M5 12h14" />
+                <path d="m12 5 7 7-7 7" />
+              </svg>
+            </button>
+            <div className="w-px h-5 bg-black/10 dark:bg-white/10 mx-1.5" />
+            </>
+          )}
           <button
             onClick={() => {
               const view = cmRef.current?.view;
@@ -622,6 +626,7 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
               </svg>
             </button>
           )}
+          {onDelete && (
           <button
             onClick={() => setConfirmOpen(true)}
             title="删除笔记"
@@ -635,6 +640,7 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
               <line x1="14" x2="14" y1="11" y2="17" />
             </svg>
           </button>
+          )}
           <button
             onClick={onCreate}
             title="新建笔记"
@@ -760,7 +766,7 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
         variant="danger"
         onConfirm={() => {
           setConfirmOpen(false);
-          onDelete();
+          onDelete?.();
         }}
         onCancel={() => setConfirmOpen(false)}
       />

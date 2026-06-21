@@ -937,6 +937,194 @@ pub async fn kb_import_folder(
     })
 }
 
+#[tauri::command]
+pub async fn kb_import_folder_into(
+    app: AppHandle,
+    dir_name: String,
+    source_path: String,
+) -> Result<ImportFolderStats, String> {
+    let vault = require_vault()?;
+    let source = PathBuf::from(&source_path);
+
+    if !source.is_dir() {
+        return Err("所选路径不是有效目录".to_string());
+    }
+
+    let target = vault.join("library").join(&dir_name);
+    if !target.exists() {
+        return Err("目标知识库不存在".to_string());
+    }
+
+    let mut notes_count = 0usize;
+    let mut attachments_count = 0usize;
+    let mut errors = Vec::new();
+
+    copy_folder_recursive(
+        &source,
+        &source,
+        &target,
+        &mut notes_count,
+        &mut attachments_count,
+        &mut errors,
+    );
+
+    let _ = app.emit("vault-changed", serde_json::json!({ "notes": true, "clips": false }));
+
+    Ok(ImportFolderStats {
+        kb_dir_name: dir_name,
+        notes_count,
+        attachments_count,
+        errors,
+    })
+}
+
+// ─── Move (cross-KB / cross-folder) ──────────────────────────────────────────
+//
+// 知识库内容是 vault/library/<dir>/ 下的真实文件/目录，且**不进全局 FTS**
+// （query::list_notes 显式排除 library/，见 vault/query.rs）。所以移动只需 fs::rename
+// + 撞名去重，无索引要维护。源/目标库同在 library/ 下同一文件系统，rename 可原子搬走
+// 单文件或整棵子树。前端移动后显式 refreshPath 刷新（library/ 不在 watcher 监听范围）。
+
+/// 解析 library slug → (dir_name, relative_path, stem)。relative_path 可能为空字符串。
+/// 例：`library/kb/note` → (kb, "", note)；`library/kb/a/b/note` → (kb, "a/b", note)。
+fn parse_library_slug(slug: &str) -> Result<(String, String, String), String> {
+    let rest = slug
+        .strip_prefix("library/")
+        .ok_or("INVALID_LIBRARY_SLUG")?;
+    let parts: Vec<&str> = rest.split('/').filter(|s| !s.is_empty()).collect();
+    if parts.len() < 2 {
+        return Err("INVALID_LIBRARY_SLUG".to_string());
+    }
+    let dir_name = parts[0].to_string();
+    let stem = parts[parts.len() - 1].to_string();
+    let relative_path = parts[1..parts.len() - 1].join("/");
+    Ok((dir_name, relative_path, stem))
+}
+
+/// (dir_name, relative_path, stem) → library slug 字符串。relative_path 空则省略中段。
+fn build_kb_slug(dir_name: &str, relative_path: &str, stem: &str) -> String {
+    if relative_path.is_empty() {
+        format!("library/{}/{}", dir_name, stem)
+    } else {
+        format!("library/{}/{}/{}", dir_name, relative_path, stem)
+    }
+}
+
+/// 解析 library slug 为磁盘上实际存在的文件路径，.md / .html 都试（KB 笔记两种格式都有）。
+fn library_slug_to_existing_path(slug: &str) -> Result<PathBuf, String> {
+    if !slug.starts_with("library/") {
+        return Err("INVALID_LIBRARY_SLUG".to_string());
+    }
+    let vault = require_vault()?;
+    for ext in ["md", "html"] {
+        let p = vault.join(format!("{}.{}", slug, ext));
+        if p.exists() {
+            return Ok(p);
+        }
+    }
+    Err(format!("NOT_FOUND: {}", slug))
+}
+
+/// 移动单个笔记/剪藏到目标知识库的目标文件夹（target_relative_path 空 = 库根）。
+/// 返回新 slug 供前端更新选中态。跨库也走这条（源/目标同在 library/ 下）。
+#[tauri::command]
+pub async fn kb_move_note(
+    slug: String,
+    target_kb: String,
+    target_relative_path: String,
+) -> Result<String, String> {
+    let lib = library_dir()?;
+    let (_src_kb, _src_rel, base_stem) = parse_library_slug(&slug)?;
+    let old_path = library_slug_to_existing_path(&slug)?;
+    let ext = old_path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("md")
+        .to_string();
+
+    let target_parent = if target_relative_path.is_empty() {
+        lib.join(&target_kb)
+    } else {
+        lib.join(&target_kb).join(&target_relative_path)
+    };
+
+    // 已在目标位置 → no-op，原样返回。
+    if old_path.parent() == Some(target_parent.as_path()) {
+        return Ok(slug);
+    }
+
+    fs::create_dir_all(&target_parent).map_err(|e| format!("mkdir target: {e}"))?;
+
+    // 撞名：目标目录已有同 file_stem → unique_slug 加 -2 后缀。
+    let existing: Vec<String> = fs::read_dir(&target_parent)
+        .map_err(|e| e.to_string())?
+        .flatten()
+        .filter_map(|e| e.path().file_stem().and_then(|s| s.to_str().map(String::from)))
+        .collect();
+    let existing_refs: Vec<&str> = existing.iter().map(|s| s.as_str()).collect();
+    let new_stem = slug::unique_slug(&base_stem, &existing_refs);
+
+    let new_path = target_parent.join(format!("{}.{}", new_stem, ext));
+    fs::rename(&old_path, &new_path).map_err(|e| format!("mv note: {e}"))?;
+
+    Ok(build_kb_slug(&target_kb, &target_relative_path, &new_stem))
+}
+
+/// 移动整个文件夹（含子树）到目标知识库的目标文件夹。fs::rename 一次搬走整棵树。
+#[tauri::command]
+pub async fn kb_move_folder(
+    source_kb: String,
+    source_relative_path: String,
+    target_kb: String,
+    target_relative_path: String,
+) -> Result<(), String> {
+    let lib = library_dir()?;
+    let source_path = lib.join(&source_kb).join(&source_relative_path);
+    if !source_path.exists() {
+        return Err(format!("FOLDER_NOT_FOUND: {}", source_relative_path));
+    }
+
+    // 守卫：同库时不能移动到自身或自身子目录（否则 rename 进自己内部会失败/成环）。
+    if source_kb == target_kb
+        && (target_relative_path == source_relative_path
+            || target_relative_path.starts_with(&format!("{}/", source_relative_path)))
+    {
+        return Err("MOVE_INTO_SELF".to_string());
+    }
+
+    let target_parent = if target_relative_path.is_empty() {
+        lib.join(&target_kb)
+    } else {
+        lib.join(&target_kb).join(&target_relative_path)
+    };
+
+    // 已在目标位置 → no-op。
+    if source_path.parent() == Some(target_parent.as_path()) {
+        return Ok(());
+    }
+
+    fs::create_dir_all(&target_parent).map_err(|e| format!("mkdir target: {e}"))?;
+
+    let folder_name = source_path
+        .file_name()
+        .and_then(|s| s.to_str())
+        .ok_or("invalid folder name")?
+        .to_string();
+
+    let existing: Vec<String> = fs::read_dir(&target_parent)
+        .map_err(|e| e.to_string())?
+        .flatten()
+        .filter_map(|e| e.file_name().into_string().ok())
+        .collect();
+    let existing_refs: Vec<&str> = existing.iter().map(|s| s.as_str()).collect();
+    let new_name = slug::unique_slug(&folder_name, &existing_refs);
+
+    let new_path = target_parent.join(&new_name);
+    fs::rename(&source_path, &new_path).map_err(|e| format!("mv folder: {e}"))?;
+
+    Ok(())
+}
+
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -1013,5 +1201,46 @@ mod tests {
         assert!(is_attachment(Path::new("video.MP4")));
         assert!(!is_attachment(Path::new("data.csv")));
         assert!(!is_attachment(Path::new("note.md")));
+    }
+
+    #[test]
+    fn test_parse_library_slug_root() {
+        let (kb, rel, stem) = parse_library_slug("library/work/my-note").unwrap();
+        assert_eq!(kb, "work");
+        assert_eq!(rel, "");
+        assert_eq!(stem, "my-note");
+    }
+
+    #[test]
+    fn test_parse_library_slug_one_folder() {
+        let (kb, rel, stem) = parse_library_slug("library/work/sub/my-note").unwrap();
+        assert_eq!(kb, "work");
+        assert_eq!(rel, "sub");
+        assert_eq!(stem, "my-note");
+    }
+
+    #[test]
+    fn test_parse_library_slug_nested() {
+        let (kb, rel, stem) = parse_library_slug("library/work/a/b/note").unwrap();
+        assert_eq!(kb, "work");
+        assert_eq!(rel, "a/b");
+        assert_eq!(stem, "note");
+    }
+
+    #[test]
+    fn test_parse_library_slug_rejects_non_library() {
+        assert!(parse_library_slug("wiki/notes/foo").is_err());
+        assert!(parse_library_slug("library/onlydir").is_err());
+    }
+
+    #[test]
+    fn test_build_kb_slug_roundtrip() {
+        assert_eq!(build_kb_slug("work", "", "note"), "library/work/note");
+        assert_eq!(build_kb_slug("work", "sub", "note"), "library/work/sub/note");
+        assert_eq!(build_kb_slug("work", "a/b", "note"), "library/work/a/b/note");
+        // parse ∘ build 往返一致
+        let s = build_kb_slug("kb", "x/y", "z");
+        let (kb, rel, stem) = parse_library_slug(&s).unwrap();
+        assert_eq!((kb.as_str(), rel.as_str(), stem.as_str()), ("kb", "x/y", "z"));
     }
 }
