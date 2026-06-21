@@ -101,8 +101,8 @@ pub async fn list_notes() -> Result<Vec<Note>, String> {
             pinned: s.pinned,
         });
     }
-    // 置顶的排在最前面，同组内按 updated_at 倒序
-    out.sort_by(|a, b| b.pinned.cmp(&a.pinned).then(b.updated_at.cmp(&a.updated_at)));
+    // 置顶的排在最前面，同组内按 created_at 倒序
+    out.sort_by(|a, b| b.pinned.cmp(&a.pinned).then(b.created_at.cmp(&a.created_at)));
     Ok(out)
 }
 

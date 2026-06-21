@@ -86,7 +86,6 @@ function EntryItem({
   bucket: Bucket;
   onSelect: (entry: FeedEntry) => void;
 }) {
-  const isUnread = entry.read_at == null;
   const thumbnail = entry.cover_image || null;
   const sourceTitle = source?.title || '';
   const [thumbFailed, setThumbFailed] = useState(false);
@@ -128,11 +127,7 @@ function EntryItem({
         <div
           ref={titleRef}
           style={titleFadeStyle}
-          className={`text-[13px] leading-snug max-h-[calc(1.375em*2)] overflow-hidden break-words ${
-            isUnread
-              ? 'font-medium text-stone-900 dark:text-stone-100'
-              : 'text-stone-500 dark:text-stone-400'
-          }`}
+          className="text-[13px] leading-snug max-h-[calc(1.375em*2)] overflow-hidden break-words font-medium text-stone-900 dark:text-stone-100"
         >
           {entry.title || '无标题'}
         </div>

@@ -73,6 +73,7 @@ export interface SubscriptionSource {
   status_detail: string | null;
   added_at: number;
   unread_count?: number; // 由 listSourcesWithUnread 填充
+  latest_entry_at?: number | null; // 该源最新文章的 published_at
 }
 
 export interface FeedEntry {
@@ -135,6 +136,7 @@ export type KbFolderEntry = {
   name: string;
   path: string;
   count: number;
+  has_subfolders: boolean;
 };
 
 export type KbNoteEntry = {
