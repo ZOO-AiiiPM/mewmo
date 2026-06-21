@@ -263,7 +263,7 @@ html.dark .live-md-editor .cm-link {
 .live-md-editor .cm-md-table-wrap {
   position: relative;
   display: inline-block;
-  padding: 0.6em 0;
+  padding: 28px 52px 0.6em 48px;
   user-select: none;
 }
 .live-md-editor .cm-md-table {
@@ -331,84 +331,115 @@ html.dark .live-md-editor .cm-md-table td.cm-md-cell-sel {
   cursor: cell;
 }
 
-/* +列 / −列 / +行 / −行 / 删表 按钮：默认隐藏，hover wrap 时浮出 */
-.live-md-editor .cm-md-table-add-col,
-.live-md-editor .cm-md-table-add-row,
-.live-md-editor .cm-md-table-remove-col,
-.live-md-editor .cm-md-table-remove-row,
-.live-md-editor .cm-md-table-delete {
+/* —— 表格 per-cell 控制按钮（定位在 cell 外部边界） —— */
+.live-md-editor .cm-md-table th,
+.live-md-editor .cm-md-table td {
+  position: relative;
+}
+.live-md-editor .cm-md-table-col-controls {
   position: absolute;
-  width: 22px;
-  height: 22px;
+  top: -24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+  user-select: none;
+}
+.live-md-editor .cm-md-table-row-controls {
+  position: absolute;
+  left: -46px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+  user-select: none;
+}
+.live-md-editor .cm-md-table th:hover .cm-md-table-col-controls,
+.live-md-editor .cm-md-table td:hover .cm-md-table-row-controls {
+  opacity: 1;
+  pointer-events: auto;
+}
+.live-md-editor .cm-md-table-cell-add,
+.live-md-editor .cm-md-table-cell-remove,
+.live-md-editor .cm-md-table-cell-drag {
+  width: 20px;
+  height: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
+  border-radius: 4px;
   background: rgba(0, 0, 0, 0.06);
   color: #57534e;
-  font-size: 16px;
+  font-size: 14px;
+  line-height: 1;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s, color 0.15s;
+}
+.live-md-editor .cm-md-table-cell-add:hover {
+  background: rgba(59, 130, 246, 0.15);
+  color: #2563eb;
+}
+.live-md-editor .cm-md-table-cell-remove:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #dc2626;
+}
+html.dark .live-md-editor .cm-md-table-cell-add,
+html.dark .live-md-editor .cm-md-table-cell-remove {
+  background: rgba(255, 255, 255, 0.08);
+  color: #d6d3d1;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+html.dark .live-md-editor .cm-md-table-cell-add:hover {
+  background: rgba(96, 165, 250, 0.2);
+  color: #60a5fa;
+}
+html.dark .live-md-editor .cm-md-table-cell-remove:hover {
+  background: rgba(248, 113, 113, 0.2);
+  color: #f87171;
+}
+
+/* 删除整张表按钮：垃圾桶，紧贴最右列右侧，与最后一行平行 */
+.live-md-editor .cm-md-table-delete {
+  position: absolute;
+  right: -46px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.06);
+  color: #57534e;
   line-height: 1;
   border: 1px solid rgba(0, 0, 0, 0.08);
   cursor: pointer;
   opacity: 0;
-  transition: opacity 0.15s, background 0.15s;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
   padding: 0;
 }
-.live-md-editor .cm-md-table-add-col {
-  top: calc(50% - 14px);
-  right: -28px;
-}
-.live-md-editor .cm-md-table-remove-col {
-  top: calc(50% + 14px);
-  right: -28px;
-}
-.live-md-editor .cm-md-table-add-row {
-  bottom: -28px;
-  left: calc(50% - 14px);
-}
-.live-md-editor .cm-md-table-remove-row {
-  bottom: -28px;
-  left: calc(50% + 14px);
-}
-/* 删表 icon：跟 +行/−行 同排（bottom: -28px），水平在它们左侧（+行 左缘再往左一个按钮位 + 6px 间隙） */
-.live-md-editor .cm-md-table-delete {
-  bottom: -28px;
-  left: calc(50% - 42px);
-}
-.live-md-editor .cm-md-table-wrap:hover .cm-md-table-add-col,
-.live-md-editor .cm-md-table-wrap:hover .cm-md-table-add-row,
-.live-md-editor .cm-md-table-wrap:hover .cm-md-table-remove-col,
-.live-md-editor .cm-md-table-wrap:hover .cm-md-table-remove-row,
 .live-md-editor .cm-md-table-wrap:hover .cm-md-table-delete {
   opacity: 1;
 }
-.live-md-editor .cm-md-table-add-col:hover,
-.live-md-editor .cm-md-table-add-row:hover {
-  background: rgba(59, 130, 246, 0.15);
-  color: #2563eb;
-}
-.live-md-editor .cm-md-table-remove-col:hover,
-.live-md-editor .cm-md-table-remove-row:hover,
 .live-md-editor .cm-md-table-delete:hover {
   background: rgba(239, 68, 68, 0.15);
   color: #dc2626;
 }
-html.dark .live-md-editor .cm-md-table-add-col,
-html.dark .live-md-editor .cm-md-table-add-row,
-html.dark .live-md-editor .cm-md-table-remove-col,
-html.dark .live-md-editor .cm-md-table-remove-row,
 html.dark .live-md-editor .cm-md-table-delete {
   background: rgba(255, 255, 255, 0.08);
   color: #d6d3d1;
   border-color: rgba(255, 255, 255, 0.1);
 }
-html.dark .live-md-editor .cm-md-table-add-col:hover,
-html.dark .live-md-editor .cm-md-table-add-row:hover {
-  background: rgba(96, 165, 250, 0.2);
-  color: #60a5fa;
-}
-html.dark .live-md-editor .cm-md-table-remove-col:hover,
-html.dark .live-md-editor .cm-md-table-remove-row:hover,
 html.dark .live-md-editor .cm-md-table-delete:hover {
   background: rgba(248, 113, 113, 0.2);
   color: #f87171;

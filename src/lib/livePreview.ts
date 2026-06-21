@@ -417,71 +417,107 @@ function parseAlignments(line: string): Align[] {
   });
 }
 
-// 在每行末尾追加一列（分隔行追加 ---，普通行追加空白）
-function addColumn(src: string): string {
-  const lines = src.split('\n');
-  // 表格内含 | 的行的索引；其中第二条（idx===1 in tableLineIdx）是分隔行
-  const tableLineIdx = lines
-    .map((l, i) => (l.includes('|') ? i : -1))
-    .filter(i => i >= 0);
-  const delimLineIdx = tableLineIdx[1];
-  return lines
-    .map((line, idx) => {
-      if (!line.includes('|')) return line;
-      const trimmed = line.trimEnd();
-      const isDelim = idx === delimLineIdx;
-      const stripped = trimmed.endsWith('|') ? trimmed.slice(0, -1) : trimmed;
-      const cell = isDelim ? ' --- ' : '   ';
-      return stripped + '|' + cell + '|';
-    })
-    .join('\n');
+type TableModel = {
+  header: string[];
+  aligns: Align[];
+  body: string[][];
+};
+
+function tableModelFromMarkdown(src: string): TableModel | null {
+  const lines = src
+    .split('\n')
+    .map(l => l.trim())
+    .filter(l => l.length > 0 && l.includes('|'));
+  if (lines.length < 2) return null;
+
+  const header = parseTableRow(lines[0]);
+  if (header.length === 0) return null;
+  const aligns = parseAlignments(lines[1]);
+  const body = lines.slice(2).map(parseTableRow);
+  return { header, aligns, body };
 }
 
-// 在表格末尾追加一行空白行（按 header 列数）
-function addRowBelow(src: string): string {
-  const lines = src.split('\n');
-  // 头部首行决定列数
-  const header = lines.find(l => l.includes('|'));
-  if (!header) return src;
-  const cols = parseTableRow(header).length;
-  const newRow = '|' + '   |'.repeat(cols);
-  // 找到最后一条含 | 的行的位置插入
-  let lastIdx = -1;
-  for (let i = 0; i < lines.length; i++) {
-    if (lines[i].includes('|')) lastIdx = i;
-  }
-  if (lastIdx < 0) return src;
-  lines.splice(lastIdx + 1, 0, newRow);
-  return lines.join('\n');
+function escapeTableCell(cell: string): string {
+  return cell.replace(/\|/g, '\\|').replace(/\n/g, ' ').trim();
 }
 
-// 删除最右列。要求每行至少保留 1 列；只剩 1 列时不动
-function removeColumn(src: string): string {
-  const lines = src.split('\n');
-  const header = lines.find(l => l.includes('|'));
-  if (!header || parseTableRow(header).length <= 1) return src;
-  return lines
-    .map(line => {
-      if (!line.includes('|')) return line;
-      const trimmed = line.trimEnd();
-      const stripped = trimmed.endsWith('|') ? trimmed.slice(0, -1) : trimmed;
-      const lastPipe = stripped.lastIndexOf('|');
-      if (lastPipe < 0) return line;
-      return stripped.slice(0, lastPipe + 1);
-    })
-    .join('\n');
+function serializeTableModel(model: TableModel): string {
+  const cols = Math.max(1, model.header.length);
+  const alignFor = (align: Align | undefined) => {
+    if (align === 'center') return ':---:';
+    if (align === 'left') return ':---';
+    if (align === 'right') return '---:';
+    return '---';
+  };
+  const lineFor = (cells: string[]) =>
+    '| ' + Array.from({ length: cols }, (_, i) => escapeTableCell(cells[i] ?? '') || ' ').join(' | ') + ' |';
+
+  return [
+    lineFor(model.header),
+    '| ' + Array.from({ length: cols }, (_, i) => alignFor(model.aligns[i])).join(' | ') + ' |',
+    ...model.body.map(lineFor),
+  ].join('\n');
 }
 
-// 删除最末数据行。要求至少保留 header + 分隔行
-function removeLastRow(src: string): string {
-  const lines = src.split('\n');
-  const tableLineIdx = lines
-    .map((l, i) => (l.includes('|') ? i : -1))
-    .filter(i => i >= 0);
-  if (tableLineIdx.length <= 2) return src;
-  const lastIdx = tableLineIdx[tableLineIdx.length - 1];
-  lines.splice(lastIdx, 1);
-  return lines.join('\n');
+function insertColumnAfter(src: string, colIdx: number): string {
+  const model = tableModelFromMarkdown(src);
+  if (!model) return src;
+  const idx = Math.max(0, Math.min(colIdx, model.header.length - 1));
+  model.header.splice(idx + 1, 0, '');
+  model.aligns.splice(idx + 1, 0, null);
+  model.body.forEach(row => row.splice(idx + 1, 0, ''));
+  return serializeTableModel(model);
+}
+
+function removeColumnAt(src: string, colIdx: number): string {
+  const model = tableModelFromMarkdown(src);
+  if (!model || model.header.length <= 1) return src;
+  const idx = Math.max(0, Math.min(colIdx, model.header.length - 1));
+  model.header.splice(idx, 1);
+  model.aligns.splice(idx, 1);
+  model.body.forEach(row => row.splice(idx, 1));
+  return serializeTableModel(model);
+}
+
+function insertRowAfter(src: string, rowIdx: number): string {
+  const model = tableModelFromMarkdown(src);
+  if (!model) return src;
+  const cols = model.header.length;
+  const bodyInsertIdx = Math.max(0, Math.min(rowIdx, model.body.length));
+  model.body.splice(bodyInsertIdx, 0, Array.from({ length: cols }, () => ''));
+  return serializeTableModel(model);
+}
+
+function removeRowAt(src: string, rowIdx: number): string {
+  const model = tableModelFromMarkdown(src);
+  if (!model || rowIdx <= 0) return src;
+  const bodyIdx = rowIdx - 1;
+  if (bodyIdx < 0 || bodyIdx >= model.body.length) return src;
+  model.body.splice(bodyIdx, 1);
+  return serializeTableModel(model);
+}
+
+function moveColumnBy(src: string, colIdx: number, dir: -1 | 1): string {
+  const model = tableModelFromMarkdown(src);
+  if (!model) return src;
+  const targetIdx = colIdx + dir;
+  if (targetIdx < 0 || targetIdx >= model.header.length) return src;
+  [model.header[colIdx], model.header[targetIdx]] = [model.header[targetIdx], model.header[colIdx]];
+  [model.aligns[colIdx], model.aligns[targetIdx]] = [model.aligns[targetIdx], model.aligns[colIdx]];
+  model.body.forEach(row => {
+    [row[colIdx], row[targetIdx]] = [row[targetIdx], row[colIdx]];
+  });
+  return serializeTableModel(model);
+}
+
+function moveRowBy(src: string, rowIdx: number, dir: -1 | 1): string {
+  const model = tableModelFromMarkdown(src);
+  if (!model || rowIdx <= 0) return src;
+  const bodyIdx = rowIdx - 1;
+  const targetBodyIdx = bodyIdx + dir;
+  if (targetBodyIdx < 0 || targetBodyIdx >= model.body.length) return src;
+  [model.body[bodyIdx], model.body[targetBodyIdx]] = [model.body[targetBodyIdx], model.body[bodyIdx]];
+  return serializeTableModel(model);
 }
 
 // 删除整张表：从 range.from 删到 widgetTo（含尾随换行，不留空行）。
@@ -748,7 +784,9 @@ class TableWidget extends WidgetType {
       const cells = Array.from(rows[r]?.children ?? []) as HTMLElement[];
       const line: string[] = [];
       for (let c = rect.c1; c <= rect.c2; c++) {
-        line.push(esc(cells[c]?.textContent ?? ''));
+        const clone = cells[c]?.cloneNode(true) as HTMLElement | undefined;
+        if (clone) clone.querySelectorAll('.cm-md-table-col-controls, .cm-md-table-row-controls, .cm-md-table-delete').forEach(n => n.remove());
+        line.push(esc(clone?.textContent ?? ''));
       }
       grid.push(line);
     }
@@ -775,7 +813,9 @@ class TableWidget extends WidgetType {
       const cells = Array.from(rows[r]?.children ?? []) as HTMLElement[];
       html += '<tr>';
       for (let c = rect.c1; c <= rect.c2; c++) {
-        html += '<td>' + esc(cells[c]?.textContent ?? '') + '</td>';
+        const cl = cells[c]?.cloneNode(true) as HTMLElement | undefined;
+        if (cl) cl.querySelectorAll('.cm-md-table-col-controls, .cm-md-table-row-controls, .cm-md-table-delete').forEach(n => n.remove());
+        html += '<td>' + esc(cl?.textContent ?? '') + '</td>';
       }
       html += '</tr>';
     }
@@ -788,14 +828,10 @@ class TableWidget extends WidgetType {
     // 全部用 try 包住，失败放弃这次同步——cell 内容回写丢一次远好过应用崩溃。
     return locateTableWrap(view, wrap);
   }
-  private rewrite(view: EditorView, wrap: HTMLElement, transform: (src: string) => string) {
+  private rewriteFromDOM(view: EditorView, wrap: HTMLElement, transform: (src: string) => string) {
     const range = this.locate(view, wrap);
     if (!range) return;
-    // 用户在 cell 里输入的内容只活在 DOM 里 —— 按钮 mousedown.preventDefault() 阻断了
-    // focusout 同步路径，doc 里仍是输入前的旧 markdown。直接读 doc 会让 +列/+行 之类的
-    // transform 把用户已输入但未同步的 cell 内容覆盖丢光。优先取 DOM 当前内容做 transform 源。
-    const fromDom = this.markdownFromDOM(wrap);
-    const current = fromDom ?? view.state.doc.sliceString(range.from, range.to);
+    const current = this.markdownFromDOM(wrap) ?? view.state.doc.sliceString(range.from, range.to);
     const next = transform(current);
     view.dispatch({
       changes: { from: range.from, to: range.to, insert: next },
@@ -808,29 +844,17 @@ class TableWidget extends WidgetType {
     const aligns = parseAlignments(
       this.source.split('\n').filter(l => l.includes('|'))[1] ?? ''
     );
-    const escape = (s: string) => s.replace(/\|/g, '\\|').replace(/\n/g, ' ').trim();
     const cellsOf = (root: ParentNode, sel: string) =>
-      Array.from(root.querySelectorAll(sel)).map(el => escape(el.textContent ?? ''));
+      Array.from(root.querySelectorAll(sel)).map(el => {
+        const clone = el.cloneNode(true) as HTMLElement;
+        clone.querySelectorAll('.cm-md-table-col-controls, .cm-md-table-row-controls, .cm-md-table-delete').forEach(n => n.remove());
+        return escapeTableCell(clone.textContent ?? '');
+      });
     const headerCells = cellsOf(tbl, 'thead th');
     const bodyRows = Array.from(tbl.querySelectorAll('tbody tr')).map(tr =>
       cellsOf(tr, 'td')
     );
-    const cols = headerCells.length;
-    const sep = aligns.slice(0, cols).map(a => {
-      if (a === 'center') return ':---:';
-      if (a === 'left') return ':---';
-      if (a === 'right') return '---:';
-      return '---';
-    });
-    while (sep.length < cols) sep.push('---');
-    const lineFor = (cells: string[]) =>
-      '| ' + Array.from({ length: cols }, (_, i) => cells[i] || ' ').join(' | ') + ' |';
-    const lines = [
-      lineFor(headerCells),
-      '| ' + sep.join(' | ') + ' |',
-      ...bodyRows.map(lineFor),
-    ];
-    return lines.join('\n');
+    return serializeTableModel({ header: headerCells, aligns, body: bodyRows });
   }
   // 把 widget DOM 里 cells 的内容回写到 markdown（焦点离开整张表才调一次）
   private syncToMarkdown(
@@ -866,19 +890,13 @@ class TableWidget extends WidgetType {
     // wrap 自身不可编辑，让 CodeMirror 不把它当文档内容；但子元素 cells 可以单独 contentEditable
     wrap.contentEditable = 'false';
 
-    const lines = this.source
-      .split('\n')
-      .map(l => l.trim())
-      .filter(l => l.length > 0 && l.includes('|'));
-
-    if (lines.length < 2) {
+    const model = tableModelFromMarkdown(this.source);
+    if (!model) {
       wrap.textContent = this.source;
       return wrap;
     }
 
-    const header = parseTableRow(lines[0]);
-    const aligns = parseAlignments(lines[1]);
-    const body = lines.slice(2).map(parseTableRow);
+    const { header, aligns, body } = model;
 
     const table = document.createElement('table');
     table.className = 'cm-md-table';
@@ -931,6 +949,12 @@ class TableWidget extends WidgetType {
     };
 
     // cell 渲染：空文本用 &nbsp; 撑住高度，contentEditable 让用户直接键入
+    const cellText = (el: HTMLElement) => {
+      const clone = el.cloneNode(true) as HTMLElement;
+      clone.querySelectorAll('.cm-md-table-col-controls, .cm-md-table-row-controls, .cm-md-table-delete').forEach(n => n.remove());
+      return clone.textContent ?? '';
+    };
+
     const fillCell = (el: HTMLElement, text: string) => {
       el.contentEditable = 'true';
       el.spellcheck = false;
@@ -941,14 +965,14 @@ class TableWidget extends WidgetType {
       }
       // 进入 cell 时清掉占位 nbsp，避免出现在用户输入前面
       el.addEventListener('focus', () => {
-        if (el.textContent === ' ') {
-          el.textContent = '';
+        if (cellText(el) === '\u00a0') {
+          if (el.childNodes[0]) el.childNodes[0].textContent = '';
           view.requestMeasure();
         }
       });
       el.addEventListener('blur', () => {
-        if ((el.textContent ?? '').length === 0) {
-          el.innerHTML = '&nbsp;';
+        if (cellText(el).length === 0) {
+          el.insertBefore(document.createTextNode('\u00a0'), el.firstChild);
           view.requestMeasure();
         }
       });
@@ -983,7 +1007,7 @@ class TableWidget extends WidgetType {
           }
         } else if (e.key === 'ArrowRight') {
           const sel = window.getSelection();
-          const len = (el.textContent ?? '').length;
+          const len = cellText(el).length;
           if (sel && sel.isCollapsed && sel.anchorOffset === len) {
             e.preventDefault();
             navigate(el, 'right');
@@ -1005,26 +1029,75 @@ class TableWidget extends WidgetType {
       });
     };
 
+    const mkCellBtn = (cls: string, label: string, title: string, fn: () => void) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = cls;
+      b.title = title;
+      b.textContent = label;
+      b.contentEditable = 'false';
+      b.addEventListener('mousedown', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        fn();
+      });
+      return b;
+    };
+
     const thead = document.createElement('thead');
     const trh = document.createElement('tr');
     header.forEach((cell, i) => {
       const th = document.createElement('th');
       fillCell(th, cell);
+      th.dataset.colIndex = String(i);
       const a = aligns[i];
       if (a) th.style.textAlign = a;
+      // 每列控制：+/−/拖动，CSS 定位到 cell 上方外部
+      const colCtrl = document.createElement('span');
+      colCtrl.className = 'cm-md-table-col-controls';
+      colCtrl.contentEditable = 'false';
+      colCtrl.appendChild(mkCellBtn('cm-md-table-cell-drag', '⠿', '拖动列（左移）', () =>
+        this.rewriteFromDOM(view, wrap, src => moveColumnBy(src, i, -1))
+      ));
+      colCtrl.appendChild(mkCellBtn('cm-md-table-cell-add', '+', '在右侧插入列', () =>
+        this.rewriteFromDOM(view, wrap, src => insertColumnAfter(src, i))
+      ));
+      colCtrl.appendChild(mkCellBtn('cm-md-table-cell-remove', '−', '删除这一列', () =>
+        this.rewriteFromDOM(view, wrap, src => removeColumnAt(src, i))
+      ));
+      th.appendChild(colCtrl);
       trh.appendChild(th);
     });
     thead.appendChild(trh);
     table.appendChild(thead);
 
     const tbody = document.createElement('tbody');
-    body.forEach(row => {
+    body.forEach((row, bodyIdx) => {
       const tr = document.createElement('tr');
+      tr.dataset.rowIndex = String(bodyIdx + 1);
       for (let i = 0; i < header.length; i++) {
         const td = document.createElement('td');
         fillCell(td, row[i] ?? '');
+        td.dataset.colIndex = String(i);
         const a = aligns[i];
         if (a) td.style.textAlign = a;
+        // 每行控制：拖动/+/−，挂在第一列 td 上，CSS 定位到 cell 左侧外部，竖向排列
+        if (i === 0) {
+          const rowIdx = bodyIdx + 1;
+          const rowCtrl = document.createElement('span');
+          rowCtrl.className = 'cm-md-table-row-controls';
+          rowCtrl.contentEditable = 'false';
+          rowCtrl.appendChild(mkCellBtn('cm-md-table-cell-drag', '⠿', '拖动行（上移）', () =>
+            this.rewriteFromDOM(view, wrap, src => moveRowBy(src, rowIdx, -1))
+          ));
+          rowCtrl.appendChild(mkCellBtn('cm-md-table-cell-add', '+', '在下方插入行', () =>
+            this.rewriteFromDOM(view, wrap, src => insertRowAfter(src, rowIdx))
+          ));
+          rowCtrl.appendChild(mkCellBtn('cm-md-table-cell-remove', '−', '删除这一行', () =>
+            this.rewriteFromDOM(view, wrap, src => removeRowAt(src, rowIdx))
+          ));
+          td.appendChild(rowCtrl);
+        }
         tr.appendChild(td);
       }
       tbody.appendChild(tr);
@@ -1100,36 +1173,23 @@ class TableWidget extends WidgetType {
       this.syncToMarkdown(view, wrap);
     });
 
-    // hover 浮出的 +列 / −列 / +行 / −行 按钮
-    const mkBtn = (cls: string, label: string, title: string, fn: () => void) => {
-      const b = document.createElement('button');
-      b.className = cls;
-      b.title = title;
-      b.textContent = label;
-      b.addEventListener('mousedown', e => {
+    // 删除整张表：垃圾桶挂在最后一行最后一列 td 上，CSS 定位到右侧外
+    const lastBodyRow = tbody.lastElementChild as HTMLTableRowElement | null;
+    const lastCell = lastBodyRow?.lastElementChild as HTMLElement ?? trh.lastElementChild as HTMLElement;
+    if (lastCell) {
+      const deleteBtn = document.createElement('button');
+      deleteBtn.className = 'cm-md-table-delete';
+      deleteBtn.title = '删除整张表格';
+      deleteBtn.contentEditable = 'false';
+      deleteBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>';
+      deleteBtn.addEventListener('mousedown', e => {
         e.preventDefault();
         e.stopPropagation();
-        fn();
+        const range = this.locate(view, wrap);
+        if (range) deleteTableAtRange(view, range);
       });
-      wrap.appendChild(b);
-    };
-    mkBtn('cm-md-table-add-col', '+', '添加列', () =>
-      this.rewrite(view, wrap, src => addColumn(src))
-    );
-    mkBtn('cm-md-table-remove-col', '−', '删除最右列', () =>
-      this.rewrite(view, wrap, src => removeColumn(src))
-    );
-    mkBtn('cm-md-table-add-row', '+', '添加行', () =>
-      this.rewrite(view, wrap, src => addRowBelow(src))
-    );
-    mkBtn('cm-md-table-remove-row', '−', '删除末行', () =>
-      this.rewrite(view, wrap, src => removeLastRow(src))
-    );
-    // 删除整张表：放 +行/−行 同排水平左侧（CSS 定位）。叉号跟 +/− 统一风格，hover 变红
-    mkBtn('cm-md-table-delete', '×', '删除整张表格', () => {
-      const range = this.locate(view, wrap);
-      if (range) deleteTableAtRange(view, range);
-    });
+      lastCell.appendChild(deleteBtn);
+    }
 
     return wrap;
   }
