@@ -1,6 +1,6 @@
 import type React from 'react';
 
-export type Zone = 'subscribe' | 'notes' | 'clipping' | 'sediment';
+export type Zone = 'subscribe' | 'clipping' | 'notes' | 'knowledge' | 'sediment';
 
 type Props = {
   open: boolean;
@@ -40,6 +40,14 @@ const icons = {
       <path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.91a1 1 0 0 0 0-1.83Z" />
       <path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65" />
       <path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65" />
+    </svg>
+  ),
+  knowledge: (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m16 6 4 14" />
+      <path d="M12 6v14" />
+      <path d="M8 8v12" />
+      <path d="M4 4v16" />
     </svg>
   ),
   search: (
@@ -83,8 +91,9 @@ const icons = {
 
 const NAV: Array<{ id: Zone; label: string }> = [
   { id: 'subscribe', label: '订阅' },
-  { id: 'notes', label: '笔记' },
   { id: 'clipping', label: '剪藏' },
+  { id: 'notes', label: '笔记' },
+  { id: 'knowledge', label: '知识库' },
   { id: 'sediment', label: '沉淀' },
 ];
 

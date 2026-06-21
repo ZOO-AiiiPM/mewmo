@@ -55,10 +55,12 @@ pub fn start(app: AppHandle, vault_path: PathBuf) -> Result<(), String> {
                     return;
                 }
             };
+            log::info!("vault watcher 收到 {} 个事件", events.len());
             // 一批事件里同一文件可能多次出现 → 先去重受影响路径
             let mut paths: BTreeSet<PathBuf> = BTreeSet::new();
             for ev in &events {
                 for p in &ev.event.paths {
+                    log::info!("  事件路径: {:?} kind={:?}", p, ev.event.kind);
                     paths.insert(p.clone());
                 }
             }

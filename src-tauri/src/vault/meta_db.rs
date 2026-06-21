@@ -18,6 +18,7 @@ const MIGRATIONS: &[(u32, &str)] = &[
     (1, include_str!("../migrations/vault_meta_v1.sql")),
     (2, include_str!("../migrations/vault_meta_v2_fts_index.sql")),
     (3, include_str!("../migrations/vault_meta_v3_knowledge_bases.sql")),
+    (4, include_str!("../migrations/vault_meta_v4_kb_display_name.sql")),
 ];
 
 pub struct VaultMetaDb {
@@ -89,7 +90,7 @@ mod tests {
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .unwrap();
         // 当前最新 migration version（每次新增 migration 这里同步更新）
-        assert_eq!(v, 3, "应跑到最新 migration（v1 + v2 FTS index + v3 knowledge_bases）");
+        assert_eq!(v, 4, "应跑到最新 migration（v1 + v2 FTS index + v3/v4 knowledge_bases）");
 
         // 验证 v1 4 张表都存在
         for table in &[

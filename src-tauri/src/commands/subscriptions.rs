@@ -110,9 +110,15 @@ fn insert_entries(
     for e in entries {
         let n = tx
             .execute(
-                "INSERT OR IGNORE INTO feed_entries
+                "INSERT INTO feed_entries
                  (source_id, guid, title, content_html, excerpt, cover_image, link, author, published_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+                 ON CONFLICT(source_id, guid) DO UPDATE SET
+                   cover_image = excluded.cover_image,
+                   content_html = excluded.content_html,
+                   excerpt = excluded.excerpt
+                 WHERE (excluded.cover_image != '' AND feed_entries.cover_image = '')
+                    OR (length(excluded.content_html) > length(feed_entries.content_html))",
                 params![
                     source_id,
                     e.guid,

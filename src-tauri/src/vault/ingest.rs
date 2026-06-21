@@ -122,6 +122,32 @@ fn final_slug_from_title(title: &str, existing: &[String]) -> String {
     slug::unique_slug(&base, &refs)
 }
 
+fn note_relative_from_slug(slug: &str, ext: &str) -> String {
+    if slug.starts_with("library/") {
+        format!("{}.{}", slug, ext)
+    } else {
+        format!("wiki/notes/{}.{}", slug, ext)
+    }
+}
+
+fn note_dir_for_slug(vault: &Path, slug: &str) -> std::path::PathBuf {
+    if slug.starts_with("library/") {
+        let parent = Path::new(slug).parent().unwrap_or_else(|| Path::new("library"));
+        vault.join(parent)
+    } else {
+        vault.join("wiki/notes")
+    }
+}
+
+fn join_slug_parent(slug: &str, stem: &str) -> String {
+    if slug.starts_with("library/") {
+        let parent = Path::new(slug).parent().unwrap_or_else(|| Path::new("library"));
+        parent.join(stem).to_string_lossy().replace('\\', "/")
+    } else {
+        stem.to_string()
+    }
+}
+
 // ============================================================================
 // Note operations
 // ============================================================================
@@ -207,8 +233,8 @@ async fn update_note_inner(
     expected_mtime: Option<u64>,
     allow_rename: bool,
 ) -> Result<WriteResult, IngestError> {
-    let dir = vault.join("wiki/notes");
-    let old_relative = format!("wiki/notes/{}.md", slug);
+    let dir = note_dir_for_slug(vault, slug);
+    let old_relative = note_relative_from_slug(slug, "md");
     let existing = io::read(vault, &old_relative).await?;
     let existing_fm = existing.frontmatter.unwrap_or_default();
 
@@ -217,14 +243,19 @@ async fn update_note_inner(
     let now = now_iso();
 
     // title 变化 → slugify 重生 + 排除自己后 dedup；title 没变就保持 slug
+    let old_stem = Path::new(slug)
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or(slug);
     let new_base = slug::slugify(title);
-    let target_slug = if !allow_rename || new_base == slug {
+    let target_slug = if !allow_rename || new_base == old_stem {
         slug.to_string()
     } else {
         let mut taken = existing_slugs(&dir);
-        taken.retain(|s| s != slug);
+        taken.retain(|s| s != old_stem);
         let refs: Vec<&str> = taken.iter().map(|s| s.as_str()).collect();
-        slug::unique_slug(&new_base, &refs)
+        let target_stem = slug::unique_slug(&new_base, &refs);
+        join_slug_parent(slug, &target_stem)
     };
 
     let mut yaml = format!(
@@ -239,7 +270,7 @@ async fn update_note_inner(
     }
 
     let content = frontmatter::build(&yaml, body);
-    let new_relative = format!("wiki/notes/{}.md", target_slug);
+    let new_relative = note_relative_from_slug(&target_slug, "md");
 
     if target_slug != slug {
         // rename: 写新文件后删旧（不传 expected_mtime，新文件本来就不存在）
@@ -260,20 +291,19 @@ async fn update_note_inner(
     }
 }
 
-/// 物理删除笔记（dogfood 阶段不要回收站）
+/// 删除笔记（移到系统回收站）
 pub async fn delete_note(vault: &Path, slug: &str) -> Result<(), IngestError> {
-    let relative = format!("wiki/notes/{}.md", slug);
+    let relative = note_relative_from_slug(slug, "md");
     io::validate_relative_path(&relative)?;
     let path = vault.join(&relative);
     if path.exists() {
-        std::fs::remove_file(&path).map_err(io::IoError::Io)?;
+        trash::delete(&path).map_err(|e| io::IoError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
     }
-    // 同 slug 的 .html 也一并删（HTML 导入笔记走 .html 后缀）
-    let html_relative = format!("wiki/notes/{}.html", slug);
+    let html_relative = note_relative_from_slug(slug, "html");
     io::validate_relative_path(&html_relative)?;
     let html_path = vault.join(&html_relative);
     if html_path.exists() {
-        std::fs::remove_file(&html_path).map_err(io::IoError::Io)?;
+        trash::delete(&html_path).map_err(|e| io::IoError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
     }
     Ok(())
 }
@@ -417,13 +447,13 @@ pub async fn update_clip(
     }
 }
 
-/// 物理删除剪藏
+/// 删除剪藏（移到系统回收站）
 pub async fn delete_clip(vault: &Path, slug: &str) -> Result<(), IngestError> {
     let relative = format!("raw/clips/{}.md", slug);
     io::validate_relative_path(&relative)?;
     let path = vault.join(&relative);
     if path.exists() {
-        std::fs::remove_file(&path).map_err(io::IoError::Io)?;
+        trash::delete(&path).map_err(|e| io::IoError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
     }
     Ok(())
 }
@@ -563,6 +593,43 @@ mod tests {
             Some("新标题")
         );
         assert!(parsed.body.contains("v2"));
+        std::fs::remove_dir_all(&vault).ok();
+    }
+
+    #[tokio::test]
+    async fn test_update_library_note_renames_inside_library_folder() {
+        let vault = temp_vault();
+        let dir = vault.join("library/ai/product");
+        std::fs::create_dir_all(&dir).unwrap();
+        let relative = "library/ai/product/old.md";
+        let content = frontmatter::build(
+            "type: user-note\ntitle: \"Old\"\ncreated: 2026-06-17T00:00:00Z\nupdated: 2026-06-17T00:00:00Z\ntags: []",
+            "v1",
+        );
+        std::fs::write(vault.join(relative), content).unwrap();
+
+        let r = update_note(&vault, "library/ai/product/old", "New Title", "v2", &[], None)
+            .await
+            .unwrap();
+
+        assert_eq!(r.slug, "library/ai/product/New-Title");
+        assert_eq!(r.relative_path, "library/ai/product/New-Title.md");
+        assert!(vault.join("library/ai/product/New-Title.md").exists());
+        assert!(!vault.join(relative).exists());
+        std::fs::remove_dir_all(&vault).ok();
+    }
+
+    #[tokio::test]
+    async fn test_delete_library_note_unlinks_library_file() {
+        let vault = temp_vault();
+        let dir = vault.join("library/ai");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = vault.join("library/ai/note.md");
+        std::fs::write(&path, "---\ntype: user-note\n---\n\nbody").unwrap();
+
+        delete_note(&vault, "library/ai/note").await.unwrap();
+
+        assert!(!path.exists());
         std::fs::remove_dir_all(&vault).ok();
     }
 

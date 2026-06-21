@@ -1,5 +1,6 @@
 import { call } from './tauriCall';
-import type { KnowledgeBase, KbContents } from '../types';
+import { open } from '@tauri-apps/plugin-dialog';
+import type { Clip, KnowledgeBase, KbContents, KbNoteEntry } from '../types';
 
 export async function listKbs(): Promise<KnowledgeBase[]> {
   return call<KnowledgeBase[]>('kb_list');
@@ -15,10 +16,9 @@ export async function deleteKb(dirName: string): Promise<void> {
 
 export async function updateKbMeta(
   dirName: string,
-  color?: string,
-  description?: string
+  patch: { name?: string; color?: string; description?: string; position?: number }
 ): Promise<void> {
-  return call<void>('kb_update_meta', { dirName, color, description });
+  return call<void>('kb_update_meta', { dirName, ...patch });
 }
 
 export async function createKbFolder(
@@ -49,6 +49,38 @@ export async function createKbNote(
   dirName: string,
   relativePath: string | undefined,
   title: string
-): Promise<string> {
-  return call<string>('kb_create_note', { dirName, relativePath, title });
+): Promise<KbNoteEntry> {
+  return call<KbNoteEntry>('kb_create_note', { dirName, relativePath, title });
+}
+
+export async function createKbClip(
+  dirName: string,
+  relativePath: string | undefined,
+  clip: Clip
+): Promise<KbNoteEntry> {
+  return call<KbNoteEntry>('kb_create_clip', { dirName, relativePath, clip });
+}
+
+export async function getKbClip(slug: string): Promise<Clip | null> {
+  return call<Clip | null>('kb_get_clip', { slug });
+}
+
+export type ImportFolderStats = {
+  kb_dir_name: string;
+  notes_count: number;
+  attachments_count: number;
+  errors: string[];
+};
+
+export async function importKbFolder(): Promise<ImportFolderStats | null> {
+  const selected = await open({
+    directory: true,
+    multiple: false,
+    title: '选择要导入的文件夹',
+  });
+  if (!selected) return null;
+
+  return call<ImportFolderStats>('kb_import_folder', {
+    sourcePath: selected,
+  });
 }

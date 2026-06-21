@@ -23,7 +23,7 @@ type Props = {
   theme: 'light' | 'dark';
   onDelete: () => void;
   onCreate: () => void;
-  onImport: () => void;
+  onImport?: () => void;
   aiOpen: boolean;
   expanded: boolean;
   onExpand: () => void;
@@ -607,19 +607,21 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
               </svg>
             )}
           </button>
-          <button
-            onClick={onImport}
-            title="导入 HTML 文件 / 目录到笔记"
-            className="w-8 h-8 flex items-center justify-center rounded-md text-stone-600 dark:text-stone-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-          >
-            {/* lucide file-up icon */}
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <path d="M14 2v6h6" />
-              <path d="M12 18v-6" />
-              <path d="m9 15 3-3 3 3" />
-            </svg>
-          </button>
+          {onImport && (
+            <button
+              onClick={onImport}
+              title="导入 HTML 文件 / 目录到笔记"
+              className="w-8 h-8 flex items-center justify-center rounded-md text-stone-600 dark:text-stone-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+            >
+              {/* lucide file-up icon */}
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <path d="M14 2v6h6" />
+                <path d="M12 18v-6" />
+                <path d="m9 15 3-3 3 3" />
+              </svg>
+            </button>
+          )}
           <button
             onClick={() => setConfirmOpen(true)}
             title="删除笔记"

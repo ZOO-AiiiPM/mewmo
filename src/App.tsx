@@ -40,6 +40,7 @@ import {
   type HistoryState,
 } from './lib/historyStack';
 import { AIPanel } from './components/AIPanel';
+import { KnowledgeBase } from './components/KnowledgeBase';
 
 function resetDocumentHorizontalScroll() {
   requestAnimationFrame(() => {
@@ -52,13 +53,15 @@ type Tab = {
   id: string;
   zone: Zone | null;        // null = empty tab → 引导页
   refId: string | null;     // notes/clipping 时绑定的文档 id
+  kbName?: string;          // knowledge 且 refId!=null 时显示具体知识库名
   noteHistoryState: HistoryState<string>; // notes zone 笔记浏览历史，订阅区共用 lib/historyStack
 };
 
 const PLACEHOLDER_LABEL: Record<Zone, string> = {
   subscribe: '订阅',
-  notes: '笔记',
   clipping: '剪藏',
+  notes: '笔记',
+  knowledge: '知识库',
   sediment: '沉淀',
 };
 
@@ -586,8 +589,9 @@ export default function App() {
 
   const counts: Record<Zone, number> = {
     subscribe: 0,
-    notes: notes.length,
     clipping: clips.length,
+    notes: notes.length,
+    knowledge: 0,
     sediment: 0,
   };
 
@@ -601,6 +605,8 @@ export default function App() {
       } else if (t.zone === 'clipping') {
         const c = t.refId != null ? clips.find(x => x.id === t.refId) : null;
         title = c ? (c.title || '无标题') : PLACEHOLDER_LABEL.clipping;
+      } else if (t.zone === 'knowledge') {
+        title = t.refId != null ? (t.kbName || PLACEHOLDER_LABEL.knowledge) : PLACEHOLDER_LABEL.knowledge;
       } else if (t.zone === 'subscribe' || t.zone === 'sediment') {
         title = PLACEHOLDER_LABEL[t.zone];
       }
@@ -610,6 +616,17 @@ export default function App() {
 
   // ── 事件桥 ────────────────────────────────────────────────────────────────
   const handleSidebarSelect = useCallback((zone: Zone) => {
+    if (zone === 'knowledge') {
+      const existingRoot = tabs.find(t => t.zone === 'knowledge' && t.refId == null);
+      if (existingRoot) {
+        setActiveTabId(existingRoot.id);
+        return;
+      }
+      const id = `tab_${tabIdSeqRef.current++}`;
+      setTabs(prev => [...prev, { id, zone, refId: null, noteHistoryState: emptyHistory<string>() }]);
+      setActiveTabId(id);
+      return;
+    }
     // 已有该 zone 的 tab → 切换过去
     const existing = tabs.find(t => t.zone === zone);
     if (existing) {
@@ -642,6 +659,26 @@ export default function App() {
   const handleClipSelect = useCallback((id: string) => {
     updateActiveTab({ zone: 'clipping', refId: id });
   }, [updateActiveTab]);
+
+  const handleKnowledgeBaseOpen = useCallback((kb: { dir_name: string; name: string }) => {
+    const existing = tabs.find(t => t.zone === 'knowledge' && t.refId === kb.dir_name);
+    if (existing) {
+      setActiveTabId(existing.id);
+      return;
+    }
+    const id = `tab_${tabIdSeqRef.current++}`;
+    setTabs(prev => [
+      ...prev,
+      {
+        id,
+        zone: 'knowledge',
+        refId: kb.dir_name,
+        kbName: kb.name,
+        noteHistoryState: emptyHistory<string>(),
+      },
+    ]);
+    setActiveTabId(id);
+  }, [tabs]);
 
   // 剪藏列表上一条 / 下一条：按视觉顺序（groupByBucket 展平）走，避免 mtime≠saved_at 时跳过
   const clipVisualOrder = useMemo(
@@ -738,11 +775,17 @@ export default function App() {
                 onDeleteSource={handleDeleteSource}
               />
             </div>
+            {activeZone === 'knowledge' && (
+              <KnowledgeBase
+                hidden={expanded}
+                selectedKbDirName={activeTab?.zone === 'knowledge' ? activeTab.refId : null}
+                onOpenKb={handleKnowledgeBaseOpen}
+              />
+            )}
 
-            {/* Reader 区：conditional unmount 让正文 img DOM 销毁 → 释放 decoded 图片内存 */}
             {activeZone === null ? (
               <EmptyTabHome onPick={handleEmptyPick} />
-            ) : activeZone === 'clipping' ? (
+            ) : activeZone === 'knowledge' ? null : activeZone === 'clipping' ? (
               <ClipReader
                 clip={selectedClipReady}
                 aiOpen={aiOpen}

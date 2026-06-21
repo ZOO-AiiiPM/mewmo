@@ -8,9 +8,15 @@
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
-use tauri::State;
+use tauri::{AppHandle, Emitter, State};
 
 use crate::vault::{ingest, init, meta_db::VaultMetaDb, query, search};
+
+#[derive(Clone, serde::Serialize)]
+struct VaultChangedPayload {
+    notes: bool,
+    clips: bool,
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Note {
@@ -171,11 +177,6 @@ pub async fn update_note(
     if existing.format == "html" {
         return Err("HTML_NOTE_READONLY".to_string());
     }
-    // Library notes are read-only in notes zone (managed via KB zone)
-    if id.starts_with("library/") {
-        return Err("LIBRARY_NOTE_READONLY".to_string());
-    }
-
     let should_rename = patch.title.is_some();
     let new_body = match patch.content_md {
         Some(c) => c,
@@ -207,10 +208,6 @@ pub async fn update_note(
 #[tauri::command]
 pub async fn delete_note(meta: State<'_, VaultMetaDb>, id: String) -> Result<(), String> {
     let vault = require_vault()?;
-    // Library notes cannot be deleted via notes zone
-    if id.starts_with("library/") {
-        return Err("LIBRARY_NOTE_READONLY".to_string());
-    }
     ingest::delete_note(&vault, &id)
         .await
         .map_err(|e| e.to_string())?;
@@ -285,7 +282,7 @@ pub struct ImportResult {
 /// 前端通过 `<input type="file">` 读 File → text 后传内容（无需绝对路径权限）。
 /// title 优先级：HTML `<title>` → 首个 `<h1>` → 文件名 stem（去 .html）。
 #[tauri::command]
-pub async fn import_html_note(filename: String, content: String) -> Result<String, String> {
+pub async fn import_html_note(app: AppHandle, filename: String, content: String) -> Result<String, String> {
     let vault = require_vault()?;
     let title = ingest::extract_html_title(&content)
         .or_else(|| filename_to_stem(&filename))
@@ -293,6 +290,7 @@ pub async fn import_html_note(filename: String, content: String) -> Result<Strin
     let r = ingest::write_html_note(&vault, &title, &content)
         .await
         .map_err(|e| e.to_string())?;
+    let _ = app.emit("vault-changed", VaultChangedPayload { notes: true, clips: false });
     Ok(r.slug)
 }
 
@@ -300,7 +298,7 @@ pub async fn import_html_note(filename: String, content: String) -> Result<Strin
 ///
 /// 单个失败不中断后续——保留全部 outcomes（沿用 ClipReader 批量添加链接的逐条容错模式）
 #[tauri::command]
-pub async fn import_html_dir(files: Vec<HtmlFileInput>) -> Result<Vec<ImportResult>, String> {
+pub async fn import_html_dir(app: AppHandle, files: Vec<HtmlFileInput>) -> Result<Vec<ImportResult>, String> {
     let vault = require_vault()?;
     let mut results = Vec::with_capacity(files.len());
     for f in files {
@@ -321,6 +319,9 @@ pub async fn import_html_dir(files: Vec<HtmlFileInput>) -> Result<Vec<ImportResu
         };
         results.push(outcome);
     }
+    if results.iter().any(|r| r.slug.is_some()) {
+        let _ = app.emit("vault-changed", VaultChangedPayload { notes: true, clips: false });
+    }
     Ok(results)
 }
 
@@ -333,7 +334,7 @@ pub async fn import_html_dir(files: Vec<HtmlFileInput>) -> Result<Vec<ImportResu
 ///
 /// 单条失败不中断（沿用 import_html_dir 的 fail-loud + 保留 outcomes 模式）
 #[tauri::command]
-pub async fn import_html_paths(paths: Vec<String>) -> Result<Vec<ImportResult>, String> {
+pub async fn import_html_paths(app: AppHandle, paths: Vec<String>) -> Result<Vec<ImportResult>, String> {
     let vault = require_vault()?;
     let mut results: Vec<ImportResult> = Vec::new();
 
@@ -391,6 +392,9 @@ pub async fn import_html_paths(paths: Vec<String>) -> Result<Vec<ImportResult>, 
         }
     }
 
+    if results.iter().any(|r| r.slug.is_some()) {
+        let _ = app.emit("vault-changed", VaultChangedPayload { notes: true, clips: false });
+    }
     Ok(results)
 }
 
