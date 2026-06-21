@@ -35,6 +35,8 @@ pub struct Source {
     pub added_at: i64,
     /// list_sources_with_unread 才填，其它路径为 0
     pub unread_count: i64,
+    /// 该源最新文章的 published_at（list_sources_with_unread 填充）
+    pub latest_entry_at: Option<i64>,
 }
 
 #[derive(Debug, Serialize)]
@@ -89,6 +91,7 @@ fn row_to_source(row: &rusqlite::Row) -> rusqlite::Result<Source> {
         status_detail: row.get("status_detail")?,
         added_at: row.get("added_at")?,
         unread_count: 0,
+        latest_entry_at: None,
     })
 }
 
@@ -323,11 +326,12 @@ pub fn list_sources_with_unread(db: State<'_, Db>) -> Result<Vec<Source>, String
     let mut stmt = conn
         .prepare(
             "SELECT s.*,
-                    COALESCE(SUM(CASE WHEN e.read_at IS NULL THEN 1 ELSE 0 END), 0) AS unread_count
+                    COALESCE(SUM(CASE WHEN e.read_at IS NULL THEN 1 ELSE 0 END), 0) AS unread_count,
+                    MAX(e.published_at) AS latest_entry_at
              FROM subscription_sources s
              LEFT JOIN feed_entries e ON e.source_id = s.id
              GROUP BY s.id
-             ORDER BY COALESCE(s.last_fetched_at, s.added_at) DESC",
+             ORDER BY COALESCE(MAX(e.published_at), s.last_fetched_at, s.added_at) DESC",
         )
         .map_err(|e| format!("DB_ERROR: {}", e))?;
 
@@ -335,6 +339,7 @@ pub fn list_sources_with_unread(db: State<'_, Db>) -> Result<Vec<Source>, String
         .query_map([], |row| {
             let mut s = row_to_source(row)?;
             s.unread_count = row.get("unread_count")?;
+            s.latest_entry_at = row.get("latest_entry_at")?;
             Ok(s)
         })
         .map_err(|e| format!("DB_ERROR: {}", e))?;

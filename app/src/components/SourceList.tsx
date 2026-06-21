@@ -137,7 +137,7 @@ export function SourceList({
                   <div className={`text-[11px] truncate ${isUnhealthy ? 'text-red-500' : 'text-stone-500 dark:text-stone-400'}`}>
                     {isUnhealthy
                       ? '抓取失败'
-                      : (s.status === 'pending' ? '抓取中…' : fmtRelativeTime(s.last_fetched_at))}
+                      : (s.status === 'pending' ? '抓取中…' : fmtRelativeTime(s.latest_entry_at ?? s.last_fetched_at))}
                   </div>
                 </div>
               </div>

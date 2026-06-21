@@ -19,7 +19,6 @@ import {
   deleteSource,
   listEntriesForSource,
   listSourcesWithUnread,
-  markEntryRead,
   refreshAllSubscriptions,
   shouldAutoRefreshOnStartup,
 } from './lib/subscription';
@@ -272,13 +271,7 @@ export default function App() {
 
   const handleEntrySelect = useCallback(async (entry: FeedEntry) => {
     setEntryBrowse(prev => pushHistory(prev, entry, (a, b) => a.id === b.id));
-    if (entry.read_at == null) {
-      await markEntryRead(entry.id);
-      const now = Math.floor(Date.now() / 1000);
-      setEntries(prev => prev.map(e => (e.id === entry.id ? { ...e, read_at: now } : e)));
-      await refreshSources(); // 更新 unread badge
-    }
-  }, [refreshSources]);
+  }, []);
 
   const handleEntryBack = useCallback(() => setEntryBrowse(goBack), []);
   const handleEntryForward = useCallback(() => setEntryBrowse(goForward), []);
