@@ -4,6 +4,7 @@ import { marked } from 'marked';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import type { Clip } from '../types';
 import { sanitizeHtml } from '../lib/sanitizeHtml';
+import { getSessionScrollPosition, rememberSessionScrollPosition } from '../lib/sessionScrollMemory';
 import { ConfirmDialog } from './ConfirmDialog';
 import { ScrollToTopButton } from './ScrollToTopButton';
 
@@ -153,24 +154,29 @@ export function ClipReader({
   // 监听 scroll 容器：H1 滚到 toolbar 下沿之上 → toolbar 显示标题
   // 用 h1 相对 scrollRef 顶部的距离，避免 main 不在 viewport 顶部时阈值算错
   useEffect(() => {
+    if (!clip?.id) {
+      setTitleInToolbar(false);
+      return;
+    }
     const root = scrollRef.current;
     if (!root) return;
-    // 切 clip 时直接 reset 到顶部 + 隐藏 toolbar 标题（不依赖测量）。
-    // 之前 effect 里立即同步调 onScroll() 会拿到前一个 clip 的 stale H1 rect →
-    // setTitleInToolbar(true) → paint 完后真 scroll 触发又切 false → 肉眼闪两下。
-    // 订阅 EntryReader 用同样的"直接 reset"思路就不闪。
-    root.scrollTop = 0;
+    const memoryKey = `clip:${clip.id}`;
     root.scrollLeft = 0;
-    setTitleInToolbar(false);
     const onScroll = () => {
       const h1 = titleRef.current;
       if (!h1) return;
       const rootTop = root.getBoundingClientRect().top;
       const h1BottomRel = h1.getBoundingClientRect().bottom - rootTop;
       setTitleInToolbar(h1BottomRel < 56);
+      rememberSessionScrollPosition(memoryKey, root.scrollTop);
     };
+    root.scrollTop = getSessionScrollPosition(memoryKey) ?? 0;
+    onScroll();
     root.addEventListener('scroll', onScroll, { passive: true });
-    return () => root.removeEventListener('scroll', onScroll);
+    return () => {
+      rememberSessionScrollPosition(memoryKey, root.scrollTop);
+      root.removeEventListener('scroll', onScroll);
+    };
   }, [clip?.id]);
 
   // 测量已不需要——改用 grid-cols-[1fr_auto] 让标题列自动占剩余空间，

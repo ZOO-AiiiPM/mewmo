@@ -263,8 +263,9 @@ html.dark .live-md-editor .cm-link {
 .live-md-editor .cm-md-table-wrap {
   position: relative;
   display: inline-block;
-  padding: 28px 52px 0.6em 48px;
+  padding: 0.6em 0;
   user-select: none;
+  overflow: visible;
 }
 .live-md-editor .cm-md-table {
   border-collapse: collapse;
@@ -281,14 +282,14 @@ html.dark .live-md-editor .cm-link {
   vertical-align: top;
   outline: none;
 }
-.live-md-editor .cm-md-table th:focus,
-.live-md-editor .cm-md-table td:focus {
+.live-md-editor .cm-md-table th:focus-within,
+.live-md-editor .cm-md-table td:focus-within {
   background: rgba(59, 130, 246, 0.08);
   outline: 1px solid rgba(59, 130, 246, 0.4);
   outline-offset: -1px;
 }
-html.dark .live-md-editor .cm-md-table th:focus,
-html.dark .live-md-editor .cm-md-table td:focus {
+html.dark .live-md-editor .cm-md-table th:focus-within,
+html.dark .live-md-editor .cm-md-table td:focus-within {
   background: rgba(96, 165, 250, 0.12);
   outline-color: rgba(96, 165, 250, 0.5);
 }
@@ -342,42 +343,47 @@ html.dark .live-md-editor .cm-md-table td.cm-md-cell-sel {
   left: 50%;
   transform: translateX(-50%);
   display: flex;
-  gap: 2px;
+  gap: 1px;
   opacity: 0;
   transition: opacity 0.15s;
   pointer-events: none;
   user-select: none;
+  padding-bottom: 4px;
 }
 .live-md-editor .cm-md-table-row-controls {
   position: absolute;
-  left: -46px;
+  left: -26px;
   top: 50%;
   transform: translateY(-50%);
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   opacity: 0;
   transition: opacity 0.15s;
   pointer-events: none;
   user-select: none;
+  padding-right: 4px;
 }
 .live-md-editor .cm-md-table th:hover .cm-md-table-col-controls,
-.live-md-editor .cm-md-table td:hover .cm-md-table-row-controls {
+.live-md-editor .cm-md-table td:hover .cm-md-table-row-controls,
+.live-md-editor .cm-md-table-col-controls:hover,
+.live-md-editor .cm-md-table-row-controls:hover {
   opacity: 1;
   pointer-events: auto;
 }
 .live-md-editor .cm-md-table-cell-add,
 .live-md-editor .cm-md-table-cell-remove,
-.live-md-editor .cm-md-table-cell-drag {
-  width: 20px;
-  height: 20px;
+.live-md-editor .cm-md-table-cell-move {
+  width: 18px;
+  height: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
+  border-radius: 3px;
   background: rgba(0, 0, 0, 0.06);
   color: #57534e;
-  font-size: 14px;
+  font-size: 13px;
+  font-weight: 700;
   line-height: 1;
   border: 1px solid rgba(0, 0, 0, 0.08);
   cursor: pointer;
@@ -392,17 +398,13 @@ html.dark .live-md-editor .cm-md-table td.cm-md-cell-sel {
   background: rgba(239, 68, 68, 0.15);
   color: #dc2626;
 }
-.live-md-editor .cm-md-table-cell-drag {
-  cursor: grab;
-  font-size: 11px;
-}
-.live-md-editor .cm-md-table-cell-drag:hover {
+.live-md-editor .cm-md-table-cell-move:hover {
   background: rgba(0, 0, 0, 0.12);
   color: #1c1917;
 }
 html.dark .live-md-editor .cm-md-table-cell-add,
 html.dark .live-md-editor .cm-md-table-cell-remove,
-html.dark .live-md-editor .cm-md-table-cell-drag {
+html.dark .live-md-editor .cm-md-table-cell-move {
   background: rgba(255, 255, 255, 0.08);
   color: #d6d3d1;
   border-color: rgba(255, 255, 255, 0.1);
@@ -415,7 +417,7 @@ html.dark .live-md-editor .cm-md-table-cell-remove:hover {
   background: rgba(248, 113, 113, 0.2);
   color: #f87171;
 }
-html.dark .live-md-editor .cm-md-table-cell-drag:hover {
+html.dark .live-md-editor .cm-md-table-cell-move:hover {
   background: rgba(255, 255, 255, 0.15);
   color: #fafaf9;
 }
@@ -423,15 +425,15 @@ html.dark .live-md-editor .cm-md-table-cell-drag:hover {
 /* 删除整张表按钮：垃圾桶，紧贴最右列右侧，与最后一行平行 */
 .live-md-editor .cm-md-table-delete {
   position: absolute;
-  right: -46px;
+  right: -26px;
   top: 50%;
   transform: translateY(-50%);
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
+  border-radius: 3px;
   background: rgba(0, 0, 0, 0.06);
   color: #57534e;
   line-height: 1;

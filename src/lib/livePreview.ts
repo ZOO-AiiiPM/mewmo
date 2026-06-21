@@ -325,8 +325,9 @@ function focusTableWrapCell(
 
   const cell = nearestCell(Array.from(row.children) as HTMLElement[], x);
   if (!cell) return false;
-  cell.focus();
-  collapseCellSelection(cell, edge === 'last');
+  const editTarget = cell.querySelector('.cm-md-table-cell-content') as HTMLElement | null;
+  (editTarget ?? cell).focus();
+  collapseCellSelection(editTarget ?? cell, edge === 'last');
   return true;
 }
 
@@ -944,44 +945,42 @@ class TableWidget extends WidgetType {
         }
         return;
       }
-      target.focus();
-      collapseCellSelection(target, placeAtEnd);
+      const targetEdit = target.querySelector('.cm-md-table-cell-content') as HTMLElement | null;
+      (targetEdit ?? target).focus();
+      collapseCellSelection(targetEdit ?? target, placeAtEnd);
     };
 
     // cell 渲染：空文本用 &nbsp; 撑住高度，contentEditable 让用户直接键入
-    const cellText = (el: HTMLElement) => {
-      const clone = el.cloneNode(true) as HTMLElement;
-      clone.querySelectorAll('.cm-md-table-col-controls, .cm-md-table-row-controls, .cm-md-table-delete').forEach(n => n.remove());
-      return clone.textContent ?? '';
-    };
-
     const fillCell = (el: HTMLElement, text: string) => {
-      el.contentEditable = 'true';
-      el.spellcheck = false;
+      // 编辑区放在子 span 里，避免 controls（contentEditable=false）干扰输入
+      const editSpan = document.createElement('span');
+      editSpan.className = 'cm-md-table-cell-content';
+      editSpan.contentEditable = 'true';
+      editSpan.spellcheck = false;
+      editSpan.style.display = 'block';
+      editSpan.style.outline = 'none';
       if (text.length === 0) {
-        el.innerHTML = '&nbsp;';
+        editSpan.innerHTML = '&nbsp;';
       } else {
-        el.textContent = text;
+        editSpan.textContent = text;
       }
-      // 进入 cell 时清掉占位 nbsp，避免出现在用户输入前面
-      el.addEventListener('focus', () => {
-        if (cellText(el) === '\u00a0') {
-          if (el.childNodes[0]) el.childNodes[0].textContent = '';
+      el.appendChild(editSpan);
+      // 进入 cell 时清掉占位 nbsp
+      editSpan.addEventListener('focus', () => {
+        if (editSpan.textContent === '\u00a0') {
+          editSpan.textContent = '';
           view.requestMeasure();
         }
       });
-      el.addEventListener('blur', () => {
-        if (cellText(el).length === 0) {
-          el.insertBefore(document.createTextNode('\u00a0'), el.firstChild);
+      editSpan.addEventListener('blur', () => {
+        if ((editSpan.textContent ?? '').length === 0) {
+          editSpan.innerHTML = '&nbsp;';
           view.requestMeasure();
         }
       });
       // 方向键 / Tab / Enter 在 cells 间跳转
-      el.addEventListener('keydown', e => {
-        // 阻止冒泡到 CM 的 keymap，避免 CM 同时处理这些键（导致 cursor 错位 / 编辑器抢焦点）
+      editSpan.addEventListener('keydown', e => {
         e.stopPropagation();
-        // 多格选区下 Cmd/Ctrl+C：直接重组 markdown 写剪贴板（不依赖原生选区是否存在），
-        // 空单元格 / 没选中文字也能复制。
         if ((e.metaKey || e.ctrlKey) && (e.key === 'c' || e.key === 'C') && this.isMultiSelection()) {
           e.preventDefault();
           const md = this.buildSelectionMarkdown(table);
@@ -1007,7 +1006,7 @@ class TableWidget extends WidgetType {
           }
         } else if (e.key === 'ArrowRight') {
           const sel = window.getSelection();
-          const len = cellText(el).length;
+          const len = (editSpan.textContent ?? '').length;
           if (sel && sel.isCollapsed && sel.anchorOffset === len) {
             e.preventDefault();
             navigate(el, 'right');
@@ -1020,9 +1019,8 @@ class TableWidget extends WidgetType {
           navigate(el, 'down');
         }
       });
-      // 鼠标点击事件不要让 CM 看见，避免 CM 把 cell 当成空 widget 区域去重新放置 cursor
-      el.addEventListener('mousedown', e => e.stopPropagation());
-      el.addEventListener('input', e => {
+      editSpan.addEventListener('mousedown', e => e.stopPropagation());
+      editSpan.addEventListener('input', e => {
         e.stopPropagation();
         if (this.isMultiSelection()) this.clearSelection(table);
         view.requestMeasure();
@@ -1052,12 +1050,15 @@ class TableWidget extends WidgetType {
       th.dataset.colIndex = String(i);
       const a = aligns[i];
       if (a) th.style.textAlign = a;
-      // 每列控制：+/−/拖动，CSS 定位到 cell 上方外部
+      // 每列控制：←/→ 移列、+/−，CSS 定位到 cell 上方外部
       const colCtrl = document.createElement('span');
       colCtrl.className = 'cm-md-table-col-controls';
       colCtrl.contentEditable = 'false';
-      colCtrl.appendChild(mkCellBtn('cm-md-table-cell-drag', '⠿', '拖动列（左移）', () =>
+      colCtrl.appendChild(mkCellBtn('cm-md-table-cell-move', '←', '左移列', () =>
         this.rewriteFromDOM(view, wrap, src => moveColumnBy(src, i, -1))
+      ));
+      colCtrl.appendChild(mkCellBtn('cm-md-table-cell-move', '→', '右移列', () =>
+        this.rewriteFromDOM(view, wrap, src => moveColumnBy(src, i, 1))
       ));
       colCtrl.appendChild(mkCellBtn('cm-md-table-cell-add', '+', '在右侧插入列', () =>
         this.rewriteFromDOM(view, wrap, src => insertColumnAfter(src, i))
@@ -1065,6 +1066,16 @@ class TableWidget extends WidgetType {
       colCtrl.appendChild(mkCellBtn('cm-md-table-cell-remove', '−', '删除这一列', () =>
         this.rewriteFromDOM(view, wrap, src => removeColumnAt(src, i))
       ));
+      // header 第一列也挂行控制（用于在 header 下方插入行）
+      if (i === 0) {
+        const rowCtrl = document.createElement('span');
+        rowCtrl.className = 'cm-md-table-row-controls';
+        rowCtrl.contentEditable = 'false';
+        rowCtrl.appendChild(mkCellBtn('cm-md-table-cell-add', '+', '在下方插入行', () =>
+          this.rewriteFromDOM(view, wrap, src => insertRowAfter(src, 0))
+        ));
+        th.appendChild(rowCtrl);
+      }
       th.appendChild(colCtrl);
       trh.appendChild(th);
     });
@@ -1081,14 +1092,17 @@ class TableWidget extends WidgetType {
         td.dataset.colIndex = String(i);
         const a = aligns[i];
         if (a) td.style.textAlign = a;
-        // 每行控制：拖动/+/−，挂在第一列 td 上，CSS 定位到 cell 左侧外部，竖向排列
+        // 每行控制：↑/↓ 移行、+/−，挂在第一列 td 上，CSS 定位到 cell 左侧外部，竖向排列
         if (i === 0) {
           const rowIdx = bodyIdx + 1;
           const rowCtrl = document.createElement('span');
           rowCtrl.className = 'cm-md-table-row-controls';
           rowCtrl.contentEditable = 'false';
-          rowCtrl.appendChild(mkCellBtn('cm-md-table-cell-drag', '⠿', '拖动行（上移）', () =>
+          rowCtrl.appendChild(mkCellBtn('cm-md-table-cell-move', '↑', '上移行', () =>
             this.rewriteFromDOM(view, wrap, src => moveRowBy(src, rowIdx, -1))
+          ));
+          rowCtrl.appendChild(mkCellBtn('cm-md-table-cell-move', '↓', '下移行', () =>
+            this.rewriteFromDOM(view, wrap, src => moveRowBy(src, rowIdx, 1))
           ));
           rowCtrl.appendChild(mkCellBtn('cm-md-table-cell-add', '+', '在下方插入行', () =>
             this.rewriteFromDOM(view, wrap, src => insertRowAfter(src, rowIdx))
@@ -1122,7 +1136,7 @@ class TableWidget extends WidgetType {
           e.preventDefault();
           this.selFocus = coord;
           this.applyHighlight(table);
-          cell.focus();
+          (cell.querySelector('.cm-md-table-cell-content') as HTMLElement | null ?? cell).focus();
           return;
         }
         this.selAnchor = coord;
@@ -1143,7 +1157,7 @@ class TableWidget extends WidgetType {
         if (coord.r === this.selFocus?.r && coord.c === this.selFocus?.c) return;
         e.preventDefault();
         this.selFocus = coord;
-        cell.focus();
+        (cell.querySelector('.cm-md-table-cell-content') as HTMLElement | null ?? cell).focus();
         this.applyHighlight(table);
       },
       true,
