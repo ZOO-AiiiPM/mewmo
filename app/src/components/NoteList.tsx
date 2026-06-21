@@ -9,6 +9,7 @@ type Props = {
   onCreate: () => void;
   onDelete: (id: string) => void;
   onPin?: (id: string, pinned: boolean) => void;
+  onReveal?: (id: string) => void;
   hidden?: boolean;
 };
 
@@ -62,6 +63,7 @@ export function NoteList({
   onCreate,
   onDelete,
   onPin,
+  onReveal,
   hidden = false,
 }: Props) {
   const pinnedNotes = notes.filter(n => n.pinned);
@@ -96,7 +98,7 @@ export function NoteList({
                   </span>
                 </h2>
                 {pinnedNotes.map((n, i) => (
-                  <ListItemContextMenu key={n.id} onDelete={() => onDelete(n.id)} onPin={onPin ? () => onPin(n.id, !n.pinned) : undefined} pinLabel="取消置顶">
+                  <ListItemContextMenu key={n.id} onDelete={() => onDelete(n.id)} onPin={onPin ? () => onPin(n.id, !n.pinned) : undefined} pinLabel="取消置顶" onReveal={onReveal ? () => onReveal(n.id) : undefined}>
                     <div className="relative">
                       {i > 0 && <div className="absolute top-0 left-10 right-3 h-px bg-black/[0.06] dark:bg-white/[0.06]" />}
                       <NoteItem n={n} selected={selectedId === n.id} onSelect={() => onSelect(n.id)} bucket={"today" as Bucket} />
@@ -116,7 +118,7 @@ export function NoteList({
                   </span>
                 </h2>
                 {g.items.map((n, i) => (
-                  <ListItemContextMenu key={n.id} onDelete={() => onDelete(n.id)} onPin={onPin ? () => onPin(n.id, !n.pinned) : undefined} pinLabel="置顶">
+                  <ListItemContextMenu key={n.id} onDelete={() => onDelete(n.id)} onPin={onPin ? () => onPin(n.id, !n.pinned) : undefined} pinLabel="置顶" onReveal={onReveal ? () => onReveal(n.id) : undefined}>
                     <div className="relative">
                       {i > 0 && <div className="absolute top-0 left-10 right-3 h-px bg-black/[0.06] dark:bg-white/[0.06]" />}
                       <NoteItem n={n} selected={selectedId === n.id} onSelect={() => onSelect(n.id)} bucket={g.bucket} />

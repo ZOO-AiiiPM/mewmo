@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import { Sidebar, type Zone } from './components/Sidebar';
 import { TabBar, type Tab as TabPillModel } from './components/TabBar';
 import { NoteList } from './components/NoteList';
@@ -12,7 +13,7 @@ import { ClipReader } from './components/ClipReader';
 import { EmptyTabHome } from './components/EmptyTabHome';
 import { SubscriptionLayout } from './components/SubscriptionLayout';
 import { EntryReader } from './components/EntryReader';
-import { listNotes, getNote, createNote, updateNote, deleteNote, pinNote } from './lib/db';
+import { listNotes, getNote, createNote, updateNote, deleteNote, pinNote, getVaultConfig } from './lib/db';
 import { listClips, getClip, saveClip, deleteClip, updateClip } from './lib/db';
 import {
   addSubscription,
@@ -490,6 +491,17 @@ export default function App() {
     await refresh();
   }, [refresh]);
 
+  const handleRevealNote = useCallback(async (id: string) => {
+    const config = await getVaultConfig();
+    if (!config) return;
+    const note = notes.find(n => n.id === id);
+    const ext = note?.format === 'html' ? 'html' : 'md';
+    const filePath = id.startsWith('library/')
+      ? `${config.vault_path}/${id}.${ext}`
+      : `${config.vault_path}/wiki/notes/${id}.${ext}`;
+    await revealItemInDir(filePath);
+  }, [notes]);
+
   // ── 剪藏操作 ──────────────────────────────────────────────────────────────
   type FetchedClip = {
     url: string; title: string; content_md: string;
@@ -767,6 +779,7 @@ export default function App() {
                 onCreate={handleCreateAndBind}
                 onDelete={handleDeleteNote}
                 onPin={handlePinNote}
+                onReveal={handleRevealNote}
                 hidden={expanded}
               />
             </div>

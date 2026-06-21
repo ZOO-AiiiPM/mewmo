@@ -6,13 +6,11 @@ import type { ViewUpdate } from '@codemirror/view';
 import { EditorSelection, Prec } from '@codemirror/state';
 import { indentUnit } from '@codemirror/language';
 import { indentWithTab } from '@codemirror/commands';
-import { revealItemInDir } from '@tauri-apps/plugin-opener';
-import { livePreview, focusEffect, tableNavigationKeymap, insertTable, toggleTask, getImageDeleteBackwardRange } from '../lib/livePreview';
+import { livePreview, focusEffect, tableNavigationKeymap, insertTable, toggleTask, getImageDeleteBackwardRange, deleteTableBackward } from '../lib/livePreview';
 import type { TaskToggleRange } from '../lib/livePreview';
 import { toggleHeading, toggleLinePrefix, orderedListRenumber } from '../lib/markdownFormat';
 import { imagePasteDrop } from '../lib/imagePaste';
 import { linkClickHandler } from '../lib/linkClick';
-import { getVaultConfig } from '../lib/db';
 import { getSessionScrollPosition, rememberSessionScrollPosition } from '../lib/sessionScrollMemory';
 import { TableOfContents } from './TableOfContents';
 import { ScrollToTopButton } from './ScrollToTopButton';
@@ -174,6 +172,7 @@ const formatKeymap = Prec.high(keymap.of([
   { key: 'Mod-Shift-7', run: toggleLinePrefix('ordered') },
   { key: 'Mod-Shift-9', run: (view) => { toggleTask(view); return true; } },
   { key: 'Mod-Alt-t', run: (view) => { insertTable(view); return true; } },
+  { key: 'Backspace', run: deleteTableBackward },
   { key: 'Backspace', run: deleteImageBackward },
   { key: 'Backspace', run: deletePairBackward },
   indentWithTab,
@@ -244,6 +243,18 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
   const [_cursorLine, setCursorLine] = useState(1);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!moreMenuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
+        setMoreMenuOpen(false);
+      }
+    };
+    window.addEventListener('mousedown', handler);
+    return () => window.removeEventListener('mousedown', handler);
+  }, [moreMenuOpen]);
   // 切笔记淡入淡出：1=显示中，0=过渡中（不重建 CM、不 unmount，只调 opacity）
   const [contentVisible, setContentVisible] = useState(true);
   // 滚动后 title 滚出视野 → toolbar 中央 fade-in 显示标题（同 ClipReader）
@@ -512,7 +523,7 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
 
   return (
     <main className="relative flex-1 flex flex-col overflow-hidden">
-      <div className={`absolute top-0 left-0 right-0 z-[5] h-12 grid grid-cols-[1fr_auto] items-center gap-3 pl-10 bg-white/70 dark:bg-stone-900/70 backdrop-blur-md transition-[padding] duration-200 ease-out ${aiOpen ? 'pr-[320px]' : 'pr-3'}`}>
+      <div className={`absolute top-0 left-0 right-0 z-[50] h-12 grid grid-cols-[1fr_auto] items-center gap-3 pl-10 bg-white/70 dark:bg-stone-900/70 backdrop-blur-md transition-[padding] duration-200 ease-out ${aiOpen ? 'pr-[320px]' : 'pr-3'}`}>
         {/* 滚动后显现的底部分隔线：左右收 12px 留呼吸；aiOpen 时右端跟 toolbar pr 同步内移 */}
         <div className={`absolute bottom-0 left-3 h-px transition-[right,background-color] duration-200 ease-out ${aiOpen ? 'right-[320px]' : 'right-3'} ${titleInToolbar ? 'bg-black/[0.1] dark:bg-white/[0.1]' : 'bg-transparent'}`} />
           {/* 标题列：滚动后 fade-in 显示当前笔记标题；mask 让超出 icons 那侧渐隐 */}
@@ -616,7 +627,17 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
               </svg>
             )}
           </button>
-          <div className="relative">
+          <button
+            onClick={onCreate}
+            title="新建笔记"
+            className="w-8 h-8 flex items-center justify-center rounded-md text-stone-600 dark:text-stone-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
+          </button>
+          <div className="relative" ref={moreMenuRef}>
           <button
             onClick={() => setMoreMenuOpen((v) => !v)}
             title="更多操作"
@@ -630,27 +651,7 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
           </button>
           {moreMenuOpen && (
             <>
-            <div className="fixed inset-0 z-[99]" onClick={() => setMoreMenuOpen(false)} />
-            <div className="absolute right-0 top-full mt-1 z-[100] min-w-[140px] rounded-lg bg-white dark:bg-stone-800 shadow-lg border border-black/10 dark:border-white/10 py-1">
-              <button
-                onClick={async () => {
-                  setMoreMenuOpen(false);
-                  if (!note || note.id.startsWith('library/')) return;
-                  const config = await getVaultConfig();
-                  if (!config) return;
-                  const ext = note.format === 'html' ? 'html' : 'md';
-                  const filePath = `${config.vault_path}/wiki/notes/${note.id}.${ext}`;
-                  await revealItemInDir(filePath);
-                }}
-                className="w-full flex items-center gap-2.5 px-3 py-1.5 text-[13px] text-stone-700 dark:text-stone-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
-                  <polyline points="16 6 12 2 8 6" />
-                  <line x1="12" y1="2" x2="12" y2="15" />
-                </svg>
-                <span>分享文件</span>
-              </button>
+            <div className="absolute right-0 top-full mt-1 z-[201] min-w-[140px] rounded-lg bg-white dark:bg-stone-800 shadow-lg border border-black/10 dark:border-white/10 py-1">
               {onImport && (
                 <button
                   onClick={() => { setMoreMenuOpen(false); onImport(); }}
@@ -684,16 +685,6 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
             </>
           )}
           </div>
-          <button
-            onClick={onCreate}
-            title="新建笔记"
-            className="w-8 h-8 flex items-center justify-center rounded-md text-stone-600 dark:text-stone-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-            </svg>
-          </button>
           </div>
         </div>
       <div ref={scrollRef} className="flex-1 overflow-y-auto sidebar-scroll pt-12">
