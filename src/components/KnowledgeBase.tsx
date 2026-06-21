@@ -2,6 +2,8 @@ import * as ContextMenu from '@radix-ui/react-context-menu';
 import { AnimatePresence, motion } from 'framer-motion';
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { marked } from 'marked';
+import { openUrl } from '@tauri-apps/plugin-opener';
 import { deleteNote, getClip, getNote, listClips, listNotes, updateNote } from '../lib/db';
 import {
   createKb,
@@ -17,12 +19,11 @@ import {
   renameKbFolder,
   updateKbMeta,
 } from '../lib/kb';
-import { addSubscription } from '../lib/subscription';
+import { sanitizeHtml } from '../lib/sanitizeHtml';
 import type { Clip, KnowledgeBase as KBType, KbContents, KbFolderEntry, KbNoteEntry, Note } from '../types';
-import { AddSourceDialog } from './AddSourceDialog';
-import { ClipReader } from './ClipReader';
 import { ConfirmDialog } from './ConfirmDialog';
 import { NoteEditor } from './NoteEditor';
+import { ScrollToTopButton } from './ScrollToTopButton';
 
 function FolderIcon({ className = '' }: { className?: string }) {
   return (
@@ -97,16 +98,6 @@ function TrashIcon() {
       <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
       <path d="M10 11v6" />
       <path d="M14 11v6" />
-    </svg>
-  );
-}
-
-function RssIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 11a9 9 0 0 1 9 9" />
-      <path d="M4 4a16 16 0 0 1 16 16" />
-      <circle cx="5" cy="19" r="1" />
     </svg>
   );
 }
@@ -288,6 +279,218 @@ function isInsidePath(path: string, folderPath: string) {
   return path === folderPath || path.startsWith(`${folderPath}/`);
 }
 
+function noteFromEntry(entry: KbNoteEntry): Note {
+  return {
+    id: entry.slug,
+    title: entry.title,
+    content_md: entry.preview,
+    content_loaded: false,
+    preview: entry.preview,
+    tags_text: entry.tags.join(', '),
+    created_at: entry.updated_at,
+    updated_at: entry.updated_at,
+    format: entry.kind === 'html' ? 'html' : 'md',
+    pinned: false,
+  };
+}
+
+function clipFromEntry(entry: KbNoteEntry): Clip {
+  return {
+    id: entry.slug,
+    url: '',
+    title: entry.title,
+    content_md: entry.preview,
+    content_loaded: false,
+    excerpt: entry.preview,
+    site_name: '',
+    favicon_url: '',
+    saved_at: entry.updated_at,
+    cover_image: '',
+    author: '',
+    published_at: '',
+    ip_region: '',
+    tags_text: entry.tags.join(', '),
+  };
+}
+
+function fmtClipPublished(s: string): string {
+  if (!s) return '';
+  const d = /^\d+$/.test(s) ? new Date(parseInt(s, 10) * 1000) : new Date(s);
+  if (Number.isNaN(d.getTime())) return s;
+  return d.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+}
+
+function looksLikeHtml(content: string): boolean {
+  return /<\/?(article|section|div|p|h[1-6]|img|figure|figcaption|blockquote|ul|ol|li|table|span|a|strong|em)\b/i.test(content);
+}
+
+function KbClipReader({ clip, onDelete }: { clip: Clip; onDelete: (id: string) => void }) {
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [titleInToolbar, setTitleInToolbar] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const contentHtml = useMemo(() => {
+    if (!clip.content_md) return '';
+    return looksLikeHtml(clip.content_md)
+      ? sanitizeHtml(clip.content_md)
+      : sanitizeHtml(marked.parse(clip.content_md) as string);
+  }, [clip.content_md]);
+
+  useEffect(() => {
+    const root = contentRef.current;
+    if (!root) return;
+    root.innerHTML = contentHtml;
+  }, [contentHtml]);
+
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    scroller.scrollTop = 0;
+    scroller.scrollLeft = 0;
+    setTitleInToolbar(false);
+  }, [clip.id]);
+
+  const onScroll = () => {
+    const scroller = scrollerRef.current;
+    const title = titleRef.current;
+    if (!scroller || !title) return;
+    const titleBottom = title.getBoundingClientRect().bottom - scroller.getBoundingClientRect().top;
+    setTitleInToolbar(titleBottom < 56);
+  };
+
+  const copyLink = () => {
+    if (!clip.url) return;
+    navigator.clipboard.writeText(clip.url)
+      .then(() => {
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 1200);
+      })
+      .catch(e => console.error('[kb clip] copy link failed:', e));
+  };
+
+  const publishedText = fmtClipPublished(clip.published_at);
+
+  return (
+    <main className="relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
+      <div className="absolute left-0 right-0 top-0 z-[5] grid h-12 grid-cols-[1fr_auto] items-center gap-3 bg-white/70 pl-10 pr-3 backdrop-blur-md dark:bg-stone-900/70">
+        <div className={`absolute bottom-0 left-3 right-3 h-px transition-colors duration-200 ${titleInToolbar ? 'bg-black/[0.10] dark:bg-white/[0.10]' : 'bg-transparent'}`} />
+        <div className="min-w-0 overflow-hidden">
+          <span
+            className={`block truncate text-[14px] font-bold text-stone-800 transition-opacity duration-200 dark:text-stone-100 ${titleInToolbar ? 'opacity-100' : 'opacity-0'}`}
+          >
+            {clip.title || '无标题'}
+          </span>
+        </div>
+        <div className="flex items-center gap-0.5">
+          {clip.url && (
+            <>
+              <button
+                type="button"
+                onClick={() => openUrl(clip.url).catch(e => console.error('[kb clip] open url failed:', e))}
+                title="在浏览器中打开原文"
+                className="grid h-8 w-8 place-items-center rounded-md text-stone-600 transition-colors hover:bg-black/[0.05] dark:text-stone-300 dark:hover:bg-white/[0.10]"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
+                  <path d="M2 12h20" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={copyLink}
+                title={copied ? '已复制' : '复制链接'}
+                className="grid h-8 w-8 place-items-center rounded-md text-stone-600 transition-colors hover:bg-black/[0.05] dark:text-stone-300 dark:hover:bg-white/[0.10]"
+              >
+                {copied ? (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                  </svg>
+                )}
+              </button>
+              <div className="mx-1.5 h-5 w-px bg-black/[0.10] dark:bg-white/[0.10]" />
+            </>
+          )}
+          <button
+            type="button"
+            onClick={() => setConfirmOpen(true)}
+            title="删除剪藏"
+            className="grid h-8 w-8 place-items-center rounded-md text-stone-600 transition-colors hover:bg-red-500/[0.10] hover:text-red-600 dark:text-stone-300 dark:hover:text-red-400"
+          >
+            <TrashIcon />
+          </button>
+        </div>
+      </div>
+
+      <div
+        ref={scrollerRef}
+        onScroll={onScroll}
+        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden sidebar-scroll pt-12"
+      >
+        <div className="mx-auto w-full max-w-2xl px-10 pb-16 pt-6">
+          <h1
+            ref={titleRef}
+            className={`mb-3 text-[28px] font-bold leading-tight tracking-tight text-stone-900 transition-opacity duration-200 dark:text-stone-50 ${titleInToolbar ? 'opacity-0' : 'opacity-100'}`}
+          >
+            {clip.title || '无标题'}
+          </h1>
+
+          {(clip.author || clip.site_name || publishedText || clip.ip_region) && (
+            <div className="mb-5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-stone-500 dark:text-stone-400">
+              {clip.author && <span className="font-medium text-stone-700 dark:text-stone-300">{clip.author}</span>}
+              {clip.author && clip.site_name && clip.author !== clip.site_name && <span className="text-stone-300 dark:text-stone-600">·</span>}
+              {clip.site_name && clip.author !== clip.site_name && <span>{clip.site_name}</span>}
+              {(clip.author || clip.site_name) && publishedText && <span className="text-stone-300 dark:text-stone-600">·</span>}
+              {publishedText && <span>{publishedText}</span>}
+              {clip.ip_region && (
+                <>
+                  <span className="text-stone-300 dark:text-stone-600">·</span>
+                  <span>{clip.ip_region}</span>
+                </>
+              )}
+            </div>
+          )}
+
+          {contentHtml ? (
+            <div ref={contentRef} className="clip-prose" />
+          ) : (
+            <div className="text-sm italic text-stone-400 dark:text-stone-500">暂无正文内容</div>
+          )}
+        </div>
+      </div>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title="删除剪藏"
+        description={`确定删除「${clip.title || '无标题'}」吗？`}
+        confirmLabel="删除"
+        variant="danger"
+        onConfirm={() => {
+          setConfirmOpen(false);
+          onDelete(clip.id);
+        }}
+        onCancel={() => setConfirmOpen(false)}
+      />
+      <ScrollToTopButton scrollRef={scrollerRef} />
+    </main>
+  );
+}
+
 function ContextMenuContent({ onRename, onDelete }: { onRename?: () => void; onDelete: () => void }) {
   return (
     <ContextMenu.Portal>
@@ -439,10 +642,12 @@ function KbImportDialog({
   open,
   onClose,
   onSubmit,
+  filter = 'all',
 }: {
   open: boolean;
   onClose: () => void;
   onSubmit: (selection: { noteIds: string[]; clipIds: string[] }) => Promise<void>;
+  filter?: 'all' | 'notes' | 'clips';
 }) {
   const [notes, setNotes] = useState<Note[]>([]);
   const [clips, setClips] = useState<Clip[]>([]);
@@ -454,13 +659,16 @@ function KbImportDialog({
     if (!open) return;
     setNoteIds(new Set());
     setClipIds(new Set());
-    Promise.all([listNotes(), listClips()])
+    Promise.all([
+      filter !== 'clips' ? listNotes() : Promise.resolve([]),
+      filter !== 'notes' ? listClips() : Promise.resolve([]),
+    ])
       .then(([nextNotes, nextClips]) => {
-        setNotes(nextNotes.filter(note => note.format === 'md' && !note.id.startsWith('library/')));
-        setClips(nextClips);
+        setNotes((nextNotes as Note[]).filter(note => note.format === 'md' && !note.id.startsWith('library/')));
+        setClips(nextClips as Clip[]);
       })
       .catch(console.error);
-  }, [open]);
+  }, [open, filter]);
 
   const total = noteIds.size + clipIds.size;
   const toggle = (set: (next: Set<string>) => void, current: Set<string>, id: string) => {
@@ -502,39 +710,52 @@ function KbImportDialog({
             className="flex max-h-[72vh] w-[520px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/[0.06] dark:bg-stone-800 dark:ring-white/[0.08]"
           >
             <div className="border-b border-black/[0.06] px-5 py-4 dark:border-white/[0.06]">
-              <h2 className="text-[15px] font-semibold text-stone-900 dark:text-stone-50">导入内容</h2>
+              <h2 className="text-[15px] font-semibold text-stone-900 dark:text-stone-50">
+                {filter === 'notes' ? '导入笔记' : filter === 'clips' ? '导入剪藏' : '导入内容'}
+              </h2>
             </div>
             <div className="flex-1 overflow-y-auto px-5 py-4">
-              <div className="mb-3 text-[12px] font-semibold text-stone-500 dark:text-stone-400">笔记</div>
-              <div className="space-y-1">
-                {notes.slice(0, 80).map(note => (
-                  <label key={note.id} className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 hover:bg-black/[0.04] dark:hover:bg-white/[0.05]">
-                    <input
-                      type="checkbox"
-                      checked={noteIds.has(note.id)}
-                      onChange={() => toggle(setNoteIds, noteIds, note.id)}
-                      className="h-4 w-4"
-                    />
-                    <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-stone-800 dark:text-stone-100">{note.title || '无标题'}</span>
-                    <span className="text-[11px] tabular-nums text-stone-400">{formatDate(note.updated_at)}</span>
-                  </label>
-                ))}
-              </div>
-              <div className="mb-3 mt-5 text-[12px] font-semibold text-stone-500 dark:text-stone-400">剪藏</div>
-              <div className="space-y-1">
-                {clips.slice(0, 80).map(clip => (
-                  <label key={clip.id} className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 hover:bg-black/[0.04] dark:hover:bg-white/[0.05]">
-                    <input
-                      type="checkbox"
-                      checked={clipIds.has(clip.id)}
-                      onChange={() => toggle(setClipIds, clipIds, clip.id)}
-                      className="h-4 w-4"
-                    />
-                    <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-stone-800 dark:text-stone-100">{clip.title || clip.url}</span>
-                    <span className="text-[11px] tabular-nums text-stone-400">{formatDate(clip.saved_at)}</span>
-                  </label>
-                ))}
-              </div>
+              {filter !== 'clips' && notes.length > 0 && (
+                <>
+                  {filter === 'all' && <div className="mb-3 text-[12px] font-semibold text-stone-500 dark:text-stone-400">笔记</div>}
+                  <div className="space-y-1">
+                    {notes.slice(0, 80).map(note => (
+                      <label key={note.id} className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 hover:bg-black/[0.04] dark:hover:bg-white/[0.05]">
+                        <input
+                          type="checkbox"
+                          checked={noteIds.has(note.id)}
+                          onChange={() => toggle(setNoteIds, noteIds, note.id)}
+                          className="h-4 w-4"
+                        />
+                        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-stone-800 dark:text-stone-100">{note.title || '无标题'}</span>
+                        <span className="text-[11px] tabular-nums text-stone-400">{formatDate(note.updated_at)}</span>
+                      </label>
+                    ))}
+                  </div>
+                </>
+              )}
+              {filter !== 'notes' && clips.length > 0 && (
+                <>
+                  {filter === 'all' && <div className="mb-3 mt-5 text-[12px] font-semibold text-stone-500 dark:text-stone-400">剪藏</div>}
+                  <div className="space-y-1">
+                    {clips.slice(0, 80).map(clip => (
+                      <label key={clip.id} className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 hover:bg-black/[0.04] dark:hover:bg-white/[0.05]">
+                        <input
+                          type="checkbox"
+                          checked={clipIds.has(clip.id)}
+                          onChange={() => toggle(setClipIds, clipIds, clip.id)}
+                          className="h-4 w-4"
+                        />
+                        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-stone-800 dark:text-stone-100">{clip.title || clip.url}</span>
+                        <span className="text-[11px] tabular-nums text-stone-400">{formatDate(clip.saved_at)}</span>
+                      </label>
+                    ))}
+                  </div>
+                </>
+              )}
+              {notes.length === 0 && clips.length === 0 && (
+                <div className="py-10 text-center text-[13px] text-stone-400">暂无可导入的内容</div>
+              )}
             </div>
             <div className="flex items-center justify-end gap-2 border-t border-black/[0.06] bg-stone-50 px-5 py-3 dark:border-white/[0.06] dark:bg-stone-900/50">
               <button
@@ -574,7 +795,10 @@ type TreeProps = {
   onRenameFolder: (folder: KbFolderEntry) => void;
   onDeleteFolder: (folder: KbFolderEntry) => void;
   onDeleteNote: (note: KbNoteEntry, folderPath?: string) => void;
-  onCreateInFolder: (folderPath: string) => void;
+  onCreateNoteInFolder: (folderPath: string) => void;
+  onCreateFolderInFolder: (folderPath: string) => void;
+  onImportInFolder: (folderPath: string, filter: 'notes' | 'clips') => void;
+  onEnsureExpanded: (folderPath: string) => void;
 };
 
 function TreeLevel({
@@ -590,10 +814,14 @@ function TreeLevel({
   onRenameFolder,
   onDeleteFolder,
   onDeleteNote,
-  onCreateInFolder,
+  onCreateNoteInFolder,
+  onCreateFolderInFolder,
+  onImportInFolder,
+  onEnsureExpanded,
 }: TreeProps) {
   const key = path ?? '';
   const contents = contentsByPath[key] ?? { folders: [], notes: [] };
+  const [folderMenu, setFolderMenu] = useState<string | null>(null);
 
   return (
     <>
@@ -602,38 +830,51 @@ function TreeLevel({
         const isActive = activeFolderPath === folder.path && selectedNoteSlug == null;
         return (
           <div key={folder.path}>
-            <ContextMenu.Root>
-              <ContextMenu.Trigger asChild>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onSelectFolder(folder);
-                    onToggleFolder(folder);
-                  }}
-                  className={`group/folder flex min-h-9 w-full items-center gap-1.5 rounded-lg px-2 text-left text-[13px] font-semibold transition-colors ${
-                    isActive
-                      ? 'bg-black/[0.10] dark:bg-white/[0.12]'
-                      : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.05]'
-                  }`}
-                >
-                  <span className="relative grid h-4 w-4 shrink-0 place-items-center">
-                    <FolderIcon className="text-stone-500 transition-opacity group-hover/folder:opacity-0 dark:text-stone-400" />
-                    <span className={`absolute inset-0 grid place-items-center text-[10px] text-stone-500 opacity-0 transition-opacity group-hover/folder:opacity-100 ${isOpen ? 'rotate-90' : ''}`}>▶</span>
-                  </span>
-                  <span className="min-w-0 flex-1 truncate text-stone-900 dark:text-stone-100">{folder.name}</span>
-                  <span
-                    className="grid h-5 w-5 shrink-0 place-items-center rounded text-stone-400 opacity-0 transition-all hover:bg-black/[0.06] hover:text-stone-700 group-hover/folder:opacity-100 dark:hover:bg-white/[0.08] dark:hover:text-stone-100"
-                    onClick={(e) => { e.stopPropagation(); onCreateInFolder(folder.path); }}
-                    onKeyDown={() => {}}
-                    role="button"
-                    tabIndex={-1}
-                  >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14" /><path d="M12 5v14" /></svg>
-                  </span>
-                </button>
-              </ContextMenu.Trigger>
-              <ContextMenuContent onRename={() => onRenameFolder(folder)} onDelete={() => onDeleteFolder(folder)} />
-            </ContextMenu.Root>
+            <div
+              className={`group/folder relative flex min-h-9 w-full items-center gap-1.5 rounded-lg px-2 text-left text-[13px] font-semibold transition-colors ${
+                isActive
+                  ? 'bg-black/[0.10] dark:bg-white/[0.12]'
+                  : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.05]'
+              }`}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  onSelectFolder(folder);
+                  onToggleFolder(folder);
+                }}
+                className="flex min-w-0 flex-1 items-center gap-1.5"
+              >
+                <span className="relative grid h-4 w-4 shrink-0 place-items-center">
+                  <FolderIcon className="text-stone-500 transition-opacity group-hover/folder:opacity-0 dark:text-stone-400" />
+                  <span className={`absolute inset-0 grid place-items-center text-[10px] text-stone-500 opacity-0 transition-opacity group-hover/folder:opacity-100 ${isOpen ? 'rotate-90' : ''}`}>▶</span>
+                </span>
+                <span className="min-w-0 flex-1 truncate text-left text-stone-900 dark:text-stone-100">{folder.name}</span>
+              </button>
+              <span
+                className="grid h-5 w-5 shrink-0 place-items-center rounded text-stone-400 opacity-0 transition-all hover:bg-black/[0.06] hover:text-stone-700 group-hover/folder:opacity-100 dark:hover:bg-white/[0.08] dark:hover:text-stone-100"
+                onClick={(e) => { e.stopPropagation(); setFolderMenu(folderMenu === folder.path ? null : folder.path); }}
+                onKeyDown={() => {}}
+                role="button"
+                tabIndex={-1}
+              >
+                <MoreIcon />
+              </span>
+              {folderMenu === folder.path && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setFolderMenu(null)} onKeyDown={() => {}} role="presentation" />
+                  <div className="absolute right-0 top-[calc(100%+4px)] z-30 w-40 overflow-hidden rounded-xl bg-white p-1 shadow-[0_10px_28px_rgba(0,0,0,0.16)] ring-1 ring-black/[0.06] dark:bg-stone-800 dark:ring-white/[0.08]">
+                    <ActionMenuItem icon={<PlusIcon />} label="新建笔记" onClick={() => { setFolderMenu(null); onEnsureExpanded(folder.path); onCreateNoteInFolder(folder.path); }} />
+                    <ActionMenuItem icon={<PlusIcon />} label="新建文件夹" onClick={() => { setFolderMenu(null); onEnsureExpanded(folder.path); onCreateFolderInFolder(folder.path); }} />
+                    <ActionMenuItem icon={<ImportIcon />} label="导入笔记" onClick={() => { setFolderMenu(null); onEnsureExpanded(folder.path); onImportInFolder(folder.path, 'notes'); }} />
+                    <ActionMenuItem icon={<ImportIcon />} label="导入剪藏" onClick={() => { setFolderMenu(null); onEnsureExpanded(folder.path); onImportInFolder(folder.path, 'clips'); }} />
+                    <div className="my-1 border-t border-black/[0.06] dark:border-white/[0.08]" />
+                    <ActionMenuItem icon={<EditIcon />} label="重命名" onClick={() => { setFolderMenu(null); onRenameFolder(folder); }} />
+                    <ActionMenuItem icon={<TrashIcon />} label="删除" danger onClick={() => { setFolderMenu(null); onDeleteFolder(folder); }} />
+                  </div>
+                </>
+              )}
+            </div>
             {isOpen && (
               <div className="ml-5 border-l border-black/[0.06] pl-2 dark:border-white/[0.08]">
                 {loadingPaths.has(folder.path) ? (
@@ -652,7 +893,10 @@ function TreeLevel({
                     onRenameFolder={onRenameFolder}
                     onDeleteFolder={onDeleteFolder}
                     onDeleteNote={onDeleteNote}
-                    onCreateInFolder={onCreateInFolder}
+                    onCreateNoteInFolder={onCreateNoteInFolder}
+                    onCreateFolderInFolder={onCreateFolderInFolder}
+                    onImportInFolder={onImportInFolder}
+                    onEnsureExpanded={onEnsureExpanded}
                   />
                 )}
               </div>
@@ -673,7 +917,11 @@ function TreeLevel({
                   : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.05]'
               }`}
             >
-              <NoteIcon className="shrink-0 text-stone-500 dark:text-stone-400" />
+              {note.kind === 'clip' ? (
+                <ClipIcon className="shrink-0 text-stone-500 dark:text-stone-400" />
+              ) : (
+                <NoteIcon className="shrink-0 text-stone-500 dark:text-stone-400" />
+              )}
               <span className={`min-w-0 flex-1 truncate text-[13px] leading-tight text-stone-900 dark:text-stone-100 ${selectedNoteSlug === note.slug ? 'font-semibold' : 'font-medium'}`}>
                 {note.title || '无标题'}
               </span>
@@ -703,20 +951,20 @@ export function KnowledgeBase({
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [activeFolderPath, setActiveFolderPath] = useState<string | undefined>();
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
+  const [selectedClip, setSelectedClip] = useState<Clip | null>(null);
   const [selectedNoteFolderPath, setSelectedNoteFolderPath] = useState<string | undefined>();
-  const [loadingNote, setLoadingNote] = useState(false);
   const [kbDialog, setKbDialog] = useState<{ mode: 'create' } | { mode: 'edit'; kb: KBType } | null>(null);
   const [kbToDelete, setKbToDelete] = useState<KBType | null>(null);
   const [importMenuOpen, setImportMenuOpen] = useState(false);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
-  const [sourceDialogOpen, setSourceDialogOpen] = useState(false);
+  const [importFilter, setImportFilter] = useState<'all' | 'notes' | 'clips'>('all');
   const [newlyCreatedNoteId, setNewlyCreatedNoteId] = useState<string | null>(null);
   const [editorTheme, setEditorTheme] = useState<'light' | 'dark'>(() =>
     typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? 'dark' : 'light',
   );
 
-  const selectedNoteSlug = selectedNote?.id ?? null;
+  const selectedItemSlug = selectedNote?.id ?? selectedClip?.id ?? null;
 
   const refreshKbList = useCallback(async () => {
     setLoadingKbs(true);
@@ -762,6 +1010,7 @@ export function KnowledgeBase({
     setExpanded(new Set());
     setActiveFolderPath(undefined);
     setSelectedNote(null);
+    setSelectedClip(null);
     setSelectedNoteFolderPath(undefined);
     loadContents(kb.dir_name).catch(console.error);
   }, [loadContents]);
@@ -774,6 +1023,7 @@ export function KnowledgeBase({
         setExpanded(new Set());
         setActiveFolderPath(undefined);
         setSelectedNote(null);
+        setSelectedClip(null);
         setSelectedNoteFolderPath(undefined);
       }
       return;
@@ -800,6 +1050,7 @@ export function KnowledgeBase({
     if (selectedKb?.dir_name === kbToDelete.dir_name) {
       setSelectedKb(null);
       setSelectedNote(null);
+      setSelectedClip(null);
       setSelectedNoteFolderPath(undefined);
       setActiveFolderPath(undefined);
     }
@@ -818,17 +1069,28 @@ export function KnowledgeBase({
   }, [refreshKbList]);
 
   const selectNote = useCallback(async (note: KbNoteEntry, folderPath?: string) => {
-    setLoadingNote(true);
     setActiveFolderPath(folderPath);
     setSelectedNoteFolderPath(folderPath);
+    if (note.kind === 'clip') {
+      setSelectedNote(null);
+      setSelectedClip(clipFromEntry(note));
+      try {
+        const full = await getKbClip(note.slug);
+        if (full) setSelectedClip(full);
+      } catch (err) {
+        console.error(err);
+        setSelectedClip(null);
+      }
+      return;
+    }
+    setSelectedClip(null);
+    setSelectedNote(noteFromEntry(note));
     try {
       const full = await getNote(note.slug);
-      setSelectedNote(full);
+      if (full) setSelectedNote(full);
     } catch (err) {
       console.error(err);
       setSelectedNote(null);
-    } finally {
-      setLoadingNote(false);
     }
   }, []);
 
@@ -879,6 +1141,35 @@ export function KnowledgeBase({
     }
   }, [refreshPath, selectNote, selectedKb]);
 
+  const handleCreateFolderInFolder = useCallback(async (folderPath: string) => {
+    if (!selectedKb) return;
+    try {
+      const name = await createKbFolder(selectedKb.dir_name, folderPath, '新文件夹');
+      const newPath = makeChildPath(folderPath, name);
+      await refreshPath(folderPath);
+      setExpanded(prev => new Set(prev).add(newPath));
+      setActiveFolderPath(newPath);
+      await loadContents(selectedKb.dir_name, newPath);
+    } catch (err) {
+      console.error(err);
+    }
+  }, [loadContents, refreshPath, selectedKb]);
+
+  const handleImportInFolder = useCallback(async (folderPath: string, filter: 'notes' | 'clips') => {
+    if (!selectedKb) return;
+    setActiveFolderPath(folderPath);
+    setImportFilter(filter);
+    setImportDialogOpen(true);
+  }, [selectedKb]);
+
+  const ensureExpanded = useCallback((folderPath: string) => {
+    setExpanded(prev => {
+      const next = new Set(prev);
+      next.add(folderPath);
+      return next;
+    });
+  }, []);
+
   const handleCreateFolder = useCallback(async () => {
     if (!selectedKb) return;
     const targetPath = activeFolderPath;
@@ -908,28 +1199,13 @@ export function KnowledgeBase({
       for (const id of clipIds) {
         const source = await getClip(id);
         if (!source) continue;
-        const note = await createKbNote(selectedKb.dir_name, targetPath, source.title || source.site_name || '剪藏');
-        const content = source.content_md || source.excerpt || source.url;
-        await updateNote(note.slug, { content_md: content });
+        await createKbClip(selectedKb.dir_name, targetPath, source);
       }
       await refreshPath(targetPath);
     } catch (err) {
       console.error(err);
     }
   }, [activeFolderPath, refreshPath, selectedKb]);
-
-  const handleAddSourceFolder = useCallback(async (url: string) => {
-    if (!selectedKb) return;
-    const result = await addSubscription(url);
-    const targetPath = activeFolderPath;
-    const folderName = result.source.title || result.source.site_url || result.source.feed_url || '订阅';
-    const name = await createKbFolder(selectedKb.dir_name, targetPath ?? '', folderName);
-    const newPath = makeChildPath(targetPath, name);
-    await refreshPath(targetPath);
-    setExpanded(prev => new Set(prev).add(newPath));
-    setActiveFolderPath(newPath);
-    await loadContents(selectedKb.dir_name, newPath);
-  }, [activeFolderPath, loadContents, refreshPath, selectedKb]);
 
   const handleRenameFolder = useCallback(async (folder: KbFolderEntry) => {
     if (!selectedKb) return;
@@ -958,10 +1234,14 @@ export function KnowledgeBase({
         setSelectedNote(null);
         setSelectedNoteFolderPath(undefined);
       }
+      if (selectedClip?.id.startsWith(`library/${selectedKb.dir_name}/${folder.path}/`)) {
+        setSelectedClip(null);
+        setSelectedNoteFolderPath(undefined);
+      }
     } catch (err) {
       console.error(err);
     }
-  }, [activeFolderPath, refreshPath, selectedKb, selectedNote]);
+  }, [activeFolderPath, refreshPath, selectedKb, selectedClip, selectedNote]);
 
   const handleDeleteFolder = useCallback(async (folder: KbFolderEntry) => {
     if (!selectedKb) return;
@@ -989,26 +1269,34 @@ export function KnowledgeBase({
         setSelectedNote(null);
         setSelectedNoteFolderPath(undefined);
       }
+      if (selectedClip?.id.startsWith(`library/${selectedKb.dir_name}/${folder.path}/`)) {
+        setSelectedClip(null);
+        setSelectedNoteFolderPath(undefined);
+      }
     } catch (err) {
       console.error(err);
     }
-  }, [activeFolderPath, refreshPath, selectedKb, selectedNote]);
+  }, [activeFolderPath, refreshPath, selectedKb, selectedClip, selectedNote]);
 
   const handleDeleteSelectedNote = useCallback(async (noteId?: string, folderPathOverride?: string) => {
-    const id = noteId ?? selectedNote?.id;
+    const id = noteId ?? selectedNote?.id ?? selectedClip?.id;
     if (!id) return;
     try {
       await deleteNote(id);
       const folderPath = folderPathOverride ?? selectedNoteFolderPath;
-      if (!selectedNote || selectedNote.id === id) {
+      if (selectedNote?.id === id) {
         setSelectedNote(null);
+        setSelectedNoteFolderPath(undefined);
+      }
+      if (selectedClip?.id === id) {
+        setSelectedClip(null);
         setSelectedNoteFolderPath(undefined);
       }
       await refreshPath(folderPath);
     } catch (err) {
       console.error(err);
     }
-  }, [refreshPath, selectedNote, selectedNoteFolderPath]);
+  }, [refreshPath, selectedClip, selectedNote, selectedNoteFolderPath]);
 
   const handleUpdateSelectedNote = useCallback((patch: { title?: string; content_md?: string }, targetNoteId?: string) => {
     const id = targetNoteId ?? selectedNote?.id;
@@ -1105,8 +1393,8 @@ export function KnowledgeBase({
 
   return (
     <>
-    <div className={`flex h-full overflow-hidden ${hidden ? 'w-0' : 'flex-1'}`}>
-      <aside className="relative flex w-[261px] shrink-0 flex-col overflow-hidden border-r border-black/[0.10] bg-white dark:border-white/[0.10] dark:bg-stone-900">
+    <div className={`flex h-full min-h-0 overflow-hidden ${hidden ? 'w-0' : 'flex-1'}`}>
+      <aside className="relative flex min-h-0 w-[261px] shrink-0 flex-col overflow-hidden border-r border-black/[0.10] bg-white dark:border-white/[0.10] dark:bg-stone-900">
         <div className="sticky top-0 z-10 flex h-12 shrink-0 items-center gap-2 border-b border-black/[0.06] bg-white/80 px-3 backdrop-blur-md dark:border-white/[0.06] dark:bg-stone-900/80">
           <div className="min-w-0 flex-1 truncate text-[14px] font-bold text-stone-900 dark:text-stone-100">
             {selectedKb.name}
@@ -1124,16 +1412,29 @@ export function KnowledgeBase({
               <ImportIcon />
             </button>
             {importMenuOpen && (
+              <>
+              <div className="fixed inset-0 z-20" onClick={() => setImportMenuOpen(false)} onKeyDown={() => {}} role="presentation" />
               <div className="absolute right-0 top-[calc(100%_+_6px)] z-30 w-40 overflow-hidden rounded-xl bg-white p-1 shadow-[0_10px_28px_rgba(0,0,0,0.16)] ring-1 ring-black/[0.06] dark:bg-stone-800 dark:ring-white/[0.08]">
                 <ActionMenuItem
-                  icon={<ImportIcon />}
-                  label="剪藏 / 笔记"
+                  icon={<NoteIcon />}
+                  label="笔记"
                   onClick={() => {
                     setImportMenuOpen(false);
+                    setImportFilter('notes');
+                    setImportDialogOpen(true);
+                  }}
+                />
+                <ActionMenuItem
+                  icon={<ImportIcon />}
+                  label="剪藏"
+                  onClick={() => {
+                    setImportMenuOpen(false);
+                    setImportFilter('clips');
                     setImportDialogOpen(true);
                   }}
                 />
               </div>
+              </>
             )}
           </div>
           <div className="relative">
@@ -1149,6 +1450,8 @@ export function KnowledgeBase({
               <PlusIcon />
             </button>
             {addMenuOpen && (
+              <>
+              <div className="fixed inset-0 z-20" onClick={() => setAddMenuOpen(false)} onKeyDown={() => {}} role="presentation" />
               <div className="absolute right-0 top-[calc(100%_+_6px)] z-30 w-36 overflow-hidden rounded-xl bg-white p-1 shadow-[0_10px_28px_rgba(0,0,0,0.16)] ring-1 ring-black/[0.06] dark:bg-stone-800 dark:ring-white/[0.08]">
                 <ActionMenuItem
                   icon={<NoteIcon />}
@@ -1166,19 +1469,12 @@ export function KnowledgeBase({
                     handleCreateFolder();
                   }}
                 />
-                <ActionMenuItem
-                  icon={<RssIcon />}
-                  label="订阅博主"
-                  onClick={() => {
-                    setAddMenuOpen(false);
-                    setSourceDialogOpen(true);
-                  }}
-                />
               </div>
+              </>
             )}
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto sidebar-scroll px-2 py-1.5">
+        <div className="min-h-0 flex-1 overflow-y-auto sidebar-scroll px-2 py-1.5">
           {loadingPaths.has('') && !contentsByPath[''] ? (
             <div className="flex h-full items-center justify-center text-sm text-stone-400">加载中…</div>
           ) : treeEmpty ? (
@@ -1188,27 +1484,35 @@ export function KnowledgeBase({
               contentsByPath={contentsByPath}
               expanded={expanded}
               activeFolderPath={activeFolderPath}
-              selectedNoteSlug={selectedNoteSlug}
+              selectedNoteSlug={selectedItemSlug}
               loadingPaths={loadingPaths}
               onToggleFolder={toggleFolder}
               onSelectFolder={(folder) => {
                 setActiveFolderPath(folder.path);
                 setSelectedNote(null);
+                setSelectedClip(null);
                 setSelectedNoteFolderPath(undefined);
               }}
               onSelectNote={selectNote}
               onRenameFolder={handleRenameFolder}
               onDeleteFolder={handleDeleteFolder}
               onDeleteNote={(note, folderPath) => handleDeleteSelectedNote(note.slug, folderPath)}
-              onCreateInFolder={handleCreateInFolder}
+              onCreateNoteInFolder={handleCreateInFolder}
+              onCreateFolderInFolder={handleCreateFolderInFolder}
+              onImportInFolder={handleImportInFolder}
+              onEnsureExpanded={ensureExpanded}
             />
           )}
         </div>
       </aside>
 
-      <div className="min-w-0 flex-1 bg-white dark:bg-stone-900">
-        {loadingNote ? (
-          <div className="flex h-full items-center justify-center text-sm text-stone-400">加载中…</div>
+      <div className="min-h-0 min-w-0 flex-1 overflow-hidden bg-white dark:bg-stone-900">
+        {selectedClip ? (
+          <KbClipReader
+            key={selectedClip.id}
+            clip={selectedClip}
+            onDelete={(id) => handleDeleteSelectedNote(id)}
+          />
         ) : selectedNote ? (
           <NoteEditor
             key={selectedNote.id}
@@ -1241,11 +1545,7 @@ export function KnowledgeBase({
       open={importDialogOpen}
       onClose={() => setImportDialogOpen(false)}
       onSubmit={handleImportToKb}
-    />
-    <AddSourceDialog
-      open={sourceDialogOpen}
-      onClose={() => setSourceDialogOpen(false)}
-      onSubmit={handleAddSourceFolder}
+      filter={importFilter}
     />
     </>
   );
