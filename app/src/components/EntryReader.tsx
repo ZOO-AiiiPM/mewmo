@@ -16,6 +16,25 @@ type Props = {
   onClipSave?: (url: string) => Promise<void>;
 };
 
+function isNeutralColor(c: string): boolean {
+  if (!c) return false;
+  const m = c.match(/rgba?\((\d+)[\s,]+(\d+)[\s,]+(\d+)/);
+  if (m) {
+    const channels = [+m[1], +m[2], +m[3]];
+    return Math.max(...channels) - Math.min(...channels) < 30;
+  }
+  if (!c.startsWith('#')) return false;
+  const hex = c.slice(1);
+  const channels = hex.length === 3
+    ? [hex[0] + hex[0], hex[1] + hex[1], hex[2] + hex[2]].map(v => parseInt(v, 16))
+    : hex.length === 6
+      ? [hex.slice(0, 2), hex.slice(2, 4), hex.slice(4, 6)].map(v => parseInt(v, 16))
+      : null;
+  if (!channels) return false;
+  const [r, g, b] = channels;
+  return Math.max(r, g, b) - Math.min(r, g, b) < 30;
+}
+
 function fmtPublished(ts: number | null): string {
   if (!ts) return '';
   const d = new Date(ts * 1000);
@@ -60,6 +79,32 @@ export function EntryReader({
     if (!root) return;
     root.innerHTML = contentHtml;
   }, [contentHtml]);
+
+  // 深色模式下剥掉灰阶 inline color，保留彩色装饰；切主题或 DOM 重渲染时同步刷新。
+  useEffect(() => {
+    const root = contentRef.current;
+    if (!root) return;
+    const apply = () => {
+      const isDark = document.documentElement.classList.contains('dark');
+      root.querySelectorAll<HTMLElement>('[style]').forEach(el => {
+        if (el.dataset.origColor === undefined) {
+          el.dataset.origColor = el.style.color || '';
+        }
+        const oc = el.dataset.origColor || '';
+        if (!isDark) { el.style.color = oc; return; }
+        el.style.color = isNeutralColor(oc) ? '' : oc;
+      });
+    };
+    apply();
+    const themeObs = new MutationObserver(apply);
+    themeObs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    const contentObs = new MutationObserver(apply);
+    contentObs.observe(root, { childList: true, subtree: true });
+    return () => {
+      themeObs.disconnect();
+      contentObs.disconnect();
+    };
+  }, [entry?.id]);
 
   // 切 entry 时回到顶部 + 重置 title fade
   useEffect(() => {
