@@ -640,6 +640,11 @@ type TreeProps = {
   activeFolderPath?: string;
   selectedNoteSlug: string | null;
   loadingPaths: Set<string>;
+  multiSelectMode: boolean;
+  selectedSlugs: Set<string>;
+  selectedFolderPaths: Set<string>;
+  onToggleSlug: (slug: string) => void;
+  onToggleFolderPath: (path: string) => void;
   onToggleFolder: (folder: KbFolderEntry) => void;
   onSelectFolder: (folder: KbFolderEntry) => void;
   onSelectNote: (note: KbNoteEntry, folderPath?: string) => void;
@@ -661,6 +666,11 @@ function TreeLevel({
   activeFolderPath,
   selectedNoteSlug,
   loadingPaths,
+  multiSelectMode,
+  selectedSlugs,
+  selectedFolderPaths,
+  onToggleSlug,
+  onToggleFolderPath,
   onToggleFolder,
   onSelectFolder,
   onSelectNote,
@@ -688,23 +698,48 @@ function TreeLevel({
           <div key={folder.path}>
             <div
               className={`group/folder relative flex min-h-9 w-full items-center gap-1.5 rounded-lg px-2 text-left text-[13px] font-semibold transition-colors ${
-                isActive
+                multiSelectMode && selectedFolderPaths.has(folder.path)
+                  ? 'bg-blue-50 dark:bg-blue-900/20'
+                  : isActive
                   ? 'bg-black/[0.10] dark:bg-white/[0.12]'
                   : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.05]'
               }`}
             >
+              {multiSelectMode && (
+                <span
+                  onClick={() => onToggleFolderPath(folder.path)}
+                  className={`grid h-4 w-4 shrink-0 cursor-pointer place-items-center rounded border transition-colors ${
+                    selectedFolderPaths.has(folder.path)
+                      ? 'border-blue-500 bg-blue-500 text-white'
+                      : 'border-stone-300 dark:border-stone-600'
+                  }`}
+                  role="checkbox"
+                  aria-checked={selectedFolderPaths.has(folder.path)}
+                  tabIndex={-1}
+                >
+                  {selectedFolderPaths.has(folder.path) && (
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                  )}
+                </span>
+              )}
               <button
                 type="button"
                 onClick={() => {
-                  onSelectFolder(folder);
-                  onToggleFolder(folder);
+                  if (multiSelectMode) {
+                    onToggleFolderPath(folder.path);
+                  } else {
+                    onSelectFolder(folder);
+                    onToggleFolder(folder);
+                  }
                 }}
                 className="flex min-w-0 flex-1 items-center gap-1.5"
               >
-                <span className="relative grid h-4 w-4 shrink-0 place-items-center">
-                  <FolderIcon className="text-stone-500 transition-opacity group-hover/folder:opacity-0 dark:text-stone-400" />
-                  <span className={`absolute inset-0 grid place-items-center text-[10px] text-stone-500 opacity-0 transition-opacity group-hover/folder:opacity-100 ${isOpen ? 'rotate-90' : ''}`}>▶</span>
-                </span>
+                {!multiSelectMode && (
+                  <span className="relative grid h-4 w-4 shrink-0 place-items-center">
+                    <FolderIcon className="text-stone-500 transition-opacity group-hover/folder:opacity-0 dark:text-stone-400" />
+                    <span className={`absolute inset-0 grid place-items-center text-[10px] text-stone-500 opacity-0 transition-opacity group-hover/folder:opacity-100 ${isOpen ? 'rotate-90' : ''}`}>▶</span>
+                  </span>
+                )}
                 <span className="min-w-0 flex-1 truncate text-left text-stone-900 dark:text-stone-100">{folder.name}</span>
               </button>
               <span
@@ -732,7 +767,7 @@ function TreeLevel({
                 </>
               )}
             </div>
-            {isOpen && (
+            {(isOpen || multiSelectMode) && (
               <div className="ml-5 border-l border-black/[0.06] pl-2 dark:border-white/[0.08]">
                 {loadingPaths.has(folder.path) ? (
                   <div className="px-2 py-2 text-[12px] text-stone-400">加载中…</div>
@@ -744,6 +779,11 @@ function TreeLevel({
                     activeFolderPath={activeFolderPath}
                     selectedNoteSlug={selectedNoteSlug}
                     loadingPaths={loadingPaths}
+                    multiSelectMode={multiSelectMode}
+                    selectedSlugs={selectedSlugs}
+                    selectedFolderPaths={selectedFolderPaths}
+                    onToggleSlug={onToggleSlug}
+                    onToggleFolderPath={onToggleFolderPath}
                     onToggleFolder={onToggleFolder}
                     onSelectFolder={onSelectFolder}
                     onSelectNote={onSelectNote}
@@ -769,14 +809,33 @@ function TreeLevel({
           <ContextMenu.Trigger asChild>
             <div
               className={`group/note relative flex min-h-9 w-full items-center gap-2 rounded-lg px-2 transition-colors ${
-                selectedNoteSlug === note.slug
+                multiSelectMode && selectedSlugs.has(note.slug)
+                  ? 'bg-blue-50 dark:bg-blue-900/20'
+                  : selectedNoteSlug === note.slug
                   ? 'bg-black/[0.10] dark:bg-white/[0.12]'
                   : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.05]'
               }`}
             >
+              {multiSelectMode && (
+                <span
+                  onClick={() => onToggleSlug(note.slug)}
+                  className={`grid h-4 w-4 shrink-0 cursor-pointer place-items-center rounded border transition-colors ${
+                    selectedSlugs.has(note.slug)
+                      ? 'border-blue-500 bg-blue-500 text-white'
+                      : 'border-stone-300 dark:border-stone-600'
+                  }`}
+                  role="checkbox"
+                  aria-checked={selectedSlugs.has(note.slug)}
+                  tabIndex={-1}
+                >
+                  {selectedSlugs.has(note.slug) && (
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                  )}
+                </span>
+              )}
               <button
                 type="button"
-                onClick={() => onSelectNote(note, path)}
+                onClick={() => multiSelectMode ? onToggleSlug(note.slug) : onSelectNote(note, path)}
                 className="flex min-w-0 flex-1 items-center gap-2 text-left"
               >
                 {note.kind === 'clip' ? (
@@ -846,6 +905,9 @@ export function KnowledgeBase({
   >(null);
   const [importMenuOpen, setImportMenuOpen] = useState(false);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const [multiSelectMode, setMultiSelectMode] = useState(false);
+  const [selectedSlugs, setSelectedSlugs] = useState<Set<string>>(new Set());
+  const [selectedFolderPaths, setSelectedFolderPaths] = useState<Set<string>>(new Set());
   const importMenuRef = useRef<HTMLDivElement>(null);
   const addMenuRef = useRef<HTMLDivElement>(null);
 
@@ -1024,16 +1086,15 @@ export function KnowledgeBase({
 
   const handleCreateNote = useCallback(async () => {
     if (!selectedKb) return;
-    const targetPath = activeFolderPath;
     try {
-      const note = await createKbNote(selectedKb.dir_name, targetPath, '无标题');
-      await refreshPath(targetPath);
+      const note = await createKbNote(selectedKb.dir_name, undefined, '无标题');
+      await refreshPath(undefined);
       setNewlyCreatedNoteId(note.slug);
-      await selectNote(note, targetPath);
+      await selectNote(note, undefined);
     } catch (err) {
       console.error(err);
     }
-  }, [activeFolderPath, refreshPath, selectNote, selectedKb]);
+  }, [refreshPath, selectNote, selectedKb]);
 
   const handleCreateInFolder = useCallback(async (folderPath: string) => {
     if (!selectedKb) return;
@@ -1078,18 +1139,17 @@ export function KnowledgeBase({
 
   const handleCreateFolder = useCallback(async () => {
     if (!selectedKb) return;
-    const targetPath = activeFolderPath;
     try {
-      const name = await createKbFolder(selectedKb.dir_name, targetPath ?? '', '新文件夹');
-      const newPath = makeChildPath(targetPath, name);
-      await refreshPath(targetPath);
+      const name = await createKbFolder(selectedKb.dir_name, '', '新文件夹');
+      const newPath = makeChildPath(undefined, name);
+      await refreshPath(undefined);
       setExpanded(prev => new Set(prev).add(newPath));
       setActiveFolderPath(newPath);
       await loadContents(selectedKb.dir_name, newPath);
     } catch (err) {
       console.error(err);
     }
-  }, [activeFolderPath, loadContents, refreshPath, selectedKb]);
+  }, [loadContents, refreshPath, selectedKb]);
 
   const handleImportToKb = useCallback(async ({ noteIds, clipIds }: { noteIds: string[]; clipIds: string[] }) => {
     if (!selectedKb) return;
@@ -1376,61 +1436,80 @@ export function KnowledgeBase({
     <div className={`flex h-full min-h-0 overflow-hidden ${hidden ? 'w-0' : 'flex-1'}`}>
       <aside className={`relative flex min-h-0 w-[261px] shrink-0 flex-col overflow-hidden border-r border-black/[0.10] bg-white dark:border-white/[0.10] dark:bg-stone-900 ${editorExpanded ? 'hidden' : ''}`}>
         <div className="sticky top-0 z-10 flex h-12 shrink-0 items-center gap-2 border-b border-black/[0.06] bg-white/80 px-3 backdrop-blur-md dark:border-white/[0.06] dark:bg-stone-900/80">
+          {multiSelectMode ? (
+            <>
+              <button
+                type="button"
+                onClick={() => { setMultiSelectMode(false); setSelectedSlugs(new Set()); setSelectedFolderPaths(new Set()); }}
+                className="grid h-7 w-7 place-items-center rounded-md text-stone-500 transition-colors hover:bg-black/[0.04] hover:text-stone-900 dark:text-stone-400 dark:hover:bg-white/[0.08] dark:hover:text-stone-100"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+              </button>
+              <span className="min-w-0 flex-1 text-[13px] font-medium text-stone-600 dark:text-stone-300">
+                已选 {selectedSlugs.size + selectedFolderPaths.size} 项
+              </span>
+              <button
+                type="button"
+                title="移动"
+                disabled={selectedSlugs.size + selectedFolderPaths.size === 0}
+                onClick={() => {
+                  if (selectedSlugs.size === 0 && selectedFolderPaths.size === 0) return;
+                  if (selectedSlugs.size > 0) {
+                    const first = [...selectedSlugs][0];
+                    setMoveState({ kind: 'note', note: { slug: first, title: '', kind: 'note' } as KbNoteEntry, sourcePath: activeFolderPath ?? '' });
+                  } else {
+                    const first = [...selectedFolderPaths][0];
+                    setMoveState({ kind: 'folder', folder: { path: first, name: first.split('/').pop() ?? '' } as KbFolderEntry });
+                  }
+                }}
+                className="grid h-7 w-7 place-items-center rounded-md text-stone-500 transition-colors hover:bg-black/[0.04] hover:text-stone-900 disabled:opacity-30 dark:text-stone-400 dark:hover:bg-white/[0.08] dark:hover:text-stone-100"
+              >
+                <MoveIcon />
+              </button>
+              <button
+                type="button"
+                title="删除"
+                disabled={selectedSlugs.size + selectedFolderPaths.size === 0}
+                onClick={async () => {
+                  if (selectedSlugs.size === 0 && selectedFolderPaths.size === 0) return;
+                  for (const slug of selectedSlugs) {
+                    await deleteNote(slug);
+                  }
+                  for (const fp of selectedFolderPaths) {
+                    await deleteKbFolder(selectedKb!.dir_name, fp);
+                  }
+                  setSelectedSlugs(new Set());
+                  setSelectedFolderPaths(new Set());
+                  setMultiSelectMode(false);
+                  await refreshPath(activeFolderPath);
+                }}
+                className="grid h-7 w-7 place-items-center rounded-md text-red-500 transition-colors hover:bg-red-500/10 disabled:opacity-30 dark:text-red-400"
+              >
+                <TrashIcon />
+              </button>
+            </>
+          ) : (
+            <>
           <div className="min-w-0 flex-1 truncate text-[14px] font-bold text-stone-900 dark:text-stone-100">
             {selectedKb.name}
           </div>
           <div className="relative">
             <button
               type="button"
-              title="导入"
-              onClick={() => {
-                setAddMenuOpen(false);
-                setImportMenuOpen(v => !v);
-              }}
-              className="grid h-7 w-7 place-items-center rounded-md text-stone-500 transition-colors hover:bg-black/[0.04] hover:text-stone-900 dark:text-stone-400 dark:hover:bg-white/[0.08] dark:hover:text-stone-100"
-            >
-              <ImportIcon />
-            </button>
-            {importMenuOpen && (
-              <div ref={importMenuRef} className="absolute right-0 top-[calc(100%_+_6px)] z-30 w-40 overflow-hidden rounded-xl bg-white p-1 shadow-[0_10px_28px_rgba(0,0,0,0.16)] ring-1 ring-black/[0.06] dark:bg-stone-800 dark:ring-white/[0.08]">
-                <ActionMenuItem
-                  icon={<NoteIcon />}
-                  label="笔记"
-                  onClick={() => {
-                    setImportMenuOpen(false);
-                    setImportFilter('notes');
-                    setImportDialogOpen(true);
-                  }}
-                />
-                <ActionMenuItem
-                  icon={<ClipIcon />}
-                  label="剪藏"
-                  onClick={() => {
-                    setImportMenuOpen(false);
-                    setImportFilter('clips');
-                    setImportDialogOpen(true);
-                  }}
-                />
-              </div>
-            )}
-          </div>
-          <div className="relative">
-            <button
-              type="button"
-              title="添加"
+              title="更多操作"
               onClick={() => {
                 setImportMenuOpen(false);
                 setAddMenuOpen(v => !v);
               }}
               className="grid h-7 w-7 place-items-center rounded-md text-stone-500 transition-colors hover:bg-black/[0.04] hover:text-stone-900 dark:text-stone-400 dark:hover:bg-white/[0.08] dark:hover:text-stone-100"
             >
-              <PlusIcon />
+              <MoreIcon />
             </button>
             {addMenuOpen && (
-              <div ref={addMenuRef} className="absolute right-0 top-[calc(100%_+_6px)] z-30 w-36 overflow-hidden rounded-xl bg-white p-1 shadow-[0_10px_28px_rgba(0,0,0,0.16)] ring-1 ring-black/[0.06] dark:bg-stone-800 dark:ring-white/[0.08]">
+              <div ref={addMenuRef} className="absolute right-0 top-[calc(100%_+_6px)] z-30 w-40 overflow-hidden rounded-xl bg-white p-1 shadow-[0_10px_28px_rgba(0,0,0,0.16)] ring-1 ring-black/[0.06] dark:bg-stone-800 dark:ring-white/[0.08]">
                 <ActionMenuItem
                   icon={<NoteIcon />}
-                  label="笔记"
+                  label="添加笔记"
                   onClick={() => {
                     setAddMenuOpen(false);
                     handleCreateNote();
@@ -1438,15 +1517,47 @@ export function KnowledgeBase({
                 />
                 <ActionMenuItem
                   icon={<FolderIcon />}
-                  label="文件夹"
+                  label="添加文件夹"
                   onClick={() => {
                     setAddMenuOpen(false);
                     handleCreateFolder();
                   }}
                 />
+                <div className="my-1 h-px bg-black/[0.06] dark:bg-white/[0.06]" />
+                <ActionMenuItem
+                  icon={<ImportIcon />}
+                  label="导入笔记"
+                  onClick={() => {
+                    setAddMenuOpen(false);
+                    setImportFilter('notes');
+                    setImportDialogOpen(true);
+                  }}
+                />
+                <ActionMenuItem
+                  icon={<ImportIcon />}
+                  label="导入剪藏"
+                  onClick={() => {
+                    setAddMenuOpen(false);
+                    setImportFilter('clips');
+                    setImportDialogOpen(true);
+                  }}
+                />
+                <div className="my-1 h-px bg-black/[0.06] dark:bg-white/[0.06]" />
+                <ActionMenuItem
+                  icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>}
+                  label="多选"
+                  onClick={() => {
+                    setAddMenuOpen(false);
+                    setMultiSelectMode(true);
+                    setSelectedSlugs(new Set());
+                    setSelectedFolderPaths(new Set());
+                  }}
+                />
               </div>
             )}
           </div>
+            </>
+          )}
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto sidebar-scroll px-2 py-1.5">
           {loadingPaths.has('') && !contentsByPath[''] ? (
@@ -1460,6 +1571,25 @@ export function KnowledgeBase({
               activeFolderPath={activeFolderPath}
               selectedNoteSlug={selectedItemSlug}
               loadingPaths={loadingPaths}
+              multiSelectMode={multiSelectMode}
+              selectedSlugs={selectedSlugs}
+              selectedFolderPaths={selectedFolderPaths}
+              onToggleSlug={(slug) => {
+                setSelectedSlugs(prev => {
+                  const next = new Set(prev);
+                  if (next.has(slug)) next.delete(slug);
+                  else next.add(slug);
+                  return next;
+                });
+              }}
+              onToggleFolderPath={(p) => {
+                setSelectedFolderPaths(prev => {
+                  const next = new Set(prev);
+                  if (next.has(p)) next.delete(p);
+                  else next.add(p);
+                  return next;
+                });
+              }}
               onToggleFolder={toggleFolder}
               onSelectFolder={(folder) => {
                 setActiveFolderPath(folder.path);

@@ -104,22 +104,7 @@ export function MoveTargetPicker({
     return () => window.removeEventListener('keydown', handler);
   }, [open, onCancel]);
 
-  // 仅展开（不折叠、不改选中）——行点击「选择的同时并展开」用
-  const ensureExpanded = useCallback(
-    (kb: string, path: string) => {
-      const key = nodeKey(kb, path);
-      setExpanded(prev => {
-        if (prev.has(key)) return prev;
-        const next = new Set(prev);
-        next.add(key);
-        if (!childrenByKey[key]) loadChildren(kb, path);
-        return next;
-      });
-    },
-    [childrenByKey, loadChildren]
-  );
-
-  // chevron 专用：纯切换展开/折叠
+  // chevron / 行点击：切换展开/折叠
   const toggleExpand = useCallback(
     (kb: string, path: string) => {
       const key = nodeKey(kb, path);
@@ -150,10 +135,10 @@ export function MoveTargetPicker({
     return false;
   };
 
-  // 行点击：可选则选中，并始终展开（点知识库 = 选中 + 展开）
-  const onRowClick = (kb: string, path: string, disabled: boolean) => {
+  // 行点击：可选则选中；可展开则切换展开/折叠（点文件夹展开，再点折叠）
+  const onRowClick = (kb: string, path: string, disabled: boolean, canExpand: boolean) => {
     if (!disabled) setSelected({ kb, path });
-    ensureExpanded(kb, path);
+    if (canExpand) toggleExpand(kb, path);
   };
 
   const isSelected = (kb: string, path: string) => selected?.kb === kb && selected?.path === path;
@@ -179,15 +164,20 @@ export function MoveTargetPicker({
       return (
         <div key={nodeKey(kb, f.path)}>
           <div className="flex items-center" style={{ paddingLeft: `${depth * 16}px` }}>
-            <button
-              type="button"
-              onClick={() => toggleExpand(kb, f.path)}
-              className="grid h-6 w-6 shrink-0 place-items-center rounded text-stone-400 hover:text-stone-600 dark:hover:text-stone-200"
-              aria-label="展开"
-            >
-              <Chevron open={isExpanded} />
-            </button>
-            <button type="button" disabled={disabled} onClick={() => onRowClick(kb, f.path, disabled)} className={rowClass(kb, f.path, disabled)}>
+            {f.has_subfolders ? (
+              <button
+                type="button"
+                onClick={() => toggleExpand(kb, f.path)}
+                className="grid h-6 w-6 shrink-0 place-items-center rounded text-stone-400 hover:text-stone-600 dark:hover:text-stone-200"
+                aria-label="展开"
+              >
+                <Chevron open={isExpanded} />
+              </button>
+            ) : (
+              // 叶子文件夹：无子文件夹，不显示折叠三角，占位保持对齐
+              <span className="h-6 w-6 shrink-0" />
+            )}
+            <button type="button" disabled={disabled} onClick={() => onRowClick(kb, f.path, disabled, f.has_subfolders)} className={rowClass(kb, f.path, disabled)}>
               <span className="shrink-0 text-stone-400 dark:text-stone-500">
                 <FolderGlyph />
               </span>
@@ -215,7 +205,7 @@ export function MoveTargetPicker({
           >
             <Chevron open={isExpanded} />
           </button>
-          <button type="button" disabled={disabled} onClick={() => onRowClick(kb.dir_name, '', disabled)} className={rowClass(kb.dir_name, '', disabled)}>
+          <button type="button" disabled={disabled} onClick={() => onRowClick(kb.dir_name, '', disabled, true)} className={rowClass(kb.dir_name, '', disabled)}>
             <span className="h-4 w-3 shrink-0 rounded-[2px]" style={{ background: coverColor(kb.color) }} />
             <span className="min-w-0 flex-1 truncate">{kb.name}</span>
           </button>
@@ -252,7 +242,7 @@ export function MoveTargetPicker({
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.96 }}
             transition={{ duration: 0.15, ease: [0.22, 0.61, 0.36, 1] }}
-            className="flex max-h-[70vh] w-[400px] flex-col overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-black/5 dark:bg-stone-800 dark:ring-white/10"
+            className="flex h-[520px] max-h-[85vh] w-[400px] flex-col overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-black/5 dark:bg-stone-800 dark:ring-white/10"
           >
             <div className="px-5 pb-1 pt-5">
               <h2 className="text-[16px] font-semibold text-stone-900 dark:text-stone-100">移动文件/文件夹至</h2>

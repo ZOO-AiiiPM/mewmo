@@ -10,18 +10,17 @@ type Props = {
   aiOpen: boolean;
   expanded: boolean;
   onExpand: () => void;
-  onDelete: () => void;
+  onDelete?: () => void;
   onCreate: () => void;
-  onImport: () => void;
-  canBack: boolean;
-  canForward: boolean;
-  onBack: () => void;
-  onForward: () => void;
+  onImport?: () => void;
+  canBack?: boolean;
+  canForward?: boolean;
+  onBack?: () => void;
+  onForward?: () => void;
 };
 
 const BTN = "w-8 h-8 flex items-center justify-center rounded-md text-stone-600 dark:text-stone-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors";
 const BTN_DISABLED = "w-8 h-8 flex items-center justify-center rounded-md text-stone-600 dark:text-stone-300 hover:bg-black/5 dark:hover:bg-white/10 disabled:hover:bg-transparent disabled:text-stone-300 disabled:dark:text-stone-600 disabled:cursor-not-allowed transition-colors";
-const BTN_DELETE = "w-8 h-8 flex items-center justify-center rounded-md text-stone-600 dark:text-stone-300 hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 transition-colors";
 
 /**
  * mewmo 笔记（NoteEditor）正文字号，px。HTML 笔记按此动态缩放对齐：
@@ -110,6 +109,24 @@ export function HtmlReader({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [titleInToolbar, setTitleInToolbar] = useState(false);
   const [tocRefreshKey, setTocRefreshKey] = useState(0);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!moreMenuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
+        setMoreMenuOpen(false);
+      }
+    };
+    const onBlur = () => setMoreMenuOpen(false);
+    window.addEventListener('mousedown', handler);
+    window.addEventListener('blur', onBlur);
+    return () => {
+      window.removeEventListener('mousedown', handler);
+      window.removeEventListener('blur', onBlur);
+    };
+  }, [moreMenuOpen]);
 
   const updateTitleInToolbar = useCallback(() => {
     const root = scrollRef.current;
@@ -262,6 +279,8 @@ export function HtmlReader({
           </span>
         </div>
         <div className="flex items-center gap-0.5">
+          {onBack && onForward && (
+            <>
           <button onClick={onBack} disabled={!canBack} title="上一篇" className={BTN_DISABLED}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="m12 19-7-7 7-7" />
@@ -275,6 +294,8 @@ export function HtmlReader({
             </svg>
           </button>
           <div className="w-px h-5 bg-black/10 dark:bg-white/10 mx-1.5" />
+            </>
+          )}
           <button onClick={onExpand} title={expanded ? '收起 (⌘⇧F)' : '专注模式 (⌘⇧F)'} className={BTN}>
             {expanded ? (
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -292,29 +313,58 @@ export function HtmlReader({
               </svg>
             )}
           </button>
-          <button onClick={onImport} title="导入 HTML 文件 / 目录到笔记" className={BTN}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <path d="M14 2v6h6" />
-              <path d="M12 18v-6" />
-              <path d="m9 15 3-3 3 3" />
-            </svg>
-          </button>
-          <button onClick={() => setConfirmOpen(true)} title="删除笔记" className={BTN_DELETE}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 6h18" />
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-              <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-              <line x1="10" x2="10" y1="11" y2="17" />
-              <line x1="14" x2="14" y1="11" y2="17" />
-            </svg>
-          </button>
           <button onClick={onCreate} title="新建笔记" className={BTN}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
               <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
             </svg>
           </button>
+          <div className="relative" ref={moreMenuRef}>
+          <button
+            onClick={() => setMoreMenuOpen((v) => !v)}
+            title="更多操作"
+            className={BTN}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <circle cx="5" cy="12" r="1.8" />
+              <circle cx="12" cy="12" r="1.8" />
+              <circle cx="19" cy="12" r="1.8" />
+            </svg>
+          </button>
+          {moreMenuOpen && (
+            <div className="absolute right-0 top-full mt-1 z-[201] min-w-[140px] rounded-lg bg-white dark:bg-stone-800 shadow-lg border border-black/10 dark:border-white/10 py-1">
+              {onImport && (
+                <button
+                  onClick={() => { setMoreMenuOpen(false); onImport(); }}
+                  className="w-full flex items-center gap-2.5 px-3 py-1.5 text-[13px] text-stone-700 dark:text-stone-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <path d="M14 2v6h6" />
+                    <path d="M12 18v-6" />
+                    <path d="m9 15 3-3 3 3" />
+                  </svg>
+                  <span>导入文件</span>
+                </button>
+              )}
+              {onDelete && (
+                <button
+                  onClick={() => { setMoreMenuOpen(false); setConfirmOpen(true); }}
+                  className="w-full flex items-center gap-2.5 px-3 py-1.5 text-[13px] text-red-600 dark:text-red-400 hover:bg-red-500/10 transition-colors"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 6h18" />
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                    <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    <line x1="10" x2="10" y1="11" y2="17" />
+                    <line x1="14" x2="14" y1="11" y2="17" />
+                  </svg>
+                  <span>删除笔记</span>
+                </button>
+              )}
+            </div>
+          )}
+          </div>
         </div>
       </div>
 

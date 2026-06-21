@@ -107,7 +107,7 @@ export function TableOfContents({ content, title, cmRef, scrollRef }: Props) {
       ref={tocRef}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
-      className="absolute top-[18%] right-0 bottom-[18%] z-10 flex items-start"
+      className="absolute top-[18%] right-0 bottom-[18%] z-[4] flex items-start"
     >
       {/* 提示层：mini bars，按 level 阶梯递减 */}
       <div
@@ -130,7 +130,7 @@ export function TableOfContents({ content, title, cmRef, scrollRef }: Props) {
 
       {/* Hover 展开面板 */}
       <div
-        className={`absolute top-0 right-3 max-w-[180px] max-h-full overflow-y-auto py-1.5 rounded-xl backdrop-blur-xl bg-white/75 dark:bg-stone-800/75 shadow-[0_8px_24px_rgba(0,0,0,0.06)] dark:shadow-[0_8px_24px_rgba(0,0,0,0.35)] ring-1 ring-black/[0.04] dark:ring-white/[0.06] transition-all duration-[400ms] ease-out ${
+        className={`absolute top-0 right-3 w-[180px] max-h-full overflow-y-auto py-1.5 rounded-xl backdrop-blur-xl bg-white/75 dark:bg-stone-800/75 shadow-[0_8px_24px_rgba(0,0,0,0.06)] dark:shadow-[0_8px_24px_rgba(0,0,0,0.35)] ring-1 ring-black/[0.04] dark:ring-white/[0.06] transition-all duration-[400ms] ease-out ${
           hover
             ? 'opacity-100 translate-x-0'
             : 'opacity-0 translate-x-2 pointer-events-none'

@@ -30,6 +30,8 @@ pub struct KbFolderEntry {
     pub name: String,
     pub path: String,
     pub count: usize,
+    /// 是否含子文件夹——前端据此决定叶子文件夹不显示折叠三角
+    pub has_subfolders: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -95,6 +97,18 @@ fn library_dir() -> Result<PathBuf, String> {
     let lib = vault.join("library");
     fs::create_dir_all(&lib).map_err(|e| format!("create library dir: {e}"))?;
     Ok(lib)
+}
+
+/// 该目录下是否存在子目录（前端据此判断文件夹是不是叶子，叶子不显示折叠三角）
+fn dir_has_subdir(dir: &PathBuf) -> bool {
+    if let Ok(entries) = fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            if entry.path().is_dir() {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 /// Count .md and .html files recursively inside a directory
@@ -583,6 +597,7 @@ pub async fn kb_list_contents(dir_name: String, relative_path: Option<String>) -
                 name: name.replace('-', " "),
                 path: relative,
                 count: count_notes_recursive(&path),
+                has_subfolders: dir_has_subdir(&path),
             });
         } else if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
             if ext == "md" || ext == "html" {

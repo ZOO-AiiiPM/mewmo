@@ -158,6 +158,8 @@ type TableRange = {
   to: number;
   widgetTo: number;
 };
+type PendingTableDelete = TableRange | null;
+const pendingTableDeleteEffect = StateEffect.define<PendingTableDelete>();
 
 function parseTableRow(line: string): string[] {
   let s = line.trim();
@@ -249,6 +251,25 @@ function tableRangeToEnterFromCursor(doc: Text, pos: number, forward: boolean): 
     return tableRangeFromLine(doc, line.number + 1);
   }
   return tableRangeFromLine(doc, line.number - 1);
+}
+
+function tableRangeForExactSelection(doc: Text, from: number, to: number): TableRange | null {
+  const range = tableRangeBetween(doc, from, to, true);
+  if (!range) return null;
+  if (from !== range.from) return null;
+  if (to !== range.to && to !== range.widgetTo) return null;
+  return range;
+}
+
+function selectionCoversTableRange(state: EditorState, range: TableRange): boolean {
+  return state.selection.ranges.some(sel =>
+    !sel.empty && sel.from <= range.from && sel.to >= range.to
+  );
+}
+
+function pendingDeleteCoversTable(state: EditorState, range: TableRange): boolean {
+  const pending = state.field(pendingTableDeleteField, false);
+  return !!pending && pending.from === range.from && pending.to === range.to;
 }
 
 function locateTableWrap(view: EditorView, wrap: HTMLElement): TableRange | null {
@@ -543,7 +564,7 @@ export function insertTable(view: EditorView, rows = 3, cols = 2) {
   // 当前行非空 → 另起一行；否则就地插入
   const lineText = state.doc.sliceString(line.from, line.to);
   const prefix = lineText.length > 0 ? '\n\n' : '';
-  const suffix = '\n';
+  const suffix = '\n\n';
   const insertPos = line.to;
   const insert = `${prefix}${block}${suffix}`;
   view.dispatch({
@@ -553,6 +574,40 @@ export function insertTable(view: EditorView, rows = 3, cols = 2) {
     scrollIntoView: true,
   });
   view.focus();
+}
+
+// Backspace 在表格下方空行时：第一次选中整张表，第二次才删除。
+export function deleteTableBackward(view: EditorView): boolean {
+  const { state } = view;
+  const sel = state.selection.main;
+  const pending = state.field(pendingTableDeleteField, false);
+
+  if (!sel.empty) {
+    const selectedTable =
+      pending && pending.from === sel.from && (pending.to === sel.to || pending.widgetTo === sel.to)
+        ? pending
+        : tableRangeForExactSelection(state.doc, sel.from, sel.to);
+    if (!selectedTable) return false;
+    deleteTableAtRange(view, selectedTable);
+    return true;
+  }
+
+  const line = state.doc.lineAt(sel.head);
+  const lineText = state.doc.sliceString(line.from, line.to);
+  if (lineText.length !== 0) return false;
+  if (line.number <= 1) return false;
+
+  const prevLine = state.doc.line(line.number - 1);
+  const range = tableRangeFromLine(state.doc, prevLine.number);
+  if (!range) return false;
+
+  view.dispatch({
+    selection: { anchor: range.from, head: range.widgetTo },
+    effects: pendingTableDeleteEffect.of(range),
+    scrollIntoView: true,
+  });
+  view.focus();
+  return true;
 }
 
 // 给外部使用：把当前行（或选中的多行）切换为/取消待办
@@ -721,14 +776,16 @@ type CellCoord = { r: number; c: number };
 
 class TableWidget extends WidgetType {
   source: string;
+  selected: boolean;
   // 矩形选区：anchor=按下的格，focus=拖到的格。每个 cell 是独立 contentEditable，浏览器
   // 原生 selection 无法跨多个 editing host，所以多格选区完全自己维护（CSS class 高亮 +
   // 复制时按矩形重组 markdown）。单格（anchor==focus）不算多选，走原生编辑。
   private selAnchor: CellCoord | null = null;
   private selFocus: CellCoord | null = null;
-  constructor(source: string) {
+  constructor(source: string, selected = false) {
     super();
     this.source = source;
+    this.selected = selected;
   }
   private cellCoord(table: HTMLTableElement, cell: HTMLElement): CellCoord | null {
     const tr = cell.parentElement;
@@ -888,6 +945,7 @@ class TableWidget extends WidgetType {
   toDOM(view: EditorView) {
     const wrap = document.createElement('div');
     wrap.className = 'cm-md-table-wrap';
+    wrap.classList.toggle('cm-md-table-selected', this.selected);
     // wrap 自身不可编辑，让 CodeMirror 不把它当文档内容；但子元素 cells 可以单独 contentEditable
     wrap.contentEditable = 'false';
 
@@ -1208,7 +1266,7 @@ class TableWidget extends WidgetType {
     return wrap;
   }
   eq(other: TableWidget) {
-    return this.source === other.source;
+    return this.source === other.source && this.selected === other.selected;
   }
   // widget DOM 被 CM 回收时，移除挂在 document 上的 mouseup 监听，避免泄漏
   destroy(dom: HTMLElement) {
@@ -1408,11 +1466,12 @@ function handleTable(node: SyntaxNodeRef, ctx: DecorationCtx): boolean {
   if (!range) return false;
 
   const text = ctx.state.doc.sliceString(range.from, range.to);
+  const selected = pendingDeleteCoversTable(ctx.state, range) || selectionCoversTableRange(ctx.state, range);
   ctx.items.push({
     from: range.from,
     to: range.widgetTo,
     deco: Decoration.replace({
-      widget: new TableWidget(text),
+      widget: new TableWidget(text, selected),
       block: true,
     }),
   });
@@ -1772,6 +1831,26 @@ const focusTracker = StateField.define<boolean>({
 
 export const focusEffect = StateEffect.define<boolean>();
 
+const pendingTableDeleteField = StateField.define<PendingTableDelete>({
+  create() { return null; },
+  update(value, tr) {
+    for (const e of tr.effects) {
+      if (e.is(pendingTableDeleteEffect)) return e.value;
+    }
+    if (!value) return null;
+    if (tr.docChanged) return null;
+    if (tr.selection) {
+      const sel = tr.state.selection.main;
+      const stillSelected =
+        !sel.empty &&
+        sel.from === value.from &&
+        (sel.to === value.to || sel.to === value.widgetTo);
+      return stillSelected ? value : null;
+    }
+    return value;
+  },
+});
+
 const focusListener = EditorView.focusChangeEffect.of((_, focused) => focusEffect.of(focused));
 
 function selectionNeedsDecorationRebuild(tr: Transaction): boolean {
@@ -1785,6 +1864,7 @@ function selectionNeedsDecorationRebuild(tr: Transaction): boolean {
 
 export const livePreview = [
   focusTracker,
+  pendingTableDeleteField,
   focusListener,
   StateField.define<DecorationSet>({
     create(state) {
@@ -1792,7 +1872,7 @@ export const livePreview = [
     },
     update(deco, tr) {
       if (tr.docChanged || selectionNeedsDecorationRebuild(tr)
-        || tr.effects.some(e => e.is(focusEffect))) {
+        || tr.effects.some(e => e.is(focusEffect) || e.is(pendingTableDeleteEffect))) {
         return buildDecorations(tr.state);
       }
       return deco;
