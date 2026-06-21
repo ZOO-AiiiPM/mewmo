@@ -521,6 +521,14 @@ export default function App() {
     resetDocumentHorizontalScroll();
   }, [activeTabId]);
 
+  // 订阅区收藏：只保存到剪藏，不切换 tab
+  const handleClipSaveQuiet = useCallback(async (url: string) => {
+    const fetched = await invoke<FetchedClip>('fetch_clip', { url });
+    await saveClip(fetched);
+    const freshClips = await listClips();
+    setClips(freshClips);
+  }, []);
+
   const handleClipDelete = useCallback(async (id: string) => {
     await deleteClip(id);
     await refreshClips();
@@ -549,6 +557,15 @@ export default function App() {
       : null;
   const selectedNoteReady = selectedNote?.content_loaded ? selectedNote : null;
   const selectedClipReady = selectedClip?.content_loaded ? selectedClip : null;
+
+  const lastNoteReadyRef = useRef<typeof selectedNoteReady>(null);
+  const lastClipReadyRef = useRef<typeof selectedClipReady>(null);
+  if (selectedNoteReady) lastNoteReadyRef.current = selectedNoteReady;
+  else if (!selectedNote) lastNoteReadyRef.current = null;
+  if (selectedClipReady) lastClipReadyRef.current = selectedClipReady;
+  else if (!selectedClip) lastClipReadyRef.current = null;
+  const displayNote = selectedNoteReady ?? lastNoteReadyRef.current;
+  const displayClip = selectedClipReady ?? lastClipReadyRef.current;
 
   useEffect(() => {
     if (selectedNote && !selectedNote.content_loaded) {
@@ -775,19 +792,17 @@ export default function App() {
                 onDeleteSource={handleDeleteSource}
               />
             </div>
-            {activeZone === 'knowledge' && (
               <KnowledgeBase
-                hidden={expanded}
+                hidden={activeZone !== 'knowledge' || expanded}
                 selectedKbDirName={activeTab?.zone === 'knowledge' ? activeTab.refId : null}
                 onOpenKb={handleKnowledgeBaseOpen}
               />
-            )}
 
             {activeZone === null ? (
               <EmptyTabHome onPick={handleEmptyPick} />
             ) : activeZone === 'knowledge' ? null : activeZone === 'clipping' ? (
               <ClipReader
-                clip={selectedClipReady}
+                clip={displayClip}
                 aiOpen={aiOpen}
                 onRefetch={handleClipRefetch}
                 onDelete={handleClipDelete}
@@ -800,9 +815,9 @@ export default function App() {
                 onExpand={() => setExpanded(e => !e)}
               />
             ) : activeZone === 'notes' ? (
-              selectedNoteReady?.format === 'html' ? (
+              displayNote?.format === 'html' ? (
                 <HtmlReader
-                  note={selectedNoteReady}
+                  note={displayNote}
                   aiOpen={aiOpen}
                   expanded={expanded}
                   onExpand={() => setExpanded(e => !e)}
@@ -816,7 +831,7 @@ export default function App() {
                 />
               ) : (
                 <NoteEditor
-                  note={selectedNoteReady}
+                  note={displayNote}
                   onChange={handleUpdateNote}
                   onLocalContentChange={handleLocalNoteContentChange}
                   theme={theme}
@@ -844,7 +859,7 @@ export default function App() {
                 canForward={entryCanForward}
                 expanded={expanded}
                 onExpand={() => setExpanded(e => !e)}
-                onClipSave={handleClipSave}
+                onClipSave={handleClipSaveQuiet}
               />
             ) : (
               <div className="flex-1 flex items-center justify-center text-stone-400 dark:text-stone-500 text-sm">
@@ -858,8 +873,8 @@ export default function App() {
           <div className="absolute inset-0 z-10 overflow-hidden pointer-events-none">
             <AIPanel
               open={aiOpen}
-              currentNote={activeZone === 'notes' ? selectedNoteReady : null}
-              currentClip={activeZone === 'clipping' ? selectedClipReady : null}
+              currentNote={activeZone === 'notes' ? displayNote : null}
+              currentClip={activeZone === 'clipping' ? displayClip : null}
               zone={activeZone}
             />
           </div>

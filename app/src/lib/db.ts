@@ -92,6 +92,19 @@ export async function updateClip(
   return call<string>('update_clip', { id, patch });
 }
 
+// ── Vault ─────────────────────────────────────────────────────────────────
+
+export type VaultConfig = {
+  vault_path: string;
+  schema_version: number;
+  initialized_at: string;
+  active_persona: string;
+};
+
+export async function getVaultConfig(): Promise<VaultConfig | null> {
+  return call<VaultConfig | null>('vault_get_config');
+}
+
 // ── 搜索 ──────────────────────────────────────────────────────────────────
 
 export async function searchAll(query: string): Promise<SearchResults> {

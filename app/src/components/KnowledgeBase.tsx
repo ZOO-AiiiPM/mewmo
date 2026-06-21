@@ -2,8 +2,6 @@ import * as ContextMenu from '@radix-ui/react-context-menu';
 import { AnimatePresence, motion } from 'framer-motion';
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { marked } from 'marked';
-import { openUrl } from '@tauri-apps/plugin-opener';
 import { deleteNote, getClip, getNote, listClips, listNotes, updateNote } from '../lib/db';
 import {
   createKb,
@@ -16,14 +14,16 @@ import {
   importKbFolder,
   listKbContents,
   listKbs,
+  moveKbFolder,
+  moveKbNote,
   renameKbFolder,
   updateKbMeta,
 } from '../lib/kb';
-import { sanitizeHtml } from '../lib/sanitizeHtml';
 import type { Clip, KnowledgeBase as KBType, KbContents, KbFolderEntry, KbNoteEntry, Note } from '../types';
+import { ClipReader } from './ClipReader';
 import { ConfirmDialog } from './ConfirmDialog';
+import { MoveTargetPicker } from './MoveTargetPicker';
 import { NoteEditor } from './NoteEditor';
-import { ScrollToTopButton } from './ScrollToTopButton';
 
 function FolderIcon({ className = '' }: { className?: string }) {
   return (
@@ -67,6 +67,17 @@ function MoreIcon() {
       <circle cx="5" cy="12" r="1.8" />
       <circle cx="12" cy="12" r="1.8" />
       <circle cx="19" cy="12" r="1.8" />
+    </svg>
+  );
+}
+
+function MoveIcon() {
+  // folder-input：箭头移入文件夹，表意「移动到…」
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 9V5a2 2 0 0 1 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H2" />
+      <path d="M2 13h10" />
+      <path d="m9 16 3-3-3-3" />
     </svg>
   );
 }
@@ -188,8 +199,17 @@ function LibraryList({ libraries, onOpen, onCreate, onEdit, onDelete }: {
           onClick={onCreate}
           className="group flex min-h-[130px] flex-col items-start gap-3 rounded-2xl border border-dashed border-stone-300/50 p-5 transition-colors hover:bg-stone-100/50 dark:border-white/[0.10] dark:hover:bg-white/[0.04]"
         >
-          <div className="grid h-12 w-12 place-items-center rounded-full bg-stone-200/80 dark:bg-stone-700/60">
-            <PlusIcon />
+          <div className="relative h-12 w-10 shrink-0 overflow-hidden rounded-md bg-stone-300 dark:bg-stone-600">
+            <div className="flex h-full">
+              <div className="w-2.5 shrink-0 bg-stone-400 dark:bg-stone-700" />
+              <div className="relative flex-1">
+                {/* 右上角粗加号（红十字样：等长粗实臂），替代原标签，提示“新建” */}
+                <div className="absolute right-1 top-1.5 h-3.5 w-3.5">
+                  <div className="absolute left-1/2 top-0 h-full w-[3.5px] -translate-x-1/2 rounded-[1px] bg-stone-100 dark:bg-stone-200" />
+                  <div className="absolute top-1/2 left-0 h-[3.5px] w-full -translate-y-1/2 rounded-[1px] bg-stone-100 dark:bg-stone-200" />
+                </div>
+              </div>
+            </div>
           </div>
           <div className="text-left">
             <div className="text-[15px] font-bold text-stone-600 dark:text-stone-300">新建知识库</div>
@@ -313,185 +333,7 @@ function clipFromEntry(entry: KbNoteEntry): Clip {
   };
 }
 
-function fmtClipPublished(s: string): string {
-  if (!s) return '';
-  const d = /^\d+$/.test(s) ? new Date(parseInt(s, 10) * 1000) : new Date(s);
-  if (Number.isNaN(d.getTime())) return s;
-  return d.toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
-}
-
-function looksLikeHtml(content: string): boolean {
-  return /<\/?(article|section|div|p|h[1-6]|img|figure|figcaption|blockquote|ul|ol|li|table|span|a|strong|em)\b/i.test(content);
-}
-
-function KbClipReader({ clip, onDelete }: { clip: Clip; onDelete: (id: string) => void }) {
-  const scrollerRef = useRef<HTMLDivElement>(null);
-  const titleRef = useRef<HTMLHeadingElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
-  const [titleInToolbar, setTitleInToolbar] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-
-  const contentHtml = useMemo(() => {
-    if (!clip.content_md) return '';
-    return looksLikeHtml(clip.content_md)
-      ? sanitizeHtml(clip.content_md)
-      : sanitizeHtml(marked.parse(clip.content_md) as string);
-  }, [clip.content_md]);
-
-  useEffect(() => {
-    const root = contentRef.current;
-    if (!root) return;
-    root.innerHTML = contentHtml;
-  }, [contentHtml]);
-
-  useEffect(() => {
-    const scroller = scrollerRef.current;
-    if (!scroller) return;
-    scroller.scrollTop = 0;
-    scroller.scrollLeft = 0;
-    setTitleInToolbar(false);
-  }, [clip.id]);
-
-  const onScroll = () => {
-    const scroller = scrollerRef.current;
-    const title = titleRef.current;
-    if (!scroller || !title) return;
-    const titleBottom = title.getBoundingClientRect().bottom - scroller.getBoundingClientRect().top;
-    setTitleInToolbar(titleBottom < 56);
-  };
-
-  const copyLink = () => {
-    if (!clip.url) return;
-    navigator.clipboard.writeText(clip.url)
-      .then(() => {
-        setCopied(true);
-        window.setTimeout(() => setCopied(false), 1200);
-      })
-      .catch(e => console.error('[kb clip] copy link failed:', e));
-  };
-
-  const publishedText = fmtClipPublished(clip.published_at);
-
-  return (
-    <main className="relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
-      <div className="absolute left-0 right-0 top-0 z-[5] grid h-12 grid-cols-[1fr_auto] items-center gap-3 bg-white/70 pl-10 pr-3 backdrop-blur-md dark:bg-stone-900/70">
-        <div className={`absolute bottom-0 left-3 right-3 h-px transition-colors duration-200 ${titleInToolbar ? 'bg-black/[0.10] dark:bg-white/[0.10]' : 'bg-transparent'}`} />
-        <div className="min-w-0 overflow-hidden">
-          <span
-            className={`block truncate text-[14px] font-bold text-stone-800 transition-opacity duration-200 dark:text-stone-100 ${titleInToolbar ? 'opacity-100' : 'opacity-0'}`}
-          >
-            {clip.title || '无标题'}
-          </span>
-        </div>
-        <div className="flex items-center gap-0.5">
-          {clip.url && (
-            <>
-              <button
-                type="button"
-                onClick={() => openUrl(clip.url).catch(e => console.error('[kb clip] open url failed:', e))}
-                title="在浏览器中打开原文"
-                className="grid h-8 w-8 place-items-center rounded-md text-stone-600 transition-colors hover:bg-black/[0.05] dark:text-stone-300 dark:hover:bg-white/[0.10]"
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
-                  <path d="M2 12h20" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                onClick={copyLink}
-                title={copied ? '已复制' : '复制链接'}
-                className="grid h-8 w-8 place-items-center rounded-md text-stone-600 transition-colors hover:bg-black/[0.05] dark:text-stone-300 dark:hover:bg-white/[0.10]"
-              >
-                {copied ? (
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                ) : (
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-                  </svg>
-                )}
-              </button>
-              <div className="mx-1.5 h-5 w-px bg-black/[0.10] dark:bg-white/[0.10]" />
-            </>
-          )}
-          <button
-            type="button"
-            onClick={() => setConfirmOpen(true)}
-            title="删除剪藏"
-            className="grid h-8 w-8 place-items-center rounded-md text-stone-600 transition-colors hover:bg-red-500/[0.10] hover:text-red-600 dark:text-stone-300 dark:hover:text-red-400"
-          >
-            <TrashIcon />
-          </button>
-        </div>
-      </div>
-
-      <div
-        ref={scrollerRef}
-        onScroll={onScroll}
-        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden sidebar-scroll pt-12"
-      >
-        <div className="mx-auto w-full max-w-2xl px-10 pb-16 pt-6">
-          <h1
-            ref={titleRef}
-            className={`mb-3 text-[28px] font-bold leading-tight tracking-tight text-stone-900 transition-opacity duration-200 dark:text-stone-50 ${titleInToolbar ? 'opacity-0' : 'opacity-100'}`}
-          >
-            {clip.title || '无标题'}
-          </h1>
-
-          {(clip.author || clip.site_name || publishedText || clip.ip_region) && (
-            <div className="mb-5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-stone-500 dark:text-stone-400">
-              {clip.author && <span className="font-medium text-stone-700 dark:text-stone-300">{clip.author}</span>}
-              {clip.author && clip.site_name && clip.author !== clip.site_name && <span className="text-stone-300 dark:text-stone-600">·</span>}
-              {clip.site_name && clip.author !== clip.site_name && <span>{clip.site_name}</span>}
-              {(clip.author || clip.site_name) && publishedText && <span className="text-stone-300 dark:text-stone-600">·</span>}
-              {publishedText && <span>{publishedText}</span>}
-              {clip.ip_region && (
-                <>
-                  <span className="text-stone-300 dark:text-stone-600">·</span>
-                  <span>{clip.ip_region}</span>
-                </>
-              )}
-            </div>
-          )}
-
-          {contentHtml ? (
-            <div ref={contentRef} className="clip-prose" />
-          ) : (
-            <div className="text-sm italic text-stone-400 dark:text-stone-500">暂无正文内容</div>
-          )}
-        </div>
-      </div>
-
-      <ConfirmDialog
-        open={confirmOpen}
-        title="删除剪藏"
-        description={`确定删除「${clip.title || '无标题'}」吗？`}
-        confirmLabel="删除"
-        variant="danger"
-        onConfirm={() => {
-          setConfirmOpen(false);
-          onDelete(clip.id);
-        }}
-        onCancel={() => setConfirmOpen(false)}
-      />
-      <ScrollToTopButton scrollRef={scrollerRef} />
-    </main>
-  );
-}
-
-function ContextMenuContent({ onRename, onDelete }: { onRename?: () => void; onDelete: () => void }) {
+function ContextMenuContent({ onRename, onDelete, onMove }: { onRename?: () => void; onDelete: () => void; onMove?: () => void }) {
   return (
     <ContextMenu.Portal>
       <ContextMenu.Content className="z-50 min-w-[140px] rounded-xl bg-white p-1 shadow-[0_8px_24px_rgba(0,0,0,0.15)] dark:bg-stone-800 dark:shadow-[0_8px_24px_rgba(0,0,0,0.5)]">
@@ -502,6 +344,15 @@ function ContextMenuContent({ onRename, onDelete }: { onRename?: () => void; onD
           >
             <EditIcon />
             <span>重命名</span>
+          </ContextMenu.Item>
+        )}
+        {onMove && (
+          <ContextMenu.Item
+            onSelect={onMove}
+            className="flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] text-stone-700 outline-none transition-colors data-[highlighted]:bg-stone-100 dark:text-stone-200 dark:data-[highlighted]:bg-stone-700"
+          >
+            <MoveIcon />
+            <span>移动到…</span>
           </ContextMenu.Item>
         )}
         <ContextMenu.Item
@@ -826,6 +677,7 @@ function TreeLevel({
   const key = path ?? '';
   const contents = contentsByPath[key] ?? { folders: [], notes: [] };
   const [folderMenu, setFolderMenu] = useState<string | null>(null);
+  const [noteMenu, setNoteMenu] = useState<string | null>(null);
 
   return (
     <>
@@ -873,6 +725,7 @@ function TreeLevel({
                     <ActionMenuItem icon={<ImportIcon />} label="导入笔记" onClick={() => { setFolderMenu(null); onEnsureExpanded(folder.path); onImportInFolder(folder.path, 'notes'); }} />
                     <ActionMenuItem icon={<ImportIcon />} label="导入剪藏" onClick={() => { setFolderMenu(null); onEnsureExpanded(folder.path); onImportInFolder(folder.path, 'clips'); }} />
                     <div className="my-1 border-t border-black/[0.06] dark:border-white/[0.08]" />
+                    <ActionMenuItem icon={<MoveIcon />} label="移动到…" onClick={() => { setFolderMenu(null); onMoveFolder(folder); }} />
                     <ActionMenuItem icon={<EditIcon />} label="重命名" onClick={() => { setFolderMenu(null); onRenameFolder(folder); }} />
                     <ActionMenuItem icon={<TrashIcon />} label="删除" danger onClick={() => { setFolderMenu(null); onDeleteFolder(folder); }} />
                   </div>
@@ -914,26 +767,48 @@ function TreeLevel({
       {contents.notes.map(note => (
         <ContextMenu.Root key={note.slug}>
           <ContextMenu.Trigger asChild>
-            <button
-              type="button"
-              onClick={() => onSelectNote(note, path)}
-              className={`flex min-h-9 w-full items-center gap-2 rounded-lg px-2 text-left transition-colors ${
+            <div
+              className={`group/note relative flex min-h-9 w-full items-center gap-2 rounded-lg px-2 transition-colors ${
                 selectedNoteSlug === note.slug
                   ? 'bg-black/[0.10] dark:bg-white/[0.12]'
                   : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.05]'
               }`}
             >
-              {note.kind === 'clip' ? (
-                <ClipIcon className="shrink-0 text-stone-500 dark:text-stone-400" />
-              ) : (
-                <NoteIcon className="shrink-0 text-stone-500 dark:text-stone-400" />
-              )}
-              <span className={`min-w-0 flex-1 truncate text-[13px] leading-tight text-stone-900 dark:text-stone-100 ${selectedNoteSlug === note.slug ? 'font-semibold' : 'font-medium'}`}>
-                {note.title || '无标题'}
+              <button
+                type="button"
+                onClick={() => onSelectNote(note, path)}
+                className="flex min-w-0 flex-1 items-center gap-2 text-left"
+              >
+                {note.kind === 'clip' ? (
+                  <ClipIcon className="shrink-0 text-stone-500 dark:text-stone-400" />
+                ) : (
+                  <NoteIcon className="shrink-0 text-stone-500 dark:text-stone-400" />
+                )}
+                <span className={`min-w-0 flex-1 truncate text-[13px] leading-tight text-stone-900 dark:text-stone-100 ${selectedNoteSlug === note.slug ? 'font-semibold' : 'font-medium'}`}>
+                  {note.title || '无标题'}
+                </span>
+              </button>
+              <span
+                className="grid h-5 w-5 shrink-0 place-items-center rounded text-stone-400 opacity-0 transition-all hover:bg-black/[0.06] hover:text-stone-700 group-hover/note:opacity-100 dark:hover:bg-white/[0.08] dark:hover:text-stone-100"
+                onClick={(e) => { e.stopPropagation(); setNoteMenu(noteMenu === note.slug ? null : note.slug); }}
+                onKeyDown={() => {}}
+                role="button"
+                tabIndex={-1}
+              >
+                <MoreIcon />
               </span>
-            </button>
+              {noteMenu === note.slug && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setNoteMenu(null)} onKeyDown={() => {}} role="presentation" />
+                  <div className="absolute right-0 top-[calc(100%+4px)] z-30 w-40 overflow-hidden rounded-xl bg-white p-1 shadow-[0_10px_28px_rgba(0,0,0,0.16)] ring-1 ring-black/[0.06] dark:bg-stone-800 dark:ring-white/[0.08]">
+                    <ActionMenuItem icon={<MoveIcon />} label="移动到…" onClick={() => { setNoteMenu(null); onMoveNote(note, path); }} />
+                    <ActionMenuItem icon={<TrashIcon />} label="删除" danger onClick={() => { setNoteMenu(null); onDeleteNote(note, path); }} />
+                  </div>
+                </>
+              )}
+            </div>
           </ContextMenu.Trigger>
-          <ContextMenuContent onDelete={() => onDeleteNote(note, path)} />
+          <ContextMenuContent onMove={() => onMoveNote(note, path)} onDelete={() => onDeleteNote(note, path)} />
         </ContextMenu.Root>
       ))}
     </>
@@ -958,10 +833,17 @@ export function KnowledgeBase({
   const [activeFolderPath, setActiveFolderPath] = useState<string | undefined>();
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
   const [editorMountKey, setEditorMountKey] = useState(0);
+  const [editorExpanded, setEditorExpanded] = useState(false);
   const [selectedClip, setSelectedClip] = useState<Clip | null>(null);
   const [selectedNoteFolderPath, setSelectedNoteFolderPath] = useState<string | undefined>();
   const [kbDialog, setKbDialog] = useState<{ mode: 'create' } | { mode: 'edit'; kb: KBType } | null>(null);
   const [kbToDelete, setKbToDelete] = useState<KBType | null>(null);
+  // 移动到…：记录正在移动的笔记/文件夹，非 null 时弹出 MoveTargetPicker
+  const [moveState, setMoveState] = useState<
+    | { kind: 'note'; note: KbNoteEntry; sourcePath: string }
+    | { kind: 'folder'; folder: KbFolderEntry }
+    | null
+  >(null);
   const [importMenuOpen, setImportMenuOpen] = useState(false);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
@@ -1306,6 +1188,59 @@ export function KnowledgeBase({
     }
   }, [refreshPath, selectedClip, selectedNote, selectedNoteFolderPath]);
 
+  // 打开「移动到…」选择器（笔记 / 文件夹）
+  const handleMoveNote = useCallback((note: KbNoteEntry, folderPath?: string) => {
+    setMoveState({ kind: 'note', note, sourcePath: folderPath ?? '' });
+  }, []);
+
+  const handleMoveFolder = useCallback((folder: KbFolderEntry) => {
+    setMoveState({ kind: 'folder', folder });
+  }, []);
+
+  // 选定目标后执行移动：调后端 fs::rename → 刷新源/目标 → 收尾选中态/缓存
+  const handleMovePick = useCallback(async (targetKb: string, targetRel: string) => {
+    if (!selectedKb || !moveState) return;
+    const sourceKb = selectedKb.dir_name;
+    try {
+      if (moveState.kind === 'note') {
+        const oldSlug = moveState.note.slug;
+        await moveKbNote(oldSlug, targetKb, targetRel);
+        await refreshPath(moveState.sourcePath === '' ? undefined : moveState.sourcePath);
+        if (targetKb === sourceKb) await refreshPath(targetRel === '' ? undefined : targetRel);
+        // 被移动项正打开 → 清空选中（slug 已失效）
+        if (selectedNote?.id === oldSlug) { setSelectedNote(null); setSelectedNoteFolderPath(undefined); }
+        if (selectedClip?.id === oldSlug) { setSelectedClip(null); setSelectedNoteFolderPath(undefined); }
+      } else {
+        const folder = moveState.folder;
+        await moveKbFolder(sourceKb, folder.path, targetKb, targetRel);
+        const parent = parentPath(folder.path);
+        await refreshPath(parent);
+        if (targetKb === sourceKb) await refreshPath(targetRel === '' ? undefined : targetRel);
+        // 清理被移动子树的缓存 / 展开 / 选中（旧路径已失效）
+        setContentsByPath(prev => {
+          const next = { ...prev };
+          for (const k of Object.keys(next)) if (isInsidePath(k, folder.path)) delete next[k];
+          return next;
+        });
+        setExpanded(prev => {
+          const next = new Set(prev);
+          for (const k of Array.from(next)) if (isInsidePath(k, folder.path)) next.delete(k);
+          return next;
+        });
+        if (activeFolderPath && isInsidePath(activeFolderPath, folder.path)) setActiveFolderPath(parent);
+        const movedPrefix = `library/${sourceKb}/${folder.path}/`;
+        if (selectedNote?.id.startsWith(movedPrefix)) { setSelectedNote(null); setSelectedNoteFolderPath(undefined); }
+        if (selectedClip?.id.startsWith(movedPrefix)) { setSelectedClip(null); setSelectedNoteFolderPath(undefined); }
+      }
+      await refreshKbList();
+    } catch (err) {
+      console.error(err);
+      window.alert(`移动失败: ${err}`);
+    } finally {
+      setMoveState(null);
+    }
+  }, [activeFolderPath, moveState, refreshKbList, refreshPath, selectedClip, selectedKb, selectedNote]);
+
   const handleUpdateSelectedNote = useCallback((patch: { title?: string; content_md?: string }, targetNoteId?: string) => {
     const id = targetNoteId ?? selectedNote?.id;
     if (!id) return;
@@ -1352,6 +1287,27 @@ export function KnowledgeBase({
         variant="danger"
         onConfirm={handleDeleteKb}
         onCancel={() => setKbToDelete(null)}
+      />
+      <MoveTargetPicker
+        open={moveState !== null}
+        itemLabel={
+          moveState?.kind === 'note'
+            ? moveState.note.title || '无标题'
+            : moveState?.kind === 'folder'
+              ? moveState.folder.name
+              : ''
+        }
+        sourceKb={selectedKb?.dir_name ?? ''}
+        sourceParentPath={
+          moveState?.kind === 'note'
+            ? moveState.sourcePath
+            : moveState?.kind === 'folder'
+              ? parentPath(moveState.folder.path) ?? ''
+              : ''
+        }
+        movingFolderPath={moveState?.kind === 'folder' ? moveState.folder.path : undefined}
+        onPick={handleMovePick}
+        onCancel={() => setMoveState(null)}
       />
     </>
   );
@@ -1402,7 +1358,7 @@ export function KnowledgeBase({
   return (
     <>
     <div className={`flex h-full min-h-0 overflow-hidden ${hidden ? 'w-0' : 'flex-1'}`}>
-      <aside className="relative flex min-h-0 w-[261px] shrink-0 flex-col overflow-hidden border-r border-black/[0.10] bg-white dark:border-white/[0.10] dark:bg-stone-900">
+      <aside className={`relative flex min-h-0 w-[261px] shrink-0 flex-col overflow-hidden border-r border-black/[0.10] bg-white dark:border-white/[0.10] dark:bg-stone-900 ${editorExpanded ? 'hidden' : ''}`}>
         <div className="sticky top-0 z-10 flex h-12 shrink-0 items-center gap-2 border-b border-black/[0.06] bg-white/80 px-3 backdrop-blur-md dark:border-white/[0.06] dark:bg-stone-900/80">
           <div className="min-w-0 flex-1 truncate text-[14px] font-bold text-stone-900 dark:text-stone-100">
             {selectedKb.name}
@@ -1509,8 +1465,8 @@ export function KnowledgeBase({
               onCreateFolderInFolder={handleCreateFolderInFolder}
               onImportInFolder={handleImportInFolder}
               onEnsureExpanded={ensureExpanded}
-              onMoveFolder={() => {}}
-              onMoveNote={() => {}}
+              onMoveFolder={handleMoveFolder}
+              onMoveNote={handleMoveNote}
             />
           )}
         </div>
@@ -1518,9 +1474,12 @@ export function KnowledgeBase({
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white dark:bg-stone-900">
         {selectedClip ? (
-          <KbClipReader
+          <ClipReader
             key={selectedClip.id}
             clip={selectedClip}
+            aiOpen={false}
+            expanded={editorExpanded}
+            onExpand={() => setEditorExpanded(e => !e)}
             onDelete={(id) => handleDeleteSelectedNote(id)}
           />
         ) : selectedNote ? (
@@ -1530,15 +1489,10 @@ export function KnowledgeBase({
             onChange={handleUpdateSelectedNote}
             onLocalContentChange={handleLocalContentChange}
             theme={editorTheme}
-            onDelete={() => handleDeleteSelectedNote()}
             onCreate={handleCreateNote}
             aiOpen={false}
-            expanded={false}
-            onExpand={() => undefined}
-            canBack={false}
-            canForward={false}
-            onBack={() => undefined}
-            onForward={() => undefined}
+            expanded={editorExpanded}
+            onExpand={() => setEditorExpanded(e => !e)}
             newlyCreatedId={newlyCreatedNoteId}
             onCreateAnimDone={() => setNewlyCreatedNoteId(null)}
           />

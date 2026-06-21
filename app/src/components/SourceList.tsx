@@ -232,6 +232,7 @@ function SourceFavicon({ source, unhealthy }: { source: SubscriptionSource; unhe
           src={candidates[idx]}
           alt=""
           className="w-full h-full object-cover"
+          referrerPolicy="no-referrer"
           onError={() => {
             setIdx(i => i + 1);
           }}

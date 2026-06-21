@@ -261,7 +261,10 @@ fn strip_wechat_boilerplate(html: &str) -> String {
         return String::new();
     }
     // 快速路径：不含微信特征 class 的内容跳过
-    if !html.contains("reward") && !html.contains("rich_media_meta_list") {
+    if !html.contains("reward")
+        && !html.contains("rich_media_meta_list")
+        && !html.contains("video")
+    {
         return html.to_string();
     }
 
@@ -269,7 +272,10 @@ fn strip_wechat_boilerplate(html: &str) -> String {
 
     let document = Html::parse_fragment(html);
     let boilerplate = Selector::parse(
-        r#"[class*="reward"], [class*="rich_media_meta_list"], [style*="display:none"], [style*="display: none"]"#
+        r#"[class*="reward"], [class*="rich_media_meta_list"], [class*="mpvideo"], [class*="mp-video-player"], [style*="display:none"], [style*="display: none"]"#
+    ).unwrap();
+    let video_sel = Selector::parse(
+        r#"[class*="video"]"#
     ).unwrap();
 
     let remove_ids: std::collections::HashSet<ego_tree::NodeId> = document
@@ -277,23 +283,33 @@ fn strip_wechat_boilerplate(html: &str) -> String {
         .map(|el| el.id())
         .collect();
 
-    if remove_ids.is_empty() {
+    let video_ids: std::collections::HashSet<ego_tree::NodeId> = document
+        .select(&video_sel)
+        .map(|el| el.id())
+        .collect();
+
+    if remove_ids.is_empty() && video_ids.is_empty() {
         return html.to_string();
     }
 
     let mut out = String::with_capacity(html.len());
-    serialize_tree(document.tree.root(), &remove_ids, &mut out);
+    serialize_tree(document.tree.root(), &remove_ids, &video_ids, &mut out);
     out
 }
 
 fn serialize_tree(
     node: ego_tree::NodeRef<scraper::Node>,
     skip: &std::collections::HashSet<ego_tree::NodeId>,
+    video_placeholder: &std::collections::HashSet<ego_tree::NodeId>,
     out: &mut String,
 ) {
     use scraper::Node;
     for child in node.children() {
         if skip.contains(&child.id()) {
+            continue;
+        }
+        if video_placeholder.contains(&child.id()) {
+            out.push_str(r#"<p style="color:#888;font-style:italic">[ 视频内容，请在微信中查看 ]</p>"#);
             continue;
         }
         match child.value() {
@@ -309,7 +325,7 @@ fn serialize_tree(
                     out.push('"');
                 }
                 out.push('>');
-                serialize_tree(child, skip, out);
+                serialize_tree(child, skip, video_placeholder, out);
                 let void_tags = ["br", "hr", "img", "input", "meta", "link", "area", "col"];
                 if !void_tags.contains(&el.name()) {
                     out.push_str("</");
@@ -318,7 +334,7 @@ fn serialize_tree(
                 }
             }
             Node::Fragment => {
-                serialize_tree(child, skip, out);
+                serialize_tree(child, skip, video_placeholder, out);
             }
             _ => {}
         }
@@ -345,8 +361,9 @@ fn strip_duplicate_title(html: &str, title: &str) -> String {
         if text_trimmed == title.trim() {
             let mut skip = std::collections::HashSet::new();
             skip.insert(el.id());
+            let empty = std::collections::HashSet::new();
             let mut out = String::with_capacity(html.len());
-            serialize_tree(document.tree.root(), &skip, &mut out);
+            serialize_tree(document.tree.root(), &skip, &empty, &mut out);
             return out;
         }
     }
