@@ -4,6 +4,12 @@ import { BUCKET_LABEL, formatListItemDate, groupByBucket } from '../lib/dateBuck
 import { ListItemContextMenu } from './ListItemContextMenu';
 import { ConfirmDialog } from './ConfirmDialog';
 
+// 副标题里「作者/链接」过长时右尾横向渐隐，替代省略号截断（与标题 fade 同一手法）。
+const META_FADE_STYLE = {
+  maskImage: 'linear-gradient(to right, black calc(100% - 24px), transparent)',
+  WebkitMaskImage: 'linear-gradient(to right, black calc(100% - 24px), transparent)',
+} as const;
+
 type Props = {
   clips: Clip[];
   selectedId: string | null;
@@ -142,9 +148,12 @@ function ClipItem({
             {clip.title || '无标题'}
           </div>
           <div className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 flex items-center gap-1">
-            <span className="w-24 truncate">{clip.site_name || '未知来源'}</span>
-            <span className="shrink-0 text-stone-300 dark:text-stone-600">·</span>
             <span className="shrink-0 tabular-nums">{formatListItemDate(clip.saved_at, bucket)}</span>
+            <span className="shrink-0 text-stone-300 dark:text-stone-600">·</span>
+            {/* 作者/链接占满剩余宽度，左对齐流动；过长时右尾渐隐（mask），不用省略号 */}
+            <span className="min-w-0 flex-1 whitespace-nowrap overflow-hidden" style={META_FADE_STYLE}>
+              {clip.site_name || '未知来源'}
+            </span>
           </div>
         </div>
         {clip.cover_image && (
