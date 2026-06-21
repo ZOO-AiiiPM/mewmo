@@ -19,6 +19,7 @@ pub fn run() {
 
     builder
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(clip_fetch::FetchChannels::default())
         .invoke_handler(tauri::generate_handler![
             attachments::save_attachment,
@@ -63,6 +64,7 @@ pub fn run() {
             commands::knowledge_base::kb_folder_delete,
             commands::knowledge_base::kb_list_contents,
             commands::knowledge_base::kb_create_note,
+            commands::knowledge_base::kb_import_folder,
         ])
         .setup(|app| {
             use tauri::Manager;

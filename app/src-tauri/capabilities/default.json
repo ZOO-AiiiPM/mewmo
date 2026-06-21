@@ -17,6 +17,7 @@
       "identifier": "opener:allow-open-url",
       "allow": [{ "url": "https://**" }, { "url": "http://**" }, { "url": "mailto:*" }]
     },
-    "mcp-bridge:default"
+    "mcp-bridge:default",
+    "dialog:allow-open"
   ]
 }
