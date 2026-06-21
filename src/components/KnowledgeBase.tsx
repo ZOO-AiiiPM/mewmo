@@ -951,6 +951,7 @@ export function KnowledgeBase({
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [activeFolderPath, setActiveFolderPath] = useState<string | undefined>();
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
+  const [editorMountKey, setEditorMountKey] = useState(0);
   const [selectedClip, setSelectedClip] = useState<Clip | null>(null);
   const [selectedNoteFolderPath, setSelectedNoteFolderPath] = useState<string | undefined>();
   const [kbDialog, setKbDialog] = useState<{ mode: 'create' } | { mode: 'edit'; kb: KBType } | null>(null);
@@ -1085,6 +1086,7 @@ export function KnowledgeBase({
     }
     setSelectedClip(null);
     setSelectedNote(noteFromEntry(note));
+    setEditorMountKey(k => k + 1);
     try {
       const full = await getNote(note.slug);
       if (full) setSelectedNote(full);
@@ -1506,7 +1508,7 @@ export function KnowledgeBase({
         </div>
       </aside>
 
-      <div className="min-h-0 min-w-0 flex-1 overflow-hidden bg-white dark:bg-stone-900">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white dark:bg-stone-900">
         {selectedClip ? (
           <KbClipReader
             key={selectedClip.id}
@@ -1515,7 +1517,7 @@ export function KnowledgeBase({
           />
         ) : selectedNote ? (
           <NoteEditor
-            key={selectedNote.id}
+            key={editorMountKey}
             note={selectedNote}
             onChange={handleUpdateSelectedNote}
             onLocalContentChange={handleLocalContentChange}
