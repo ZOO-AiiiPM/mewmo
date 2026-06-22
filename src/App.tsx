@@ -209,9 +209,9 @@ export default function App() {
       .finally(() => setLoading(false));
   }, [refresh, refreshClips, refreshSources]);
 
-  // 每 4 小时定时刷新订阅（WeRSS 每 3 小时更新，这里延后 1 小时确保能抓到新内容）
+  // 每 1 小时定时刷新订阅（WeRSS 每 3 小时更新，1h 轮询确保新文章最多延迟 1h 可见）
   useEffect(() => {
-    const FOUR_HOURS = 4 * 60 * 60 * 1000;
+    const ONE_HOUR = 60 * 60 * 1000;
     const timer = setInterval(async () => {
       try {
         await refreshAllSubscriptions();
@@ -219,7 +219,7 @@ export default function App() {
       } catch (e) {
         console.error('[subscription] scheduled refresh failed:', e);
       }
-    }, FOUR_HOURS);
+    }, ONE_HOUR);
     return () => clearInterval(timer);
   }, [refreshSources]);
 
