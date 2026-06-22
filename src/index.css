@@ -567,17 +567,19 @@ html.dark .live-md-editor .cm-task-done {
   word-break: break-word;
 }
 .clip-prose table {
-  display: block;
-  max-width: 100%;
-  overflow-x: auto;
+  width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: 0.9em;
   margin: 0 0 1em;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 .clip-prose th, .clip-prose td {
   border: 1px solid rgba(0,0,0,0.15);
   padding: 0.5em 0.75em;
   text-align: left;
+  overflow-wrap: break-word;
 }
 .clip-prose th {
   background: rgba(0,0,0,0.04);
