@@ -23,6 +23,8 @@ pub struct Clip {
     pub url: String,
     pub title: String,
     pub content_md: String,
+    pub content_html: String,
+    pub is_html: bool,
     pub content_loaded: bool,
     pub excerpt: String,
     pub site_name: String,
@@ -41,7 +43,7 @@ pub struct Clip {
 pub struct ClipInput {
     pub url: String,
     pub title: String,
-    pub content_md: String,
+    pub content_html: String,
     pub excerpt: String,
     pub site_name: String,
     pub favicon_url: String,
@@ -107,6 +109,8 @@ fn full_to_clip(full: query::ClipFull, body_loaded: bool) -> Clip {
         url: full.url,
         title: full.title,
         content_md: body,
+        content_html: String::new(),
+        is_html: false,
         content_loaded: body_loaded,
         excerpt: full.excerpt.unwrap_or_default(),
         site_name: full.site_name.unwrap_or_default(),
@@ -139,6 +143,8 @@ pub async fn list_clips() -> Result<Vec<Clip>, String> {
             url: s.url,
             title: s.title,
             content_md: s.body_preview,
+            content_html: String::new(),
+            is_html: false,
             content_loaded: false,
             excerpt: s.excerpt.unwrap_or_default(),
             site_name: s.site_name.unwrap_or_default(),
@@ -172,7 +178,7 @@ pub async fn get_clip(id: String) -> Result<Option<Clip>, String> {
 pub async fn save_clip(meta: State<'_, VaultMetaDb>, clip: ClipInput) -> Result<String, String> {
     let vault = require_vault()?;
     let cmeta = input_to_meta(&clip);
-    let r = ingest::write_clip(&vault, &clip.title, &clip.content_md, &[], &cmeta)
+    let r = ingest::write_clip(&vault, &clip.title, &clip.content_html, &[], &cmeta)
         .await
         .map_err(|e| e.to_string())?;
     let full = query::get_clip(&vault, &r.slug)
@@ -197,7 +203,7 @@ pub async fn update_clip(
         &vault,
         &id,
         &patch.title,
-        &patch.content_md,
+        &patch.content_html,
         &existing.tags,
         &cmeta,
         None,
