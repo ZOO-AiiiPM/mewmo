@@ -560,6 +560,14 @@ html.dark .live-md-editor .cm-task-done {
 }
 html.dark .clip-prose { color: #e7e5e4; }
 
+.clip-prose .wechat-emoji {
+  display: inline;
+  width: 1.2em;
+  height: 1.2em;
+  vertical-align: -0.2em;
+  margin: 0 0.05em;
+}
+
 .clip-prose h1 { font-size: 1.6em; font-weight: 700; letter-spacing: -0.02em; margin: 1.5em 0 0.6em; color: #0c0a09; }
 .clip-prose h2 { font-size: 1.3em; font-weight: 700; letter-spacing: -0.015em; margin: 1.4em 0 0.5em; color: #0c0a09; }
 .clip-prose h3 { font-size: 1.1em; font-weight: 600; margin: 1.2em 0 0.4em; color: #0c0a09; }

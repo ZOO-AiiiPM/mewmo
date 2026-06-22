@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import type { FeedEntry, SubscriptionSource } from '../types';
-import { sanitizeHtml } from '../lib/sanitizeHtml';
+import { ContentRenderer } from './ContentRenderer';
 import { getSessionScrollPosition, rememberSessionScrollPosition } from '../lib/sessionScrollMemory';
 import { ScrollToTopButton } from './ScrollToTopButton';
 
@@ -17,25 +17,6 @@ type Props = {
   onClipSave?: (url: string) => Promise<void>;
   clippedUrls?: Set<string>;
 };
-
-function isNeutralColor(c: string): boolean {
-  if (!c) return false;
-  const m = c.match(/rgba?\((\d+)[\s,]+(\d+)[\s,]+(\d+)/);
-  if (m) {
-    const channels = [+m[1], +m[2], +m[3]];
-    return Math.max(...channels) - Math.min(...channels) < 30;
-  }
-  if (!c.startsWith('#')) return false;
-  const hex = c.slice(1);
-  const channels = hex.length === 3
-    ? [hex[0] + hex[0], hex[1] + hex[1], hex[2] + hex[2]].map(v => parseInt(v, 16))
-    : hex.length === 6
-      ? [hex.slice(0, 2), hex.slice(2, 4), hex.slice(4, 6)].map(v => parseInt(v, 16))
-      : null;
-  if (!channels) return false;
-  const [r, g, b] = channels;
-  return Math.max(r, g, b) - Math.min(r, g, b) < 30;
-}
 
 function fmtPublished(ts: number | null): string {
   if (!ts) return '';
@@ -53,6 +34,7 @@ function fmtPublished(ts: number | null): string {
 
 export function EntryReader({
   entry,
+  source,
   onBack,
   onForward,
   canBack,
@@ -64,52 +46,12 @@ export function EntryReader({
 }: Props) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const h1Ref = useRef<HTMLHeadingElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
   const [showTitleInBar, setShowTitleInBar] = useState(false);
   const [copied, setCopied] = useState(false);
   const [clipping, setClipping] = useState(false);
   const [justClipped, setJustClipped] = useState(false);
   const isClipped = justClipped || (!!entry?.link && !!clippedUrls?.has(entry.link));
   const entryScrollKey = entry ? `entry:${entry.id}` : null;
-
-  // 缓存 sanitize 结果 + 手动写 innerHTML 绕开 dangerouslySetInnerHTML 在父
-  // 组件 re-render（如 scroll 触发 setShowTitleInBar）时整块重设 DOM 子树的
-  // 行为——之前用户报「向下滚动整个画面刷新一次」就是这个重设造成的。
-  const contentHtml = useMemo(
-    () => (entry?.content_html ? sanitizeHtml(entry.content_html) : ''),
-    [entry?.content_html],
-  );
-  useEffect(() => {
-    const root = contentRef.current;
-    if (!root) return;
-    root.innerHTML = contentHtml;
-  }, [contentHtml]);
-
-  // 深色模式下剥掉灰阶 inline color，保留彩色装饰；切主题或 DOM 重渲染时同步刷新。
-  useEffect(() => {
-    const root = contentRef.current;
-    if (!root) return;
-    const apply = () => {
-      const isDark = document.documentElement.classList.contains('dark');
-      root.querySelectorAll<HTMLElement>('[style]').forEach(el => {
-        if (el.dataset.origColor === undefined) {
-          el.dataset.origColor = el.style.color || '';
-        }
-        const oc = el.dataset.origColor || '';
-        if (!isDark) { el.style.color = oc; return; }
-        el.style.color = isNeutralColor(oc) ? '' : oc;
-      });
-    };
-    apply();
-    const themeObs = new MutationObserver(apply);
-    themeObs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-    const contentObs = new MutationObserver(apply);
-    contentObs.observe(root, { childList: true, subtree: true });
-    return () => {
-      themeObs.disconnect();
-      contentObs.disconnect();
-    };
-  }, [entry?.id]);
 
   // 切 entry 时恢复本次运行内的阅读位置；没有记录才回到顶部。
   useEffect(() => {
@@ -206,13 +148,19 @@ export function EntryReader({
             {entry.title || '无标题'}
           </h1>
 
-          {/* meta：作者 · 时间（来源已在 toolbar 中部 favicon + site link，不重复） */}
-          {(entry.author || publishedText) && (
+          {/* meta：作者 · 来源 · 时间 */}
+          {(entry.author || source?.title || publishedText) && (
             <div className="flex items-center flex-wrap gap-x-2 gap-y-1 text-[13px] text-stone-500 dark:text-stone-400 mb-5">
               {entry.author && (
                 <span className="font-medium text-stone-700 dark:text-stone-300">{entry.author}</span>
               )}
-              {entry.author && publishedText && (
+              {entry.author && source?.title && (
+                <span className="text-stone-300 dark:text-stone-600">·</span>
+              )}
+              {source?.title && (
+                <span className="font-medium text-stone-700 dark:text-stone-300">{source.title}</span>
+              )}
+              {(entry.author || source?.title) && publishedText && (
                 <span className="text-stone-300 dark:text-stone-600">·</span>
               )}
               {publishedText && <span>{publishedText}</span>}
@@ -220,11 +168,7 @@ export function EntryReader({
           )}
 
           {/* 正文 */}
-          {entry.content_html ? (
-            <div ref={contentRef} className="clip-prose" />
-          ) : (
-            <div className="text-stone-400 dark:text-stone-500 text-sm italic">暂无正文内容</div>
-          )}
+          <ContentRenderer html={entry.content_html || ''} contentKey={entry.id} />
         </div>
       </div>
 

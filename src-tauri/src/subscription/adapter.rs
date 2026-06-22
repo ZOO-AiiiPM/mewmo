@@ -186,6 +186,9 @@ fn map_entry(e: feed_rs::model::Entry) -> Option<FetchedEntry> {
     // 剥离微信文章尾部 boilerplate（赞赏弹窗、底部元数据栏等）
     let content_html = strip_wechat_boilerplate(&content_html);
 
+    // WordPress emoji 图片替换为 Unicode 字符
+    let content_html = replace_emoji_images(&content_html);
+
     // 去掉正文中与 entry title 重复的首个标题元素
     let content_html = strip_duplicate_title(&content_html, &title);
 
@@ -368,6 +371,109 @@ fn strip_duplicate_title(html: &str, title: &str) -> String {
         }
     }
     html.to_string()
+}
+
+/// 将 WordPress / 微信的 emoji 图片（`<img class="wp-smiley" alt="🍎">` 或
+/// `s.w.org/images/core/emoji/` 路径的 img）替换为 alt 文本里的 Unicode emoji。
+/// 微信 emoji（`res.wx.qq.com/t/wx_fed/we-emoji/`）没有 alt，加 class 让前端 CSS 约束尺寸。
+fn replace_emoji_images(html: &str) -> String {
+    if html.is_empty() {
+        return String::new();
+    }
+    if !html.contains("wp-smiley")
+        && !html.contains("s.w.org/images/core/emoji")
+        && !html.contains("res.wx.qq.com/t/wx_fed/we-emoji/")
+    {
+        return html.to_string();
+    }
+
+    use scraper::{Html, Selector};
+
+    let document = Html::parse_fragment(html);
+    let img_sel = Selector::parse("img").unwrap();
+
+    // WordPress emoji → replace with alt text
+    let wp_emoji_ids: std::collections::HashMap<ego_tree::NodeId, String> = document
+        .select(&img_sel)
+        .filter_map(|el| {
+            let is_wp = el.value().attr("class").map_or(false, |c| c.contains("wp-smiley"))
+                || el.value().attr("src").map_or(false, |s| s.contains("s.w.org/images/core/emoji"));
+            if !is_wp {
+                return None;
+            }
+            let alt = el.value().attr("alt").unwrap_or("").to_string();
+            if alt.is_empty() {
+                return None;
+            }
+            Some((el.id(), alt))
+        })
+        .collect();
+
+    // WeChat emoji → mark with class (no alt available)
+    let wx_emoji_ids: std::collections::HashSet<ego_tree::NodeId> = document
+        .select(&img_sel)
+        .filter(|el| {
+            el.value().attr("src").map_or(false, |s| s.contains("res.wx.qq.com/t/wx_fed/we-emoji/"))
+        })
+        .map(|el| el.id())
+        .collect();
+
+    if wp_emoji_ids.is_empty() && wx_emoji_ids.is_empty() {
+        return html.to_string();
+    }
+
+    let mut out = String::with_capacity(html.len());
+    serialize_tree_with_emoji(document.tree.root(), &wp_emoji_ids, &wx_emoji_ids, &mut out);
+    out
+}
+
+fn serialize_tree_with_emoji(
+    node: ego_tree::NodeRef<scraper::Node>,
+    wp_emoji_map: &std::collections::HashMap<ego_tree::NodeId, String>,
+    wx_emoji_ids: &std::collections::HashSet<ego_tree::NodeId>,
+    out: &mut String,
+) {
+    use scraper::Node;
+    for child in node.children() {
+        if let Some(alt) = wp_emoji_map.get(&child.id()) {
+            out.push_str(alt);
+            continue;
+        }
+        let is_wx_emoji = wx_emoji_ids.contains(&child.id());
+        match child.value() {
+            Node::Text(t) => out.push_str(t),
+            Node::Element(el) => {
+                out.push('<');
+                out.push_str(el.name());
+                for (name, value) in el.attrs() {
+                    // WeChat emoji: replace style with class
+                    if is_wx_emoji && name == "style" {
+                        continue;
+                    }
+                    out.push(' ');
+                    out.push_str(name);
+                    out.push_str("=\"");
+                    out.push_str(&value.replace('"', "&quot;"));
+                    out.push('"');
+                }
+                if is_wx_emoji {
+                    out.push_str(" class=\"wechat-emoji\"");
+                }
+                out.push('>');
+                serialize_tree_with_emoji(child, wp_emoji_map, wx_emoji_ids, out);
+                let void_tags = ["br", "hr", "img", "input", "meta", "link", "area", "col"];
+                if !void_tags.contains(&el.name()) {
+                    out.push_str("</");
+                    out.push_str(el.name());
+                    out.push('>');
+                }
+            }
+            Node::Fragment => {
+                serialize_tree_with_emoji(child, wp_emoji_map, wx_emoji_ids, out);
+            }
+            _ => {}
+        }
+    }
 }
 
 #[cfg(test)]
