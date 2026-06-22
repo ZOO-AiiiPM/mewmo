@@ -164,7 +164,7 @@ export default function App() {
       const byId = new Map(prev.map(c => [c.id, c]));
       return fresh.map(f => {
         const ex = byId.get(f.id);
-        return ex?.content_loaded ? { ...f, content_md: ex.content_md, content_loaded: true } : f;
+        return ex?.content_loaded ? { ...f, content_md: ex.content_md, content_html: ex.content_html, is_html: ex.is_html, content_loaded: true } : f;
       });
     });
   }, []);
@@ -503,7 +503,7 @@ export default function App() {
 
   // ── 剪藏操作 ──────────────────────────────────────────────────────────────
   type FetchedClip = {
-    url: string; title: string; content_md: string;
+    url: string; title: string; content_html: string; is_html: boolean;
     excerpt: string; site_name: string; favicon_url: string;
     cover_image: string; author: string; published_at: string;
     ip_region: string;
