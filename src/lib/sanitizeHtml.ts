@@ -13,10 +13,11 @@ const DROP_WITH_CONTENT = new Set([
 ]);
 const STYLE_PROPS = new Set([
   'background', 'background-color', 'border-radius', 'color',
-  'font-family', 'font-size', 'font-style', 'font-weight',
+  'display', 'font-family', 'font-size', 'font-style', 'font-weight',
   'letter-spacing', 'line-height', 'margin', 'margin-top', 'margin-bottom',
-  'margin-left', 'margin-right', 'padding', 'padding-top', 'padding-bottom',
-  'padding-left', 'padding-right', 'text-align', 'text-decoration',
+  'margin-left', 'margin-right', 'max-width', 'padding', 'padding-top',
+  'padding-bottom', 'padding-left', 'padding-right', 'text-align',
+  'text-decoration', 'visibility', 'width',
 ]);
 
 export function sanitizeHtml(html: string, mode: SanitizeMode = 'rich'): string {
