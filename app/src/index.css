@@ -568,8 +568,26 @@ html.dark .live-md-editor .cm-task-done {
 }
 .clip-prose table {
   display: block;
-  width: 100%;
+  max-width: 100%;
   overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 0.9em;
+  margin: 0 0 1em;
+}
+.clip-prose th, .clip-prose td {
+  border: 1px solid rgba(0,0,0,0.15);
+  padding: 0.5em 0.75em;
+  text-align: left;
+}
+.clip-prose th {
+  background: rgba(0,0,0,0.04);
+  font-weight: 600;
+}
+html.dark .clip-prose th, html.dark .clip-prose td {
+  border-color: rgba(255,255,255,0.15);
+}
+html.dark .clip-prose th {
+  background: rgba(255,255,255,0.06);
 }
 .clip-prose pre {
   overflow-x: auto;
@@ -617,7 +635,10 @@ html.dark .clip-prose code {
   overflow-x: auto;
   margin: 0 0 1em;
 }
-html.dark .clip-prose pre { background: rgba(255,255,255,0.06); }
+html.dark .clip-prose pre {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.1);
+}
 .clip-prose pre code { background: transparent; padding: 0; color: inherit; font-size: 0.875em; }
 
 .clip-prose blockquote {
