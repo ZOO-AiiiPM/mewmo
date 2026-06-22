@@ -380,7 +380,7 @@ pub async fn write_clip(
 
     let yaml = build_clip_yaml(title, &now, tags, meta);
     let content = frontmatter::build(&yaml, body);
-    let relative = format!("raw/clips/{}.md", final_slug);
+    let relative = format!("raw/clips/{}.html", final_slug);
     let mtime = io::write_atomic(vault, &relative, &content, None).await?;
     Ok(WriteResult {
         slug: final_slug,
@@ -402,7 +402,11 @@ pub async fn update_clip(
     expected_mtime: Option<u64>,
 ) -> Result<WriteResult, IngestError> {
     let dir = vault.join("raw/clips");
-    let old_relative = format!("raw/clips/{}.md", slug);
+    let old_relative = if vault.join(format!("raw/clips/{}.html", slug)).exists() {
+        format!("raw/clips/{}.html", slug)
+    } else {
+        format!("raw/clips/{}.md", slug)
+    };
     let existing = io::read(vault, &old_relative).await?;
     let existing_fm = existing.frontmatter.unwrap_or_default();
 
@@ -427,7 +431,7 @@ pub async fn update_clip(
 
     let yaml = build_clip_yaml(title, &saved_at, tags, meta);
     let content = frontmatter::build(&yaml, body);
-    let new_relative = format!("raw/clips/{}.md", target_slug);
+    let new_relative = format!("raw/clips/{}.html", target_slug);
 
     if target_slug != slug {
         let mtime = io::write_atomic(vault, &new_relative, &content, None).await?;
@@ -449,7 +453,11 @@ pub async fn update_clip(
 
 /// 删除剪藏（移到系统回收站）
 pub async fn delete_clip(vault: &Path, slug: &str) -> Result<(), IngestError> {
-    let relative = format!("raw/clips/{}.md", slug);
+    let relative = if vault.join(format!("raw/clips/{}.html", slug)).exists() {
+        format!("raw/clips/{}.html", slug)
+    } else {
+        format!("raw/clips/{}.md", slug)
+    };
     io::validate_relative_path(&relative)?;
     let path = vault.join(&relative);
     if path.exists() {
