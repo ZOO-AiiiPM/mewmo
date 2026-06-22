@@ -54,6 +54,15 @@ export async function moveKbNote(
   return call<string>('kb_move_note', { slug, targetKb, targetRelativePath });
 }
 
+/** 把笔记区（wiki/notes）的一篇笔记移动进知识库，保留 .md/.html 原格式。返回新 KbNoteEntry。 */
+export async function importKbNote(
+  slug: string,
+  targetKb: string,
+  targetRelativePath: string
+): Promise<KbNoteEntry> {
+  return call<KbNoteEntry>('kb_import_note', { slug, targetKb, targetRelativePath });
+}
+
 /** 移动整个文件夹（含子树）到目标知识库的目标文件夹（targetRelativePath 空串 = 库根）。 */
 export async function moveKbFolder(
   sourceKb: string,

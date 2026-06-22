@@ -12,6 +12,7 @@ import {
   deleteKbFolder,
   getKbClip,
   importKbFolder,
+  importKbNote,
   listKbContents,
   listKbs,
   moveKbFolder,
@@ -22,6 +23,7 @@ import {
 import type { Clip, KnowledgeBase as KBType, KbContents, KbFolderEntry, KbNoteEntry, Note } from '../types';
 import { ClipReader } from './ClipReader';
 import { ConfirmDialog } from './ConfirmDialog';
+import { HtmlReader } from './HtmlReader';
 import { MoveTargetPicker } from './MoveTargetPicker';
 import { NoteEditor } from './NoteEditor';
 
@@ -515,7 +517,9 @@ function KbImportDialog({
       filter !== 'notes' ? listClips() : Promise.resolve([]),
     ])
       .then(([nextNotes, nextClips]) => {
-        setNotes((nextNotes as Note[]).filter(note => note.format === 'md' && !note.id.startsWith('library/')));
+        // 不过滤 format：.md 和 .html 笔记都可导入（HtmlReader 已支持 KB 内 HTML 渲染）。
+        // 仍排除 library/ 开头的笔记（已在某个 KB 里，不让重复导入）。
+        setNotes((nextNotes as Note[]).filter(note => !note.id.startsWith('library/')));
         setClips(nextClips as Clip[]);
       })
       .catch(console.error);
@@ -769,7 +773,7 @@ function TreeLevel({
             </div>
             {(isOpen || multiSelectMode) && (
               <div className="ml-5 border-l border-black/[0.06] pl-2 dark:border-white/[0.08]">
-                {loadingPaths.has(folder.path) ? (
+                {loadingPaths.has(folder.path) && !contentsByPath[folder.path] ? (
                   <div className="px-2 py-2 text-[12px] text-stone-400">加载中…</div>
                 ) : (
                   <TreeLevel
@@ -860,6 +864,7 @@ function TreeLevel({
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setNoteMenu(null)} onKeyDown={() => {}} role="presentation" />
                   <div className="absolute right-0 top-[calc(100%+4px)] z-30 w-40 overflow-hidden rounded-xl bg-white p-1 shadow-[0_10px_28px_rgba(0,0,0,0.16)] ring-1 ring-black/[0.06] dark:bg-stone-800 dark:ring-white/[0.08]">
+                    <ActionMenuItem icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" /><polyline points="16 6 12 2 8 6" /><line x1="12" y1="2" x2="12" y2="15" /></svg>} label="分享文件" onClick={async () => { setNoteMenu(null); const { getVaultConfig } = await import('../lib/db'); const { revealItemInDir } = await import('@tauri-apps/plugin-opener'); const config = await getVaultConfig(); if (!config) return; const ext = note.slug.endsWith('.html') ? '' : '.md'; const filePath = `${config.vault_path}/${note.slug}${ext.length ? ext : ''}`; await revealItemInDir(filePath); }} />
                     <ActionMenuItem icon={<MoveIcon />} label="移动到…" onClick={() => { setNoteMenu(null); onMoveNote(note, path); }} />
                     <ActionMenuItem icon={<TrashIcon />} label="删除" danger onClick={() => { setNoteMenu(null); onDeleteNote(note, path); }} />
                   </div>
@@ -891,7 +896,6 @@ export function KnowledgeBase({
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [activeFolderPath, setActiveFolderPath] = useState<string | undefined>();
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
-  const [editorMountKey, setEditorMountKey] = useState(0);
   const [editorExpanded, setEditorExpanded] = useState(false);
   const [selectedClip, setSelectedClip] = useState<Clip | null>(null);
   const [selectedNoteFolderPath, setSelectedNoteFolderPath] = useState<string | undefined>();
@@ -1052,7 +1056,6 @@ export function KnowledgeBase({
     }
     setSelectedClip(null);
     setSelectedNote(noteFromEntry(note));
-    setEditorMountKey(k => k + 1);
     try {
       const full = await getNote(note.slug);
       if (full) setSelectedNote(full);
@@ -1156,11 +1159,9 @@ export function KnowledgeBase({
     const targetPath = activeFolderPath;
     try {
       for (const id of noteIds) {
-        const source = await getNote(id);
-        if (!source || source.format !== 'md') continue;
-        const note = await createKbNote(selectedKb.dir_name, targetPath, source.title || '无标题');
-        await updateNote(note.slug, { content_md: source.content_md });
-        await deleteNote(id);
+        // md / html 统一走 kb_import_note：后端 fs::rename 保留原格式 + 清 FTS（仅 md）。
+        // 取代旧的「建 .md + 拷内容 + 删原件」——那条把 HTML 塞进 .md 会损坏格式。
+        await importKbNote(id, selectedKb.dir_name, targetPath ?? '');
       }
       for (const id of clipIds) {
         const source = await getClip(id);
@@ -1321,7 +1322,7 @@ export function KnowledgeBase({
     const id = targetNoteId ?? selectedNote?.id;
     if (!id) return;
     updateNote(id, patch)
-      .then(async newSlug => {
+      .then(newSlug => {
         setSelectedNote(prev => {
           if (!prev || prev.id !== id) return prev;
           return {
@@ -1331,10 +1332,28 @@ export function KnowledgeBase({
             content_md: patch.content_md ?? prev.content_md,
           };
         });
-        await refreshPath(selectedNoteFolderPath);
+        // 对齐笔记区（App.tsx handleUpdateNote）：保存后只在内存里原地更新这一条，
+        // 不再 refreshPath 重读磁盘——重读会让列表整片闪「加载中」吞掉点击（见 :772）。
+        // 树只显示 title，故 patch title/slug/updated_at 即可；preview 不展示，留旧值。
+        const key = selectedNoteFolderPath ?? '';
+        setContentsByPath(prev => {
+          const bucket = prev[key];
+          if (!bucket) return prev;
+          return {
+            ...prev,
+            [key]: {
+              ...bucket,
+              notes: bucket.notes.map(n =>
+                n.slug === id
+                  ? { ...n, slug: newSlug, title: patch.title ?? n.title, updated_at: Math.floor(Date.now() / 1000) }
+                  : n
+              ),
+            },
+          };
+        });
       })
       .catch(console.error);
-  }, [refreshPath, selectedNote, selectedNoteFolderPath]);
+  }, [selectedNote, selectedNoteFolderPath]);
 
   const handleLocalContentChange = useCallback((id: string, content_md: string) => {
     setSelectedNote(prev => (prev?.id === id ? { ...prev, content_md } : prev));
@@ -1506,9 +1525,11 @@ export function KnowledgeBase({
               <MoreIcon />
             </button>
             {addMenuOpen && (
+              <>
+              <div className="fixed inset-0 z-20" onClick={() => setAddMenuOpen(false)} />
               <div ref={addMenuRef} className="absolute right-0 top-[calc(100%_+_6px)] z-30 w-40 overflow-hidden rounded-xl bg-white p-1 shadow-[0_10px_28px_rgba(0,0,0,0.16)] ring-1 ring-black/[0.06] dark:bg-stone-800 dark:ring-white/[0.08]">
                 <ActionMenuItem
-                  icon={<NoteIcon />}
+                  icon={<PlusIcon />}
                   label="添加笔记"
                   onClick={() => {
                     setAddMenuOpen(false);
@@ -1516,7 +1537,7 @@ export function KnowledgeBase({
                   }}
                 />
                 <ActionMenuItem
-                  icon={<FolderIcon />}
+                  icon={<PlusIcon />}
                   label="添加文件夹"
                   onClick={() => {
                     setAddMenuOpen(false);
@@ -1554,6 +1575,7 @@ export function KnowledgeBase({
                   }}
                 />
               </div>
+              </>
             )}
           </div>
             </>
@@ -1623,19 +1645,30 @@ export function KnowledgeBase({
             onDelete={(id) => handleDeleteSelectedNote(id)}
           />
         ) : selectedNote ? (
-          <NoteEditor
-            key={editorMountKey}
-            note={selectedNote}
-            onChange={handleUpdateSelectedNote}
-            onLocalContentChange={handleLocalContentChange}
-            theme={editorTheme}
-            onCreate={handleCreateNote}
-            aiOpen={false}
-            expanded={editorExpanded}
-            onExpand={() => setEditorExpanded(e => !e)}
-            newlyCreatedId={newlyCreatedNoteId}
-            onCreateAnimDone={() => setNewlyCreatedNoteId(null)}
-          />
+          selectedNote.format === 'html' ? (
+            // HTML 笔记走 iframe 原生渲染（同 App.tsx 笔记区分流），不进 markdown 编辑器
+            <HtmlReader
+              note={selectedNote}
+              aiOpen={false}
+              expanded={editorExpanded}
+              onExpand={() => setEditorExpanded(e => !e)}
+              onCreate={handleCreateNote}
+              onDelete={() => handleDeleteSelectedNote(selectedNote.id)}
+            />
+          ) : (
+            <NoteEditor
+              note={selectedNote}
+              onChange={handleUpdateSelectedNote}
+              onLocalContentChange={handleLocalContentChange}
+              theme={editorTheme}
+              onCreate={handleCreateNote}
+              aiOpen={false}
+              expanded={editorExpanded}
+              onExpand={() => setEditorExpanded(e => !e)}
+              newlyCreatedId={newlyCreatedNoteId}
+              onCreateAnimDone={() => setNewlyCreatedNoteId(null)}
+            />
+          )
         ) : (
           <main className="flex h-full flex-col">
             <div className="h-12 shrink-0 border-b border-black/[0.06] bg-white/80 backdrop-blur-md dark:border-white/[0.06] dark:bg-stone-900/80" />

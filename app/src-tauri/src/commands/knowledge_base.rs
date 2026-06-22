@@ -1085,6 +1085,65 @@ pub async fn kb_move_note(
     Ok(build_kb_slug(&target_kb, &target_relative_path, &new_stem))
 }
 
+/// 把笔记区（wiki/notes）的一篇笔记**移动**进知识库，保留 .md / .html 原格式。
+/// 移动语义 = 搬文件（fs::rename）+ （仅 .md）从 FTS 清除源条目（HTML 本就不进 FTS，见 search.rs）。
+/// 返回新 KbNoteEntry 供前端原地更新列表（不重读磁盘）。
+#[tauri::command]
+pub async fn kb_import_note(
+    meta: State<'_, VaultMetaDb>,
+    slug: String,
+    target_kb: String,
+    target_relative_path: String,
+) -> Result<KbNoteEntry, String> {
+    let vault = require_vault()?;
+    let lib = library_dir()?;
+
+    // 解析源文件：wiki/notes/{slug}.md 或 .html（笔记区两种格式都有）
+    let old_path = ["md", "html"]
+        .iter()
+        .map(|ext| vault.join(format!("wiki/notes/{}.{}", slug, ext)))
+        .find(|p| p.exists())
+        .ok_or_else(|| format!("NOT_FOUND: wiki/notes/{}", slug))?;
+    let ext = old_path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("md")
+        .to_string();
+
+    let target_parent = if target_relative_path.is_empty() {
+        lib.join(&target_kb)
+    } else {
+        lib.join(&target_kb).join(&target_relative_path)
+    };
+    fs::create_dir_all(&target_parent).map_err(|e| format!("mkdir target: {e}"))?;
+
+    // 撞名：目标目录已有同 file_stem → unique_slug 加 -2 后缀（同 kb_move_note）
+    let existing: Vec<String> = fs::read_dir(&target_parent)
+        .map_err(|e| e.to_string())?
+        .flatten()
+        .filter_map(|e| e.path().file_stem().and_then(|s| s.to_str().map(String::from)))
+        .collect();
+    let existing_refs: Vec<&str> = existing.iter().map(|s| s.as_str()).collect();
+    let new_stem = slug::unique_slug(&slug, &existing_refs);
+
+    let new_path = target_parent.join(format!("{}.{}", new_stem, ext));
+    fs::rename(&old_path, &new_path).map_err(|e| format!("mv note: {e}"))?;
+
+    // 源是 .md → 从 notes_fts 清除（HTML 笔记本就不进 FTS，跳过）
+    if ext == "md" {
+        crate::vault::search::delete_index_note(&meta.conn, &slug).map_err(|e| e.to_string())?;
+    }
+
+    Ok(KbNoteEntry {
+        slug: build_kb_slug(&target_kb, &target_relative_path, &new_stem),
+        title: extract_title(&new_path),
+        preview: extract_preview(&new_path),
+        tags: extract_tags(&new_path),
+        updated_at: file_mtime_secs(&new_path),
+        kind: extract_kind(&new_path),
+    })
+}
+
 /// 移动整个文件夹（含子树）到目标知识库的目标文件夹。fs::rename 一次搬走整棵树。
 #[tauri::command]
 pub async fn kb_move_folder(
