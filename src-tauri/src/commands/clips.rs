@@ -90,7 +90,7 @@ fn opt_string(s: &str) -> Option<String> {
 
 fn full_to_clip(full: query::ClipFull, body_loaded: bool) -> Clip {
     let body = if body_loaded {
-        full.body
+        full.body.clone()
     } else {
         // 列表 mode 取前 240 字预览
         let mut chars: String = full.body.chars().take(240).collect();
@@ -108,9 +108,9 @@ fn full_to_clip(full: query::ClipFull, body_loaded: bool) -> Clip {
         id: full.slug,
         url: full.url,
         title: full.title,
-        content_md: body,
-        content_html: String::new(),
-        is_html: false,
+        content_md: if full.is_html { String::new() } else { body.clone() },
+        content_html: if full.is_html { body.clone() } else { String::new() },
+        is_html: full.is_html,
         content_loaded: body_loaded,
         excerpt: full.excerpt.unwrap_or_default(),
         site_name: full.site_name.unwrap_or_default(),
@@ -142,9 +142,9 @@ pub async fn list_clips() -> Result<Vec<Clip>, String> {
             id: s.slug,
             url: s.url,
             title: s.title,
-            content_md: s.body_preview,
-            content_html: String::new(),
-            is_html: false,
+            content_md: if s.is_html { String::new() } else { s.body_preview.clone() },
+            content_html: if s.is_html { s.body_preview.clone() } else { String::new() },
+            is_html: s.is_html,
             content_loaded: false,
             excerpt: s.excerpt.unwrap_or_default(),
             site_name: s.site_name.unwrap_or_default(),
