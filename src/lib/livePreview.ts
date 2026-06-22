@@ -1119,23 +1119,42 @@ class TableWidget extends WidgetType {
     };
 
     const rowControls: Array<{ cell: HTMLElement; ctrl: HTMLElement }> = [];
+    // 表格内有 cell 处于编辑（focus）态时为 true：编辑时不弹行控制——用户在打字，左侧冒按钮是干扰。
+    let editingCell = false;
+    const hideAllRowControls = () =>
+      rowControls.forEach(({ ctrl }) => ctrl.classList.remove('cm-md-table-row-controls-visible'));
     const bindRowControl = (cell: HTMLElement, ctrl: HTMLElement) => {
       rowControls.push({ cell, ctrl });
-      const show = () => ctrl.classList.add('cm-md-table-row-controls-visible');
+      // 显示某行时先清掉其它行 → 同时只亮一行。行控制竖排比单行高，不清的话连续跨行 hover 会多行糊在一起。
+      const show = () => {
+        if (editingCell) return;
+        rowControls.forEach(({ ctrl: other }) => {
+          if (other !== ctrl) other.classList.remove('cm-md-table-row-controls-visible');
+        });
+        ctrl.classList.add('cm-md-table-row-controls-visible');
+      };
+      // 离开即快速消失（40ms 仅给 cell↔按钮 之间 ~2px 间隙留极短穿越余量）。不挂 focus 事件：编辑不触发显示。
       const hide = () => {
         window.setTimeout(() => {
-          if (!cell.matches(':hover') && !cell.matches(':focus-within') && !ctrl.matches(':hover')) {
+          if (!cell.matches(':hover') && !ctrl.matches(':hover')) {
             ctrl.classList.remove('cm-md-table-row-controls-visible');
           }
-        }, 80);
+        }, 40);
       };
       cell.addEventListener('mouseenter', show);
       cell.addEventListener('mouseleave', hide);
-      cell.addEventListener('focusin', show);
-      cell.addEventListener('focusout', hide);
       ctrl.addEventListener('mouseenter', show);
       ctrl.addEventListener('mouseleave', hide);
     };
+    // 编辑态开关：任意 cell 获得焦点 → 隐藏全部行控制并锁住 hover 显示；焦点离开整张表 → 解锁。
+    // focusin/focusout 会从 cell 内的 contentEditable span 冒泡到 table，故挂在 table 上做委托。
+    table.addEventListener('focusin', () => {
+      editingCell = true;
+      hideAllRowControls();
+    });
+    table.addEventListener('focusout', e => {
+      if (!table.contains(e.relatedTarget as Node | null)) editingCell = false;
+    });
 
     const thead = document.createElement('thead');
     const trh = document.createElement('tr');
