@@ -68,6 +68,7 @@ pub fn run() {
             commands::knowledge_base::kb_get_clip,
             commands::knowledge_base::kb_import_folder,
             commands::knowledge_base::kb_move_note,
+            commands::knowledge_base::kb_import_note,
             commands::knowledge_base::kb_move_folder,
         ])
         .setup(|app| {
