@@ -92,6 +92,10 @@ export async function updateClip(
   return call<string>('update_clip', { id, patch });
 }
 
+export async function migrateClipsToHtml(): Promise<{ success: number; failed: number; errors: string[] }> {
+  return call('migrate_clips_to_html', {});
+}
+
 // ── Vault ─────────────────────────────────────────────────────────────────
 
 export type VaultConfig = {

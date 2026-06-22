@@ -41,6 +41,7 @@ pub fn run() {
             commands::clips::save_clip,
             commands::clips::update_clip,
             commands::clips::delete_clip,
+            commands::clips::migrate_clips_to_html,
             commands::search::search_all,
             commands::subscriptions::add_subscription,
             commands::subscriptions::list_sources_with_unread,
