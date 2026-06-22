@@ -372,7 +372,7 @@ fn list_dir_inner(
             continue;
         }
         let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
-        if ext != "md" {
+        if ext != "md" && ext != "html" {
             continue;
         }
         let content = match fs::read_to_string(&path) {

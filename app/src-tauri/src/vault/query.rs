@@ -71,6 +71,7 @@ pub struct ClipSummary {
     pub tags: Vec<String>,
     pub mtime: u64,
     pub pinned: bool,
+    pub is_html: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -91,6 +92,7 @@ pub struct ClipFull {
     pub mtime: u64,
     pub legacy_id: Option<i64>,
     pub pinned: bool,
+    pub is_html: bool,
 }
 
 // ============================================================================
@@ -243,6 +245,7 @@ pub async fn list_clips(vault: &Path) -> Result<Vec<ClipSummary>, io::IoError> {
     let mut summaries = Vec::with_capacity(entries.len());
     for e in entries {
         let slug = path_to_slug(&e.relative_path);
+        let is_html = e.relative_path.ends_with(".html");
         let r = io::read(vault, &e.relative_path).await?;
         let fm = r.frontmatter.unwrap_or_default();
         let title = fm
@@ -268,6 +271,7 @@ pub async fn list_clips(vault: &Path) -> Result<Vec<ClipSummary>, io::IoError> {
             tags: fm.tags,
             mtime: e.mtime,
             pinned: e.pinned,
+            is_html,
         });
     }
     summaries.sort_by(|a, b| b.mtime.cmp(&a.mtime));
@@ -276,7 +280,11 @@ pub async fn list_clips(vault: &Path) -> Result<Vec<ClipSummary>, io::IoError> {
 
 /// 读单条剪藏完整内容（含中文站点专属字段，FR-008）
 pub async fn get_clip(vault: &Path, slug: &str) -> Result<ClipFull, io::IoError> {
-    let relative = format!("raw/clips/{}.md", slug);
+    let (relative, is_html) = if vault.join(format!("raw/clips/{}.html", slug)).exists() {
+        (format!("raw/clips/{}.html", slug), true)
+    } else {
+        (format!("raw/clips/{}.md", slug), false)
+    };
     let r = io::read(vault, &relative).await?;
     let fm = r.frontmatter.unwrap_or_default();
     // 先借用 fm.extra 把 String / Option<String> 提取出来，最后才 move fm.author / fm.tags
@@ -315,6 +323,7 @@ pub async fn get_clip(vault: &Path, slug: &str) -> Result<ClipFull, io::IoError>
         mtime: r.mtime,
         legacy_id,
         pinned: fm.pinned.unwrap_or(false),
+        is_html,
     })
 }
 
