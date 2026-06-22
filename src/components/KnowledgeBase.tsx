@@ -322,6 +322,8 @@ function clipFromEntry(entry: KbNoteEntry): Clip {
     url: '',
     title: entry.title,
     content_md: entry.preview,
+    content_html: '',
+    is_html: false,
     content_loaded: false,
     excerpt: entry.preview,
     site_name: '',
