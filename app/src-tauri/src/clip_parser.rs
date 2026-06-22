@@ -4,7 +4,7 @@
 pub(crate) struct FetchedClip {
     url: String,
     title: String,
-    content_md: String,
+    content_html: String,
     excerpt: String,
     site_name: String,
     favicon_url: String,
@@ -317,6 +317,34 @@ fn sanitize_color(color: &str) -> String {
         .collect::<String>()
         .trim()
         .to_string()
+}
+
+/// 按选择器优先级找正文容器，返回其 inner_html（保留完整 HTML 结构）
+fn extract_article_html(document: &scraper::Html) -> String {
+    for sel_str in &[
+        "#js_content",
+        ".RichText",
+        "article",
+        "[role='main']",
+        "main",
+        ".article-body",
+        ".post-content",
+        ".entry-content",
+        "body",
+    ] {
+        let Ok(sel) = scraper::Selector::parse(sel_str) else {
+            continue;
+        };
+        let Some(el) = document.select(&sel).next() else {
+            continue;
+        };
+        let html = el.inner_html();
+        if html.trim().len() < 100 {
+            continue;
+        }
+        return html;
+    }
+    String::new()
 }
 
 /// 按选择器优先级找正文，清理多余空行
@@ -711,15 +739,12 @@ pub(crate) fn parse_clip_html(html: &str, url: String) -> Result<FetchedClip, St
     // 公众号 #publish_time 也是 SSR 空、JS 填充——从 script var ct 取 unix timestamp
     let published_at = wx_publish_ts(html).unwrap_or_else(|| page_published(&doc));
     let ip_region = wx_ip_region(html).unwrap_or_default();
-    let raw_content = extract_article_md(&doc, &url);
-    let content_md = dedup_images(&raw_content, &cover_image);
-    // 去掉正文开头跟 title 重复的 H1（ClipReader 已单独显示 title）
-    let content_md = strip_leading_h1(&content_md, &title);
+    let content_html = extract_article_html(&doc);
 
     Ok(FetchedClip {
         url,
         title,
-        content_md,
+        content_html,
         excerpt,
         site_name,
         favicon_url,
