@@ -75,7 +75,9 @@ function sanitizeElement(el: HTMLElement, tag: string, mode: SanitizeMode) {
   }
 
   if (tag === 'img') {
-    const src = safeUrl(attrs.get('src') ?? '', true);
+    // 微信图片用 data-src 懒加载，src 是空或占位 gif
+    const rawSrc = attrs.get('data-src') || attrs.get('data-original') || attrs.get('src') || '';
+    const src = safeUrl(rawSrc, true);
     if (!src) {
       el.remove();
       return;
