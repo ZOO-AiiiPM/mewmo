@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { marked } from 'marked';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import type { Clip } from '../types';
-import { sanitizeHtml } from '../lib/sanitizeHtml';
+import { ContentRenderer } from './ContentRenderer';
 import { getSessionScrollPosition, rememberSessionScrollPosition } from '../lib/sessionScrollMemory';
 import { ConfirmDialog } from './ConfirmDialog';
 import { ScrollToTopButton } from './ScrollToTopButton';
@@ -41,28 +41,6 @@ function fmtPublished(s: string): string {
   });
 }
 
-/// 判断颜色是否为"灰阶 / 接近灰阶"——红绿蓝三通道差异 < 30 即认定为黑白灰系。
-/// 这种 inline color 在深色模式下应被剥掉让阅读器主题接管；高饱和度的装饰色
-/// （绿/红/蓝/橙等）则保留作者意图。
-function isNeutralColor(c: string): boolean {
-  if (!c) return false;
-  const m = c.match(/rgba?\((\d+)[\s,]+(\d+)[\s,]+(\d+)/);
-  if (m) {
-    const channels = [+m[1], +m[2], +m[3]];
-    return Math.max(...channels) - Math.min(...channels) < 30;
-  }
-  if (!c.startsWith('#')) return false;
-  const hex = c.slice(1);
-  const channels = hex.length === 3
-    ? [hex[0] + hex[0], hex[1] + hex[1], hex[2] + hex[2]].map(v => parseInt(v, 16))
-    : hex.length === 6
-      ? [hex.slice(0, 2), hex.slice(2, 4), hex.slice(4, 6)].map(v => parseInt(v, 16))
-      : null;
-  if (!channels) return false;
-  const [r, g, b] = channels;
-  return Math.max(r, g, b) - Math.min(r, g, b) < 30;
-}
-
 /// 文本按行分割 → 去空 → 自动补 https://；保留原始行索引便于失败回填
 function parseUrlLines(text: string): { url: string; raw: string }[] {
   return text.split(/[\n\r]+/)
@@ -85,7 +63,6 @@ export function ClipReader({
   expanded, onExpand,
 }: Props) {
   const [refetching, setRefetching] = useState(false);
-  const contentRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const tbTitleRef = useRef<HTMLSpanElement>(null);
@@ -109,47 +86,8 @@ export function ClipReader({
 
   const contentHtml = useMemo(() => {
     if (!clip?.content_md) return '';
-    return sanitizeHtml(marked.parse(clip.content_md) as string);
+    return marked.parse(clip.content_md) as string;
   }, [clip?.content_md]);
-
-  // contentHtml 变化时手动写 innerHTML，绕开 dangerouslySetInnerHTML 在每次
-  // 父组件 re-render 时（如 scroll 触发 setTitleInToolbar）重设整个 DOM 子树
-  // 的行为——之前用户看到的「向下滚动整个画面刷新一次」就是这个重设。
-  useEffect(() => {
-    const root = contentRef.current;
-    if (!root) return;
-    root.innerHTML = contentHtml;
-  }, [contentHtml]);
-
-  // 深色模式下剥掉灰阶 inline color，保留彩色装饰；切主题或 DOM 重渲染时同步刷新。
-  // ⚠️ 必须监听 contentRef 子树变化：React 在某些 re-render 时机会重设 dangerouslySetInnerHTML
-  // 的 DOM 子树，覆盖我们改过的 inline style。subtree childList 监听到重设后立即 reapply。
-  useEffect(() => {
-    const root = contentRef.current;
-    if (!root) return;
-    const apply = () => {
-      const isDark = document.documentElement.classList.contains('dark');
-      root.querySelectorAll<HTMLElement>('[style]').forEach(el => {
-        if (el.dataset.origColor === undefined) {
-          el.dataset.origColor = el.style.color || '';
-        }
-        const oc = el.dataset.origColor || '';
-        if (!isDark) { el.style.color = oc; return; }
-        el.style.color = isNeutralColor(oc) ? '' : oc;
-      });
-    };
-    apply();
-    // 监听 html.dark class 切换
-    const themeObs = new MutationObserver(apply);
-    themeObs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-    // 监听 content div 子树变化（仅 childList，不监听 attributes 避免 apply 自己触发循环）
-    const contentObs = new MutationObserver(apply);
-    contentObs.observe(root, { childList: true, subtree: true });
-    return () => {
-      themeObs.disconnect();
-      contentObs.disconnect();
-    };
-  }, [clip?.id]);
 
   // 监听 scroll 容器：H1 滚到 toolbar 下沿之上 → toolbar 显示标题
   // 用 h1 相对 scrollRef 顶部的距离，避免 main 不在 viewport 顶部时阈值算错
@@ -590,7 +528,7 @@ export function ClipReader({
           )}
 
           {contentHtml ? (
-            <div ref={contentRef} className="clip-prose" />
+            <ContentRenderer html={contentHtml} contentKey={clip?.id ?? ''} />
           ) : (
             <div className="text-stone-400 dark:text-stone-500 text-sm italic">暂无正文内容</div>
           )}

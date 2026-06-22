@@ -3,7 +3,7 @@ type SanitizeMode = 'rich' | 'highlight';
 const RICH_TAGS = new Set([
   'a', 'b', 'blockquote', 'br', 'code', 'del', 'div', 'em', 'h1', 'h2', 'h3',
   'h4', 'h5', 'h6', 'hr', 'i', 'img', 'li', 'mark', 'ol', 'p', 'pre', 's',
-  'span', 'strong', 'sub', 'sup', 'table', 'tbody', 'td', 'th', 'thead', 'tr',
+  'section', 'span', 'strong', 'sub', 'sup', 'table', 'tbody', 'td', 'th', 'thead', 'tr',
   'u', 'ul',
 ]);
 const HIGHLIGHT_TAGS = new Set(['mark']);
@@ -12,8 +12,11 @@ const DROP_WITH_CONTENT = new Set([
   'svg', 'math',
 ]);
 const STYLE_PROPS = new Set([
-  'background', 'background-color', 'color', 'font-style', 'font-weight',
-  'text-align', 'text-decoration',
+  'background', 'background-color', 'border-radius', 'color',
+  'font-family', 'font-size', 'font-style', 'font-weight',
+  'letter-spacing', 'line-height', 'margin', 'margin-top', 'margin-bottom',
+  'margin-left', 'margin-right', 'padding', 'padding-top', 'padding-bottom',
+  'padding-left', 'padding-right', 'text-align', 'text-decoration',
 ]);
 
 export function sanitizeHtml(html: string, mode: SanitizeMode = 'rich'): string {
@@ -21,6 +24,7 @@ export function sanitizeHtml(html: string, mode: SanitizeMode = 'rich'): string 
 
   const template = document.createElement('template');
   template.innerHTML = html;
+  replaceEmojiImages(template.content);
   sanitizeChildren(template.content, mode);
   return template.innerHTML;
 }
@@ -79,6 +83,10 @@ function sanitizeElement(el: HTMLElement, tag: string, mode: SanitizeMode) {
     el.setAttribute('alt', attrs.get('alt') ?? '');
     el.setAttribute('loading', 'lazy');
     el.setAttribute('referrerpolicy', 'no-referrer');
+    const cls = attrs.get('class') ?? '';
+    if (cls.includes('wechat-emoji')) {
+      el.setAttribute('class', 'wechat-emoji');
+    }
   }
 
   const style = sanitizeStyle(attrs.get('style') ?? '');
@@ -125,4 +133,25 @@ function sanitizeStyle(style: string): string {
     safe.push(`${prop}: ${value}`);
   }
   return safe.join('; ');
+}
+
+function replaceEmojiImages(root: ParentNode) {
+  const imgs = root.querySelectorAll<HTMLImageElement>('img');
+  for (const img of imgs) {
+    const cls = img.getAttribute('class') || '';
+    const src = img.getAttribute('src') || '';
+    // WordPress emoji: replace with alt text
+    if (cls.includes('wp-smiley') || src.includes('s.w.org/images/core/emoji')) {
+      const alt = img.getAttribute('alt') || '';
+      if (alt) {
+        img.replaceWith(document.createTextNode(alt));
+      }
+      continue;
+    }
+    // WeChat emoji: constrain to inline size
+    if (src.includes('res.wx.qq.com/t/wx_fed/we-emoji/')) {
+      img.setAttribute('class', 'wechat-emoji');
+      img.removeAttribute('style');
+    }
+  }
 }
