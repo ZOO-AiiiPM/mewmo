@@ -62,7 +62,6 @@ const PLACEHOLDER_LABEL: Record<Zone, string> = {
   clipping: '剪藏',
   notes: '笔记',
   knowledge: '知识库',
-  sediment: '沉淀',
 };
 
 export default function App() {
@@ -615,7 +614,6 @@ export default function App() {
     clipping: clips.length,
     notes: notes.length,
     knowledge: 0,
-    sediment: 0,
   };
 
   // tab pill：title 实时从 notes/clips 派生
@@ -630,7 +628,7 @@ export default function App() {
         title = c ? (c.title || '无标题') : PLACEHOLDER_LABEL.clipping;
       } else if (t.zone === 'knowledge') {
         title = t.refId != null ? (t.kbName || PLACEHOLDER_LABEL.knowledge) : PLACEHOLDER_LABEL.knowledge;
-      } else if (t.zone === 'subscribe' || t.zone === 'sediment') {
+      } else if (t.zone === 'subscribe') {
         title = PLACEHOLDER_LABEL[t.zone];
       }
       return { id: t.id, title, zone: t.zone };
