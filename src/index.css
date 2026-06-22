@@ -209,7 +209,9 @@ html.dark .live-md-editor .cm-bullet {
   margin-left: -1em;
 }
 .live-md-editor .cm-list-line .cm-task-checkbox {
-  margin-left: -1.35em;
+  /* 与 .cm-bullet 同为 -1em：让勾选框左缘落在内容左边缘上。原来的 -1.35em 会把框多拉出
+     0.35em 到内容边缘左侧，被 .cm-content 的 overflow-x:hidden 裁掉左边一条，渲染成残缺的「⌐」。 */
+  margin-left: -1em;
 }
 
 /* —— 内联图片 widget —— */
@@ -279,10 +281,10 @@ html.dark .live-md-editor .cm-link {
   overflow: visible;
 }
 .live-md-editor .cm-md-table-scroll {
-  width: calc(100% + 26px);
-  max-width: calc(100% + 26px);
-  margin: -32px 0 0 -26px;
-  padding: 32px 0 0 26px;
+  width: 100%;
+  max-width: 100%;
+  margin: -32px 0 0 0;
+  padding: 32px 0 0 0;
   box-sizing: border-box;
   overflow-x: auto;
   overflow-y: hidden;
@@ -394,7 +396,7 @@ html.dark .live-md-editor .cm-md-table td.cm-md-cell-sel {
   padding-bottom: 4px;
   z-index: 2;
 }
-.live-md-editor .cm-md-table-row-controls {
+.cm-md-table-row-controls {
   position: absolute;
   left: -22px;
   top: 50%;
@@ -410,16 +412,22 @@ html.dark .live-md-editor .cm-md-table td.cm-md-cell-sel {
   z-index: 2;
 }
 .live-md-editor .cm-md-table th:hover .cm-md-table-col-controls,
-.live-md-editor .cm-md-table th:hover .cm-md-table-row-controls,
-.live-md-editor .cm-md-table td:hover .cm-md-table-row-controls,
-.live-md-editor .cm-md-table-col-controls:hover,
-.live-md-editor .cm-md-table-row-controls:hover {
+.live-md-editor .cm-md-table-col-controls:hover {
   opacity: 1;
   pointer-events: auto;
 }
-.live-md-editor .cm-md-table-cell-add,
-.live-md-editor .cm-md-table-cell-remove,
-.live-md-editor .cm-md-table-cell-move {
+/* 行控制现挂在编辑器外层 gutter（逃离 .cm-content 的 overflow:hidden 裁剪，让表格仍居左），
+   不在 .live-md-editor 内，故这些选择器不能带 .live-md-editor 前缀；可见性由 JS 切
+   .cm-md-table-row-controls-visible 类驱动（bindRowControl 在 cell/控制 hover/focus 时加）。
+   下面的按钮样式行控制与列控制共用，类名仅出现在表格里，去掉前缀对列控制无副作用。 */
+.cm-md-table-row-controls:hover,
+.cm-md-table-row-controls.cm-md-table-row-controls-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+.cm-md-table-cell-add,
+.cm-md-table-cell-remove,
+.cm-md-table-cell-move {
   width: 18px;
   height: 18px;
   display: flex;
@@ -436,34 +444,34 @@ html.dark .live-md-editor .cm-md-table td.cm-md-cell-sel {
   padding: 0;
   transition: background 0.15s, color 0.15s;
 }
-.live-md-editor .cm-md-table-cell-add:hover {
+.cm-md-table-cell-add:hover {
   background: rgba(59, 130, 246, 0.15);
   color: #2563eb;
 }
-.live-md-editor .cm-md-table-cell-remove:hover {
+.cm-md-table-cell-remove:hover {
   background: rgba(239, 68, 68, 0.15);
   color: #dc2626;
 }
-.live-md-editor .cm-md-table-cell-move:hover {
+.cm-md-table-cell-move:hover {
   background: rgba(0, 0, 0, 0.12);
   color: #1c1917;
 }
-html.dark .live-md-editor .cm-md-table-cell-add,
-html.dark .live-md-editor .cm-md-table-cell-remove,
-html.dark .live-md-editor .cm-md-table-cell-move {
+html.dark .cm-md-table-cell-add,
+html.dark .cm-md-table-cell-remove,
+html.dark .cm-md-table-cell-move {
   background: rgba(255, 255, 255, 0.08);
   color: #d6d3d1;
   border-color: rgba(255, 255, 255, 0.1);
 }
-html.dark .live-md-editor .cm-md-table-cell-add:hover {
+html.dark .cm-md-table-cell-add:hover {
   background: rgba(96, 165, 250, 0.2);
   color: #60a5fa;
 }
-html.dark .live-md-editor .cm-md-table-cell-remove:hover {
+html.dark .cm-md-table-cell-remove:hover {
   background: rgba(248, 113, 113, 0.2);
   color: #f87171;
 }
-html.dark .live-md-editor .cm-md-table-cell-move:hover {
+html.dark .cm-md-table-cell-move:hover {
   background: rgba(255, 255, 255, 0.15);
   color: #fafaf9;
 }
@@ -477,14 +485,35 @@ html.dark .live-md-editor .cm-md-table-cell-move:hover {
   user-select: none;
 }
 .live-md-editor .cm-task-checkbox input[type="checkbox"] {
-  width: 14px;
-  height: 14px;
+  /* 自绘勾选框：不用原生渲染。mewmo 是透明窗口，macOS WebView 在透明窗口里合成原生
+     表单控件会出错——未勾选的框被画成残缺弧形「⌐」。appearance:none + CSS 自画边框/对勾
+     在任何窗口环境下都稳定一致。 */
+  appearance: none;
+  -webkit-appearance: none;
+  width: 15px;
+  height: 15px;
   margin: 0;
   cursor: pointer;
-  accent-color: #2563eb;
+  box-sizing: border-box;
+  border: 1.5px solid rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+  background-color: transparent;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 11px 11px;
+  transition: background-color 0.12s, border-color 0.12s;
+}
+.live-md-editor .cm-task-checkbox input[type="checkbox"]:checked {
+  background-color: #2563eb;
+  border-color: #2563eb;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'><path d='M3.5 8.5l3 3 6-6.5' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/></svg>");
 }
 html.dark .live-md-editor .cm-task-checkbox input[type="checkbox"] {
-  accent-color: #60a5fa;
+  border-color: rgba(255, 255, 255, 0.32);
+}
+html.dark .live-md-editor .cm-task-checkbox input[type="checkbox"]:checked {
+  background-color: #60a5fa;
+  border-color: #60a5fa;
 }
 .live-md-editor .cm-task-done {
   color: #a8a29e;

@@ -250,7 +250,13 @@ function tableRangeToEnterFromCursor(doc: Text, pos: number, forward: boolean): 
   if (forward) {
     return tableRangeFromLine(doc, line.number + 1);
   }
-  return tableRangeFromLine(doc, line.number - 1);
+
+  const prevLine = line.number > 1 ? doc.line(line.number - 1) : null;
+  if (prevLine?.text.length === 0 && line.number > 2) {
+    const beforeBlank = tableRangeFromLine(doc, line.number - 2);
+    if (beforeBlank) return beforeBlank;
+  }
+  return prevLine ? tableRangeFromLine(doc, prevLine.number) : null;
 }
 
 function tableRangeForExactSelection(doc: Text, from: number, to: number): TableRange | null {
@@ -401,7 +407,7 @@ function enterAdjacentTable(view: EditorView, forward: boolean): boolean {
 
   const range = tableRangeToEnterFromCursor(view.state.doc, sel.head, forward);
   const coords = view.coordsAtPos(sel.head, sel.assoc || (forward ? 1 : -1));
-  const x = coords ? (coords.left + coords.right) / 2 : null;
+  const x = forward && coords ? (coords.left + coords.right) / 2 : null;
   const edge = forward ? 'first' : 'last';
 
   if (range && focusRenderedTableCell(view, range, edge, x)) return true;
@@ -843,7 +849,7 @@ class TableWidget extends WidgetType {
       const line: string[] = [];
       for (let c = rect.c1; c <= rect.c2; c++) {
         const clone = cells[c]?.cloneNode(true) as HTMLElement | undefined;
-        if (clone) clone.querySelectorAll('.cm-md-table-col-controls, .cm-md-table-row-controls, .cm-md-table-delete').forEach(n => n.remove());
+        if (clone) clone.querySelectorAll('.cm-md-table-col-controls, .cm-md-table-row-controls').forEach(n => n.remove());
         line.push(esc(clone?.textContent ?? ''));
       }
       grid.push(line);
@@ -872,7 +878,7 @@ class TableWidget extends WidgetType {
       html += '<tr>';
       for (let c = rect.c1; c <= rect.c2; c++) {
         const cl = cells[c]?.cloneNode(true) as HTMLElement | undefined;
-        if (cl) cl.querySelectorAll('.cm-md-table-col-controls, .cm-md-table-row-controls, .cm-md-table-delete').forEach(n => n.remove());
+        if (cl) cl.querySelectorAll('.cm-md-table-col-controls, .cm-md-table-row-controls').forEach(n => n.remove());
         html += '<td>' + esc(cl?.textContent ?? '') + '</td>';
       }
       html += '</tr>';
@@ -905,7 +911,7 @@ class TableWidget extends WidgetType {
     const cellsOf = (root: ParentNode, sel: string) =>
       Array.from(root.querySelectorAll(sel)).map(el => {
         const clone = el.cloneNode(true) as HTMLElement;
-        clone.querySelectorAll('.cm-md-table-col-controls, .cm-md-table-row-controls, .cm-md-table-delete').forEach(n => n.remove());
+        clone.querySelectorAll('.cm-md-table-col-controls, .cm-md-table-row-controls').forEach(n => n.remove());
         return escapeTableCell(clone.textContent ?? '');
       });
     const headerCells = cellsOf(tbl, 'thead th');
@@ -929,11 +935,23 @@ class TableWidget extends WidgetType {
     const changed = next !== current;
     if (!changed && !selectionSide) return;
 
+    const afterAnchor = () => {
+      const base = range.from + next.length + (range.widgetTo > range.to ? 1 : 0);
+      if (range.widgetTo >= view.state.doc.length) return base;
+
+      const lineAfterTable = view.state.doc.lineAt(range.widgetTo);
+      const shouldSkipAuxBlank =
+        lineAfterTable.from === range.widgetTo &&
+        lineAfterTable.text.length === 0 &&
+        lineAfterTable.to < view.state.doc.length;
+      return base + (shouldSkipAuxBlank ? 1 : 0);
+    };
+
     const selection =
       selectionSide === 'before'
         ? { anchor: range.from }
         : selectionSide === 'after'
-          ? { anchor: range.from + next.length + (range.widgetTo > range.to ? 1 : 0) }
+          ? { anchor: afterAnchor() }
           : undefined;
 
     view.dispatch({
@@ -1100,6 +1118,25 @@ class TableWidget extends WidgetType {
       return b;
     };
 
+    const rowControls: Array<{ cell: HTMLElement; ctrl: HTMLElement }> = [];
+    const bindRowControl = (cell: HTMLElement, ctrl: HTMLElement) => {
+      rowControls.push({ cell, ctrl });
+      const show = () => ctrl.classList.add('cm-md-table-row-controls-visible');
+      const hide = () => {
+        window.setTimeout(() => {
+          if (!cell.matches(':hover') && !cell.matches(':focus-within') && !ctrl.matches(':hover')) {
+            ctrl.classList.remove('cm-md-table-row-controls-visible');
+          }
+        }, 80);
+      };
+      cell.addEventListener('mouseenter', show);
+      cell.addEventListener('mouseleave', hide);
+      cell.addEventListener('focusin', show);
+      cell.addEventListener('focusout', hide);
+      ctrl.addEventListener('mouseenter', show);
+      ctrl.addEventListener('mouseleave', hide);
+    };
+
     const thead = document.createElement('thead');
     const trh = document.createElement('tr');
     header.forEach((cell, i) => {
@@ -1132,7 +1169,7 @@ class TableWidget extends WidgetType {
         rowCtrl.appendChild(mkCellBtn('cm-md-table-cell-add', '+', '在下方插入行', () =>
           this.rewriteFromDOM(view, wrap, src => insertRowAfter(src, 0))
         ));
-        th.appendChild(rowCtrl);
+        bindRowControl(th, rowCtrl);
       }
       th.appendChild(colCtrl);
       trh.appendChild(th);
@@ -1168,28 +1205,92 @@ class TableWidget extends WidgetType {
           rowCtrl.appendChild(mkCellBtn('cm-md-table-cell-remove', '−', '删除这一行', () =>
             this.rewriteFromDOM(view, wrap, src => removeRowAt(src, rowIdx))
           ));
-          td.appendChild(rowCtrl);
+          bindRowControl(td, rowCtrl);
         }
         tr.appendChild(td);
       }
       tbody.appendChild(tr);
     });
     table.appendChild(tbody);
-    wrap.appendChild(table);
+
+    const scroll = document.createElement('div');
+    scroll.className = 'cm-md-table-scroll';
+    scroll.appendChild(table);
+    wrap.appendChild(scroll);
+
+    // 行控制（↑↓+−）必须落在表格左侧的外边距里，但表格要保持「居左」紧贴正文左边缘。
+    // 难点：编辑器 .cm-content / .cm-scroller / .cm-editor / .live-md-editor 都强制
+    // overflow-x:hidden（让正文换行、不出现横向滚动条），裁剪线正好在内容左边缘。任何摆在
+    // 表格左侧（负 left）的元素都会被裁掉、整排消失——这正是「加横向滚动后左侧按钮没了」的根因。
+    // 解法：把行控制挂到编辑器外层的 .cursor-text 容器（它在所有 overflow:hidden 之上、自身
+    // overflow:visible，且有 pl-10 左留白），用绝对定位摆进左留白槽。表格不动 → 仍居左；
+    // 按钮在裁剪线之外的留白里 → 不被裁。位置用 JS 实测（getBoundingClientRect）摆。
+    const gutter = (view.dom.closest('.cursor-text') as HTMLElement | null) ?? wrap;
+    rowControls.forEach(({ ctrl }) => gutter.appendChild(ctrl));
+
+    const positionRowControls = () => {
+      const gutterRect = gutter.getBoundingClientRect();
+      // 横向锚点用 wrap（表格容器，永远贴正文左边缘、不随表格内部横向滚动移动）→ 按钮钉在左外边距；
+      // 纵向锚点用各行 cell 的实测 top → 对齐到对应行的竖直中心。
+      const wrapRect = wrap.getBoundingClientRect();
+      rowControls.forEach(({ cell, ctrl }) => {
+        const cellRect = cell.getBoundingClientRect();
+        ctrl.style.left = `${wrapRect.left - gutterRect.left - 28}px`;
+        ctrl.style.top = `${cellRect.top - gutterRect.top + cellRect.height / 2}px`;
+      });
+    };
+    requestAnimationFrame(positionRowControls);
+    // 表格内部横向滚动 + 笔记纵向滚动（在 .cm-scroller 内）都要重新摆；编辑器宽度变化
+    // （侧栏开合 / 窗口缩放 / 字体加载）不触发 widget 重建，靠 ResizeObserver 兜住。
+    scroll.addEventListener('scroll', positionRowControls);
+    view.scrollDOM.addEventListener('scroll', positionRowControls);
+    const resizeObserver = new ResizeObserver(() => positionRowControls());
+    resizeObserver.observe(wrap);
+
+    const nearestCellAtPoint = (x: number, y: number): HTMLElement | null => {
+      const cells = Array.from(table.querySelectorAll<HTMLElement>('th,td'));
+      let best: HTMLElement | null = null;
+      let bestDist = Infinity;
+      for (const cell of cells) {
+        const rect = cell.getBoundingClientRect();
+        const dx = x < rect.left ? rect.left - x : x > rect.right ? x - rect.right : 0;
+        const dy = y < rect.top ? rect.top - y : y > rect.bottom ? y - rect.bottom : 0;
+        const dist = dx * dx + dy * dy;
+        if (dist < bestDist) {
+          bestDist = dist;
+          best = cell;
+        }
+      }
+      return best;
+    };
 
     // —— 鼠标拖拽选区（跨格）——
-    // mousedown 不 preventDefault（让单格点击仍能落 caret 编辑）；mousemove 拖到另一格时
-    // 接管：preventDefault + focus 目标格（焦点留在表内，wrap.focusout 的 guard 不会触发回写）
-    // + 画矩形高亮。监听挂 table 的 capture 阶段——cell 自己的 mousedown 在 bubble 阶段
-    // stopPropagation()，capture 先跑不受影响。
+    // 真实编辑区的点击放给 contentEditable 自己处理；表格边线 / cell 空白区域点击则接管，
+    // 聚焦最近 cell，避免 CodeMirror 把 block widget 点击解释成“表格前一行”的光标位置。
     let dragSelecting = false;
     table.addEventListener(
       'mousedown',
       e => {
-        const cell = (e.target as HTMLElement).closest('th,td') as HTMLElement | null;
+        const target = e.target as HTMLElement;
+        if (target.closest('.cm-md-table-col-controls, .cm-md-table-row-controls')) {
+          return;
+        }
+        const clickedEdit = target.closest('.cm-md-table-cell-content');
+        const cell =
+          (target.closest('th,td') as HTMLElement | null) ??
+          nearestCellAtPoint(e.clientX, e.clientY);
         if (!cell || !table.contains(cell)) return;
         const coord = this.cellCoord(table, cell);
         if (!coord) return;
+
+        if (!clickedEdit) {
+          e.preventDefault();
+          e.stopPropagation();
+          const edit = cell.querySelector('.cm-md-table-cell-content') as HTMLElement | null;
+          (edit ?? cell).focus();
+          collapseCellSelection(edit ?? cell, false);
+        }
+
         if (e.shiftKey && this.selAnchor) {
           e.preventDefault();
           this.selFocus = coord;
@@ -1224,8 +1325,14 @@ class TableWidget extends WidgetType {
       dragSelecting = false;
     };
     document.addEventListener('mouseup', onMouseUp);
-    (wrap as unknown as { __cleanupRange?: () => void }).__cleanupRange = () =>
+    (wrap as unknown as { __cleanupRange?: () => void }).__cleanupRange = () => {
       document.removeEventListener('mouseup', onMouseUp);
+      scroll.removeEventListener('scroll', positionRowControls);
+      view.scrollDOM.removeEventListener('scroll', positionRowControls);
+      resizeObserver.disconnect();
+      // 行控制挂在 gutter（widget DOM 之外），CM 回收 widget 不会顺带删它们 → 手动移除，防泄漏
+      rowControls.forEach(({ ctrl }) => ctrl.remove());
+    };
 
     // 多格选区复制：Cmd+C（cell keydown 转发的 execCommand）+ 右键 Copy 都会派发 copy 事件，
     // 在 wrap 冒泡阶段拦下，先于 CM 在 contentDOM 上的 copy 处理器，覆写为重组的 markdown 表格。
@@ -1244,24 +1351,6 @@ class TableWidget extends WidgetType {
       if (next && wrap.contains(next)) return;
       this.syncToMarkdown(view, wrap);
     });
-
-    // 删除整张表：垃圾桶挂在最后一行最后一列 td 上，CSS 定位到右侧外
-    const lastBodyRow = tbody.lastElementChild as HTMLTableRowElement | null;
-    const lastCell = lastBodyRow?.lastElementChild as HTMLElement ?? trh.lastElementChild as HTMLElement;
-    if (lastCell) {
-      const deleteBtn = document.createElement('button');
-      deleteBtn.className = 'cm-md-table-delete';
-      deleteBtn.title = '删除整张表格';
-      deleteBtn.contentEditable = 'false';
-      deleteBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>';
-      deleteBtn.addEventListener('mousedown', e => {
-        e.preventDefault();
-        e.stopPropagation();
-        const range = this.locate(view, wrap);
-        if (range) deleteTableAtRange(view, range);
-      });
-      lastCell.appendChild(deleteBtn);
-    }
 
     return wrap;
   }
