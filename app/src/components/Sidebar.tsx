@@ -1,6 +1,6 @@
 import type React from 'react';
 
-export type Zone = 'subscribe' | 'clipping' | 'notes' | 'knowledge' | 'sediment';
+export type Zone = 'subscribe' | 'clipping' | 'notes' | 'knowledge';
 
 type Props = {
   open: boolean;
@@ -33,13 +33,6 @@ const icons = {
   clipping: (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
-    </svg>
-  ),
-  sediment: (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.91a1 1 0 0 0 0-1.83Z" />
-      <path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65" />
-      <path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65" />
     </svg>
   ),
   knowledge: (
@@ -94,7 +87,6 @@ const NAV: Array<{ id: Zone; label: string }> = [
   { id: 'clipping', label: '剪藏' },
   { id: 'notes', label: '笔记' },
   { id: 'knowledge', label: '知识库' },
-  { id: 'sediment', label: '沉淀' },
 ];
 
 export function Sidebar({ open, onToggle, active, onSelect, counts = {}, hidden = false, onSearchClick, onSettingsClick }: Props) {
