@@ -230,3 +230,90 @@ pub async fn delete_clip(meta: State<'_, VaultMetaDb>, id: String) -> Result<(),
     Ok(())
 }
 
+/// 批量迁移：遍历所有 .md 剪藏，重新抓取并存为 .html，删旧 .md。
+/// 返回 (成功数, 失败数, 失败详情)。
+#[tauri::command]
+pub async fn migrate_clips_to_html(
+    app: tauri::AppHandle,
+    meta: State<'_, VaultMetaDb>,
+) -> Result<MigrateResult, String> {
+    let vault = require_vault()?;
+    let dir = vault.join("raw/clips");
+    if !dir.exists() {
+        return Ok(MigrateResult { success: 0, failed: 0, errors: vec![] });
+    }
+
+    let md_files: Vec<_> = std::fs::read_dir(&dir)
+        .map_err(|e| e.to_string())?
+        .flatten()
+        .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("md"))
+        .collect();
+
+    let mut success = 0u32;
+    let mut failed = 0u32;
+    let mut errors = Vec::new();
+
+    for entry in &md_files {
+        let path = entry.path();
+        let slug = path.file_stem().and_then(|s| s.to_str()).unwrap_or("").to_string();
+        let clip = match query::get_clip(&vault, &slug).await {
+            Ok(c) => c,
+            Err(e) => {
+                failed += 1;
+                errors.push(format!("{}: read failed: {}", slug, e));
+                continue;
+            }
+        };
+        let url = &clip.url;
+        if url.is_empty() {
+            failed += 1;
+            errors.push(format!("{}: no url", slug));
+            continue;
+        }
+        match crate::clip_fetch::fetch_clip(app.clone(), url.to_string()).await {
+            Ok(fetched) => {
+                let cmeta = ClipMeta {
+                    url: url.to_string(),
+                    site_name: opt_string(&fetched.site_name),
+                    favicon_url: opt_string(&fetched.favicon_url),
+                    excerpt: opt_string(&fetched.excerpt),
+                    author: opt_string(&fetched.author),
+                    publish_ts: opt_string(&fetched.published_at),
+                    cover_url: opt_string(&fetched.cover_image),
+                    ip_location: opt_string(&fetched.ip_region),
+                    legacy_id: None,
+                };
+                match ingest::update_clip(
+                    &vault, &slug, &fetched.title, &fetched.content_html, &clip.tags, &cmeta, None,
+                ).await {
+                    Ok(r) => {
+                        if r.slug != slug {
+                            let _ = search::delete_index_clip(&meta.conn, &slug);
+                        }
+                        if let Ok(full) = query::get_clip(&vault, &r.slug).await {
+                            let _ = search::index_one_clip(&meta.conn, &full);
+                        }
+                        success += 1;
+                    }
+                    Err(e) => {
+                        failed += 1;
+                        errors.push(format!("{}: write failed: {}", slug, e));
+                    }
+                }
+            }
+            Err(e) => {
+                failed += 1;
+                errors.push(format!("{}: fetch failed: {}", slug, e));
+            }
+        }
+    }
+
+    Ok(MigrateResult { success, failed, errors })
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct MigrateResult {
+    pub success: u32,
+    pub failed: u32,
+    pub errors: Vec<String>,
+}

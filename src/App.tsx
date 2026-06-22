@@ -209,6 +209,20 @@ export default function App() {
       .finally(() => setLoading(false));
   }, [refresh, refreshClips, refreshSources]);
 
+  // 每 4 小时定时刷新订阅（WeRSS 每 3 小时更新，这里延后 1 小时确保能抓到新内容）
+  useEffect(() => {
+    const FOUR_HOURS = 4 * 60 * 60 * 1000;
+    const timer = setInterval(async () => {
+      try {
+        await refreshAllSubscriptions();
+        await refreshSources();
+      } catch (e) {
+        console.error('[subscription] scheduled refresh failed:', e);
+      }
+    }, FOUR_HOURS);
+    return () => clearInterval(timer);
+  }, [refreshSources]);
+
   useEffect(() => {
     const unlisten = listen<{ notes?: boolean; clips?: boolean }>('vault-changed', e => {
       if (e.payload?.notes) mergeRefreshNotes();

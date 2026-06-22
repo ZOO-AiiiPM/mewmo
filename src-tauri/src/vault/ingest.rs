@@ -443,6 +443,10 @@ pub async fn update_clip(
         })
     } else {
         let mtime = io::write_atomic(vault, &new_relative, &content, expected_mtime).await?;
+        // slug 不变但后缀从 .md 变成 .html 时，删掉旧 .md 文件
+        if old_relative != new_relative {
+            let _ = std::fs::remove_file(vault.join(&old_relative));
+        }
         Ok(WriteResult {
             slug: target_slug,
             relative_path: new_relative,

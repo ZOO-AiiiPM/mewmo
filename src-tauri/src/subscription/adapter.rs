@@ -183,6 +183,9 @@ fn map_entry(e: feed_rs::model::Entry) -> Option<FetchedEntry> {
         .or_else(|| e.summary.as_ref().map(|s| s.content.clone()))
         .unwrap_or_default();
 
+    // WeRSS 偶尔返回完整 HTML 页面而非正文片段——提取正文容器
+    let content_html = extract_body_if_full_page(&content_html);
+
     // 剥离微信文章尾部 boilerplate（赞赏弹窗、底部元数据栏等）
     let content_html = strip_wechat_boilerplate(&content_html);
 
@@ -252,6 +255,43 @@ fn strip_html_tags(s: &str) -> String {
         }
     }
     out.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// WeRSS 偶尔把完整 HTML 页面（含 <html>/<head>/<script>）作为 entry content 返回。
+/// 检测到时用 scraper 提取正文容器（#js_content 等），避免 3MB 垃圾进入渲染。
+fn extract_body_if_full_page(html: &str) -> String {
+    let trimmed = html.trim_start();
+    if !trimmed.starts_with("<html") && !trimmed.starts_with("<!DOCTYPE") && !trimmed.starts_with("<!doctype") {
+        return html.to_string();
+    }
+
+    use scraper::{Html, Selector};
+    let document = Html::parse_document(html);
+
+    for sel_str in &[
+        "#js_content",
+        ".RichText",
+        "article",
+        "[role='main']",
+        "main",
+        ".article-body",
+        ".post-content",
+        ".entry-content",
+    ] {
+        let Ok(sel) = Selector::parse(sel_str) else { continue };
+        let Some(el) = document.select(&sel).next() else { continue };
+        let inner = el.inner_html();
+        if inner.trim().len() > 100 {
+            return inner;
+        }
+    }
+    // 没找到正文容器，fallback body
+    if let Ok(sel) = Selector::parse("body") {
+        if let Some(el) = document.select(&sel).next() {
+            return el.inner_html();
+        }
+    }
+    html.to_string()
 }
 
 /// 剥离微信公众号文章 HTML 中的 boilerplate 区域：

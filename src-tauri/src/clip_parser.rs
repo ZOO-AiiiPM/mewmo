@@ -2,16 +2,16 @@
 
 #[derive(serde::Serialize)]
 pub(crate) struct FetchedClip {
-    url: String,
-    title: String,
-    content_html: String,
-    excerpt: String,
-    site_name: String,
-    favicon_url: String,
-    cover_image: String,
-    author: String,
-    published_at: String, // ISO 8601 / unix ts 字符串；为空表示没拿到
-    ip_region: String,    // 公众号 ip_wording.country/province，可能为空
+    pub(crate) url: String,
+    pub(crate) title: String,
+    pub(crate) content_html: String,
+    pub(crate) excerpt: String,
+    pub(crate) site_name: String,
+    pub(crate) favicon_url: String,
+    pub(crate) cover_image: String,
+    pub(crate) author: String,
+    pub(crate) published_at: String,
+    pub(crate) ip_region: String,
 }
 
 /// 从 scraper 元素递归生成 Markdown

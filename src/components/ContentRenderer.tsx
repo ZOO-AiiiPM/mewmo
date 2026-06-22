@@ -25,11 +25,26 @@ type Props = {
   contentKey: string | number;
 };
 
+function extractBody(html: string): string {
+  const trimmed = html.trimStart();
+  if (!trimmed.startsWith('<html') && !trimmed.startsWith('<!DOCTYPE') && !trimmed.startsWith('<!doctype')) {
+    return html;
+  }
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  for (const sel of ['#js_content', '.RichText', 'article', '[role="main"]', 'main', '.article-body', '.post-content', '.entry-content']) {
+    const el = doc.querySelector(sel);
+    if (el && el.innerHTML.trim().length > 100) {
+      return el.innerHTML;
+    }
+  }
+  return doc.body?.innerHTML || html;
+}
+
 export function ContentRenderer({ html, contentKey }: Props) {
   const contentRef = useRef<HTMLDivElement>(null);
 
   const contentHtml = useMemo(
-    () => (html ? sanitizeHtml(html) : ''),
+    () => (html ? sanitizeHtml(extractBody(html)) : ''),
     [html],
   );
 
