@@ -55,6 +55,10 @@ pub struct KbClipInput {
     pub url: String,
     pub title: String,
     pub content_md: String,
+    #[serde(default)]
+    pub content_html: String,
+    #[serde(default)]
+    pub is_html: bool,
     pub excerpt: String,
     pub site_name: String,
     pub favicon_url: String,
@@ -71,6 +75,8 @@ pub struct KbClip {
     pub url: String,
     pub title: String,
     pub content_md: String,
+    pub content_html: String,
+    pub is_html: bool,
     pub content_loaded: bool,
     pub excerpt: String,
     pub site_name: String,
@@ -223,6 +229,12 @@ fn extract_frontmatter_value(path: &PathBuf, key: &str) -> Option<String> {
 }
 
 fn extract_kind(path: &PathBuf) -> String {
+    // 先看 frontmatter type——剪藏存为 .html 时仍带 `type: clip` frontmatter，
+    // 必须先判 clip，否则会被下面的 .html 短路误判成 html 笔记（路由到 HtmlReader 而非 ClipReader）。
+    // 裸 HTML 笔记（import_html）不带 frontmatter，extract_frontmatter_value 返回 None，落到 .html 分支。
+    if extract_frontmatter_value(path, "type").as_deref() == Some("clip") {
+        return "clip".to_string();
+    }
     if path.extension().and_then(|e| e.to_str()) == Some("html") {
         return "html".to_string();
     }
@@ -259,12 +271,14 @@ fn library_slug_to_md_path(slug: &str) -> Result<PathBuf, String> {
         return Err("INVALID_LIBRARY_SLUG".to_string());
     }
     let vault = require_vault()?;
-    let relative = format!("{}.md", slug);
-    let path = vault.join(relative);
-    if !path.exists() {
-        return Err(format!("NOT_FOUND: {}", slug));
+    // 剪藏可能存为 .html（HTML 原文）或 .md（旧数据/纯文本），按序解析两种后缀
+    for ext in ["html", "md"] {
+        let path = vault.join(format!("{}.{}", slug, ext));
+        if path.exists() {
+            return Ok(path);
+        }
     }
-    Ok(path)
+    Err(format!("NOT_FOUND: {}", slug))
 }
 
 /// Extract first ~120 chars of body (after frontmatter) as preview
@@ -732,8 +746,16 @@ pub async fn kb_create_clip(
     yaml.push_str(&optional_yaml_line("cover_url", &clip.cover_image));
     yaml.push_str(&optional_yaml_line("ip_location", &clip.ip_region));
 
-    let content = format!("---\n{}\n---\n\n{}", yaml, clip.content_md.trim_start_matches('\n'));
-    let file_path = parent.join(format!("{}.md", file_stem));
+    // 剪藏区已改为保存原始 HTML（is_html=true）。知识库镜像同一存法：
+    // is_html → 写 .html（frontmatter + HTML 原文），否则写 .md（兼容旧数据/纯文本）。
+    // 两者都带 `type: clip` frontmatter，靠 extract_kind 判为剪藏走 ClipReader。
+    let (body, ext) = if clip.is_html && !clip.content_html.trim().is_empty() {
+        (clip.content_html.as_str(), "html")
+    } else {
+        (clip.content_md.as_str(), "md")
+    };
+    let content = format!("---\n{}\n---\n\n{}", yaml, body.trim_start_matches('\n'));
+    let file_path = parent.join(format!("{}.{}", file_stem, ext));
     fs::write(&file_path, &content).map_err(|e| format!("write clip: {e}"))?;
 
     let slug_path = if let Some(ref fp) = relative_path {
@@ -745,7 +767,7 @@ pub async fn kb_create_clip(
     Ok(KbNoteEntry {
         slug: slug_path,
         title: if clip.title.trim().is_empty() { "剪藏".to_string() } else { clip.title },
-        preview: clip.content_md.chars().take(120).collect(),
+        preview: extract_preview(&file_path),
         tags: Vec::new(),
         updated_at: file_mtime_secs(&file_path),
         kind: "clip".to_string(),
@@ -774,11 +796,16 @@ pub async fn kb_get_clip(slug: String) -> Result<Option<KbClip>, String> {
     };
     let saved_at = file_mtime_secs(&path) as i64;
     let tags = extract_tags(&path).join(", ");
+    // .html → 原始 HTML 走 content_html（ClipReader 内 ContentRenderer 渲染）；
+    // .md → 旧数据/纯文本走 content_md（ClipReader marked.parse 兜底）。与剪藏区 full_to_clip 对齐。
+    let is_html = path.extension().and_then(|e| e.to_str()) == Some("html");
     Ok(Some(KbClip {
         id: slug,
         url: extract_frontmatter_value(&path, "url").unwrap_or_default(),
         title: extract_title(&path),
-        content_md: body,
+        content_md: if is_html { String::new() } else { body.clone() },
+        content_html: if is_html { body } else { String::new() },
+        is_html,
         content_loaded: true,
         excerpt: extract_frontmatter_value(&path, "excerpt").unwrap_or_default(),
         site_name: extract_frontmatter_value(&path, "site_name").unwrap_or_default(),
@@ -1316,5 +1343,33 @@ mod tests {
         let s = build_kb_slug("kb", "x/y", "z");
         let (kb, rel, stem) = parse_library_slug(&s).unwrap();
         assert_eq!((kb.as_str(), rel.as_str(), stem.as_str()), ("kb", "x/y", "z"));
+    }
+
+    /// extract_kind 必须靠 frontmatter `type: clip` 把 .html 剪藏判为 clip，
+    /// 而不是被 .html 后缀短路成 html 笔记——否则知识库剪藏会被路由到 HtmlReader
+    /// 而非 ClipReader，丢掉剪藏元信息/重新抓取等能力。
+    #[test]
+    fn test_extract_kind_html_clip_vs_html_note_vs_md_clip() {
+        let tmp = TempDir::new().unwrap();
+
+        // .html 剪藏：带 frontmatter type: clip → 应判为 clip
+        let html_clip = tmp.path().join("a.html");
+        fs::write(&html_clip, "---\ntype: clip\ntitle: \"x\"\n---\n\n<p>hi</p>").unwrap();
+        assert_eq!(extract_kind(&html_clip), "clip");
+
+        // .html 笔记：裸 HTML 无 frontmatter → 应判为 html
+        let html_note = tmp.path().join("b.html");
+        fs::write(&html_note, "<!DOCTYPE html><html><body>hi</body></html>").unwrap();
+        assert_eq!(extract_kind(&html_note), "html");
+
+        // .md 剪藏：旧数据 frontmatter type: clip → 仍判为 clip
+        let md_clip = tmp.path().join("c.md");
+        fs::write(&md_clip, "---\ntype: clip\ntitle: \"x\"\n---\n\nbody").unwrap();
+        assert_eq!(extract_kind(&md_clip), "clip");
+
+        // .md 笔记：无 type 或 type: note → 应判为 note
+        let md_note = tmp.path().join("d.md");
+        fs::write(&md_note, "---\ntitle: \"x\"\n---\n\nbody").unwrap();
+        assert_eq!(extract_kind(&md_note), "note");
     }
 }
