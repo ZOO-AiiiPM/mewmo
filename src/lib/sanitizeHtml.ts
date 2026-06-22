@@ -92,7 +92,14 @@ function sanitizeElement(el: HTMLElement, tag: string, mode: SanitizeMode) {
     }
   }
 
-  const style = sanitizeStyle(attrs.get('style') ?? '');
+  let style = sanitizeStyle(attrs.get('style') ?? '');
+  // 表格元素去掉固定宽度，让 CSS table-layout:fixed 接管
+  if (tag === 'table' || tag === 'th' || tag === 'td') {
+    style = style.split(';').filter(s => {
+      const prop = s.split(':')[0]?.trim().toLowerCase();
+      return prop !== 'width' && prop !== 'max-width' && prop !== 'min-width';
+    }).join(';').trim();
+  }
   if (style) el.setAttribute('style', style);
 }
 

@@ -626,7 +626,7 @@ html.dark .clip-prose { color: #e7e5e4; }
   color: #be185d;
 }
 html.dark .clip-prose code {
-  background: rgba(255,255,255,0.08);
+  background: rgba(0,0,0,0.06);
   color: #f9a8d4;
 }
 
@@ -636,10 +636,6 @@ html.dark .clip-prose code {
   padding: 1em 1.2em;
   overflow-x: auto;
   margin: 0 0 1em;
-}
-html.dark .clip-prose pre {
-  background: rgba(255,255,255,0.08);
-  border: 1px solid rgba(255,255,255,0.1);
 }
 .clip-prose pre code { background: transparent; padding: 0; color: inherit; font-size: 0.875em; }
 
