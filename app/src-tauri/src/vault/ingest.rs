@@ -132,7 +132,9 @@ fn note_relative_from_slug(slug: &str, ext: &str) -> String {
 
 fn note_dir_for_slug(vault: &Path, slug: &str) -> std::path::PathBuf {
     if slug.starts_with("library/") {
-        let parent = Path::new(slug).parent().unwrap_or_else(|| Path::new("library"));
+        let parent = Path::new(slug)
+            .parent()
+            .unwrap_or_else(|| Path::new("library"));
         vault.join(parent)
     } else {
         vault.join("wiki/notes")
@@ -141,11 +143,42 @@ fn note_dir_for_slug(vault: &Path, slug: &str) -> std::path::PathBuf {
 
 fn join_slug_parent(slug: &str, stem: &str) -> String {
     if slug.starts_with("library/") {
-        let parent = Path::new(slug).parent().unwrap_or_else(|| Path::new("library"));
+        let parent = Path::new(slug)
+            .parent()
+            .unwrap_or_else(|| Path::new("library"));
         parent.join(stem).to_string_lossy().replace('\\', "/")
     } else {
         stem.to_string()
     }
+}
+
+fn delete_existing_file(path: &Path) -> Result<(), io::IoError> {
+    if !path.exists() {
+        return Ok(());
+    }
+
+    #[cfg(test)]
+    {
+        std::fs::remove_file(path).map_err(io::IoError::Io)
+    }
+
+    #[cfg(not(test))]
+    {
+        trash::delete(path).map_err(|e| {
+            io::IoError::Io(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                e.to_string(),
+            ))
+        })
+    }
+}
+
+fn existing_clip_relative(vault: &Path, slug: &str) -> String {
+    let html_relative = format!("raw/clips/{}.html", slug);
+    if vault.join(&html_relative).exists() {
+        return html_relative;
+    }
+    format!("raw/clips/{}.md", slug)
 }
 
 // ============================================================================
@@ -296,15 +329,11 @@ pub async fn delete_note(vault: &Path, slug: &str) -> Result<(), IngestError> {
     let relative = note_relative_from_slug(slug, "md");
     io::validate_relative_path(&relative)?;
     let path = vault.join(&relative);
-    if path.exists() {
-        trash::delete(&path).map_err(|e| io::IoError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
-    }
+    delete_existing_file(&path)?;
     let html_relative = note_relative_from_slug(slug, "html");
     io::validate_relative_path(&html_relative)?;
     let html_path = vault.join(&html_relative);
-    if html_path.exists() {
-        trash::delete(&html_path).map_err(|e| io::IoError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
-    }
+    delete_existing_file(&html_path)?;
     Ok(())
 }
 
@@ -402,11 +431,7 @@ pub async fn update_clip(
     expected_mtime: Option<u64>,
 ) -> Result<WriteResult, IngestError> {
     let dir = vault.join("raw/clips");
-    let old_relative = if vault.join(format!("raw/clips/{}.html", slug)).exists() {
-        format!("raw/clips/{}.html", slug)
-    } else {
-        format!("raw/clips/{}.md", slug)
-    };
+    let old_relative = existing_clip_relative(vault, slug);
     let existing = io::read(vault, &old_relative).await?;
     let existing_fm = existing.frontmatter.unwrap_or_default();
 
@@ -457,16 +482,10 @@ pub async fn update_clip(
 
 /// 删除剪藏（移到系统回收站）
 pub async fn delete_clip(vault: &Path, slug: &str) -> Result<(), IngestError> {
-    let relative = if vault.join(format!("raw/clips/{}.html", slug)).exists() {
-        format!("raw/clips/{}.html", slug)
-    } else {
-        format!("raw/clips/{}.md", slug)
-    };
+    let relative = existing_clip_relative(vault, slug);
     io::validate_relative_path(&relative)?;
     let path = vault.join(&relative);
-    if path.exists() {
-        trash::delete(&path).map_err(|e| io::IoError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
-    }
+    delete_existing_file(&path)?;
     Ok(())
 }
 
@@ -620,9 +639,16 @@ mod tests {
         );
         std::fs::write(vault.join(relative), content).unwrap();
 
-        let r = update_note(&vault, "library/ai/product/old", "New Title", "v2", &[], None)
-            .await
-            .unwrap();
+        let r = update_note(
+            &vault,
+            "library/ai/product/old",
+            "New Title",
+            "v2",
+            &[],
+            None,
+        )
+        .await
+        .unwrap();
 
         assert_eq!(r.slug, "library/ai/product/New-Title");
         assert_eq!(r.relative_path, "library/ai/product/New-Title.md");

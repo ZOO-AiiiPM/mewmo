@@ -240,21 +240,8 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
   const bodySelectionRef = useRef<TaskToggleRange | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLTextAreaElement>(null);
-  const [_cursorLine, setCursorLine] = useState(1);
+  const [, setCursorLine] = useState(1);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
-  const moreMenuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!moreMenuOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
-        setMoreMenuOpen(false);
-      }
-    };
-    window.addEventListener('mousedown', handler);
-    return () => window.removeEventListener('mousedown', handler);
-  }, [moreMenuOpen]);
   // 切笔记淡入淡出：1=显示中，0=过渡中（不重建 CM、不 unmount，只调 opacity）
   const [contentVisible, setContentVisible] = useState(true);
   // 滚动后 title 滚出视野 → toolbar 中央 fade-in 显示标题（同 ClipReader）
@@ -627,6 +614,35 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
               </svg>
             )}
           </button>
+          {onImport && (
+            <button
+              onClick={onImport}
+              title="导入 HTML 文件 / 目录到笔记"
+              className="w-8 h-8 flex items-center justify-center rounded-md text-stone-600 dark:text-stone-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <path d="M14 2v6h6" />
+                <path d="M12 18v-6" />
+                <path d="m9 15 3-3 3 3" />
+              </svg>
+            </button>
+          )}
+          {onDelete && (
+          <button
+            onClick={() => setConfirmOpen(true)}
+            title="删除笔记"
+            className="w-8 h-8 flex items-center justify-center rounded-md text-stone-600 dark:text-stone-300 hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 6h18" />
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+              <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              <line x1="10" x2="10" y1="11" y2="17" />
+              <line x1="14" x2="14" y1="11" y2="17" />
+            </svg>
+          </button>
+          )}
           <button
             onClick={onCreate}
             title="新建笔记"
@@ -637,54 +653,6 @@ export function NoteEditor({ note, onChange, onLocalContentChange, theme, onDele
               <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
             </svg>
           </button>
-          <div className="relative" ref={moreMenuRef}>
-          <button
-            onClick={() => setMoreMenuOpen((v) => !v)}
-            title="更多操作"
-            className="w-8 h-8 flex items-center justify-center rounded-md text-stone-600 dark:text-stone-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-              <circle cx="5" cy="12" r="1.8" />
-              <circle cx="12" cy="12" r="1.8" />
-              <circle cx="19" cy="12" r="1.8" />
-            </svg>
-          </button>
-          {moreMenuOpen && (
-            <>
-            <div className="absolute right-0 top-full mt-1 z-[201] min-w-[140px] rounded-lg bg-white dark:bg-stone-800 shadow-lg border border-black/10 dark:border-white/10 py-1">
-              {onImport && (
-                <button
-                  onClick={() => { setMoreMenuOpen(false); onImport(); }}
-                  className="w-full flex items-center gap-2.5 px-3 py-1.5 text-[13px] text-stone-700 dark:text-stone-200 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                    <path d="M14 2v6h6" />
-                    <path d="M12 18v-6" />
-                    <path d="m9 15 3-3 3 3" />
-                  </svg>
-                  <span>导入文件</span>
-                </button>
-              )}
-              {onDelete && (
-                <button
-                  onClick={() => { setMoreMenuOpen(false); setConfirmOpen(true); }}
-                  className="w-full flex items-center gap-2.5 px-3 py-1.5 text-[13px] text-red-600 dark:text-red-400 hover:bg-red-500/10 transition-colors"
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M3 6h18" />
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                    <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                    <line x1="10" x2="10" y1="11" y2="17" />
-                    <line x1="14" x2="14" y1="11" y2="17" />
-                  </svg>
-                  <span>删除笔记</span>
-                </button>
-              )}
-            </div>
-            </>
-          )}
-          </div>
           </div>
         </div>
       <div ref={scrollRef} className="flex-1 overflow-y-auto sidebar-scroll pt-12">

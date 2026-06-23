@@ -401,7 +401,7 @@ export function HtmlReader({
         variant="danger"
         onConfirm={() => {
           setConfirmOpen(false);
-          onDelete();
+          onDelete?.();
         }}
         onCancel={() => setConfirmOpen(false)}
       />

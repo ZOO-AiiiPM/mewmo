@@ -64,6 +64,21 @@ const PLACEHOLDER_LABEL: Record<Zone, string> = {
   knowledge: '知识库',
 };
 
+type FetchedClip = {
+  url: string; title: string; content_html: string;
+  excerpt: string; site_name: string; favicon_url: string;
+  cover_image: string; author: string; published_at: string;
+  ip_region: string;
+};
+
+function toClipInput(clip: FetchedClip): Omit<Clip, 'id' | 'saved_at' | 'tags_text' | 'content_loaded'> {
+  return {
+    ...clip,
+    content_md: '',
+    is_html: true,
+  };
+}
+
 export default function App() {
   const { theme, mode, setMode } = useTheme();
   const [notes, setNotes] = useState<Note[]>([]);
@@ -516,16 +531,9 @@ export default function App() {
   }, [notes]);
 
   // ── 剪藏操作 ──────────────────────────────────────────────────────────────
-  type FetchedClip = {
-    url: string; title: string; content_html: string; is_html: boolean;
-    excerpt: string; site_name: string; favicon_url: string;
-    cover_image: string; author: string; published_at: string;
-    ip_region: string;
-  };
-
   const handleClipSave = useCallback(async (url: string) => {
     const fetched = await invoke<FetchedClip>('fetch_clip', { url });
-    const id = await saveClip(fetched);
+    const id = await saveClip(toClipInput(fetched));
     const [freshClips, fullClip] = await Promise.all([
       listClips(),
       getClip(id),
@@ -543,7 +551,7 @@ export default function App() {
   // 订阅区收藏：只保存到剪藏，不切换 tab
   const handleClipSaveQuiet = useCallback(async (url: string) => {
     const fetched = await invoke<FetchedClip>('fetch_clip', { url });
-    await saveClip(fetched);
+    await saveClip(toClipInput(fetched));
     const freshClips = await listClips();
     setClips(freshClips);
   }, []);
@@ -560,7 +568,7 @@ export default function App() {
 
   const handleClipRefetch = useCallback(async (id: string, url: string) => {
     const fetched = await invoke<FetchedClip>('fetch_clip', { url });
-    await updateClip(id, fetched);
+    await updateClip(id, toClipInput(fetched));
     await refreshClips();
   }, [refreshClips]);
 
@@ -577,14 +585,21 @@ export default function App() {
   const selectedNoteReady = selectedNote?.content_loaded ? selectedNote : null;
   const selectedClipReady = selectedClip?.content_loaded ? selectedClip : null;
 
-  const lastNoteReadyRef = useRef<typeof selectedNoteReady>(null);
-  const lastClipReadyRef = useRef<typeof selectedClipReady>(null);
-  if (selectedNoteReady) lastNoteReadyRef.current = selectedNoteReady;
-  else if (!selectedNote) lastNoteReadyRef.current = null;
-  if (selectedClipReady) lastClipReadyRef.current = selectedClipReady;
-  else if (!selectedClip) lastClipReadyRef.current = null;
-  const displayNote = selectedNoteReady ?? lastNoteReadyRef.current;
-  const displayClip = selectedClipReady ?? lastClipReadyRef.current;
+  const [lastNoteReady, setLastNoteReady] = useState<typeof selectedNoteReady>(null);
+  const [lastClipReady, setLastClipReady] = useState<typeof selectedClipReady>(null);
+
+  useEffect(() => {
+    if (selectedNoteReady) setLastNoteReady(selectedNoteReady);
+    else if (!selectedNote) setLastNoteReady(null);
+  }, [selectedNoteReady, selectedNote]);
+
+  useEffect(() => {
+    if (selectedClipReady) setLastClipReady(selectedClipReady);
+    else if (!selectedClip) setLastClipReady(null);
+  }, [selectedClipReady, selectedClip]);
+
+  const displayNote = selectedNoteReady ?? lastNoteReady;
+  const displayClip = selectedClipReady ?? lastClipReady;
 
   useEffect(() => {
     if (selectedNote && !selectedNote.content_loaded) {
