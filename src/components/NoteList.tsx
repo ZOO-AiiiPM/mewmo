@@ -1,3 +1,4 @@
+import type React from 'react';
 import type { Note } from '../types';
 import { BUCKET_LABEL, formatListItemDate, groupByBucket, type Bucket } from '../lib/dateBuckets';
 import { ListItemContextMenu } from './ListItemContextMenu';
@@ -22,7 +23,51 @@ function PinIcon({ className = '' }: { className?: string }) {
   );
 }
 
+const FADE_STYLE: React.CSSProperties = {
+  maskImage: 'linear-gradient(to right, black calc(100% - 28px), transparent)',
+  WebkitMaskImage: 'linear-gradient(to right, black calc(100% - 28px), transparent)',
+};
+
+function getPreviewLine(raw: string, isHtml: boolean): string {
+  let text = raw;
+  if (isHtml) {
+    text = text
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<title[\s\S]*?<\/title>/gi, '')
+      .replace(/<h1[\s\S]*?<\/h1>/gi, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&[a-zA-Z]+;/g, ' ');
+  } else {
+    text = text
+      .replace(/^---[\s\S]*?---\s*/m, '')     // frontmatter
+      .replace(/^#\s+.*$/m, '');              // first h1
+  }
+  const lines = text
+    .split('\n')
+    .map(l => l
+      .replace(/^#{1,6}\s+/g, '')
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+      .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+      .replace(/^[-*+]\s+\[[ x]\]\s*/g, '')
+      .replace(/^[-*+]\s+/g, '')
+      .replace(/^\d+\.\s+/g, '')
+      .replace(/^>\s?/g, '')
+      .replace(/`{1,3}[^`]*`{1,3}/g, '')
+      .replace(/^```.*$/g, '')
+      .replace(/\|/g, '')
+      .replace(/^-{3,}/g, '')
+      .replace(/[*_~]{1,3}/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+    )
+    .filter(l => l.length > 0);
+  return lines[0] || '空笔记';
+}
+
 function NoteItem({ n, selected, onSelect, bucket }: { n: Note; selected: boolean; onSelect: () => void; bucket: Bucket }) {
+  const preview = getPreviewLine(n.content_md || n.preview || '', n.format === 'html');
+
   return (
     <div
       onClick={onSelect}
@@ -39,13 +84,17 @@ function NoteItem({ n, selected, onSelect, bucket }: { n: Note; selected: boolea
       )}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <div className="min-w-0 text-[13px] font-medium text-stone-900 dark:text-stone-100 truncate pr-1">
+          <div
+            style={FADE_STYLE}
+            className="min-w-0 text-[13px] font-medium text-stone-900 dark:text-stone-100 whitespace-nowrap overflow-hidden pr-1"
+          >
             {n.title || '无标题'}
           </div>
-          <div className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 truncate">
-            {n.format === 'html'
-              ? '导入的 HTML 文件'
-              : (n.content_md || n.preview || '').replace(/[#*_`>\n]/g, ' ').slice(0, 40) || '空笔记'}
+          <div
+            style={FADE_STYLE}
+            className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 whitespace-nowrap overflow-hidden"
+          >
+            {preview}
           </div>
         </div>
         <div className="text-[11px] font-medium text-stone-500 dark:text-stone-400 shrink-0 mt-0.5 tabular-nums">
