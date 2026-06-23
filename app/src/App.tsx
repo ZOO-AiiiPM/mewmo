@@ -21,7 +21,6 @@ import {
   listEntriesForSource,
   listSourcesWithUnread,
   refreshAllSubscriptions,
-  shouldAutoRefreshOnStartup,
 } from './lib/subscription';
 import { SearchOverlay } from './components/SearchOverlay';
 import { SettingsPanel } from './components/SettingsPanel';
@@ -205,17 +204,15 @@ export default function App() {
         if (sourcesList.length > 0) {
           setSelectedSourceId(prev => prev ?? sourcesList[0].id);
         }
-        // 启动检查：今天没抓过 → 触发 batch refresh（异步、不 block 关闭 loading）
-        if (await shouldAutoRefreshOnStartup()) {
-          (async () => {
-            try {
-              await refreshAllSubscriptions();
-              await refreshSources();
-            } catch (e) {
-              console.error('[subscription] startup refresh failed:', e);
-            }
-          })();
-        }
+        // 启动时无条件刷新订阅（异步、不 block 关闭 loading）
+        (async () => {
+          try {
+            await refreshAllSubscriptions();
+            await refreshSources();
+          } catch (e) {
+            console.error('[subscription] startup refresh failed:', e);
+          }
+        })();
         cleanupOrphans()
           .then(n => { if (n > 0) console.log(`[cleanup] removed ${n} orphan attachments`); })
           .catch(e => console.error('[cleanup] failed:', e));
@@ -224,19 +221,39 @@ export default function App() {
       .finally(() => setLoading(false));
   }, [refresh, refreshClips, refreshSources]);
 
-  // 每 1 小时定时刷新订阅（WeRSS 每 3 小时更新，1h 轮询确保新文章最多延迟 1h 可见）
+  // 定时 + 回前台自动刷新订阅
   useEffect(() => {
     const ONE_HOUR = 60 * 60 * 1000;
-    const timer = setInterval(async () => {
+    let lastRefresh = Date.now();
+
+    const doRefresh = async () => {
       try {
         await refreshAllSubscriptions();
         await refreshSources();
+        if (selectedSourceId != null) {
+          await refreshEntries(selectedSourceId);
+        }
+        lastRefresh = Date.now();
       } catch (e) {
         console.error('[subscription] scheduled refresh failed:', e);
       }
-    }, ONE_HOUR);
-    return () => clearInterval(timer);
-  }, [refreshSources]);
+    };
+
+    const timer = setInterval(doRefresh, ONE_HOUR);
+
+    // App Nap 会暂停定时器，回前台时补刷（距上次 > 50min 才触发，避免频繁刷）
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible' && Date.now() - lastRefresh > 50 * 60 * 1000) {
+        doRefresh();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [refreshSources, refreshEntries, selectedSourceId]);
 
   useEffect(() => {
     const unlisten = listen<{ notes?: boolean; clips?: boolean }>('vault-changed', e => {
