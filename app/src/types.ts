@@ -17,9 +17,7 @@ export type Clip = {
   id: string;
   url: string;
   title: string;
-  content_md: string;
   content_html: string;
-  is_html: boolean;
   content_loaded?: boolean;
   excerpt: string;
   site_name: string;

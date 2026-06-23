@@ -63,7 +63,7 @@ export function createTools(ctx: AgentContext) {
           title: c.title,
           url: c.url,
           site_name: c.site_name,
-          content_md: truncate(c.content_md),
+          content_md: truncate(c.content_html),
         };
       },
     }),
@@ -150,7 +150,7 @@ export function createTools(ctx: AgentContext) {
           title: c.title,
           url: c.url,
           site_name: c.site_name,
-          content_md: truncate(c.content_md),
+          content_md: truncate(c.content_html),
         };
       },
     }),

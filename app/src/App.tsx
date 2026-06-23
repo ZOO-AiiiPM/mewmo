@@ -73,8 +73,6 @@ type FetchedClip = {
 function toClipInput(clip: FetchedClip): Omit<Clip, 'id' | 'saved_at' | 'tags_text' | 'content_loaded'> {
   return {
     ...clip,
-    content_md: '',
-    is_html: true,
   };
 }
 
@@ -178,7 +176,7 @@ export default function App() {
       const byId = new Map(prev.map(c => [c.id, c]));
       return fresh.map(f => {
         const ex = byId.get(f.id);
-        return ex?.content_loaded ? { ...f, content_md: ex.content_md, content_html: ex.content_html, is_html: ex.is_html, content_loaded: true } : f;
+        return ex?.content_loaded ? { ...f, content_html: ex.content_html, content_loaded: true } : f;
       });
     });
   }, []);
@@ -195,6 +193,20 @@ export default function App() {
     return list;
   }, []);
 
+  const refreshEntriesAndOpenFirst = useCallback(async (
+    source_id: number,
+    options?: { preserveCurrentEntry?: boolean },
+  ) => {
+    const list = await listEntriesForSource(source_id);
+    setEntries(list);
+    setEntryBrowse(prev => {
+      const current = currentItem(prev);
+      if (options?.preserveCurrentEntry && current != null) return prev;
+      return list.length > 0 ? { history: [list[0]], idx: 0 } : emptyHistory();
+    });
+    return list;
+  }, []);
+
   useEffect(() => {
     // notes + clips + sources 必须都加载完再关 loading；否则 setLoading(false) 可能在某个还没回来时触发，
     // 用户立刻切到对应 zone 会看到短暂"空白"或刷新闪一下。
@@ -208,7 +220,11 @@ export default function App() {
         (async () => {
           try {
             await refreshAllSubscriptions();
-            await refreshSources();
+            const refreshedSources = await refreshSources();
+            const sourceIdToRefresh = sourcesList[0]?.id ?? refreshedSources[0]?.id ?? null;
+            if (sourceIdToRefresh != null) {
+              await refreshEntriesAndOpenFirst(sourceIdToRefresh, { preserveCurrentEntry: true });
+            }
           } catch (e) {
             console.error('[subscription] startup refresh failed:', e);
           }
@@ -219,7 +235,7 @@ export default function App() {
       })
       .catch(e => console.error('[init] data load failed:', e))
       .finally(() => setLoading(false));
-  }, [refresh, refreshClips, refreshSources]);
+  }, [refresh, refreshClips, refreshSources, refreshEntriesAndOpenFirst]);
 
   // 定时 + 回前台自动刷新订阅
   useEffect(() => {
@@ -271,20 +287,16 @@ export default function App() {
       setEntryBrowse(emptyHistory());
       return;
     }
-    refreshEntries(selectedSourceId)
+    refreshEntriesAndOpenFirst(selectedSourceId)
       .then(list => {
-        if (list.length > 0) {
-          setEntryBrowse({ history: [list[0]], idx: 0 });
-        } else {
-          setEntryBrowse(emptyHistory());
-        }
+        if (list.length === 0) setEntryBrowse(emptyHistory());
       })
       .catch(e => {
         console.error('[subscription] load entries failed:', e);
         setEntries([]);
         setEntryBrowse(emptyHistory());
       });
-  }, [selectedSourceId, refreshEntries]);
+  }, [selectedSourceId, refreshEntriesAndOpenFirst]);
 
   const handleSubscriptionRefresh = useCallback(async () => {
     if (refreshingSubs) return;

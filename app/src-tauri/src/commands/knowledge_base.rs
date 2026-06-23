@@ -54,11 +54,7 @@ pub struct KbContents {
 pub struct KbClipInput {
     pub url: String,
     pub title: String,
-    pub content_md: String,
-    #[serde(default)]
     pub content_html: String,
-    #[serde(default)]
-    pub is_html: bool,
     pub excerpt: String,
     pub site_name: String,
     pub favicon_url: String,
@@ -74,9 +70,7 @@ pub struct KbClip {
     pub id: String,
     pub url: String,
     pub title: String,
-    pub content_md: String,
     pub content_html: String,
-    pub is_html: bool,
     pub content_loaded: bool,
     pub excerpt: String,
     pub site_name: String,
@@ -748,14 +742,10 @@ pub async fn kb_create_clip(
 
     // 剪藏区已改为保存原始 HTML（is_html=true）。知识库镜像同一存法：
     // is_html → 写 .html（frontmatter + HTML 原文），否则写 .md（兼容旧数据/纯文本）。
-    // 两者都带 `type: clip` frontmatter，靠 extract_kind 判为剪藏走 ClipReader。
-    let (body, ext) = if clip.is_html && !clip.content_html.trim().is_empty() {
-        (clip.content_html.as_str(), "html")
-    } else {
-        (clip.content_md.as_str(), "md")
-    };
+    // 剪藏统一存 .html
+    let body = clip.content_html.as_str();
     let content = format!("---\n{}\n---\n\n{}", yaml, body.trim_start_matches('\n'));
-    let file_path = parent.join(format!("{}.{}", file_stem, ext));
+    let file_path = parent.join(format!("{}.html", file_stem));
     fs::write(&file_path, &content).map_err(|e| format!("write clip: {e}"))?;
 
     let slug_path = if let Some(ref fp) = relative_path {
@@ -796,16 +786,11 @@ pub async fn kb_get_clip(slug: String) -> Result<Option<KbClip>, String> {
     };
     let saved_at = file_mtime_secs(&path) as i64;
     let tags = extract_tags(&path).join(", ");
-    // .html → 原始 HTML 走 content_html（ClipReader 内 ContentRenderer 渲染）；
-    // .md → 旧数据/纯文本走 content_md（ClipReader marked.parse 兜底）。与剪藏区 full_to_clip 对齐。
-    let is_html = path.extension().and_then(|e| e.to_str()) == Some("html");
     Ok(Some(KbClip {
         id: slug,
         url: extract_frontmatter_value(&path, "url").unwrap_or_default(),
         title: extract_title(&path),
-        content_md: if is_html { String::new() } else { body.clone() },
-        content_html: if is_html { body } else { String::new() },
-        is_html,
+        content_html: body,
         content_loaded: true,
         excerpt: extract_frontmatter_value(&path, "excerpt").unwrap_or_default(),
         site_name: extract_frontmatter_value(&path, "site_name").unwrap_or_default(),

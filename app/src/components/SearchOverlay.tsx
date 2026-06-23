@@ -363,7 +363,7 @@ function ClipPreview({ hit, clip }: { hit?: ClipHit; clip?: Clip }) {
         />
       )}
       <div className={`text-[13px] leading-[1.7] text-stone-700 dark:text-stone-300 whitespace-pre-wrap ${HIGHLIGHT_CLASSES}`}>
-        {clip.content_md || clip.excerpt || <span className="text-stone-400">无正文</span>}
+        {clip.excerpt || <span className="text-stone-400">无正文</span>}
       </div>
     </>
   );

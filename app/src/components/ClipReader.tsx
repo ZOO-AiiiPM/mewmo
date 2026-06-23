@@ -1,14 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { marked } from 'marked';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import type { Clip } from '../types';
 import { ContentRenderer } from './ContentRenderer';
 import { getSessionScrollPosition, rememberSessionScrollPosition } from '../lib/sessionScrollMemory';
 import { ConfirmDialog } from './ConfirmDialog';
 import { ScrollToTopButton } from './ScrollToTopButton';
-
-marked.use({ gfm: true, breaks: true });
 
 type Props = {
   clip: Clip | null;
@@ -86,13 +83,7 @@ export function ClipReader({
 
   const contentHtml = useMemo(() => {
     if (!clip) return '';
-    if (clip.is_html && clip.content_html) {
-      return clip.content_html;
-    }
-    if (clip.content_md) {
-      return marked.parse(clip.content_md) as string;
-    }
-    return '';
+    return clip.content_html || '';
   }, [clip]);
 
   // 监听 scroll 容器：H1 滚到 toolbar 下沿之上 → toolbar 显示标题
