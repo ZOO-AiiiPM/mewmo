@@ -317,13 +317,16 @@ html.dark .live-md-editor .cm-link {
 }
 .live-md-editor .cm-md-table th:focus-within,
 .live-md-editor .cm-md-table td:focus-within {
-  background: rgba(59, 130, 246, 0.08);
+  /* 选中编辑某格：蓝底 + 蓝边框。蓝底用 !important 压过斑马纹——
+     .cm-md-table tbody tr:nth-child(even) td 特异性 (0,3,3) 高于 td:focus-within (0,3,1)，
+     不加 !important 偶数行选中格的蓝底会被斑马纹背景吃掉，表现为"有的行有蓝底、有的行没有"。 */
+  background: rgba(59, 130, 246, 0.08) !important;
   outline: 1px solid rgba(59, 130, 246, 0.4);
   outline-offset: -1px;
 }
 html.dark .live-md-editor .cm-md-table th:focus-within,
 html.dark .live-md-editor .cm-md-table td:focus-within {
-  background: rgba(96, 165, 250, 0.12);
+  background: rgba(96, 165, 250, 0.12) !important;
   outline-color: rgba(96, 165, 250, 0.5);
 }
 .live-md-editor .cm-md-table th {
