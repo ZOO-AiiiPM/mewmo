@@ -150,10 +150,11 @@ pub async fn fetch_one(
             .or_else(|| feed.logo.as_ref().map(|l| l.uri.clone())),
     };
 
+    let allow_summary_fallback = !is_werss_feed_url(url);
     let entries: Vec<FetchedEntry> = feed
         .entries
         .into_iter()
-        .filter_map(map_entry)
+        .filter_map(|e| map_entry(e, allow_summary_fallback))
         .collect();
 
     Ok(FetchOutcome::Updated {
@@ -164,7 +165,11 @@ pub async fn fetch_one(
     })
 }
 
-fn map_entry(e: feed_rs::model::Entry) -> Option<FetchedEntry> {
+pub fn is_werss_feed_url(url: &str) -> bool {
+    url.contains("/feed/MP_WXS_")
+}
+
+fn map_entry(e: feed_rs::model::Entry, allow_summary_fallback: bool) -> Option<FetchedEntry> {
     // guid = entry.id；空时 fallback 到 link；都没有则跳过这条 entry
     let guid = if !e.id.is_empty() {
         e.id.clone()
@@ -174,13 +179,16 @@ fn map_entry(e: feed_rs::model::Entry) -> Option<FetchedEntry> {
 
     let title = e.title.as_ref().map(|t| t.content.clone()).unwrap_or_default();
 
-    // content 优先取 content.body，其次 summary
-    let content_html = e
+    let content_body = e
         .content
         .as_ref()
         .and_then(|c| c.body.clone())
-        .or_else(|| e.summary.as_ref().map(|s| s.content.clone()))
         .unwrap_or_default();
+    let content_html = if content_body.trim().is_empty() && allow_summary_fallback {
+        e.summary.as_ref().map(|s| s.content.clone()).unwrap_or_default()
+    } else {
+        content_body
+    };
 
     // WeRSS 偶尔返回完整 HTML 页面而非正文片段——提取正文容器
     let content_html = extract_body_if_full_page(&content_html);
@@ -193,6 +201,10 @@ fn map_entry(e: feed_rs::model::Entry) -> Option<FetchedEntry> {
 
     // 去掉正文中与 entry title 重复的首个标题元素
     let content_html = strip_duplicate_title(&content_html, &title);
+
+    if !has_substantial_content(&content_html) {
+        return None;
+    }
 
     // 反恶意 feed：截断超大 content
     let content_html = if content_html.len() > MAX_CONTENT_BYTES {
@@ -239,6 +251,13 @@ fn map_entry(e: feed_rs::model::Entry) -> Option<FetchedEntry> {
         author,
         published_at,
     })
+}
+
+fn has_substantial_content(html: &str) -> bool {
+    if html.contains("<img") || html.contains("<video") || html.contains("<iframe") {
+        return true;
+    }
+    strip_html_tags(html).chars().filter(|c| !c.is_whitespace()).count() >= 80
 }
 
 /// 极简 HTML 标签剥离（用于生成 excerpt，不追求严格——只是预览用）

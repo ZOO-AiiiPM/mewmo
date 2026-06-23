@@ -142,6 +142,20 @@ fn insert_entries(
     Ok(inserted)
 }
 
+fn prune_werss_summary_only_entries(
+    tx: &rusqlite::Transaction,
+    source_id: i64,
+) -> Result<usize, String> {
+    tx.execute(
+        "DELETE FROM feed_entries
+         WHERE source_id = ?1
+           AND length(trim(content_html)) < 1000
+           AND substr(ltrim(content_html), 1, 1) <> '<'",
+        params![source_id],
+    )
+    .map_err(|err| format!("DB_ERROR: {}", err))
+}
+
 /// fetch 成功后更新 source 元信息 + last_fetched_at + 重置 failure
 fn mark_source_fetched_ok(
     conn: &Connection,
@@ -308,6 +322,9 @@ pub async fn add_subscription(db: State<'_, Db>, url: String) -> Result<AddResul
         let source_id = tx.last_insert_rowid();
 
         let inserted = insert_entries(&tx, source_id, &entries)?;
+        if adapter::is_werss_feed_url(&feed_url) {
+            prune_werss_summary_only_entries(&tx, source_id)?;
+        }
         tx.commit().map_err(|e| format!("DB_ERROR: {}", e))?;
 
         let source = fetch_source_by_id(&conn, source_id)?;
@@ -454,6 +471,9 @@ async fn fetch_and_update_one_source(
                 let mut conn = db.conn.lock().map_err(|e| e.to_string())?;
                 let tx = conn.transaction().map_err(|e| format!("DB_ERROR: {}", e))?;
                 let inserted = insert_entries(&tx, source.id, &entries)?;
+                if adapter::is_werss_feed_url(&source.feed_url) {
+                    prune_werss_summary_only_entries(&tx, source.id)?;
+                }
                 tx.commit().map_err(|e| format!("DB_ERROR: {}", e))?;
                 inserted
             };
