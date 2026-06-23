@@ -949,7 +949,10 @@ class TableWidget extends WidgetType {
 
     const selection =
       selectionSide === 'before'
-        ? { anchor: range.from }
+        // 往上离开表格：锚到表格块起点的「前一个位置」（= 上一行行尾），而不是 range.from。
+        // range.from 是 block widget 的起点，CM 会把该偏移关联到 widget「之后」→ 光标反而落到
+        // 表格下方那一行（用户：表头再往上先跳到表下方）。range.from-1 在 widget 之外、无歧义在上方。
+        ? { anchor: Math.max(0, range.from - 1) }
         : selectionSide === 'after'
           ? { anchor: afterAnchor() }
           : undefined;
