@@ -3,6 +3,8 @@
 Local-first AI information manager for macOS. It combines notes, web clipping,
 RSS/Atom subscriptions, local SQLite search, and an optional AI assistant.
 
+Current release version: 1.5.
+
 This public project is the contents of this `app/` directory. The parent
 workspace contains private development notes, skills, journals, and specs and is
 not part of the open-source app.
@@ -61,8 +63,8 @@ No notes, clips, feeds, or attachments are uploaded by the app itself.
 GitHub Actions builds draft macOS releases when a `v*` tag is pushed:
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag v1.5.0
+git push origin v1.5.0
 ```
 
 Current demo builds are unsigned. On first launch, macOS may require

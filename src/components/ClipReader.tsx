@@ -93,7 +93,7 @@ export function ClipReader({
       return marked.parse(clip.content_md) as string;
     }
     return '';
-  }, [clip?.content_md, clip?.content_html, clip?.is_html]);
+  }, [clip]);
 
   // 监听 scroll 容器：H1 滚到 toolbar 下沿之上 → toolbar 显示标题
   // 用 h1 相对 scrollRef 顶部的距离，避免 main 不在 viewport 顶部时阈值算错

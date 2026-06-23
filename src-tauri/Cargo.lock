@@ -2717,7 +2717,7 @@ dependencies = [
 
 [[package]]
 name = "mewmo"
-version = "0.1.3"
+version = "1.5.0"
 dependencies = [
  "atomicwrites",
  "chrono",
