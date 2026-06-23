@@ -154,7 +154,6 @@ pub async fn fetch_one(
         .entries
         .into_iter()
         .filter_map(map_entry)
-        .filter(|e| e.content_html.len() > 100)
         .collect();
 
     Ok(FetchOutcome::Updated {
