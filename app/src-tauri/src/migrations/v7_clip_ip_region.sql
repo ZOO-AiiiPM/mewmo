@@ -1,3 +1,0 @@
--- v7: clips.ip_region for WeChat article location metadata.
--- Existing databases may have received this column manually during development;
--- db.rs adds it idempotently before recording this migration version.
