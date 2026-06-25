@@ -1,0 +1,66 @@
+import { getPrisma } from "../client";
+import { activeByUser, softDeleteData, versionedUpdateData } from "./repository-utils";
+
+export interface CreateAiChatInput {
+  title: string;
+}
+
+export interface CreateAiMessageInput {
+  role: "user" | "assistant";
+  content: string;
+}
+
+interface AiChatsClient {
+  aiChat: {
+    create(args: unknown): Promise<unknown>;
+    findMany(args: unknown): Promise<unknown>;
+    findFirst(args: unknown): Promise<unknown>;
+    updateMany(args: unknown): Promise<unknown>;
+  };
+  aiMessage: {
+    create(args: unknown): Promise<unknown>;
+  };
+}
+
+export function createAiChatsRepository(client: unknown = getPrisma()) {
+  const db = client as AiChatsClient;
+
+  return {
+    create(userId: string, input: CreateAiChatInput) {
+      return db.aiChat.create({ data: { ...input, userId } });
+    },
+
+    findByUserId(userId: string) {
+      return db.aiChat.findMany({
+        where: activeByUser(userId),
+        orderBy: { updatedAt: "desc" },
+        include: { messages: { where: { deletedAt: null }, orderBy: { createdAt: "asc" } } },
+      });
+    },
+
+    findById(userId: string, id: string) {
+      return db.aiChat.findFirst({
+        where: { id, ...activeByUser(userId) },
+        include: { messages: { where: { deletedAt: null }, orderBy: { createdAt: "asc" } } },
+      });
+    },
+
+    update(userId: string, id: string, input: Partial<CreateAiChatInput>) {
+      return db.aiChat.updateMany({
+        where: { id, ...activeByUser(userId) },
+        data: versionedUpdateData(input),
+      });
+    },
+
+    delete(userId: string, id: string, now = new Date()) {
+      return db.aiChat.updateMany({
+        where: { id, ...activeByUser(userId) },
+        data: softDeleteData(now),
+      });
+    },
+
+    addMessage(chatId: string, input: CreateAiMessageInput) {
+      return db.aiMessage.create({ data: { ...input, chatId } });
+    },
+  };
+}

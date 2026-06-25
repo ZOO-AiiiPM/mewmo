@@ -2,12 +2,18 @@
   "name": "@mewmo/db",
   "private": true,
   "version": "0.0.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "build": "tsc -p tsconfig.json",
     "lint": "eslint .",
-    "test": "node -e \"process.exit(0)\""
+    "test": "vitest"
   },
   "dependencies": {
     "@mewmo/shared": "workspace:*",

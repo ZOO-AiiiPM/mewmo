@@ -1,0 +1,1051 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>mewmo 2.0 Web Prototype</title>
+    <style>
+      :root {
+        --paper: #f8f6f1;
+        --paper-2: #efebe2;
+        --ink: #1f2523;
+        --muted: #69716c;
+        --mist: #ddd7cb;
+        --moss: #2f6f5f;
+        --moss-2: #dce9e3;
+        --coral: #c65f4a;
+        --night: #121513;
+        --night-2: #1d221f;
+        --night-3: #28302b;
+        --line: rgba(31, 37, 35, 0.12);
+        --shadow: 0 18px 50px rgba(31, 37, 35, 0.12);
+        --radius: 8px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: var(--paper);
+        color: var(--ink);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+      }
+
+      button,
+      input,
+      textarea,
+      select {
+        font: inherit;
+      }
+
+      button {
+        cursor: pointer;
+      }
+
+      .prototype {
+        min-height: 100vh;
+        display: grid;
+        grid-template-columns: 232px minmax(0, 1fr) 308px;
+        background:
+          linear-gradient(90deg, rgba(47, 111, 95, 0.08), transparent 32%),
+          var(--paper);
+      }
+
+      .sidebar {
+        min-height: 100vh;
+        border-right: 1px solid var(--line);
+        padding: 20px 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 22px;
+        background: rgba(248, 246, 241, 0.86);
+        backdrop-filter: blur(16px);
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 4px 6px;
+      }
+
+      .brand-mark {
+        width: 34px;
+        height: 34px;
+        border: 1px solid var(--ink);
+        border-radius: 9px;
+        display: grid;
+        place-items: center;
+        font-weight: 800;
+        letter-spacing: 0;
+        background: var(--moss-2);
+      }
+
+      .brand strong {
+        display: block;
+        font-size: 15px;
+        line-height: 1.1;
+      }
+
+      .brand span {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .nav {
+        display: grid;
+        gap: 6px;
+      }
+
+      .nav button {
+        width: 100%;
+        border: 0;
+        background: transparent;
+        color: var(--muted);
+        display: grid;
+        grid-template-columns: 28px 1fr auto;
+        align-items: center;
+        gap: 8px;
+        min-height: 40px;
+        padding: 7px 8px;
+        border-radius: var(--radius);
+        text-align: left;
+      }
+
+      .nav button:hover,
+      .nav button.active {
+        color: var(--ink);
+        background: #ffffff;
+        box-shadow: 0 1px 0 rgba(31, 37, 35, 0.06);
+      }
+
+      .nav-icon {
+        width: 24px;
+        height: 24px;
+        border: 1px solid var(--mist);
+        border-radius: 7px;
+        display: grid;
+        place-items: center;
+        font-size: 11px;
+        color: var(--moss);
+        background: rgba(255, 255, 255, 0.74);
+      }
+
+      .nav-count {
+        color: var(--muted);
+        font-size: 11px;
+      }
+
+      .workspace-card {
+        margin-top: auto;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: #ffffff;
+        padding: 12px;
+        display: grid;
+        gap: 10px;
+      }
+
+      .workspace-card small {
+        color: var(--muted);
+        line-height: 1.4;
+      }
+
+      .progress {
+        height: 6px;
+        border-radius: 999px;
+        background: var(--paper-2);
+        overflow: hidden;
+      }
+
+      .progress span {
+        display: block;
+        width: 62%;
+        height: 100%;
+        background: var(--moss);
+      }
+
+      .main {
+        min-width: 0;
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+      }
+
+      .topbar {
+        min-height: 72px;
+        border-bottom: 1px solid var(--line);
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 18px;
+        padding: 14px 22px;
+        background: rgba(248, 246, 241, 0.78);
+        backdrop-filter: blur(16px);
+      }
+
+      .top-title {
+        display: flex;
+        align-items: baseline;
+        gap: 12px;
+        min-width: 0;
+      }
+
+      .top-title h1 {
+        margin: 0;
+        font-size: 20px;
+        line-height: 1.1;
+      }
+
+      .top-title span {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .top-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .search {
+        width: min(280px, 34vw);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: #ffffff;
+        min-height: 38px;
+        padding: 0 12px;
+        color: var(--ink);
+      }
+
+      .btn {
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        min-height: 38px;
+        padding: 0 13px;
+        background: #ffffff;
+        color: var(--ink);
+      }
+
+      .btn.primary {
+        border-color: var(--moss);
+        background: var(--moss);
+        color: #ffffff;
+      }
+
+      .btn.ghost {
+        background: transparent;
+      }
+
+      .content {
+        min-width: 0;
+        overflow: auto;
+        padding: 22px;
+      }
+
+      .view {
+        display: none;
+        max-width: 1120px;
+        margin: 0 auto;
+      }
+
+      .view.active {
+        display: block;
+      }
+
+      .section-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: end;
+        gap: 18px;
+        margin-bottom: 18px;
+      }
+
+      .eyebrow {
+        margin: 0 0 6px;
+        color: var(--moss);
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      .section-head h2 {
+        margin: 0;
+        font-size: 28px;
+        line-height: 1.06;
+        letter-spacing: 0;
+      }
+
+      .section-head p {
+        margin: 8px 0 0;
+        max-width: 620px;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+
+      .metrics {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+        margin-bottom: 14px;
+      }
+
+      .metric {
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: rgba(255, 255, 255, 0.74);
+        padding: 14px;
+      }
+
+      .metric strong {
+        display: block;
+        font-size: 24px;
+      }
+
+      .metric span {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .work-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 0.92fr) minmax(320px, 1.08fr);
+        gap: 14px;
+      }
+
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: rgba(255, 255, 255, 0.78);
+        box-shadow: 0 1px 0 rgba(31, 37, 35, 0.04);
+        min-width: 0;
+      }
+
+      .panel-head {
+        min-height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .panel-head strong {
+        font-size: 14px;
+      }
+
+      .badge {
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 4px 8px;
+        color: var(--muted);
+        background: var(--paper);
+        font-size: 11px;
+      }
+
+      .virtual-list {
+        height: 548px;
+        overflow: hidden auto;
+        position: relative;
+      }
+
+      .row {
+        display: grid;
+        gap: 7px;
+        padding: 13px 14px;
+        min-height: 76px;
+        border-bottom: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.42);
+      }
+
+      .row:hover,
+      .row.selected {
+        background: var(--moss-2);
+      }
+
+      .row-line {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 12px;
+      }
+
+      .row-title {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 750;
+      }
+
+      .row-time {
+        color: var(--muted);
+        font-size: 11px;
+        white-space: nowrap;
+      }
+
+      .row p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.4;
+      }
+
+      .editor {
+        min-height: 548px;
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+      }
+
+      .editor-title {
+        border: 0;
+        border-bottom: 1px solid var(--line);
+        background: transparent;
+        padding: 18px;
+        font-size: 26px;
+        font-weight: 780;
+        color: var(--ink);
+        width: 100%;
+      }
+
+      .editor-body {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(240px, 0.8fr);
+        min-height: 420px;
+      }
+
+      .writing-area,
+      .preview-area {
+        padding: 18px;
+        min-width: 0;
+      }
+
+      .writing-area {
+        border-right: 1px solid var(--line);
+      }
+
+      .writing-area textarea {
+        width: 100%;
+        height: 100%;
+        min-height: 380px;
+        resize: none;
+        border: 0;
+        outline: 0;
+        background: transparent;
+        color: var(--ink);
+        line-height: 1.65;
+      }
+
+      .preview-area h3 {
+        margin: 0 0 10px;
+        font-size: 15px;
+      }
+
+      .preview-area p,
+      .preview-area li {
+        color: var(--muted);
+        line-height: 1.55;
+      }
+
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .feature-card {
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: rgba(255, 255, 255, 0.76);
+        padding: 16px;
+        min-height: 154px;
+      }
+
+      .feature-card h3 {
+        margin: 0 0 8px;
+        font-size: 16px;
+      }
+
+      .feature-card p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.5;
+        font-size: 13px;
+      }
+
+      .settings-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 14px;
+      }
+
+      .setting-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
+        padding: 14px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .setting-row:last-child {
+        border-bottom: 0;
+      }
+
+      .setting-row span {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .ai {
+        min-height: 100vh;
+        border-left: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.62);
+        padding: 18px 14px;
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr) auto;
+        gap: 14px;
+      }
+
+      .ai h2 {
+        margin: 0;
+        font-size: 16px;
+      }
+
+      .rail {
+        display: grid;
+        gap: 10px;
+        align-content: start;
+      }
+
+      .context {
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--paper);
+        padding: 12px;
+      }
+
+      .context strong {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 13px;
+      }
+
+      .context p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.45;
+        font-size: 12px;
+      }
+
+      .chatbox {
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: #ffffff;
+        padding: 10px;
+      }
+
+      .chatbox textarea {
+        width: 100%;
+        min-height: 74px;
+        resize: none;
+        border: 0;
+        outline: 0;
+        color: var(--ink);
+      }
+
+      .switcher {
+        display: inline-flex;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: #ffffff;
+        overflow: hidden;
+      }
+
+      .switcher button {
+        border: 0;
+        background: transparent;
+        min-height: 34px;
+        padding: 0 10px;
+        color: var(--muted);
+      }
+
+      .switcher button.active {
+        background: var(--moss);
+        color: #ffffff;
+      }
+
+      body.dark {
+        --paper: var(--night);
+        --paper-2: var(--night-2);
+        --ink: #edf0ea;
+        --muted: #a4ada6;
+        --mist: #354139;
+        --line: rgba(237, 240, 234, 0.14);
+        --moss-2: #20362f;
+        background: var(--night);
+      }
+
+      body.dark .sidebar,
+      body.dark .topbar,
+      body.dark .ai {
+        background: rgba(18, 21, 19, 0.84);
+      }
+
+      body.dark .panel,
+      body.dark .feature-card,
+      body.dark .metric,
+      body.dark .nav button:hover,
+      body.dark .nav button.active,
+      body.dark .workspace-card,
+      body.dark .search,
+      body.dark .btn,
+      body.dark .switcher,
+      body.dark .chatbox {
+        background: var(--night-2);
+      }
+
+      body.dark .context,
+      body.dark .badge,
+      body.dark .nav-icon {
+        background: var(--night-3);
+      }
+
+      body.dark .row {
+        background: rgba(29, 34, 31, 0.92);
+      }
+
+      body.dark .row:hover,
+      body.dark .row.selected {
+        background: #183d34;
+      }
+
+      @media (max-width: 1160px) {
+        .prototype {
+          grid-template-columns: 210px minmax(0, 1fr);
+        }
+
+        .ai {
+          display: none;
+        }
+
+        .work-grid,
+        .settings-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 780px) {
+        .prototype {
+          grid-template-columns: 1fr;
+        }
+
+        .sidebar {
+          min-height: auto;
+          border-right: 0;
+          border-bottom: 1px solid var(--line);
+        }
+
+        .nav {
+          grid-template-columns: repeat(5, minmax(0, 1fr));
+        }
+
+        .nav button {
+          grid-template-columns: 1fr;
+          justify-items: center;
+          text-align: center;
+          font-size: 11px;
+        }
+
+        .nav-count,
+        .workspace-card,
+        .top-title span,
+        .search {
+          display: none;
+        }
+
+        .topbar,
+        .section-head,
+        .editor-body,
+        .metrics,
+        .cards {
+          grid-template-columns: 1fr;
+        }
+
+        .topbar {
+          align-items: start;
+        }
+
+        .top-actions {
+          flex-wrap: wrap;
+        }
+
+        .writing-area {
+          border-right: 0;
+          border-bottom: 1px solid var(--line);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="prototype">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">M</div>
+          <div>
+            <strong>mewmo</strong>
+            <span>knowledge workbench</span>
+          </div>
+        </div>
+
+        <nav class="nav" aria-label="Primary">
+          <button class="active" data-view="notes">
+            <span class="nav-icon">N</span><span>Notes</span><span class="nav-count">1k</span>
+          </button>
+          <button data-view="clips">
+            <span class="nav-icon">C</span><span>Clips</span><span class="nav-count">1k</span>
+          </button>
+          <button data-view="feeds">
+            <span class="nav-icon">R</span><span>RSS</span><span class="nav-count">58</span>
+          </button>
+          <button data-view="chat">
+            <span class="nav-icon">A</span><span>AI</span><span class="nav-count">new</span>
+          </button>
+          <button data-view="settings">
+            <span class="nav-icon">S</span><span>Settings</span><span class="nav-count"></span>
+          </button>
+        </nav>
+
+        <div class="workspace-card">
+          <strong>Weekly review</strong>
+          <small>36 items collected. 14 have summaries. 8 still need a home.</small>
+          <div class="progress" aria-hidden="true"><span></span></div>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div class="top-title">
+            <h1 id="page-title">Notes</h1>
+            <span id="page-subtitle">Write, sort, and revisit durable thoughts.</span>
+          </div>
+          <div class="top-actions">
+            <input class="search" type="search" placeholder="Search notes, clips, feeds" />
+            <div class="switcher" aria-label="Theme switcher">
+              <button data-theme="light" class="active">Light</button>
+              <button data-theme="dark">Dark</button>
+            </div>
+            <button class="btn primary">New note</button>
+          </div>
+        </header>
+
+        <section class="content">
+          <div class="view active" id="view-notes">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Notes</p>
+                <h2>Drafts, pinned memory, and resurfaced ideas.</h2>
+                <p>
+                  The list stays fast with virtual scrolling while the editor keeps
+                  the current note and preview in one work surface.
+                </p>
+              </div>
+              <div class="switcher" aria-label="Editor switcher">
+                <button class="active">Atomic</button>
+                <button>CodeMirror</button>
+              </div>
+            </div>
+
+            <div class="metrics">
+              <div class="metric"><strong>1,024</strong><span>notes in mock vault</span></div>
+              <div class="metric"><strong>37</strong><span>pinned for review</span></div>
+              <div class="metric"><strong>2</strong><span>editor modes</span></div>
+            </div>
+
+            <div class="work-grid">
+              <div class="panel">
+                <div class="panel-head">
+                  <strong>Virtual note list</strong>
+                  <span class="badge">1000 rows</span>
+                </div>
+                <div class="virtual-list">
+                  <div class="row selected">
+                    <div class="row-line">
+                      <h3 class="row-title">Building calm agent workflows</h3>
+                      <span class="row-time">Pinned</span>
+                    </div>
+                    <p>Design notes for keeping planning, execution, and verification visible.</p>
+                  </div>
+                  <div class="row">
+                    <div class="row-line">
+                      <h3 class="row-title">RSS triage patterns</h3>
+                      <span class="row-time">09:18</span>
+                    </div>
+                    <p>How incoming sources move from raw reading to durable notes.</p>
+                  </div>
+                  <div class="row">
+                    <div class="row-line">
+                      <h3 class="row-title">Editor fallback criteria</h3>
+                      <span class="row-time">Yesterday</span>
+                    </div>
+                    <p>When Atomic is unavailable, keep the same editor contract.</p>
+                  </div>
+                  <div class="row">
+                    <div class="row-line">
+                      <h3 class="row-title">Mock data conventions</h3>
+                      <span class="row-time">Tue</span>
+                    </div>
+                    <p>Deterministic records make route and list tests stable.</p>
+                  </div>
+                  <div class="row">
+                    <div class="row-line">
+                      <h3 class="row-title">Tablet layout pass</h3>
+                      <span class="row-time">Mon</span>
+                    </div>
+                    <p>AI sidebar collapses before the main work area becomes cramped.</p>
+                  </div>
+                  <div class="row">
+                    <div class="row-line">
+                      <h3 class="row-title">Prototype review notes</h3>
+                      <span class="row-time">Jun 21</span>
+                    </div>
+                    <p>Use the context rail as the signature element, not decoration.</p>
+                  </div>
+                  <div class="row">
+                    <div class="row-line">
+                      <h3 class="row-title">More rows continue below</h3>
+                      <span class="row-time">1k</span>
+                    </div>
+                    <p>The real implementation uses TanStack Virtual for this region.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="panel editor">
+                <input class="editor-title" value="Building calm agent workflows" />
+                <div class="editor-body">
+                  <div class="writing-area">
+                    <textarea spellcheck="false"># Building calm agent workflows
+
+Use the interface to show what the agent can see, what it is changing, and what remains unverified.
+
+- Keep the plan close to the work.
+- Make AI context explicit.
+- Treat empty states as invitations to act.</textarea>
+                  </div>
+                  <div class="preview-area">
+                    <h3>Live preview</h3>
+                    <p>
+                      Use the interface to show what the agent can see, what it is
+                      changing, and what remains unverified.
+                    </p>
+                    <ul>
+                      <li>Keep the plan close to the work.</li>
+                      <li>Make AI context explicit.</li>
+                      <li>Treat empty states as invitations to act.</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="view" id="view-clips">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Clips</p>
+                <h2>Saved pages keep their source, summary, and next action.</h2>
+                <p>
+                  Clips are optimized for scanning. The future reader page can reuse
+                  the same app shell while focusing on one saved source.
+                </p>
+              </div>
+              <button class="btn primary">Import URL</button>
+            </div>
+            <div class="cards">
+              <article class="feature-card">
+                <h3>Web page capture</h3>
+                <p>Source URL, favicon, extracted text, and AI summary sit together.</p>
+              </article>
+              <article class="feature-card">
+                <h3>Fast triage</h3>
+                <p>Virtualized rows let 1000 clips stay responsive while filtering.</p>
+              </article>
+              <article class="feature-card">
+                <h3>Reader mode</h3>
+                <p>The detail route opens a quiet reading surface with the AI rail.</p>
+              </article>
+            </div>
+          </div>
+
+          <div class="view" id="view-feeds">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">RSS</p>
+                <h2>Sources on the left, unread articles in a virtual stream.</h2>
+                <p>
+                  The source page is compact. The feed detail page uses the same row
+                  behavior as notes and clips for high-volume reading.
+                </p>
+              </div>
+              <button class="btn primary">Add feed</button>
+            </div>
+            <div class="work-grid">
+              <div class="panel">
+                <div class="panel-head"><strong>Sources</strong><span class="badge">58 feeds</span></div>
+                <div class="row"><div class="row-line"><h3 class="row-title">AI research digest</h3><span class="row-time">18 unread</span></div><p>Updated every hour.</p></div>
+                <div class="row"><div class="row-line"><h3 class="row-title">Design engineering</h3><span class="row-time">7 unread</span></div><p>Interface craft and product systems.</p></div>
+                <div class="row"><div class="row-line"><h3 class="row-title">Personal knowledge</h3><span class="row-time">12 unread</span></div><p>Notes, tools, and workflows.</p></div>
+              </div>
+              <div class="panel">
+                <div class="panel-head"><strong>Virtual article list</strong><span class="badge">1000 rows</span></div>
+                <div class="virtual-list">
+                  <div class="row selected"><div class="row-line"><h3 class="row-title">Agents need visible state</h3><span class="row-time">12 min</span></div><p>A practical essay on making autonomous work inspectable.</p></div>
+                  <div class="row"><div class="row-line"><h3 class="row-title">Small models for summaries</h3><span class="row-time">44 min</span></div><p>Cost and latency notes for background enrichment.</p></div>
+                  <div class="row"><div class="row-line"><h3 class="row-title">A better inbox for feeds</h3><span class="row-time">2 h</span></div><p>RSS reading patterns for people who save too much.</p></div>
+                  <div class="row"><div class="row-line"><h3 class="row-title">Context windows and memory</h3><span class="row-time">5 h</span></div><p>How to decide what should be stored versus recalled.</p></div>
+                  <div class="row"><div class="row-line"><h3 class="row-title">More articles below</h3><span class="row-time">1k</span></div><p>The production route will connect this to feed entries.</p></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="view" id="view-chat">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">AI</p>
+                <h2>Ask across notes, clips, feeds, and the active page.</h2>
+                <p>
+                  This screen previews the chat route. The right rail remains the
+                  persistent context model across the whole app.
+                </p>
+              </div>
+            </div>
+            <div class="panel" style="padding: 18px">
+              <div class="context">
+                <strong>User</strong>
+                <p>What did I save about agent workflows this week?</p>
+              </div>
+              <br />
+              <div class="context">
+                <strong>Assistant</strong>
+                <p>
+                  You saved notes about visible state, deterministic tests, editor
+                  fallbacks, and RSS triage. The strongest pattern is making every
+                  background step inspectable before trusting it.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="view" id="view-settings">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Settings</p>
+                <h2>Preferences are visible before backend persistence exists.</h2>
+                <p>
+                  The scaffold keeps theme and editor choices in local client state
+                  until Agent 2 provides real user settings.
+                </p>
+              </div>
+            </div>
+            <div class="settings-grid">
+              <div class="panel">
+                <div class="panel-head"><strong>Appearance</strong></div>
+                <div class="setting-row">
+                  <div><strong>Theme</strong><br /><span>System, light, and dark in production.</span></div>
+                  <div class="switcher"><button class="active">Light</button><button>Dark</button></div>
+                </div>
+                <div class="setting-row">
+                  <div><strong>Density</strong><br /><span>Compact rows for repeat workflows.</span></div>
+                  <span class="badge">Compact</span>
+                </div>
+              </div>
+              <div class="panel">
+                <div class="panel-head"><strong>Editor</strong></div>
+                <div class="setting-row">
+                  <div><strong>Primary editor</strong><br /><span>Atomic first, CodeMirror fallback.</span></div>
+                  <span class="badge">Atomic</span>
+                </div>
+                <div class="setting-row">
+                  <div><strong>Preview</strong><br /><span>Keep writing and rendered output adjacent.</span></div>
+                  <span class="badge">On</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <aside class="ai">
+        <div>
+          <p class="eyebrow">Context rail</p>
+          <h2>Assistant sees</h2>
+        </div>
+        <div class="rail">
+          <div class="context">
+            <strong>Active note</strong>
+            <p>Building calm agent workflows. 612 words, pinned, last edited today.</p>
+          </div>
+          <div class="context">
+            <strong>Related clips</strong>
+            <p>4 saved pages mention visible state, TDD, and agent handoffs.</p>
+          </div>
+          <div class="context">
+            <strong>Unread feed signal</strong>
+            <p>18 new RSS entries are waiting in AI research digest.</p>
+          </div>
+          <div class="context">
+            <strong>Suggested action</strong>
+            <p>Turn the current note into a checklist before implementation starts.</p>
+          </div>
+        </div>
+        <div class="chatbox">
+          <textarea placeholder="Ask about the current context"></textarea>
+          <button class="btn primary" style="width: 100%">Ask</button>
+        </div>
+      </aside>
+    </div>
+
+    <script>
+      const titles = {
+        notes: ["Notes", "Write, sort, and revisit durable thoughts."],
+        clips: ["Clips", "Saved web pages ready for review."],
+        feeds: ["RSS", "Sources and unread articles."],
+        chat: ["AI chat", "Ask across your active context."],
+        settings: ["Settings", "Local preferences before backend wiring."]
+      };
+
+      const navButtons = Array.from(document.querySelectorAll(".nav button"));
+      const views = Array.from(document.querySelectorAll(".view"));
+      const pageTitle = document.querySelector("#page-title");
+      const pageSubtitle = document.querySelector("#page-subtitle");
+
+      navButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          const viewName = button.dataset.view;
+          navButtons.forEach((item) => item.classList.remove("active"));
+          views.forEach((view) => view.classList.remove("active"));
+          button.classList.add("active");
+          document.querySelector(`#view-${viewName}`).classList.add("active");
+          pageTitle.textContent = titles[viewName][0];
+          pageSubtitle.textContent = titles[viewName][1];
+        });
+      });
+
+      document.querySelectorAll("[data-theme]").forEach((button) => {
+        button.addEventListener("click", () => {
+          document.querySelectorAll("[data-theme]").forEach((item) => {
+            item.classList.remove("active");
+          });
+          button.classList.add("active");
+          document.body.classList.toggle("dark", button.dataset.theme === "dark");
+        });
+      });
+    </script>
+  </body>
+</html>

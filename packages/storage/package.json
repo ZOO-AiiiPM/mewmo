@@ -2,12 +2,19 @@
   "name": "@mewmo/storage",
   "private": true,
   "version": "0.0.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "lint": "eslint .",
-    "test": "node -e \"process.exit(0)\""
+    "test": "vitest"
   },
   "dependencies": {
-    "@mewmo/shared": "workspace:*"
+    "@mewmo/shared": "workspace:*",
+    "@aws-sdk/client-s3": "3.1075.0"
   }
 }

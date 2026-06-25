@@ -5,3 +5,273 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified DateTime? @map("email_verified")
+  name          String?
+  avatarUrl     String?   @map("avatar_url")
+  image         String?
+  provider      String?
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  accounts      Account[]
+  sessions      Session[]
+  authenticators Authenticator[]
+  notes         Note[]
+  clips         Clip[]
+  feeds         Feed[]
+  feedEntries   FeedEntry[]
+  aiChats       AiChat[]
+  tags          Tag[]
+  tagPool       TagPool[]
+  syncCursors   SyncCursor[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String  @map("user_id")
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id")
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+model Authenticator {
+  credentialID         String  @unique @map("credential_id")
+  userId               String  @map("user_id")
+  providerAccountId    String  @map("provider_account_id")
+  credentialPublicKey  String  @map("credential_public_key")
+  counter              Int
+  credentialDeviceType String  @map("credential_device_type")
+  credentialBackedUp   Boolean @map("credential_backed_up")
+  transports           String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, credentialID])
+  @@map("authenticators")
+}
+
+model Note {
+  id        String    @id @default(cuid())
+  slug      String
+  title     String
+  content   String    @default("")
+  summary   String?
+  pinned    Boolean   @default(false)
+  version   Int       @default(1)
+  userId    String    @map("user_id")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, slug])
+  @@index([userId, deletedAt, updatedAt])
+  @@map("notes")
+}
+
+model Clip {
+  id        String    @id @default(cuid())
+  url       String
+  title     String
+  content   String    @default("")
+  summary   String?
+  favicon   String?
+  version   Int       @default(1)
+  userId    String    @map("user_id")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, deletedAt, updatedAt])
+  @@map("clips")
+}
+
+model Feed {
+  id              String      @id @default(cuid())
+  url             String
+  title           String
+  description     String?
+  favicon         String?
+  refreshInterval Int         @default(3600) @map("refresh_interval")
+  lastFetchedAt   DateTime?   @map("last_fetched_at")
+  version         Int         @default(1)
+  userId          String      @map("user_id")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+  deletedAt       DateTime?   @map("deleted_at")
+  entries         FeedEntry[]
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, url])
+  @@index([userId, deletedAt, lastFetchedAt])
+  @@map("feeds")
+}
+
+model FeedEntry {
+  id          String    @id @default(cuid())
+  feedId      String    @map("feed_id")
+  title       String
+  url         String
+  content     String    @default("")
+  summary     String?
+  author      String?
+  publishedAt DateTime? @map("published_at")
+  readAt      DateTime? @map("read_at")
+  version     Int       @default(1)
+  userId      String    @map("user_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  feed Feed @relation(fields: [feedId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([feedId, url])
+  @@index([feedId, deletedAt, publishedAt])
+  @@index([userId, deletedAt, readAt])
+  @@map("feed_entries")
+}
+
+model AiChat {
+  id        String      @id @default(cuid())
+  title     String
+  version   Int         @default(1)
+  userId    String      @map("user_id")
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+  deletedAt DateTime?   @map("deleted_at")
+  messages  AiMessage[]
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, deletedAt, updatedAt])
+  @@map("ai_chats")
+}
+
+model AiMessage {
+  id        String        @id @default(cuid())
+  chatId    String        @map("chat_id")
+  role      AiMessageRole
+  content   String
+  version   Int           @default(1)
+  createdAt DateTime      @default(now()) @map("created_at")
+  deletedAt DateTime?     @map("deleted_at")
+
+  chat AiChat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  @@index([chatId, deletedAt, createdAt])
+  @@map("ai_messages")
+}
+
+model Tag {
+  id        String     @id @default(cuid())
+  name      String
+  color     String?
+  userId    String     @map("user_id")
+  isSystem  Boolean    @default(false) @map("is_system")
+  version   Int        @default(1)
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+  deletedAt DateTime?  @map("deleted_at")
+  taggables Taggable[]
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name])
+  @@index([userId, deletedAt])
+  @@map("tags")
+}
+
+model Taggable {
+  id           String       @id @default(cuid())
+  tagId        String       @map("tag_id")
+  taggableId   String       @map("taggable_id")
+  taggableType TaggableType @map("taggable_type")
+  createdAt    DateTime     @default(now()) @map("created_at")
+
+  tag Tag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([tagId, taggableId, taggableType])
+  @@index([taggableId, taggableType])
+  @@map("taggables")
+}
+
+model TagPool {
+  id        String   @id @default(cuid())
+  name      String
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name])
+  @@map("tag_pool")
+}
+
+model SyncCursor {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  deviceId    String   @map("device_id")
+  lastVersion Int      @default(0) @map("last_version")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceId])
+  @@map("sync_cursors")
+}
+
+enum AiMessageRole {
+  user
+  assistant
+}
+
+enum TaggableType {
+  note
+  clip
+  feed_entry
+}
