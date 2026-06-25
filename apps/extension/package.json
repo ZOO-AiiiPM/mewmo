@@ -1,0 +1,11 @@
+{
+  "name": "@mewmo/extension",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "tsc -w -p tsconfig.json",
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint .",
+    "test": "node -e \"process.exit(0)\""
+  }
+}

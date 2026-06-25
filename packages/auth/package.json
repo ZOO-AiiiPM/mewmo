@@ -1,0 +1,15 @@
+{
+  "name": "@mewmo/auth",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint .",
+    "test": "node -e \"process.exit(0)\""
+  },
+  "dependencies": {
+    "@mewmo/db": "workspace:*",
+    "@mewmo/email": "workspace:*",
+    "@mewmo/shared": "workspace:*"
+  }
+}

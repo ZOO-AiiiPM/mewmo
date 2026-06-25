@@ -1,0 +1,13 @@
+{
+  "name": "@mewmo/queue",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint .",
+    "test": "node -e \"process.exit(0)\""
+  },
+  "dependencies": {
+    "@mewmo/shared": "workspace:*"
+  }
+}

@@ -1,10 +1,29 @@
-# 主仓库只 track app/，其他全部不进 git
-#
-# 元层（CLAUDE.md / journal / specs / lessons / .specify / .claude / 等）
-# 物理上呆在主目录作为所有 worktree 的公共父目录访问，
-# 但不被主仓库 git 跟踪 —— 协作元层不污染产品代码 commit history。
-
 /*
 
 !/.gitignore
-!/app/
+!/package.json
+!/pnpm-lock.yaml
+!/pnpm-workspace.yaml
+!/turbo.json
+!/tsconfig.json
+!/.env.example
+!/eslint.config.mjs
+!/README.md
+!/tests/
+!/docker/
+!/tooling/
+!/apps/
+!/packages/
+!/.github/
+!/docs/
+
+**/node_modules/
+**/.next/
+**/.turbo/
+**/dist/
+**/coverage/
+**/.tsbuildinfo
+**/prisma/*.db
+**/.DS_Store
+.env.local
+.env*.local
