@@ -2,6 +2,11 @@
   "name": "@mewmo/ui",
   "private": true,
   "version": "0.0.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "lint": "eslint .",
@@ -11,7 +16,7 @@
     "@mewmo/shared": "workspace:*"
   },
   "peerDependencies": {
-    "react": "19.2.7",
-    "react-dom": "19.2.7"
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   }
 }

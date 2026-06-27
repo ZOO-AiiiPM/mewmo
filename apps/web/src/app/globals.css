@@ -1,11 +1,61 @@
 @import "tailwindcss";
 
-html,
-body {
-  margin: 0;
-  min-height: 100%;
+@theme {
+  --color-paper: #f8f6f1;
+  --color-paper-2: #efebe2;
+  --color-ink: #1f2523;
+  --color-muted: #69716c;
+  --color-mist: #ddd7cb;
+  --color-moss: #2f6f5f;
+  --color-moss-2: #dce9e3;
+  --color-coral: #c65f4a;
+  --color-night: #121513;
+  --color-night-2: #1d221f;
+  --color-night-3: #28302b;
+  --color-line: rgba(31, 37, 35, 0.12);
+
+  --shadow-panel: 0 1px 0 rgba(31, 37, 35, 0.04);
+  --shadow-float: 0 18px 50px rgba(31, 37, 35, 0.12);
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-full: 999px;
+
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
 }
 
 body {
-  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  min-height: 100vh;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.dark body,
+html.dark body {
+  --color-paper: #121513;
+  --color-paper-2: #1d221f;
+  --color-ink: #edf0ea;
+  --color-muted: #a4ada6;
+  --color-mist: #354139;
+  --color-moss-2: #20362f;
+  --color-line: rgba(237, 240, 234, 0.14);
+  background: var(--color-paper);
+  color: var(--color-ink);
 }
