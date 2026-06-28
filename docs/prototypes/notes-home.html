@@ -271,11 +271,11 @@
   .doc hr { border: none; border-top: 1px solid var(--line); margin: 24px 0; }
 
   /* 底部插入工具栏：透明胶囊浮层 */
-  .stylebar { position: absolute; left: 50%; bottom: 8px; z-index: 12; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 4px; padding: 7px 10px; border: 1px solid rgba(255,255,255,.10); border-radius: 999px; background: rgba(35,35,39,.58); box-shadow: 0 10px 28px rgba(0,0,0,.26), 0 1px 0 rgba(255,255,255,.08) inset; backdrop-filter: blur(22px) saturate(1.45); -webkit-backdrop-filter: blur(22px) saturate(1.45); flex: none; }
+  .stylebar { position: absolute; left: 50%; bottom: 8px; z-index: 12; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 2px; padding: 6px 8px; border: 1px solid rgba(255,255,255,.10); border-radius: 999px; background: rgba(35,35,39,.58); box-shadow: 0 10px 28px rgba(0,0,0,.26), 0 1px 0 rgba(255,255,255,.08) inset; backdrop-filter: blur(22px) saturate(1.45); -webkit-backdrop-filter: blur(22px) saturate(1.45); flex: none; }
   html.light .stylebar { background: rgba(255,255,255,.62); border-color: rgba(29,29,31,.10); box-shadow: 0 14px 34px rgba(50,45,36,.16), 0 1px 0 rgba(255,255,255,.88) inset; }
-  .stylebar .sb { width: 30px; height: 30px; border-radius: 999px; display: grid; place-items: center; color: var(--ink-soft); transition: background .14s, color .14s, transform .14s; }
+  .stylebar .sb { width: 28px; height: 28px; flex: 0 0 28px; padding: 0; border-radius: 999px; display: grid; place-items: center; color: var(--ink-soft); transition: background .14s, color .14s, transform .14s; }
   .stylebar .sb:hover { background: var(--accent-2); color: var(--ink); transform: translateY(-1px); }
-  .stylebar .sb svg, .stylebar .sb i { width: 18px; height: 18px; }
+  .stylebar .sb svg, .stylebar .sb i { width: 17px; height: 17px; }
 
   /* 剪藏阅读器：来源条 + 原文按钮 */
   .clip-src { display: flex; align-items: center; gap: 10px; max-width: 680px; margin: 0 auto; padding: 16px 36px 0; }
@@ -907,12 +907,14 @@
 
       <div class="stylebar stylebar--pill" id="stylebar" aria-label="插入工具栏">
         <button class="sb" title="待办" aria-label="待办"><i data-i="checklist"></i></button>
-        <button class="sb" title="表格" aria-label="表格"><i data-i="table"></i></button>
+        <button class="sb" title="表格" aria-label="表格">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="4.5" width="15" height="15" rx="2"/><path d="M12 4.5v15"/><path d="M4.5 12h15"/></svg>
+        </button>
         <button class="sb" title="Call out" aria-label="Call out">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4.5h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H9l-4 3v-3.5a2 2 0 0 1-2-2V6.5a2 2 0 0 1 2-2Z"/><path d="M8 9h8"/><path d="M8 13h5"/></svg>
         </button>
         <button class="sb" title="代码" aria-label="代码">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="m8 9-4 3 4 3"/><path d="m16 9 4 3-4 3"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.05" stroke-linecap="round" stroke-linejoin="round"><path d="m10 7-5 5 5 5"/><path d="m14 7 5 5-5 5"/></svg>
         </button>
         <button class="sb" title="图片" aria-label="图片"><i data-i="image"></i></button>
         <button class="sb" title="引用" aria-label="引用">
