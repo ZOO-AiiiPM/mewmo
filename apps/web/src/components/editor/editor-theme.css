@@ -1,0 +1,16 @@
+/* Milkdown Crepe wrapper — let the frame theme own its colors; we only
+   constrain layout + font so it fills the note pane. Palette mapping to the
+   project theme is done after verifying the default render. */
+.crepe-editor-wrapper {
+  height: 100%;
+}
+
+.crepe-editor-wrapper .milkdown {
+  height: 100%;
+  font-family: var(--font-sans);
+}
+
+.crepe-editor-wrapper .milkdown .ProseMirror {
+  padding: 16px 24px;
+  min-height: 100%;
+}

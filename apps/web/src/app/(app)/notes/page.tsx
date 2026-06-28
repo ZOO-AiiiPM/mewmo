@@ -1,42 +1,72 @@
 "use client";
 
 import Link from "next/link";
-import { useRef } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { useRouter } from "next/navigation";
+import { useEffect, useState, useCallback } from "react";
 import { TopBar } from "../../../components/shell/TopBar";
-import { generateNotes } from "../../../lib/mock-data";
 
-const notes = generateNotes(1000);
+interface NoteItem {
+  id: string;
+  slug: string;
+  title: string;
+  summary: string | null;
+  pinned: boolean;
+  updatedAt: string;
+}
 
 export default function NotesPage() {
-  const parentRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+  const [notes, setNotes] = useState<NoteItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const virtualizer = useVirtualizer({
-    count: notes.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => 76,
-    overscan: 10,
-  });
+  useEffect(() => {
+    fetch("/api/notes")
+      .then((r) => r.json())
+      .then((data) => {
+        setNotes(data);
+        setLoading(false);
+      });
+  }, []);
+
+  const handleNewNote = useCallback(async () => {
+    const res = await fetch("/api/notes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: "Untitled" }),
+    });
+    if (res.ok) {
+      const note = await res.json();
+      router.push(`/notes/${note.slug}`);
+    }
+  }, [router]);
 
   return (
     <div className="flex flex-col h-screen">
-      <TopBar title="Notes" action={{ label: "+ New Note" }} />
-      <div ref={parentRef} className="flex-1 overflow-y-auto px-6 py-4">
-        <div
-          className="relative w-full"
-          style={{ height: `${virtualizer.getTotalSize()}px` }}
-        >
-          {virtualizer.getVirtualItems().map((virtualRow) => {
-            const note = notes[virtualRow.index]!;
-            return (
+      <TopBar title="Notes" action={{ label: "+ New Note", onClick: handleNewNote }} />
+      <div className="flex-1 overflow-y-auto px-6 py-4">
+        {loading && (
+          <div className="text-sm text-muted text-center py-8">Loading...</div>
+        )}
+
+        {!loading && notes.length === 0 && (
+          <div className="text-center py-16">
+            <p className="text-muted text-sm mb-4">No notes yet</p>
+            <button
+              onClick={handleNewNote}
+              className="px-4 py-2 rounded-md bg-moss text-white text-sm font-medium hover:bg-moss/90 transition-colors"
+            >
+              Create your first note
+            </button>
+          </div>
+        )}
+
+        {!loading && notes.length > 0 && (
+          <div className="space-y-1">
+            {notes.map((note) => (
               <Link
                 key={note.id}
                 href={`/notes/${note.slug}`}
-                className="absolute left-0 right-0 px-4 py-3 rounded-md hover:bg-moss-2/50 transition-colors block"
-                style={{
-                  top: `${virtualRow.start}px`,
-                  height: `${virtualRow.size}px`,
-                }}
+                className="block px-4 py-3 rounded-md hover:bg-moss-2/50 transition-colors"
               >
                 <div className="flex items-center gap-3">
                   <span className="flex-1 text-sm font-medium text-ink truncate">
@@ -46,23 +76,13 @@ export default function NotesPage() {
                     {new Date(note.updatedAt).toLocaleDateString()}
                   </span>
                 </div>
-                <p className="text-xs text-muted mt-1 line-clamp-1">{note.summary}</p>
-                {note.tags.length > 0 && (
-                  <div className="flex gap-1.5 mt-1.5">
-                    {note.tags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="text-[11px] px-1.5 py-0.5 rounded-full bg-paper-2 border border-line text-muted"
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
+                {note.summary && (
+                  <p className="text-xs text-muted mt-1 line-clamp-1">{note.summary}</p>
                 )}
               </Link>
-            );
-          })}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
