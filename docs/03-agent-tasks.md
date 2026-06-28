@@ -24,7 +24,7 @@
    - `tsconfig.json`（base config，strict: true）
 
 2. **创建所有 apps 和 packages 空壳**（各含 `package.json` + `tsconfig.json` + `src/index.ts` 占位）：
-   - `apps/web` — Next.js 15 App Router（`create-next-app` 初始化）
+   - `apps/web` — Next.js 16 App Router（`create-next-app` 初始化）
    - `apps/agent` — Node.js worker（纯 TS，`src/index.ts` 打印 "worker ready"）
    - `apps/admin` — Next.js（占位，`src/app/page.tsx` 显示 "Admin"）
    - `apps/extension` — 占位目录

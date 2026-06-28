@@ -22,11 +22,11 @@ const env = {
 };
 
 describe("auth config", () => {
-  it("configures magic-link email and Google providers", () => {
+  it("configures credentials, magic-link email, and Google providers", () => {
     const config = createAuthConfig({ env, adapter: {} as Adapter });
     const providers = config.providers as Array<{ id: string }>;
 
-    expect(providers.map((provider) => provider.id)).toEqual(["resend", "google"]);
+    expect(providers.map((provider) => provider.id)).toEqual(["credentials", "resend", "google"]);
   });
 
   it("protects app routes", () => {

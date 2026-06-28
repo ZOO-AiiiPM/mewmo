@@ -62,3 +62,24 @@ test("all apps and packages expose @mewmo package names", () => {
     assert.equal(existsSync(`${dir}/tsconfig.json`), true, `${dir}/tsconfig.json should exist`);
   }
 });
+
+test("web instrumentation keeps node-only undici out of non-node bundles", () => {
+  const source = readFileSync("apps/web/src/instrumentation.ts", "utf8");
+
+  assert.equal(
+    /import\s+.*\s+from\s+["']undici["']/.test(source),
+    false,
+    "instrumentation must not statically import undici",
+  );
+  assert.match(source, /NEXT_RUNTIME\s*===\s*["']nodejs["']/);
+});
+
+test("web Next config stays compatible with default Turbopack builds", () => {
+  const source = readFileSync("apps/web/next.config.mjs", "utf8");
+
+  assert.equal(
+    /\bwebpack\s*:/.test(source),
+    false,
+    "Next 16 enables Turbopack by default, so next.config.mjs must not define webpack config",
+  );
+});
