@@ -7,6 +7,7 @@ import { Milkdown, MilkdownProvider, useEditor } from "@milkdown/react";
 import "@milkdown/crepe/theme/common/style.css";
 import "@milkdown/crepe/theme/frame.css";
 import { InsertToolbar } from "./InsertToolbar";
+import { highlight } from "./highlight-plugin";
 
 interface NoteEditorProps {
   noteId: string;
@@ -35,6 +36,7 @@ function CrepeContent({
 
   useEditor((root) => {
     const crepe = new Crepe({ root, defaultValue: initialContent });
+    crepe.editor.use(highlight);
     crepe.on((listener) => {
       listener.markdownUpdated((_, markdown, prevMarkdown) => {
         if (!readyRef.current) {

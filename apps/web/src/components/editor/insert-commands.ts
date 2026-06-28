@@ -10,6 +10,7 @@ import {
   wrapInBlockTypeCommand,
 } from "@milkdown/kit/preset/commonmark";
 import { createTable } from "@milkdown/kit/preset/gfm";
+import { toggleHighlightCommand } from "./highlight-plugin";
 
 export type InsertKind = "task" | "quote" | "table" | "code";
 
@@ -52,5 +53,16 @@ export function insertBlock(editor: Editor | undefined, kind: InsertKind) {
         break;
       }
     }
+  });
+}
+
+/**
+ * 切换高亮（行内 mark）。与 insertBlock 区分：高亮不是块，是选区上的标记。
+ * 有选区 → 高亮选中文字；无选区 → 切换 stored mark，下段输入即高亮。
+ */
+export function toggleHighlight(editor: Editor | undefined) {
+  if (!editor) return;
+  editor.action((ctx) => {
+    ctx.get(commandsCtx).call(toggleHighlightCommand.key);
   });
 }

@@ -2,7 +2,7 @@
 
 import { useInstance } from "@milkdown/react";
 import { editorViewCtx } from "@milkdown/kit/core";
-import { insertBlock, type InsertKind } from "./insert-commands";
+import { insertBlock, toggleHighlight, type InsertKind } from "./insert-commands";
 
 interface ToolbarItem {
   kind: InsertKind;
@@ -64,6 +64,13 @@ export function InsertToolbar() {
     editor?.action((ctx) => ctx.get(editorViewCtx).focus());
   };
 
+  const handleHighlight = () => {
+    if (loading) return;
+    const editor = getEditor();
+    toggleHighlight(editor);
+    editor?.action((ctx) => ctx.get(editorViewCtx).focus());
+  };
+
   return (
     <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1 rounded-full border border-line bg-paper/70 px-2 py-1.5 shadow-lg backdrop-blur-md">
       {ITEMS.map((item) => (
@@ -79,6 +86,20 @@ export function InsertToolbar() {
           {item.icon}
         </button>
       ))}
+      <span className="mx-0.5 h-5 w-px bg-line" aria-hidden />
+      <button
+        type="button"
+        title="高亮"
+        aria-label="高亮"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={handleHighlight}
+        className="flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-moss-2 hover:text-moss"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="m9 11-6 6v3h3l6-6" />
+          <path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4" />
+        </svg>
+      </button>
     </div>
   );
 }

@@ -55,3 +55,13 @@
 .crepe-editor-wrapper .milkdown .milkdown-code-block .cm-activeLine {
   background: transparent;
 }
+
+/* 自定义高亮 mark：暖色半透明，明暗模式都可读；box-decoration-break 让换行处也连续着色。 */
+.crepe-editor-wrapper .milkdown mark {
+  background: rgba(245, 200, 66, 0.38);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 2px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
