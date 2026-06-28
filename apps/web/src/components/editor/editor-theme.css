@@ -1,6 +1,4 @@
-/* Milkdown Crepe wrapper — let the frame theme own its colors; we only
-   constrain layout + font so it fills the note pane. Palette mapping to the
-   project theme is done after verifying the default render. */
+/* Milkdown Crepe wrapper —— 项目主题映射 + 布局 */
 .crepe-editor-wrapper {
   height: 100%;
 }
@@ -8,9 +6,52 @@
 .crepe-editor-wrapper .milkdown {
   height: 100%;
   font-family: var(--font-sans);
+  /* 标题回落到项目黑体：frame 主题默认 --crepe-font-title 是 Noto Serif 衬线。 */
+  --crepe-font-title: var(--font-sans);
+
+  /* 把 Crepe frame 主题的整套色变量映射到项目调色板，code 块 / 表格 / 选区等所有
+     surface 一致变成 paper 质感；项目 token 在 .dark 下自动翻转，故暗色也顺带对了。 */
+  --crepe-color-background: var(--color-paper);
+  --crepe-color-on-background: var(--color-ink);
+  --crepe-color-surface: var(--color-paper-2);
+  --crepe-color-surface-low: var(--color-paper-2);
+  --crepe-color-on-surface: var(--color-ink);
+  --crepe-color-on-surface-variant: var(--color-muted);
+  --crepe-color-outline: var(--color-muted);
+  --crepe-color-primary: var(--color-moss);
+  --crepe-color-secondary: var(--color-paper-2);
+  --crepe-color-on-secondary: var(--color-ink);
+  --crepe-color-inverse: var(--color-paper-2);
+  --crepe-color-on-inverse: var(--color-ink);
+  --crepe-color-inline-code: var(--color-coral);
+  --crepe-color-error: var(--color-coral);
+  --crepe-color-hover: var(--color-moss-2);
+  --crepe-color-selected: var(--color-moss-2);
+  --crepe-color-inline-area: var(--color-paper-2);
 }
 
+/* 左侧留出 gutter：block handle（+ / ⠿，约 66px 宽 + 16px gap）由 floating-ui
+   锚在块左侧。实测 padding-left 需 ≥ 柄宽+gap(~82px) 柄才完整落在 .milkdown 盒内、
+   不被外层 overflow:auto 裁切。取 88px，hover 任意块都能稳定出现完整的 +/⠿。 */
 .crepe-editor-wrapper .milkdown .ProseMirror {
-  padding: 16px 24px;
+  padding: 16px 32px 64px 88px;
   min-height: 100%;
+}
+
+/* code 块：CodeMirror 默认主题会给当前行行号一个深色块，这里压平 gutter 背景、
+   行号用 muted 灰，整体跟随上面的 surface 映射，呈干净的 paper 质感代码块。
+   圆角 + overflow hidden 让顶部工具条 / 行号 gutter 都裁进圆角内。 */
+.crepe-editor-wrapper .milkdown .milkdown-code-block {
+  border-radius: 12px;
+  overflow: hidden;
+}
+.crepe-editor-wrapper .milkdown .milkdown-code-block .cm-gutters,
+.crepe-editor-wrapper .milkdown .milkdown-code-block .cm-activeLineGutter {
+  background: transparent;
+}
+.crepe-editor-wrapper .milkdown .milkdown-code-block .cm-lineNumbers .cm-gutterElement {
+  color: var(--color-muted);
+}
+.crepe-editor-wrapper .milkdown .milkdown-code-block .cm-activeLine {
+  background: transparent;
 }

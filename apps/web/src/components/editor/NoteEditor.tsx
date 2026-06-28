@@ -6,6 +6,7 @@ import { Crepe } from "@milkdown/crepe";
 import { Milkdown, MilkdownProvider, useEditor } from "@milkdown/react";
 import "@milkdown/crepe/theme/common/style.css";
 import "@milkdown/crepe/theme/frame.css";
+import { InsertToolbar } from "./InsertToolbar";
 
 interface NoteEditorProps {
   noteId: string;
@@ -147,9 +148,12 @@ export function NoteEditor({ noteId, initialTitle, initialContent }: NoteEditorP
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-auto crepe-editor-wrapper">
+      <div className="flex-1 min-h-0 relative">
         <MilkdownProvider>
-          <CrepeContent initialContent={initialContent} onContentChange={queueContentSave} />
+          <div className="h-full overflow-auto crepe-editor-wrapper">
+            <CrepeContent initialContent={initialContent} onContentChange={queueContentSave} />
+          </div>
+          <InsertToolbar />
         </MilkdownProvider>
       </div>
     </div>
