@@ -98,7 +98,7 @@
 
   /* ============ 左：侧栏（浮起圆角面板） ============ */
   .side { position: relative; z-index: 20; margin: 9px; border-radius: 16px; background: rgba(22,23,25,.6); backdrop-filter: blur(20px) saturate(1.4); -webkit-backdrop-filter: blur(20px) saturate(1.4); border: 1px solid rgba(255,255,255,.08); box-shadow: var(--shadow); display: flex; flex-direction: column; padding: 12px 7px 6px; min-height: 0; }
-  html.light .side { background: rgba(245,244,240,.65); border-color: rgba(255,255,255,.6); }
+  html.light .side { background: rgba(244,244,246,.7); border-color: rgba(255,255,255,.6); }
   .side__bar { display: flex; align-items: center; gap: 7px; padding: 2px 6px 12px; color: var(--ink-faint); }
   .side__brand { display: flex; align-items: center; gap: 7px; margin-right: auto; }
   .logo-cat { width: 22px; height: 22px; }
@@ -123,7 +123,7 @@
   .nav-i { position: relative; display: flex; align-items: center; gap: 9px; width: 100%; text-align: left; padding: 6px 8px 6px 24px; border-radius: 9px; color: var(--ink); font-size: 13px; }
   .nav-i:hover { background: var(--hover); }
   .nav-i .ic { width: 16px; height: 16px; color: var(--ink-soft); }
-  .nav-i.active { background: var(--raised); font-weight: 600; }
+  .nav-i.active { background: rgba(255,255,255,.85); font-weight: 600; box-shadow: none; }
   .nav-i.active .ic { color: var(--accent); opacity: 1; }
   .nav-i .chev { position: absolute; left: 1px; top: 50%; width: 12px; height: 12px; padding: 5px; box-sizing: content-box; color: var(--ink-faint); transform: translateY(-50%); transition: transform .18s; cursor: pointer; border-radius: 6px; }
   .nav-i .chev:hover { background: var(--hover); color: var(--ink-soft); }
@@ -131,7 +131,7 @@
   .nav-grp.collapsed .nav-i.grp .chev { transform: translateY(-50%) rotate(-90deg); }
   .nav-sub { position: relative; display: flex; align-items: center; gap: 9px; width: 100%; text-align: left; padding: 5px 8px 5px 32px; border-radius: 9px; color: var(--ink); font-size: 12.5px; }
   .nav-sub:hover { background: var(--hover); }
-  .nav-sub.active { background: var(--raised); font-weight: 600; }
+  .nav-sub.active { background: rgba(255,255,255,.85); font-weight: 600; box-shadow: none; }
   .nav-sub.active .ic { color: var(--accent); opacity: 1; }
   .nav-sub .ic { width: 15px; height: 15px; color: var(--ink-soft); }
   .nav-sub .lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -161,7 +161,7 @@
   /* 行内操作按钮：hover 浮现的横向三点 */
   .nav-i.grp .row-act, .nav-sub .row-act { position: absolute; right: 7px; top: 50%; transform: translateY(-50%); width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; color: var(--ink-faint); opacity: 0; pointer-events: none; transition: opacity .12s, background .12s, color .12s; }
   .nav-i.grp:hover .row-act, .nav-sub:hover .row-act { opacity: 1; pointer-events: auto; background: var(--hover); cursor: pointer; }
-  .nav-i.grp .row-act:hover, .nav-sub .row-act:hover, .kbf .row-act:hover { background: var(--line); color: var(--ink-soft); }
+  .nav-i.grp .row-act:hover, .nav-sub .row-act:hover, .kbf .row-act:hover { background: var(--raised); color: var(--ink); }
   /* 浮现时左侧渐隐，把下方文字盖住 */
   .nav-i.grp:hover .row-act::before, .nav-sub:hover .row-act::before { content: ""; position: absolute; right: 100%; top: 0; bottom: 0; width: 22px; background: linear-gradient(to right, transparent, var(--hover)); pointer-events: none; }
   .row-act:hover { background: var(--raised); color: var(--ink); }
@@ -267,7 +267,7 @@
   .acct-sub__row.active { color: var(--ink); }
   .acct-sub__row .acct-check { width: 14px; height: 14px; margin-left: auto; opacity: 0; }
   .acct-sub__row.active .acct-check { opacity: 1; color: var(--accent, #5b8def); }
-  .acct-sub__label { padding: 7px 11px 4px; font-family: 'Songti SC', 'Noto Serif SC', Georgia, 'Times New Roman', serif; font-size: 11.5px; font-weight: 600; letter-spacing: .06em; color: var(--ink-faint); }
+  .acct-sub__label { padding: 6px 10px 3px; font-size: 10.5px; font-weight: 600; letter-spacing: .04em; color: var(--ink-faint); }
   .acct-sub__sep { height: 1px; background: var(--line-soft); margin: 4px 6px; }
   .acct-sub__row .acct-ic { width: 15px; height: 15px; flex: none; opacity: .7; }
   .acct-sub__row:hover .acct-ic { opacity: 1; }
@@ -552,29 +552,40 @@
   .ai-act-btn--ghost { background: var(--accent-2); color: var(--ink-soft); }
   .ai-act-btn--ghost:hover { background: var(--hover); color: var(--ink); opacity: 1; }
 
-  .ai__ask { flex: none; padding: 10px 14px 14px; }
-  .ai__ask .box { display: flex; align-items: center; gap: 8px; background: var(--raised); border: 1px solid var(--line); border-radius: 12px; padding: 9px 12px; }
+  .ai__ask { flex: none; padding: 10px 14px 14px; display: flex; align-items: flex-end; gap: 8px; }
+  .ai__ask .box { flex: 1; display: flex; align-items: center; gap: 8px; background: var(--raised); border: 1px solid var(--line); border-radius: 12px; padding: 9px 12px; }
   .ai__ask input { flex: 1; border: none; background: none; outline: none; color: var(--ink); font-size: 12.5px; }
   .ai__ask input::placeholder { color: var(--ink-faint); }
   .ai__ask .send { width: 26px; height: 26px; border-radius: 7px; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; flex: none; opacity: .85; transition: opacity .12s; }
   .ai__ask .send:hover { opacity: 1; }
 
-  /* ============ 喵喵 入口 tab：贴右边缘底部的半胶囊 ============ */
+  /* ============ 喵喵 FAB：猫咪 toggle 按钮 ============ */
+  /* 默认（AI 关闭时）：fixed 在右下角 */
   .ai-fab {
-    position: fixed; bottom: 32px; right: 0; z-index: 40;
-    width: 48px; height: 56px;
-    border-radius: 14px 0 0 14px;
+    position: fixed; bottom: 24px; right: 24px; z-index: 51;
+    width: 48px; height: 48px;
+    border-radius: 14px;
     background: var(--raised);
-    border: 1px solid var(--line); border-right: none;
-    box-shadow: -4px 2px 16px rgba(0,0,0,.12);
+    border: 1px solid var(--line);
+    box-shadow: 0 4px 16px rgba(0,0,0,.12), 0 1px 3px rgba(0,0,0,.06);
     display: grid; place-items: center;
     cursor: pointer;
-    transition: width .2s cubic-bezier(.34,1.5,.5,1), background .14s;
+    transition: transform .16s ease, box-shadow .16s, background .12s;
   }
-  html.light .ai-fab { background: #fff; box-shadow: -3px 2px 12px rgba(0,0,0,.06); }
-  .ai-fab:hover { width: 54px; background: var(--hover); }
-  .ai-fab:active { width: 50px; }
-  .ai-fab .fab-icon { width: 26px; height: 26px; color: var(--ink); }
+  html.light .ai-fab { background: #fff; box-shadow: 0 3px 12px rgba(0,0,0,.06); }
+  .ai-fab:hover { transform: scale(1.06); box-shadow: 0 6px 20px rgba(0,0,0,.16); }
+  .ai-fab:active { transform: scale(.94); }
+  .ai-fab .fab-icon { width: 24px; height: 24px; color: var(--ink); }
+  /* AI 展开时：变成 static 流内元素（在输入框行尾） */
+  .app.ai-open .ai-fab {
+    position: static;
+    width: 38px; height: 38px;
+    border-radius: 10px;
+    box-shadow: none;
+    border: 1px solid var(--line);
+    flex: none;
+  }
+  .app.ai-open .ai-fab .fab-icon { width: 22px; height: 22px; }
 
   /* ============ 设置弹窗 ============ */
   .modal { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; }
@@ -1155,7 +1166,6 @@
         </svg>
         <span class="nm">喵喵</span><span class="dot"></span>
         <button class="ib" id="ai-new" title="新对话"><i data-i="edit" style="width:14px;height:14px"></i></button>
-        <button class="ib" id="ai-close" title="收起"><i data-i="chev-right" style="width:15px;height:15px"></i></button>
       </div>
       <div class="ai__body">
         <!-- 上下文感知 -->
@@ -1196,21 +1206,18 @@
           <input placeholder="问问喵喵，或 @ 引用笔记…" />
           <button class="send"><i data-i="send" style="width:14px;height:14px"></i></button>
         </div>
+        <button class="ai-fab" id="ai-fab" title="喵喵">
+          <svg class="fab-icon" viewBox="0 0 32 32" fill="none">
+            <path d="M4 16c0-2 1-5 3-7l-1.5-5.5a1 1 0 0 1 1.6-.9L10 5a12 12 0 0 1 12 0l2.9-2.4a1 1 0 0 1 1.6.9L25 9c2 2 3 5 3 7v4c0 5.5-4.5 8-12 8S4 21.5 4 20v-4Z" stroke="var(--ink)" stroke-width="2" stroke-linejoin="round" fill="none"/>
+            <circle cx="12" cy="16" r="1.6" fill="var(--ink)"/>
+            <circle cx="20" cy="16" r="1.6" fill="var(--ink)"/>
+            <path d="M14.5 20.5c.7.6 2.3.6 3 0" stroke="var(--ink)" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </button>
       </div>
     </aside>
 
   </div>
-
-  <!-- 喵喵 FAB：右下角浮动猫咪按钮 -->
-  <button class="ai-fab" id="ai-fab" title="喵喵">
-    <svg class="fab-icon" viewBox="0 0 32 32" fill="none">
-      <path d="M6 25h20v2a3 3 0 0 1-3 3H9a3 3 0 0 1-3-3v-2Z" fill="var(--ink)" opacity=".12"/>
-      <path d="M4 16c0-2 1-5 3-7l-1.5-5.5a1 1 0 0 1 1.6-.9L10 5a12 12 0 0 1 12 0l2.9-2.4a1 1 0 0 1 1.6.9L25 9c2 2 3 5 3 7v4c0 5.5-4.5 8-12 8S4 21.5 4 20v-4Z" stroke="var(--ink)" stroke-width="2" stroke-linejoin="round" fill="none"/>
-      <circle cx="12" cy="16" r="1.6" fill="var(--ink)"/>
-      <circle cx="20" cy="16" r="1.6" fill="var(--ink)"/>
-      <path d="M14.5 20.5c.7.6 2.3.6 3 0" stroke="var(--ink)" stroke-width="1.5" stroke-linecap="round"/>
-    </svg>
-  </button>
 
   <!-- 列表标题下拉：排序 + 快速跳转 -->
   <div class="lmenu" id="listMenu">
@@ -1349,6 +1356,7 @@
       document.getElementById("stylebar").style.display = (lv==="notes"||lv==="clips"||lv==="feed") ? "flex" : "none";
     }
     document.querySelectorAll("[data-view]").forEach(b => b.addEventListener("click", e => {
+      if (e.target.closest(".row-act")) return;           // ⋯ 按钮由菜单系统处理，不切视图
       if (b.classList.contains("grp")) return;            // 分组标题只折叠，不切视图（见上方折叠处理）
       if (e.target.closest(".subchev")) { b.closest(".kb-item").classList.toggle("collapsed"); return; }  // 知识库 L1 展开/折叠
       if (b.classList.contains("nav-sub")) b.classList.remove("has-update");  // 点开订阅清除“新内容”点
@@ -1524,10 +1532,10 @@
       wrap.className = "kbf-wrap";
       const row = document.createElement("button");
       row.className = "nav-i kbf";
-      row.style.paddingLeft = (24 + depth * 15) + "px";
+      row.style.paddingLeft = (24 + depth * 12) + "px";
       const hasKids = f.children && f.children.length;
       row.innerHTML =
-        (hasKids ? '<i class="chev" data-i="caret" style="left:' + (1 + depth * 15) + 'px"></i>' : '') +
+        (hasKids ? '<i class="chev" data-i="caret" style="left:' + (1 + depth * 12) + 'px"></i>' : '') +
         '<i class="ic" data-i="folder"></i> <span class="lbl">' + (f.name || "") + '</span>' +
         '<span class="row-act" data-menu="kb-folder" title="操作">' + DOTS + '</span>';
       wrap.appendChild(row);
@@ -1582,11 +1590,11 @@
       if (!kids) { kids = document.createElement("div"); kids.className = "kbf-children"; wrap.appendChild(kids); }
       wrap.classList.remove("collapsed");
       const pad = parseInt(row.style.paddingLeft || "24", 10);
-      const depth = Math.round((pad - 24) / 15);
+      const depth = Math.round((pad - 24) / 12);
       if (!row.querySelector(".chev")) {
         const chev = document.createElement("i");
         chev.className = "chev"; chev.setAttribute("data-i", "caret");
-        chev.style.left = (1 + depth * 15) + "px";
+        chev.style.left = (1 + depth * 12) + "px";
         row.insertBefore(chev, row.firstChild);
         window.paintIcons(row);
       }
@@ -1769,11 +1777,9 @@
       });
     });
 
-    // AI 列 toggle：点 FAB 展开，点关闭收起
+    // AI 列 toggle：点猫咪开/关
     const aiFab = document.getElementById('ai-fab');
-    const aiClose = document.getElementById('ai-close');
-    aiFab.addEventListener('click', () => app.classList.add('ai-open'));
-    aiClose.addEventListener('click', () => app.classList.remove('ai-open'));
+    aiFab.addEventListener('click', () => app.classList.toggle('ai-open'));
 
     // 账户菜单
     const acctMenu = document.getElementById("acct-menu");
