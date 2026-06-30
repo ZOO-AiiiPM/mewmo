@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>mewmo Icon Alternatives Preview</title>
+<script src="https://cdn.jsdelivr.net/npm/iconify-icon@2/dist/iconify-icon.min.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; background:#0a0a0a; color:#e0e0e0; padding:32px 40px; line-height:1.5; }
+h1 { font-size:22px; font-weight:600; margin-bottom:6px; }
+.subtitle { color:#777; font-size:13px; margin-bottom:36px; }
+.section { margin-bottom:40px; }
+.section-title { font-size:15px; font-weight:600; color:#aaa; margin-bottom:4px; display:flex; align-items:center; gap:8px; }
+.section-title .current-label { font-size:11px; color:#555; font-weight:400; }
+.section-desc { font-size:12px; color:#555; margin-bottom:14px; }
+.row { display:flex; flex-wrap:wrap; gap:10px; align-items:stretch; }
+.icon-card { background:#151515; border:1px solid #252525; border-radius:10px; padding:14px 10px 10px; width:100px; display:flex; flex-direction:column; align-items:center; gap:8px; cursor:default; transition: border-color .15s, background .15s; position:relative; }
+.icon-card:hover { border-color:#444; background:#1a1a1a; }
+.icon-card.current { border-color:#3b82f6; background:#0f1a2e; }
+.icon-card.current::after { content:"当前"; position:absolute; top:4px; right:4px; font-size:9px; color:#3b82f6; background:#0f1a2e; padding:1px 4px; border-radius:3px; }
+.icon-pair { display:flex; gap:10px; align-items:center; }
+.icon-pair iconify-icon { font-size:22px; color:#e0e0e0; }
+.icon-pair .fill { color:#6ea8fe; }
+.icon-name { font-size:9.5px; color:#666; font-family:"SF Mono",Menlo,monospace; text-align:center; word-break:break-all; line-height:1.3; }
+.divider { width:100%; height:1px; background:#1a1a1a; margin:8px 0 32px; }
+.tip { font-size:11px; color:#444; margin-top:40px; text-align:center; }
+</style>
+</head>
+<body>
+
+<h1>mewmo Icon Alternatives</h1>
+<p class="subtitle">当前原型图标 vs Solar 图标集可选替代方案 · Linear (左) + Bold (右, 激活态)</p>
+
+<!-- ===== 首页 ===== -->
+<div class="section">
+  <div class="section-title">首页 <span class="current-label">当前: home</span></div>
+  <div class="section-desc">侧栏导航 · 回到主页</div>
+  <div class="row">
+    <div class="icon-card current"><div class="icon-pair"><iconify-icon icon="solar:home-2-linear"></iconify-icon><iconify-icon icon="solar:home-2-bold" class="fill"></iconify-icon></div><div class="icon-name">home-2</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:home-linear"></iconify-icon><iconify-icon icon="solar:home-bold" class="fill"></iconify-icon></div><div class="icon-name">home</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:home-angle-linear"></iconify-icon><iconify-icon icon="solar:home-angle-bold" class="fill"></iconify-icon></div><div class="icon-name">home-angle</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:home-smile-linear"></iconify-icon><iconify-icon icon="solar:home-smile-bold" class="fill"></iconify-icon></div><div class="icon-name">home-smile</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:home-add-linear"></iconify-icon><iconify-icon icon="solar:home-add-bold" class="fill"></iconify-icon></div><div class="icon-name">home-add</div></div>
+  </div>
+</div>
+
+<!-- ===== 今天 ===== -->
+<div class="section">
+  <div class="section-title">今天 <span class="current-label">当前: calendar</span></div>
+  <div class="section-desc">侧栏导航 · 今日视图</div>
+  <div class="row">
+    <div class="icon-card current"><div class="icon-pair"><iconify-icon icon="solar:calendar-linear"></iconify-icon><iconify-icon icon="solar:calendar-bold" class="fill"></iconify-icon></div><div class="icon-name">calendar</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:calendar-minimalistic-linear"></iconify-icon><iconify-icon icon="solar:calendar-minimalistic-bold" class="fill"></iconify-icon></div><div class="icon-name">calendar-minimalistic</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:calendar-mark-linear"></iconify-icon><iconify-icon icon="solar:calendar-mark-bold" class="fill"></iconify-icon></div><div class="icon-name">calendar-mark</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:calendar-date-linear"></iconify-icon><iconify-icon icon="solar:calendar-date-bold" class="fill"></iconify-icon></div><div class="icon-name">calendar-date</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:sun-linear"></iconify-icon><iconify-icon icon="solar:sun-bold" class="fill"></iconify-icon></div><div class="icon-name">sun</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:clock-circle-linear"></iconify-icon><iconify-icon icon="solar:clock-circle-bold" class="fill"></iconify-icon></div><div class="icon-name">clock-circle</div></div>
+  </div>
+</div>
+
+<!-- ===== 置顶 ===== -->
+<div class="section">
+  <div class="section-title">置顶 <span class="current-label">当前: pin</span></div>
+  <div class="section-desc">侧栏导航 · 置顶内容</div>
+  <div class="row">
+    <div class="icon-card current"><div class="icon-pair"><iconify-icon icon="solar:pin-linear"></iconify-icon><iconify-icon icon="solar:pin-bold" class="fill"></iconify-icon></div><div class="icon-name">pin</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:pin-circle-linear"></iconify-icon><iconify-icon icon="solar:pin-circle-bold" class="fill"></iconify-icon></div><div class="icon-name">pin-circle</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:star-linear"></iconify-icon><iconify-icon icon="solar:star-bold" class="fill"></iconify-icon></div><div class="icon-name">star</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:heart-linear"></iconify-icon><iconify-icon icon="solar:heart-bold" class="fill"></iconify-icon></div><div class="icon-name">heart</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:flag-linear"></iconify-icon><iconify-icon icon="solar:flag-bold" class="fill"></iconify-icon></div><div class="icon-name">flag</div></div>
+  </div>
+</div>
+
+<!-- ===== 收集箱 ===== -->
+<div class="section">
+  <div class="section-title">收集箱 <span class="current-label">当前: inbox</span></div>
+  <div class="section-desc">侧栏导航 · 未分类内容暂存</div>
+  <div class="row">
+    <div class="icon-card current"><div class="icon-pair"><iconify-icon icon="solar:inbox-linear"></iconify-icon><iconify-icon icon="solar:inbox-bold" class="fill"></iconify-icon></div><div class="icon-name">inbox</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:inbox-line-linear"></iconify-icon><iconify-icon icon="solar:inbox-line-bold" class="fill"></iconify-icon></div><div class="icon-name">inbox-line</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:archive-linear"></iconify-icon><iconify-icon icon="solar:archive-bold" class="fill"></iconify-icon></div><div class="icon-name">archive</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:archive-down-linear"></iconify-icon><iconify-icon icon="solar:archive-down-bold" class="fill"></iconify-icon></div><div class="icon-name">archive-down</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:download-minimalistic-linear"></iconify-icon><iconify-icon icon="solar:download-minimalistic-bold" class="fill"></iconify-icon></div><div class="icon-name">download-minimalistic</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:tray-arrow-down-linear"></iconify-icon><iconify-icon icon="solar:tray-arrow-down-bold" class="fill"></iconify-icon></div><div class="icon-name">tray-arrow-down</div></div>
+  </div>
+</div>
+
+<!-- ===== 笔记 ===== -->
+<div class="section">
+  <div class="section-title">笔记 <span class="current-label">当前: note</span></div>
+  <div class="section-desc">侧栏子项 · 笔记列表入口</div>
+  <div class="row">
+    <div class="icon-card current"><div class="icon-pair"><iconify-icon icon="solar:notes-linear"></iconify-icon><iconify-icon icon="solar:notes-bold" class="fill"></iconify-icon></div><div class="icon-name">notes</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:document-text-linear"></iconify-icon><iconify-icon icon="solar:document-text-bold" class="fill"></iconify-icon></div><div class="icon-name">document-text</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:notebook-linear"></iconify-icon><iconify-icon icon="solar:notebook-bold" class="fill"></iconify-icon></div><div class="icon-name">notebook</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:notebook-minimalistic-linear"></iconify-icon><iconify-icon icon="solar:notebook-minimalistic-bold" class="fill"></iconify-icon></div><div class="icon-name">notebook-minimalistic</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:pen-new-square-linear"></iconify-icon><iconify-icon icon="solar:pen-new-square-bold" class="fill"></iconify-icon></div><div class="icon-name">pen-new-square</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:clipboard-text-linear"></iconify-icon><iconify-icon icon="solar:clipboard-text-bold" class="fill"></iconify-icon></div><div class="icon-name">clipboard-text</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:file-text-linear"></iconify-icon><iconify-icon icon="solar:file-text-bold" class="fill"></iconify-icon></div><div class="icon-name">file-text</div></div>
+  </div>
+</div>
+
+<!-- ===== 剪藏 ===== -->
+<div class="section">
+  <div class="section-title">剪藏 <span class="current-label">当前: bookmark</span></div>
+  <div class="section-desc">侧栏子项 · 网页剪藏列表</div>
+  <div class="row">
+    <div class="icon-card current"><div class="icon-pair"><iconify-icon icon="solar:bookmark-linear"></iconify-icon><iconify-icon icon="solar:bookmark-bold" class="fill"></iconify-icon></div><div class="icon-name">bookmark</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:bookmark-square-linear"></iconify-icon><iconify-icon icon="solar:bookmark-square-bold" class="fill"></iconify-icon></div><div class="icon-name">bookmark-square</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:scissors-linear"></iconify-icon><iconify-icon icon="solar:scissors-bold" class="fill"></iconify-icon></div><div class="icon-name">scissors</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:link-minimalistic-linear"></iconify-icon><iconify-icon icon="solar:link-minimalistic-bold" class="fill"></iconify-icon></div><div class="icon-name">link-minimalistic</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:clipboard-linear"></iconify-icon><iconify-icon icon="solar:clipboard-bold" class="fill"></iconify-icon></div><div class="icon-name">clipboard</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:copy-linear"></iconify-icon><iconify-icon icon="solar:copy-bold" class="fill"></iconify-icon></div><div class="icon-name">copy</div></div>
+  </div>
+</div>
+
+<!-- ===== PDF ===== -->
+<div class="section">
+  <div class="section-title">PDF <span class="current-label">当前: pdf (自绘)</span></div>
+  <div class="section-desc">侧栏子项 · PDF 文档</div>
+  <div class="row">
+    <div class="icon-card current"><div class="icon-pair"><iconify-icon icon="solar:file-linear"></iconify-icon><iconify-icon icon="solar:file-bold" class="fill"></iconify-icon></div><div class="icon-name">file (当前类似)</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:document-linear"></iconify-icon><iconify-icon icon="solar:document-bold" class="fill"></iconify-icon></div><div class="icon-name">document</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:document-add-linear"></iconify-icon><iconify-icon icon="solar:document-add-bold" class="fill"></iconify-icon></div><div class="icon-name">document-add</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:file-check-linear"></iconify-icon><iconify-icon icon="solar:file-check-bold" class="fill"></iconify-icon></div><div class="icon-name">file-check</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:file-download-linear"></iconify-icon><iconify-icon icon="solar:file-download-bold" class="fill"></iconify-icon></div><div class="icon-name">file-download</div></div>
+  </div>
+</div>
+
+<!-- ===== 电子书 ===== -->
+<div class="section">
+  <div class="section-title">电子书 <span class="current-label">当前: shelf (自绘翻开书)</span></div>
+  <div class="section-desc">侧栏子项 · 电子书书架</div>
+  <div class="row">
+    <div class="icon-card current"><div class="icon-pair"><iconify-icon icon="solar:book-linear"></iconify-icon><iconify-icon icon="solar:book-bold" class="fill"></iconify-icon></div><div class="icon-name">book</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:book-2-linear"></iconify-icon><iconify-icon icon="solar:book-2-bold" class="fill"></iconify-icon></div><div class="icon-name">book-2</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:book-minimalistic-linear"></iconify-icon><iconify-icon icon="solar:book-minimalistic-bold" class="fill"></iconify-icon></div><div class="icon-name">book-minimalistic</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:notebook-bookmark-linear"></iconify-icon><iconify-icon icon="solar:notebook-bookmark-bold" class="fill"></iconify-icon></div><div class="icon-name">notebook-bookmark</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:book-bookmark-linear"></iconify-icon><iconify-icon icon="solar:book-bookmark-bold" class="fill"></iconify-icon></div><div class="icon-name">book-bookmark</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:book-bookmark-minimalistic-linear"></iconify-icon><iconify-icon icon="solar:book-bookmark-minimalistic-bold" class="fill"></iconify-icon></div><div class="icon-name">book-bookmark-minimalistic</div></div>
+  </div>
+</div>
+
+<!-- ===== 订阅 ===== -->
+<div class="section">
+  <div class="section-title">订阅 <span class="current-label">当前: rss (自绘)</span></div>
+  <div class="section-desc">侧栏导航 · RSS 订阅源</div>
+  <div class="row">
+    <div class="icon-card current"><div class="icon-pair"><iconify-icon icon="solar:rss-linear" style="font-size:22px;"></iconify-icon><iconify-icon icon="solar:rss-bold" class="fill"></iconify-icon></div><div class="icon-name">rss (无，自绘)</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:feed-linear"></iconify-icon><iconify-icon icon="solar:feed-bold" class="fill"></iconify-icon></div><div class="icon-name">feed</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:global-linear"></iconify-icon><iconify-icon icon="solar:global-bold" class="fill"></iconify-icon></div><div class="icon-name">global</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:podcast-linear"></iconify-icon><iconify-icon icon="solar:podcast-bold" class="fill"></iconify-icon></div><div class="icon-name">podcast</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:signal-linear"></iconify-icon><iconify-icon icon="solar:signal-bold" class="fill"></iconify-icon></div><div class="icon-name">signal</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:station-linear"></iconify-icon><iconify-icon icon="solar:station-bold" class="fill"></iconify-icon></div><div class="icon-name">station</div></div>
+  </div>
+</div>
+
+<!-- ===== 知识库 ===== -->
+<div class="section">
+  <div class="section-title">知识库 <span class="current-label">当前: library</span></div>
+  <div class="section-desc">侧栏导航 · 结构化知识管理</div>
+  <div class="row">
+    <div class="icon-card current"><div class="icon-pair"><iconify-icon icon="solar:library-linear"></iconify-icon><iconify-icon icon="solar:library-bold" class="fill"></iconify-icon></div><div class="icon-name">library</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:notebook-square-linear"></iconify-icon><iconify-icon icon="solar:notebook-square-bold" class="fill"></iconify-icon></div><div class="icon-name">notebook-square</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:database-linear"></iconify-icon><iconify-icon icon="solar:database-bold" class="fill"></iconify-icon></div><div class="icon-name">database</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:layers-linear"></iconify-icon><iconify-icon icon="solar:layers-bold" class="fill"></iconify-icon></div><div class="icon-name">layers</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:layers-minimalistic-linear"></iconify-icon><iconify-icon icon="solar:layers-minimalistic-bold" class="fill"></iconify-icon></div><div class="icon-name">layers-minimalistic</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:server-square-linear"></iconify-icon><iconify-icon icon="solar:server-square-bold" class="fill"></iconify-icon></div><div class="icon-name">server-square</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:archive-linear"></iconify-icon><iconify-icon icon="solar:archive-bold" class="fill"></iconify-icon></div><div class="icon-name">archive</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:box-linear"></iconify-icon><iconify-icon icon="solar:box-bold" class="fill"></iconify-icon></div><div class="icon-name">box</div></div>
+  </div>
+</div>
+
+<!-- ===== 知识库子分类 ===== -->
+<div class="section">
+  <div class="section-title">知识库子分类 <span class="current-label">当前: book</span></div>
+  <div class="section-desc">侧栏树形 · 知识分类节点</div>
+  <div class="row">
+    <div class="icon-card current"><div class="icon-pair"><iconify-icon icon="solar:book-linear"></iconify-icon><iconify-icon icon="solar:book-bold" class="fill"></iconify-icon></div><div class="icon-name">book</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:folder-linear"></iconify-icon><iconify-icon icon="solar:folder-bold" class="fill"></iconify-icon></div><div class="icon-name">folder</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:folder-with-files-linear"></iconify-icon><iconify-icon icon="solar:folder-with-files-bold" class="fill"></iconify-icon></div><div class="icon-name">folder-with-files</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:notebook-linear"></iconify-icon><iconify-icon icon="solar:notebook-bold" class="fill"></iconify-icon></div><div class="icon-name">notebook</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:album-linear"></iconify-icon><iconify-icon icon="solar:album-bold" class="fill"></iconify-icon></div><div class="icon-name">album</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:boombox-linear"></iconify-icon><iconify-icon icon="solar:boombox-bold" class="fill"></iconify-icon></div><div class="icon-name">category (box)</div></div>
+  </div>
+</div>
+
+<!-- ===== 标签 ===== -->
+<div class="section">
+  <div class="section-title">标签 <span class="current-label">当前: tag</span></div>
+  <div class="section-desc">侧栏导航 · 标签管理</div>
+  <div class="row">
+    <div class="icon-card current"><div class="icon-pair"><iconify-icon icon="solar:tag-linear"></iconify-icon><iconify-icon icon="solar:tag-bold" class="fill"></iconify-icon></div><div class="icon-name">tag</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:tag-horizontal-linear"></iconify-icon><iconify-icon icon="solar:tag-horizontal-bold" class="fill"></iconify-icon></div><div class="icon-name">tag-horizontal</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:hashtag-linear"></iconify-icon><iconify-icon icon="solar:hashtag-bold" class="fill"></iconify-icon></div><div class="icon-name">hashtag</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:hashtag-square-linear"></iconify-icon><iconify-icon icon="solar:hashtag-square-bold" class="fill"></iconify-icon></div><div class="icon-name">hashtag-square</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:hashtag-circle-linear"></iconify-icon><iconify-icon icon="solar:hashtag-circle-bold" class="fill"></iconify-icon></div><div class="icon-name">hashtag-circle</div></div>
+  </div>
+</div>
+
+<!-- ===== AI 对话 ===== -->
+<div class="section">
+  <div class="section-title">AI 对话 <span class="current-label">当前: chat</span></div>
+  <div class="section-desc">侧栏底部 · AI 猫咪对话入口</div>
+  <div class="row">
+    <div class="icon-card current"><div class="icon-pair"><iconify-icon icon="solar:chat-dots-linear"></iconify-icon><iconify-icon icon="solar:chat-dots-bold" class="fill"></iconify-icon></div><div class="icon-name">chat-dots</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:chat-round-linear"></iconify-icon><iconify-icon icon="solar:chat-round-bold" class="fill"></iconify-icon></div><div class="icon-name">chat-round</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:chat-round-dots-linear"></iconify-icon><iconify-icon icon="solar:chat-round-dots-bold" class="fill"></iconify-icon></div><div class="icon-name">chat-round-dots</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:chat-square-linear"></iconify-icon><iconify-icon icon="solar:chat-square-bold" class="fill"></iconify-icon></div><div class="icon-name">chat-square</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:dialog-linear"></iconify-icon><iconify-icon icon="solar:dialog-bold" class="fill"></iconify-icon></div><div class="icon-name">dialog</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:star-shine-linear"></iconify-icon><iconify-icon icon="solar:star-shine-bold" class="fill"></iconify-icon></div><div class="icon-name">star-shine (AI)</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:magic-stick-3-linear"></iconify-icon><iconify-icon icon="solar:magic-stick-3-bold" class="fill"></iconify-icon></div><div class="icon-name">magic-stick-3</div></div>
+  </div>
+</div>
+
+<!-- ===== 搜索 ===== -->
+<div class="section">
+  <div class="section-title">搜索 <span class="current-label">当前: search</span></div>
+  <div class="section-desc">列表工具栏 · 全文搜索</div>
+  <div class="row">
+    <div class="icon-card current"><div class="icon-pair"><iconify-icon icon="solar:magnifer-linear"></iconify-icon><iconify-icon icon="solar:magnifer-bold" class="fill"></iconify-icon></div><div class="icon-name">magnifer</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:minimalistic-magnifer-linear"></iconify-icon><iconify-icon icon="solar:minimalistic-magnifer-bold" class="fill"></iconify-icon></div><div class="icon-name">minimalistic-magnifer</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:magnifer-zoom-in-linear"></iconify-icon><iconify-icon icon="solar:magnifer-zoom-in-bold" class="fill"></iconify-icon></div><div class="icon-name">magnifer-zoom-in</div></div>
+  </div>
+</div>
+
+<!-- ===== 编辑 ===== -->
+<div class="section">
+  <div class="section-title">编辑 <span class="current-label">当前: edit</span></div>
+  <div class="section-desc">操作按钮 · 编辑/新建</div>
+  <div class="row">
+    <div class="icon-card current"><div class="icon-pair"><iconify-icon icon="solar:pen-2-linear"></iconify-icon><iconify-icon icon="solar:pen-2-bold" class="fill"></iconify-icon></div><div class="icon-name">pen-2</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:pen-linear"></iconify-icon><iconify-icon icon="solar:pen-bold" class="fill"></iconify-icon></div><div class="icon-name">pen</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:pen-new-square-linear"></iconify-icon><iconify-icon icon="solar:pen-new-square-bold" class="fill"></iconify-icon></div><div class="icon-name">pen-new-square</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:pen-new-round-linear"></iconify-icon><iconify-icon icon="solar:pen-new-round-bold" class="fill"></iconify-icon></div><div class="icon-name">pen-new-round</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:document-add-linear"></iconify-icon><iconify-icon icon="solar:document-add-bold" class="fill"></iconify-icon></div><div class="icon-name">document-add</div></div>
+  </div>
+</div>
+
+<!-- ===== 删除 ===== -->
+<div class="section">
+  <div class="section-title">删除 <span class="current-label">当前: trash</span></div>
+  <div class="section-desc">操作菜单 · 删除/回收站</div>
+  <div class="row">
+    <div class="icon-card current"><div class="icon-pair"><iconify-icon icon="solar:trash-bin-trash-linear"></iconify-icon><iconify-icon icon="solar:trash-bin-trash-bold" class="fill"></iconify-icon></div><div class="icon-name">trash-bin-trash</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:trash-bin-minimalistic-linear"></iconify-icon><iconify-icon icon="solar:trash-bin-minimalistic-bold" class="fill"></iconify-icon></div><div class="icon-name">trash-bin-minimalistic</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:trash-bin-2-linear"></iconify-icon><iconify-icon icon="solar:trash-bin-2-bold" class="fill"></iconify-icon></div><div class="icon-name">trash-bin-2</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:eraser-linear"></iconify-icon><iconify-icon icon="solar:eraser-bold" class="fill"></iconify-icon></div><div class="icon-name">eraser</div></div>
+  </div>
+</div>
+
+<!-- ===== 设置 ===== -->
+<div class="section">
+  <div class="section-title">设置 <span class="current-label">当前: settings</span></div>
+  <div class="section-desc">侧栏底部 · 设置入口</div>
+  <div class="row">
+    <div class="icon-card current"><div class="icon-pair"><iconify-icon icon="solar:settings-linear"></iconify-icon><iconify-icon icon="solar:settings-bold" class="fill"></iconify-icon></div><div class="icon-name">settings</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:settings-minimalistic-linear"></iconify-icon><iconify-icon icon="solar:settings-minimalistic-bold" class="fill"></iconify-icon></div><div class="icon-name">settings-minimalistic</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:tuning-2-linear"></iconify-icon><iconify-icon icon="solar:tuning-2-bold" class="fill"></iconify-icon></div><div class="icon-name">tuning-2</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:tuning-square-linear"></iconify-icon><iconify-icon icon="solar:tuning-square-bold" class="fill"></iconify-icon></div><div class="icon-name">tuning-square</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:widget-linear"></iconify-icon><iconify-icon icon="solar:widget-bold" class="fill"></iconify-icon></div><div class="icon-name">widget</div></div>
+  </div>
+</div>
+
+<!-- ===== 新增 ===== -->
+<div class="section">
+  <div class="section-title">新增 <span class="current-label">当前: plus</span></div>
+  <div class="section-desc">操作按钮 · 新建内容</div>
+  <div class="row">
+    <div class="icon-card current"><div class="icon-pair"><iconify-icon icon="solar:add-square-linear"></iconify-icon><iconify-icon icon="solar:add-square-bold" class="fill"></iconify-icon></div><div class="icon-name">add-square</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:add-circle-linear"></iconify-icon><iconify-icon icon="solar:add-circle-bold" class="fill"></iconify-icon></div><div class="icon-name">add-circle</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:pen-new-square-linear"></iconify-icon><iconify-icon icon="solar:pen-new-square-bold" class="fill"></iconify-icon></div><div class="icon-name">pen-new-square</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:compose-linear"></iconify-icon><iconify-icon icon="solar:compose-bold" class="fill"></iconify-icon></div><div class="icon-name">compose</div></div>
+  </div>
+</div>
+
+<!-- ===== 发送 ===== -->
+<div class="section">
+  <div class="section-title">发送 <span class="current-label">当前: send</span></div>
+  <div class="section-desc">AI 对话 · 发送消息</div>
+  <div class="row">
+    <div class="icon-card current"><div class="icon-pair"><iconify-icon icon="solar:plain-linear"></iconify-icon><iconify-icon icon="solar:plain-bold" class="fill"></iconify-icon></div><div class="icon-name">plain</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:plain-2-linear"></iconify-icon><iconify-icon icon="solar:plain-2-bold" class="fill"></iconify-icon></div><div class="icon-name">plain-2</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:plain-3-linear"></iconify-icon><iconify-icon icon="solar:plain-3-bold" class="fill"></iconify-icon></div><div class="icon-name">plain-3</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:map-arrow-right-linear"></iconify-icon><iconify-icon icon="solar:map-arrow-right-bold" class="fill"></iconify-icon></div><div class="icon-name">map-arrow-right</div></div>
+    <div class="icon-card"><div class="icon-pair"><iconify-icon icon="solar:arrow-right-linear"></iconify-icon><iconify-icon icon="solar:arrow-right-bold" class="fill"></iconify-icon></div><div class="icon-name">arrow-right</div></div>
+  </div>
+</div>
+
+<div class="divider"></div>
+<p class="tip">💡 每张卡片：左=Linear（默认态），右蓝=Bold（激活态）· 蓝色边框=当前原型使用 · 点击 Iconify 官网可复制 SVG</p>
+
+</body>
+</html>

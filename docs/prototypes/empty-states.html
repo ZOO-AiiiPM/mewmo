@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>mewmo - Empty States</title>
+<style>
+  :root {
+    --ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+    --s2: #f8f4ed;
+    --s3: #fffffe;
+    --ink: #1d1d1f;
+    --ink-soft: #5e5e64;
+    --ink-faint: #9a9aa0;
+    --accent: #1d1d1f;
+    --hover: #ececef;
+    --line: #e8e8ec;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--ui); background: var(--s2); color: var(--ink); -webkit-font-smoothing: antialiased; min-height: 100vh; padding: 40px; }
+
+  h1 { font-size: 20px; font-weight: 700; margin-bottom: 32px; letter-spacing: -.02em; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 24px; }
+
+  .card { background: var(--s3); border-radius: 16px; padding: 48px 32px; display: flex; flex-direction: column; align-items: center; text-align: center; box-shadow: 0 1px 4px rgba(0,0,0,.04); }
+  .card__label { font-size: 11px; font-weight: 600; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 24px; }
+
+  /* Illustration area */
+  .card__illust { width: 120px; height: 120px; margin-bottom: 20px; display: flex; align-items: center; justify-content: center; }
+  .card__illust svg { width: 100%; height: 100%; }
+
+  .card__title { font-size: 15px; font-weight: 600; color: var(--ink); margin-bottom: 6px; letter-spacing: -.01em; }
+  .card__desc { font-size: 13px; color: var(--ink-soft); line-height: 1.5; max-width: 240px; margin-bottom: 20px; }
+
+  .card__cta { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 9px; background: var(--accent); color: #fff; font-size: 13px; font-weight: 550; border: none; cursor: pointer; transition: opacity .15s; }
+  .card__cta:hover { opacity: .85; }
+  .card__cta svg { width: 14px; height: 14px; }
+
+  .card__hint { font-size: 12px; color: var(--ink-faint); margin-top: 16px; line-height: 1.4; }
+
+  /* Cat illustration style: simple line art, warm personality */
+  .cat-line { fill: none; stroke: var(--ink); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .cat-fill { fill: var(--ink); stroke: none; }
+  .cat-soft { fill: none; stroke: var(--ink-soft); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+  .cat-accent { fill: none; stroke: var(--ink-faint); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+</style>
+</head>
+<body>
+
+<h1>Empty States - mewmo 2.0</h1>
+
+<div class="grid">
+
+  <!-- Inbox / Collect Box -->
+  <div class="card">
+    <div class="card__label">收集箱</div>
+    <div class="card__illust">
+      <svg viewBox="0 0 120 120">
+        <!-- Cat sleeping on an empty tray -->
+        <ellipse cx="60" cy="90" rx="40" ry="8" class="cat-accent"/>
+        <!-- tray -->
+        <path d="M25 82 Q25 92 35 92 L85 92 Q95 92 95 82 L92 72 28 72Z" class="cat-soft"/>
+        <!-- cat body curled up -->
+        <ellipse cx="60" cy="72" rx="22" ry="14" class="cat-line"/>
+        <!-- head -->
+        <circle cx="45" cy="64" r="10" class="cat-line"/>
+        <!-- ears -->
+        <path d="M38 56 L36 48 L42 54" class="cat-line"/>
+        <path d="M48 54 L52 48 L50 56" class="cat-line"/>
+        <!-- closed eyes (sleeping) -->
+        <path d="M41 65 Q43 63 45 65" class="cat-line"/>
+        <path d="M47 64 Q49 62 51 64" class="cat-line"/>
+        <!-- tail wrapping around -->
+        <path d="M80 68 Q88 60 82 54 Q78 50 74 55" class="cat-line"/>
+        <!-- zzz -->
+        <text x="88" y="50" font-size="10" fill="#9a9aa0" font-family="var(--ui)">z</text>
+        <text x="93" y="44" font-size="8" fill="#9a9aa0" font-family="var(--ui)">z</text>
+        <text x="97" y="39" font-size="6" fill="#9a9aa0" font-family="var(--ui)">z</text>
+      </svg>
+    </div>
+    <div class="card__title">收集箱空空的</div>
+    <div class="card__desc">在浏览网页时看到好内容，随手剪藏到这里</div>
+    <button class="card__cta">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      安装剪藏扩展
+    </button>
+  </div>
+
+  <!-- Notes -->
+  <div class="card">
+    <div class="card__label">笔记</div>
+    <div class="card__illust">
+      <svg viewBox="0 0 120 120">
+        <!-- Cat peeking over a notebook -->
+        <!-- notebook -->
+        <rect x="35" y="55" width="50" height="40" rx="4" class="cat-soft"/>
+        <line x1="42" y1="65" x2="72" y2="65" class="cat-accent"/>
+        <line x1="42" y1="72" x2="65" y2="72" class="cat-accent"/>
+        <line x1="42" y1="79" x2="68" y2="79" class="cat-accent"/>
+        <!-- spine lines -->
+        <line x1="35" y1="60" x2="35" y2="90" class="cat-soft"/>
+        <!-- cat peeking from behind -->
+        <ellipse cx="60" cy="48" rx="16" ry="12" class="cat-line"/>
+        <!-- ears -->
+        <path d="M48 39 L45 30 L52 36" class="cat-line"/>
+        <path d="M66 36 L70 30 L72 39" class="cat-line"/>
+        <!-- eyes (curious, wide) -->
+        <circle cx="54" cy="48" r="3" class="cat-fill"/>
+        <circle cx="66" cy="48" r="3" class="cat-fill"/>
+        <!-- eye highlights -->
+        <circle cx="55" cy="47" r="1" fill="white"/>
+        <circle cx="67" cy="47" r="1" fill="white"/>
+        <!-- nose -->
+        <ellipse cx="60" cy="52" rx="1.5" ry="1" class="cat-fill"/>
+        <!-- paws resting on notebook -->
+        <ellipse cx="50" cy="56" rx="5" ry="3" class="cat-line"/>
+        <ellipse cx="70" cy="56" rx="5" ry="3" class="cat-line"/>
+      </svg>
+    </div>
+    <div class="card__title">写点什么吧</div>
+    <div class="card__desc">记录想法、读书笔记、灵感碎片……都可以</div>
+    <button class="card__cta">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      新建笔记
+    </button>
+  </div>
+
+  <!-- Feeds / Subscriptions -->
+  <div class="card">
+    <div class="card__label">订阅</div>
+    <div class="card__illust">
+      <svg viewBox="0 0 120 120">
+        <!-- Cat with perked ears, listening / alert -->
+        <!-- signal waves -->
+        <path d="M75 35 Q82 32 82 25" class="cat-accent"/>
+        <path d="M78 40 Q88 36 88 26" class="cat-accent"/>
+        <path d="M81 45 Q94 40 94 27" class="cat-accent"/>
+        <circle cx="74" cy="38" r="2.5" fill="#9a9aa0"/>
+        <!-- cat body sitting -->
+        <ellipse cx="55" cy="82" rx="18" ry="14" class="cat-line"/>
+        <!-- head -->
+        <circle cx="55" cy="55" r="14" class="cat-line"/>
+        <!-- ears (perked up, alert) -->
+        <path d="M44 44 L40 30 L49 40" class="cat-line"/>
+        <path d="M62 40 L66 30 L70 44" class="cat-line"/>
+        <!-- inner ear lines -->
+        <path d="M43 40 L42 34 L47 39" class="cat-soft"/>
+        <path d="M64 39 L67 34 L68 40" class="cat-soft"/>
+        <!-- eyes (alert, looking at signal) -->
+        <circle cx="50" cy="55" r="3.5" class="cat-fill"/>
+        <circle cx="62" cy="55" r="3.5" class="cat-fill"/>
+        <circle cx="51.5" cy="54" r="1.2" fill="white"/>
+        <circle cx="63.5" cy="54" r="1.2" fill="white"/>
+        <!-- nose -->
+        <path d="M55 60 L53.5 62 L56.5 62 Z" class="cat-fill"/>
+        <!-- whiskers -->
+        <line x1="42" y1="60" x2="34" y2="58" class="cat-accent"/>
+        <line x1="42" y1="62" x2="34" y2="63" class="cat-accent"/>
+        <line x1="68" y1="60" x2="76" y2="58" class="cat-accent"/>
+        <line x1="68" y1="62" x2="76" y2="63" class="cat-accent"/>
+        <!-- tail -->
+        <path d="M72 85 Q82 80 78 72 Q76 68 72 70" class="cat-line"/>
+      </svg>
+    </div>
+    <div class="card__title">还没有订阅源</div>
+    <div class="card__desc">添加你喜欢的博客或公众号，新文章会自动送到</div>
+    <button class="card__cta">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      添加订阅
+    </button>
+  </div>
+
+  <!-- Knowledge Base -->
+  <div class="card">
+    <div class="card__label">知识库</div>
+    <div class="card__illust">
+      <svg viewBox="0 0 120 120">
+        <!-- Cat sitting on bookshelf -->
+        <!-- shelf -->
+        <rect x="20" y="78" width="80" height="4" rx="2" class="cat-soft"/>
+        <!-- books on shelf -->
+        <rect x="25" y="58" width="8" height="20" rx="1" class="cat-accent"/>
+        <rect x="35" y="62" width="7" height="16" rx="1" class="cat-accent"/>
+        <rect x="44" y="60" width="9" height="18" rx="1" class="cat-accent"/>
+        <!-- cat sitting on top of books -->
+        <ellipse cx="72" cy="68" rx="14" ry="11" class="cat-line"/>
+        <!-- head -->
+        <circle cx="72" cy="48" r="11" class="cat-line"/>
+        <!-- ears -->
+        <path d="M64 40 L61 31 L67 37" class="cat-line"/>
+        <path d="M78 37 L81 31 L83 40" class="cat-line"/>
+        <!-- eyes (content, half closed) -->
+        <path d="M67 48 Q69 46 71 48" class="cat-line"/>
+        <path d="M74 48 Q76 46 78 48" class="cat-line"/>
+        <!-- nose -->
+        <ellipse cx="72" cy="51" rx="1.2" ry="1" class="cat-fill"/>
+        <!-- mouth (slight smile) -->
+        <path d="M70 53 Q72 55 74 53" class="cat-soft"/>
+        <!-- tail hanging off shelf -->
+        <path d="M84 72 Q92 78 90 86 Q89 90 85 88" class="cat-line"/>
+        <!-- paws -->
+        <ellipse cx="66" cy="76" rx="4" ry="2.5" class="cat-line"/>
+        <ellipse cx="78" cy="76" rx="4" ry="2.5" class="cat-line"/>
+      </svg>
+    </div>
+    <div class="card__title">建一个知识库</div>
+    <div class="card__desc">把笔记按主题归档，形成你的知识体系</div>
+    <button class="card__cta">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      新建知识库
+    </button>
+  </div>
+
+  <!-- Tags -->
+  <div class="card">
+    <div class="card__label">标签</div>
+    <div class="card__illust">
+      <svg viewBox="0 0 120 120">
+        <!-- Cat playing with a tag/label -->
+        <!-- floating tags -->
+        <rect x="65" y="30" width="28" height="14" rx="7" class="cat-accent"/>
+        <circle cx="70" cy="37" r="2" class="cat-accent"/>
+        <rect x="30" y="38" width="24" height="14" rx="7" class="cat-accent"/>
+        <circle cx="35" cy="45" r="2" class="cat-accent"/>
+        <rect x="70" y="50" width="22" height="14" rx="7" class="cat-accent"/>
+        <circle cx="75" cy="57" r="2" class="cat-accent"/>
+        <!-- cat reaching up to bat at a tag -->
+        <ellipse cx="55" cy="85" rx="16" ry="12" class="cat-line"/>
+        <!-- head tilted up -->
+        <circle cx="52" cy="64" r="12" class="cat-line"/>
+        <!-- ears -->
+        <path d="M43 55 L40 46 L47 53" class="cat-line"/>
+        <path d="M58 53 L62 46 L63 55" class="cat-line"/>
+        <!-- eyes looking up -->
+        <circle cx="48" cy="63" r="2.5" class="cat-fill"/>
+        <circle cx="58" cy="62" r="2.5" class="cat-fill"/>
+        <circle cx="49" cy="62" r="0.8" fill="white"/>
+        <circle cx="59" cy="61" r="0.8" fill="white"/>
+        <!-- nose -->
+        <ellipse cx="53" cy="67" rx="1.2" ry="1" class="cat-fill"/>
+        <!-- one paw reaching up -->
+        <path d="M42 74 Q38 65 35 58" class="cat-line"/>
+        <ellipse cx="34" cy="57" rx="3" ry="2" class="cat-line"/>
+        <!-- tail -->
+        <path d="M70 82 Q78 76 76 68" class="cat-line"/>
+      </svg>
+    </div>
+    <div class="card__title">还没有标签</div>
+    <div class="card__desc">给笔记打上标签，它们就会出现在这里</div>
+    <div class="card__hint">在编辑笔记时用 # 即可创建标签</div>
+  </div>
+
+  <!-- Today (nothing to review) -->
+  <div class="card">
+    <div class="card__label">今天</div>
+    <div class="card__illust">
+      <svg viewBox="0 0 120 120">
+        <!-- Cat stretching happily, all done -->
+        <!-- sun -->
+        <circle cx="85" cy="30" r="8" class="cat-accent"/>
+        <line x1="85" y1="18" x2="85" y2="14" class="cat-accent"/>
+        <line x1="85" y1="42" x2="85" y2="46" class="cat-accent"/>
+        <line x1="73" y1="30" x2="69" y2="30" class="cat-accent"/>
+        <line x1="97" y1="30" x2="101" y2="30" class="cat-accent"/>
+        <line x1="77" y1="22" x2="74" y2="19" class="cat-accent"/>
+        <line x1="93" y1="38" x2="96" y2="41" class="cat-accent"/>
+        <!-- cat stretching -->
+        <ellipse cx="55" cy="78" rx="22" ry="12" class="cat-line"/>
+        <!-- front paws stretched forward -->
+        <path d="M35 80 Q25 78 20 74" class="cat-line"/>
+        <ellipse cx="19" cy="74" rx="4" ry="2" class="cat-line"/>
+        <path d="M38 82 Q28 82 24 78" class="cat-line"/>
+        <ellipse cx="23" cy="78" rx="4" ry="2" class="cat-line"/>
+        <!-- head (low, stretching) -->
+        <circle cx="35" cy="68" r="10" class="cat-line"/>
+        <!-- ears -->
+        <path d="M28 60 L26 52 L32 58" class="cat-line"/>
+        <path d="M39 58 L43 52 L44 60" class="cat-line"/>
+        <!-- happy closed eyes (^ ^) -->
+        <path d="M30 68 L32 66 L34 68" class="cat-line"/>
+        <path d="M37 67 L39 65 L41 67" class="cat-line"/>
+        <!-- butt up, tail high -->
+        <path d="M75 72 Q82 62 80 52 Q79 48 76 50" class="cat-line"/>
+        <!-- back legs -->
+        <ellipse cx="70" cy="82" rx="5" ry="3" class="cat-line"/>
+      </svg>
+    </div>
+    <div class="card__title">今天没有待回顾</div>
+    <div class="card__desc">所有内容都看过啦，去写点新东西？</div>
+    <button class="card__cta">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      新建笔记
+    </button>
+  </div>
+
+</div>
+
+</body>
+</html>
