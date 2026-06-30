@@ -18,13 +18,14 @@
     --ink:     #ededf1;
     --ink-soft:#9a9aa1;
     --ink-faint:#67676d;
-    --line:    #2c2d31;
-    --line-soft:#232428;
+    --line:    #494a52;
+    --line-soft:#3d3e45;
     --accent:    #ededf1;
     --accent-2:  rgba(255,255,255,.10);
     --hl:        rgba(255,255,255,.16);
     --accent-ink:#161719;
     --shadow: 0 2px 16px rgba(0,0,0,.28);
+    --ai-w: 320px;   /* 喵喵 AI 列宽：可被左缘拖拽分隔条改写（见 .ai__resizer） */
 
     --ui:   -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", "Microsoft YaHei", sans-serif;
     --serif:"New York", ui-serif, "Songti SC", Georgia, serif;
@@ -34,8 +35,8 @@
   html.light {
     color-scheme: light;
     --scroll:  #cfc7b8;
-    --canvas:  #dfd9cf;
-    --s1:      #ece5da;
+    --canvas:  #f8f4ed;
+    --s1:      #f8f4ed;
     --s2:      #f8f4ed;
     --s3:      #fffffe;
     --raised:  #ffffff;
@@ -59,6 +60,8 @@
   input { font: inherit; }
   ::selection { background: var(--hl); }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+  body { -webkit-user-select: none; user-select: none; }
+  .doc, aside.ai { -webkit-user-select: text; user-select: text; }
   svg { display: block; }
   /* 滚动条：随主题自适应，thumb=--scroll，hover 加深为 --ink-faint */
   * { scrollbar-width: thin; scrollbar-color: var(--scroll) transparent; }
@@ -70,27 +73,27 @@
   .ic { width: 16px; height: 16px; flex: none; }
 
   /* ============ Shell ============ */
-  .app { display: grid; grid-template-columns: 206px 312px minmax(0,1fr) 0px; grid-template-rows: 100vh; height: 100vh; overflow: hidden; background: var(--canvas); gap: 0; transition: grid-template-columns .32s cubic-bezier(.4,0,.2,1); }
-  .app.ai-open { grid-template-columns: 206px 312px minmax(0,1fr) 320px; }
-  .app.side-hidden { grid-template-columns: 0px 312px minmax(0,1fr) 0px; }
-  .app.side-hidden.ai-open { grid-template-columns: 0px 312px minmax(0,1fr) 320px; }
+  .app { display: grid; position: relative; grid-template-columns: 206px 312px minmax(0,1fr) 0px; grid-template-rows: 100vh; height: 100vh; overflow: hidden; background: var(--canvas); gap: 0; transition: grid-template-columns .32s cubic-bezier(.4,0,.2,1); }
+  .app.ai-open { grid-template-columns: 206px 312px minmax(0,1fr) var(--ai-w); }
+  .app.side-hidden { grid-template-columns: 18px 312px minmax(0,1fr) 0px; }
+  .app.side-hidden.ai-open { grid-template-columns: 18px 312px minmax(0,1fr) var(--ai-w); }
   .app.side-hidden .side { position: fixed; left: 0; top: 0; bottom: 0; width: 188px; z-index: 30; opacity: 0; pointer-events: none; transform: translateX(-8px); transition: opacity .2s ease, transform .2s ease; margin: 9px; height: auto; }
   .app.side-hidden.side-peek .side { opacity: 1; pointer-events: auto; transform: translateX(0); }
   .app.content-wide { grid-template-columns: 206px 0px minmax(0,1fr) 0px; }
-  .app.content-wide.ai-open { grid-template-columns: 206px 0px minmax(0,1fr) 320px; }
-  .app.side-hidden.content-wide { grid-template-columns: 0px 0px minmax(0,1fr) 0px; }
-  .app.side-hidden.content-wide.ai-open { grid-template-columns: 0px 0px minmax(0,1fr) 320px; }
+  .app.content-wide.ai-open { grid-template-columns: 206px 0px minmax(0,1fr) var(--ai-w); }
+  .app.side-hidden.content-wide { grid-template-columns: 18px 0px minmax(0,1fr) 0px; }
+  .app.side-hidden.content-wide.ai-open { grid-template-columns: 18px 0px minmax(0,1fr) var(--ai-w); }
   .app.content-wide .list { overflow: hidden; }
   .app.view-home .list, .app.view-shelf .list { display: none; }  /* 列表列固定 312px 会溢出 0px 轨道，须 display:none 而非 overflow:hidden，否则搜索按钮露在正文上 */
   .app.view-home { grid-template-columns: 206px 0px minmax(0,1fr) 0px; }
-  .app.view-home.ai-open { grid-template-columns: 206px 0px minmax(0,1fr) 320px; }
+  .app.view-home.ai-open { grid-template-columns: 206px 0px minmax(0,1fr) var(--ai-w); }
   .app.view-home .read, .app.view-shelf .read { margin: 0 !important; border-radius: 0 !important; box-shadow: none !important; }
   .app.view-home .side, .app.view-shelf .side { background: var(--s3); border-color: transparent; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
   .app.view-shelf { grid-template-columns: 206px 0px minmax(0,1fr) 0px; }
-  .app.view-shelf.ai-open { grid-template-columns: 206px 0px minmax(0,1fr) 320px; }
-  .app.view-home.side-hidden, .app.view-shelf.side-hidden { grid-template-columns: 0px 0px minmax(0,1fr) 0px; }
+  .app.view-shelf.ai-open { grid-template-columns: 206px 0px minmax(0,1fr) var(--ai-w); }
+  .app.view-home.side-hidden, .app.view-shelf.side-hidden { grid-template-columns: 18px 0px minmax(0,1fr) 0px; }
   .app.view-reader { grid-template-columns: 0px 280px minmax(0,1fr) 0px; }
-  .app.view-reader.ai-open { grid-template-columns: 0px 280px minmax(0,1fr) 320px; }
+  .app.view-reader.ai-open { grid-template-columns: 0px 280px minmax(0,1fr) var(--ai-w); }
   .app.view-reader .side { overflow: hidden; margin: 0; padding: 0; border: none; box-shadow: none; opacity: 0; pointer-events: none; }
   .app.view-reader .list { display: none; }
   .side { grid-column: 1; min-width: 0; }  /* 不可加 overflow:hidden：会裁掉账户菜单飞出的二级菜单 */
@@ -126,7 +129,8 @@
   .nav-i.active .ic { color: var(--accent); opacity: 1; }
   .nav-i .chev { position: absolute; left: 1px; top: 50%; width: 12px; height: 12px; padding: 5px; box-sizing: content-box; color: var(--ink-faint); transform: translateY(-50%); transition: transform .18s; cursor: pointer; border-radius: 6px; }
   .nav-i .chev:hover { background: var(--hover); color: var(--ink-soft); }
-  .nav-grp.collapsed .nav-sub-list { display: none; }
+  .nav-sub-list { overflow: hidden; transition: height .35s cubic-bezier(.32,0,.2,1), opacity .3s ease; will-change: height; opacity: 1; }
+  .nav-grp.collapsed .nav-sub-list { height: 0 !important; opacity: 0; }
   .nav-grp.collapsed .nav-i.grp .chev { transform: translateY(-50%) rotate(-90deg); }
   .nav-sub { position: relative; display: flex; align-items: center; gap: 9px; width: 100%; text-align: left; padding: 5px 8px 5px 32px; border-radius: 9px; color: var(--ink); font-size: 12.5px; }
   .nav-sub:hover { background: var(--hover); }
@@ -173,6 +177,11 @@
   .nav-i.active:hover .row-act::before, .nav-sub.active:hover .row-act::before { display: none; }
   .nav-i.active .row-act:hover, .nav-sub.active .row-act:hover { background: var(--hover); }
   .row-act svg { width: 16px; height: 16px; display: block; }
+  /* 三点菜单打开时，对应 ⋯ 常驻可见（不随鼠标移开消失）；菜单关闭后恢复 hover-only。
+     默认 .row-act 仅父行 :hover 才 opacity:1，菜单展开后鼠标移走会让触发器消失、菜单悬空很怪——故 JS 给打开的那个 ⋯ 挂 .menu-active 强制显示。
+     注意特异性：基础隐藏规则里 `.nav-i.grp .row-act` 是 (0,3,0)，单写 `.row-act.menu-active` (0,2,0) 会被组头规则盖掉（只有叶子项 .nav-sub .row-act (0,2,0) 才生效）。故这里带上各父级选择器，与基础规则同等特异性 + 靠源码顺序在后取胜，一次覆盖所有 ⋯。 */
+  .nav-i .row-act.menu-active, .nav-sub .row-act.menu-active,
+  .kbf .row-act.menu-active, .feed-src .row-act.menu-active { opacity: 1; pointer-events: auto; background: var(--hover); color: var(--ink); }
   /* 订阅二级项：有新内容时左侧提示点 */
   .nav-sub .upd-dot { position: absolute; left: 20px; top: 50%; transform: translateY(-50%); width: 6px; height: 6px; border-radius: 50%; background: var(--accent); display: none; }
   .nav-sub.has-update .upd-dot { display: block; }
@@ -188,14 +197,15 @@
   .feed-empty .fe-ic { width: 38px; height: 38px; margin: 0 auto 12px; opacity: .5; }
   .feed-empty .fe-ic .ic { width: 38px; height: 38px; }
   /* 行内弹出菜单 */
-  .rowmenu { position: fixed; z-index: 60; min-width: 128px; background: var(--s1); border: 1px solid var(--line); border-radius: 10px; padding: 4px; box-shadow: var(--shadow); display: none; }
+  .rowmenu { position: fixed; z-index: 60; min-width: 128px; background: var(--s1); border: 1px solid var(--line); border-radius: 10px; padding: 4px; box-shadow: var(--shadow); opacity: 0; visibility: hidden; transform: translateY(-4px) scale(.97); transform-origin: top right; pointer-events: none; transition: opacity .14s cubic-bezier(.4,0,.2,1), transform .14s cubic-bezier(.34,1.16,.64,1), visibility .14s; }
   html.light .rowmenu { background: var(--raised); }
-  .rowmenu.on { display: block; }
+  .rowmenu.on { opacity: 1; visibility: visible; transform: none; pointer-events: auto; }
   .rowmenu button { display: flex; align-items: center; gap: 9px; width: 100%; text-align: left; padding: 7px 10px; border-radius: 7px; color: var(--ink); font-size: 12.5px; }
   .rowmenu button:hover { background: var(--hover); }
   .rowmenu button .ic { display: grid; place-items: center; width: 16px; height: 16px; color: var(--ink-soft); }
   .rowmenu button .ic svg { width: 16px; height: 16px; }
   .rowmenu button.danger, .rowmenu button.danger .ic { color: #f87171; }
+  .rowmenu__sep { height: 1px; background: var(--line); margin: 4px 6px; }
 
   /* 列表标题下拉：排序 + 快速跳转 */
   .lmenu { position: fixed; z-index: 60; min-width: 186px; background: var(--s1); border: 1px solid var(--line); border-radius: 12px; padding: 5px; box-shadow: var(--shadow); transform-origin: top left; opacity: 0; visibility: hidden; transform: translateY(-6px) scale(.97); pointer-events: none; transition: opacity .16s cubic-bezier(.4,0,.2,1), transform .16s cubic-bezier(.34,1.16,.64,1), visibility .16s; }
@@ -257,9 +267,9 @@
   .afr-catsel__cur { margin-right: auto; }
   .afr-catsel__btn .chev { width: 12px; height: 12px; color: var(--ink-faint); transition: transform .16s; }
   .afr-catsel.open .afr-catsel__btn .chev { transform: rotate(180deg); }
-  .afr-catsel__menu { position: absolute; left: 0; top: calc(100% + 5px); min-width: 100%; background: var(--s1); border: 1px solid var(--line); border-radius: 9px; padding: 4px; box-shadow: var(--shadow); display: none; z-index: 5; }
+  .afr-catsel__menu { position: absolute; left: 0; top: calc(100% + 5px); min-width: 100%; background: var(--s1); border: 1px solid var(--line); border-radius: 9px; padding: 4px; box-shadow: var(--shadow); z-index: 5; opacity: 0; visibility: hidden; transform: translateY(-4px) scale(.97); transform-origin: top left; pointer-events: none; transition: opacity .14s cubic-bezier(.4,0,.2,1), transform .14s cubic-bezier(.34,1.16,.64,1), visibility .14s; }
   html.light .afr-catsel__menu { background: var(--raised); }
-  .afr-catsel.open .afr-catsel__menu { display: block; }
+  .afr-catsel.open .afr-catsel__menu { opacity: 1; visibility: visible; transform: none; pointer-events: auto; }
   .afr-catsel__menu button { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 7px 11px; border-radius: 6px; color: var(--ink); font-size: 12.5px; white-space: nowrap; }
   .afr-catsel__menu button:hover { background: var(--hover); }
   .afr-catsel__menu button.on { color: var(--accent); }
@@ -336,17 +346,18 @@
   .list__bar { position: relative; display: flex; align-items: center; gap: 8px; padding: 14px 14px 10px; flex: none; }
   .filter-wrap { position: relative; display: none; align-items: center; width: 24px; height: 28px; }
   .app.view-today .filter-wrap { display: flex; }
-  .app.view-today #newBtn, .app.view-pinned #newBtn { display: none; }
+  .app.view-today #newBtn, .app.view-pinned #newBtn, .app.view-feed #newBtn { display: none; }  /* 订阅区不创建笔记，隐藏新建按钮 */
 
-  /* 剪藏专属：添加按钮 + inline URL 输入框 */
-  #clipAddBtn { display: none; }
+  /* 剪藏专属：添加按钮 + inline URL 输入框（与搜索同款：class 驱动 + 按钮自带 scale/fade 过渡，状态全交给 CSS，JS 不碰 inline style 避免漂移） */
+  #clipAddBtn { display: none; position: relative; z-index: 7; transform-origin: center; transition: transform .3s cubic-bezier(.4,0,.2,1), opacity .26s ease; }
   .app.view-clips #newBtn { display: none; }
   .app.view-clips #clipAddBtn { display: grid; }
-  .clip-url-input { position: fixed; z-index: 80; width: 280px; padding: 10px 12px; border-radius: 10px; background: var(--raised); border: 1px solid var(--line); box-shadow: 0 6px 24px rgba(0,0,0,.18); opacity: 0; transform: translateY(-4px) scale(.96); pointer-events: none; transition: opacity .2s ease, transform .2s ease; transform-origin: top left; }
-  .clip-url-input.open { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
-  .clip-url-input input { width: 100%; padding: 8px 10px; border-radius: 7px; border: 1px solid var(--line); background: var(--s1); color: var(--ink); font-size: 13px; outline: none; transition: border-color .15s; }
-  .clip-url-input input:focus { border-color: var(--accent); }
-  .clip-url-input input::placeholder { color: var(--ink-faint); }
+  .clip-url-input { position: absolute; inset: 0; display: flex; align-items: center; padding: 10px 12px; background: none; clip-path: inset(0 0 0 100%); pointer-events: none; transition: clip-path .3s cubic-bezier(.4,0,.2,1); z-index: 6; }
+  .list.clip-adding .clip-url-input { clip-path: inset(0 0 0 0); pointer-events: auto; }
+  /* 点哪个哪个做 scale/fade 动画，另一个直接消失（visibility:hidden 瞬间、不参与缩放）。
+     用 visibility 而非 display:none——后者会把按钮抽出 flex 流，右对齐的按钮组回流，被点的按钮会位移到对方原位（看着像“搜索变成了+”）。visibility 保留占位盒，位置纹丝不动。 */
+  .list.clip-adding #clipAddBtn { transform: scale(.2); opacity: 0; pointer-events: none; }
+  .list.clip-adding #listSearchBtn, .list.searching #clipAddBtn { visibility: hidden; }
   .filter-bar { position: absolute; right: 0; top: 50%; transform: translateY(-50%); display: flex; justify-content: flex-end; align-items: center; overflow: hidden; max-width: 24px; border-radius: 999px; background: transparent; transition: max-width .28s cubic-bezier(.4,0,.2,1), background .28s cubic-bezier(.4,0,.2,1), box-shadow .28s cubic-bezier(.4,0,.2,1), padding .28s cubic-bezier(.4,0,.2,1); }  /* 全部同步同时长同缓动：卡片与宽度一起收缩，展开/收起对称 */
   .filter-wrap.open .filter-bar { max-width: 320px; padding: 2px 3px; background: var(--raised); box-shadow: var(--shadow); z-index: 40; }
   .fopt { display: flex; flex: none; justify-content: flex-end; align-items: center; height: 28px; padding: 0; color: var(--ink-soft); white-space: nowrap; order: 0; transition: color .15s; }  /* flex:none 防收起动画时图标被压缩挤在一起 */  /* padding:0 重置 button 默认值，否则折叠态 24px 窗口裁切激活图标 */
@@ -367,7 +378,7 @@
   #listTitleBtn.menu-open .lt-caret { transform: rotate(180deg); }
   .list__bar .ib { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; color: var(--ink-soft); }
   .list__bar .ib:hover { background: var(--hover); color: var(--ink); }
-  .list-search { position: absolute; inset: 0; display: flex; align-items: center; padding: 10px 12px; background: var(--s2); clip-path: inset(0 0 0 100%); pointer-events: none; transition: clip-path .3s cubic-bezier(.4,0,.2,1); z-index: 6; }
+  .list-search { position: absolute; inset: 0; display: flex; align-items: center; padding: 10px 12px; background: none; clip-path: inset(0 0 0 100%); pointer-events: none; transition: clip-path .3s cubic-bezier(.4,0,.2,1); z-index: 6; }
   .list.searching .list-search { clip-path: inset(0 0 0 0); pointer-events: auto; }
   #listSearchBtn { position: relative; z-index: 7; transform-origin: center; transition: transform .3s cubic-bezier(.4,0,.2,1), opacity .26s ease; }
   .list.searching #listSearchBtn { transform: scale(.2); opacity: 0; pointer-events: none; }
@@ -458,13 +469,9 @@
   .doc hr { border: none; border-top: 1px solid var(--line); margin: 24px 0; }
 
   /* ============ Tag Picker ============ */
-  .doc-tags { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 20px; }
-  .doc-tags .tag-pill { cursor: default; display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; font-size: 11.5px; transition: background .15s; }
-  .doc-tags .tag-pill .tag-x { display: none; width: 12px; height: 12px; opacity: .5; cursor: pointer; }
-  .doc-tags .tag-pill:hover .tag-x { display: block; }
-  .doc-tags .tag-pill:hover .tag-x:hover { opacity: 1; }
-  .tag-add-btn { width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; color: var(--ink-faint); border: 1px dashed var(--line); transition: background .15s, color .15s, border-color .15s; }
-  .tag-add-btn:hover { background: var(--hover); color: var(--ink-soft); border-color: var(--ink-faint); }
+  .doc-meta__tags { display: inline-flex; align-items: center; gap: 6px; position: relative; margin-left: 14px; }
+  .doc-meta__tags .tag-pill { cursor: pointer; display: inline-flex; align-items: center; transition: opacity .15s; }
+  .doc-meta__tags .tag-pill:hover { opacity: .75; }
   .tag-picker { position: absolute; top: 100%; left: 0; margin-top: 4px; width: 220px; background: var(--raised); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 28px rgba(0,0,0,.22); padding: 6px; z-index: 100; display: none; }
   .tag-picker.open { display: block; animation: fadeSlideDown .15s ease; }
   html.light .tag-picker { box-shadow: 0 8px 28px rgba(0,0,0,.08); }
@@ -479,15 +486,19 @@
   .tag-picker__item.checked { color: var(--ink); }
   .tag-picker__item .check-mark { margin-left: auto; opacity: 0; color: var(--ink-faint); }
   .tag-picker__item.checked .check-mark { opacity: 1; }
-  .tag-picker__divider { height: 1px; background: var(--line); margin: 4px 0; }
+  .tag-picker__sep { height: 1px; background: var(--line); margin: 4px 8px; }
   .tag-picker__create { display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 6px; font-size: 12px; color: var(--ink-faint); cursor: pointer; }
   .tag-picker__create:hover { background: var(--hover); color: var(--ink-soft); }
+  .tag-picker__colors { display: flex; align-items: center; gap: 6px; padding: 6px 8px; flex-wrap: wrap; }
+  .tag-picker__colors .color-dot { width: 16px; height: 16px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: border-color .12s, transform .12s; }
+  .tag-picker__colors .color-dot:hover { transform: scale(1.2); }
+  .tag-picker__colors .color-dot.sel { border-color: var(--ink); transform: scale(1.15); }
   .tag-picker__ai { display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 6px; font-size: 11.5px; color: var(--ink-faint); margin-top: 2px; }
   .tag-picker__ai span { background: color-mix(in srgb, var(--tc,#a874e0) 18%, transparent); color: var(--tc,#a874e0); padding: 1px 6px; border-radius: 4px; font-size: 10.5px; cursor: pointer; transition: background .12s; }
   .tag-picker__ai span:hover { background: color-mix(in srgb, var(--tc,#a874e0) 30%, transparent); }
 
   /* 右侧悬浮目录：默认只显示 minimap 短横线，hover 展开文字 */
-  .doc-toc { position: absolute; top: 110px; right: 14px; z-index: 10; width: 28px; border-radius: 8px; border: 1px solid transparent; padding: 12px 6px; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1fr); transition: width .35s ease, background .35s ease, box-shadow .35s ease, padding .35s ease, border-color .35s ease; will-change: width; }
+  .doc-toc { position: absolute; top: 110px; right: 14px; z-index: 10; width: 28px; border-radius: 22px; border: 1px solid transparent; padding: 12px 6px; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1fr); transition: width .35s ease, background .35s ease, box-shadow .35s ease, padding .35s ease, border-color .35s ease; will-change: width; }
   .doc-toc:hover { width: 180px; padding: 14px 14px; background: var(--raised); box-shadow: 0 4px 20px rgba(0,0,0,.12); border-color: var(--line); }
   html.light .doc-toc:hover { box-shadow: 0 4px 20px rgba(0,0,0,.06); }
   /* 关键：bars 与 links 重叠在同一 grid 单元，hover 时原地交叉淡入淡出。
@@ -620,7 +631,18 @@
     border-radius: 22px 0 0 0;
     margin: 9px 0 0 8px;
   }
-  html.light aside.ai { background: var(--s2); }
+  html.light aside.ai { background: #fdf9f1; }
+
+  /* 拖拽手柄：浮在正文与 AI 之间缝隙里的竖向小条，按住拖动调画幅比例。
+     必须挂在 .app 上（不放 aside 内）——aside overflow:hidden 会把探进缝隙的小条裁掉。
+     用 right: calc(var(--ai-w) - 9px) 让 18px 宽命中区的中心钉在 col3/col4 轨道边界（=缝隙中线），拖动改 --ai-w 时自动跟着走。
+     拖动时 .ai-resizing 关掉 .app 的 grid 过渡——否则 .32s 缓动会让面板跟手延迟、拖起来发飘。 */
+  .ai__resizer { position: absolute; top: 50%; transform: translateY(-50%); right: calc(var(--ai-w) - 13px); width: 18px; height: 64px; display: none; place-items: center; cursor: col-resize; z-index: 40; touch-action: none; }
+  .app.ai-open .ai__resizer { display: grid; }
+  .ai__resizer::before { content: ""; width: 4px; height: 44px; border-radius: 3px; background: var(--ink-faint); opacity: .6; transition: opacity .14s, background .14s, height .14s; }
+  .ai__resizer:hover::before, .app.ai-resizing .ai__resizer::before { opacity: 1; background: var(--ink-soft); height: 60px; }
+  .app.ai-resizing { transition: none; user-select: none; }
+  .app.ai-resizing .read { transition: none; }
 
 
   .ai__head { display: flex; align-items: center; gap: 9px; padding: 14px 16px 12px; flex: none; }
@@ -677,7 +699,7 @@
   /* ============ 喵喵入口：右下角贴边横长条 ============ */
   .ai-fab {
     position: fixed; bottom: 28px; right: 0; z-index: 51;
-    width: 76px; height: 52px;
+    width: 58px; height: 52px;
     border-radius: 16px 0 0 16px;
     background: var(--s2);
     border: 1px solid var(--line); border-right: none;
@@ -687,11 +709,29 @@
     transition: width .16s cubic-bezier(.34,1.4,.5,1), opacity .18s, background .14s;
   }
   html.light .ai-fab { background: var(--raised); box-shadow: -2px 0 10px rgba(0,0,0,.05); }
-  .ai-fab:hover { width: 88px; background: var(--hover); }
-  .ai-fab:active { width: 82px; }
+  .ai-fab:hover { width: 70px; background: var(--hover); }
+  .ai-fab:active { width: 64px; }
   .ai-fab .fab-icon { width: 26px; height: 26px; color: var(--ink); }
   /* AI 展开时：隐藏 */
   .ai-fab.hidden { opacity: 0; pointer-events: none; width: 0; }
+
+  /* ============ 回到顶部：悬于喵喵入口中心正上方，下滑一段才显现 ============ */
+  /* 几何对齐喵喵(.ai-fab right:0 width:58 → 中心距右缘29；顶边距底80)：right:9+宽40→中心距右缘29 重合；bottom:92→猫顶上方留12 */
+  .to-top {
+    position: fixed; right: 9px; bottom: 92px; z-index: 50;
+    width: 40px; height: 40px; border-radius: 12px;
+    background: var(--s2); border: 1px solid var(--line);
+    box-shadow: 0 4px 14px rgba(0,0,0,.14);
+    display: grid; place-items: center;
+    color: var(--ink-soft); cursor: pointer;
+    opacity: 0; transform: translateY(8px) scale(.92); pointer-events: none;
+    transition: opacity .2s ease, transform .2s cubic-bezier(.34,1.4,.5,1), background .14s, color .14s;
+  }
+  html.light .to-top { background: var(--raised); box-shadow: 0 4px 12px rgba(0,0,0,.08); }
+  .to-top:hover { background: var(--hover); color: var(--ink); }
+  .to-top svg { width: 20px; height: 20px; }
+  .to-top.show { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+  .app.ai-open .to-top { opacity: 0; transform: translateY(8px) scale(.92); pointer-events: none; }  /* AI 展开时隐藏，避免浮在面板上 */
 
   /* ============ 设置弹窗 ============ */
   .modal { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; }
@@ -736,6 +776,14 @@
   @keyframes popIn { from { opacity: 0; transform: scale(.96) translateY(6px); } to { opacity: 1; transform: none; } }
   @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
   @keyframes viewIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  /* 订阅类型切换：列表 rise+fade 重放（快速跳转/抽屉切类型共用），替代旧的 display:none 闪烁 */
+  @keyframes feedSwapIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .listview[data-view="feed"].feed-swap { animation: feedSwapIn .3s cubic-bezier(.4,0,.2,1); }
+  .feed-list-ph { padding: 56px 24px; text-align: center; color: var(--ink-faint); font-size: 13px; line-height: 1.8; }
+  /* 抽屉内切换订阅类型时，重放横向切入（和首次从主导航 drill 进来同款 translateX 滑动）。
+     首次 drill 由 .drilled 过渡负责；已 drill 时 .drilled 不变、不会再触发过渡，故用这条动画补上。 */
+  @keyframes paneSlideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+  .kb-pane.pane-swap { animation: paneSlideIn .34s cubic-bezier(.4,0,.2,1); }
   /* 新增笔记：按钮按压反馈（卡片展开由 JS 按真实高度做 transition，更丝滑） */
   @keyframes newBtnPulse { 0% { transform: scale(1); } 38% { transform: scale(.86); } 100% { transform: scale(1); } }
   #newBtn.pulsing i { display: inline-flex; animation: newBtnPulse .3s ease; }
@@ -904,10 +952,13 @@
         <div class="list__title" id="listTitleBtn"><span class="cv" id="list-title">笔记</span> <i class="lt-caret" data-i="caret" style="width:13px;height:13px"></i></div>
         <button class="ib" id="newBtn" title="新建"><i data-i="pen-new-square" style="width:17px;height:17px"></i></button>
         <button class="ib" id="clipAddBtn" title="添加剪藏">
-          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/><path d="M17 7l2 2"/><path d="M12 2v2"/><path d="M22 12h-2"/></svg>
+          <i data-i="plus" style="width:17px;height:17px"></i>
         </button>
         <div class="clip-url-input" id="clipUrlInput">
-          <input type="url" placeholder="粘贴链接，回车收藏..." id="clipUrlField">
+          <span class="lsr-field">
+            <i class="lsr-ic" data-i="plus"></i>
+            <input class="lsr-input" id="clipUrlField" type="url" placeholder="粘贴链接，回车收藏..." />
+          </span>
         </div>
         <div class="filter-wrap" id="filterWrap">
           <div class="filter-bar" id="filterBar">
@@ -1095,17 +1146,22 @@
       <nav class="doc-toc" id="doc-toc">
         <div class="doc-toc__bars">
           <span class="doc-toc__bar active" style="width:22px"></span>
-          <span class="doc-toc__bar" style="width:14px"></span>
-          <span class="doc-toc__bar" style="width:14px"></span>
-          <span class="doc-toc__bar" style="width:14px"></span>
+          <span class="doc-toc__bar" style="width:16px"></span>
           <span class="doc-toc__bar" style="width:20px"></span>
+          <span class="doc-toc__bar" style="width:18px"></span>
+          <span class="doc-toc__bar" style="width:16px"></span>
+          <span class="doc-toc__bar" style="width:14px"></span>
+          <span class="doc-toc__bar" style="width:18px"></span>
         </div>
         <div class="doc-toc__links">
           <a href="#" class="active">不是助手，是陪伴</a>
-          <a href="#" class="lv2">不打扰</a>
-          <a href="#" class="lv2">有记忆</a>
-          <a href="#" class="lv2">有态度</a>
+          <a href="#">陪伴感的三个来源</a>
+          <a href="#">反例：为什么大多数 AI 笔记很冷</a>
+          <a href="#">节奏感：什么时候开口</a>
+          <a href="#">视觉与文案的分寸</a>
+          <a href="#">技术上怎么落地</a>
           <a href="#">这周要验证的</a>
+          <a href="#">还没想清楚的</a>
         </div>
       </nav>
 
@@ -1115,37 +1171,67 @@
         <div class="readview on" data-view="notes">
           <article class="doc">
             <h1>产品定位：一只猫的陪伴感从哪来</h1>
-            <div class="doc-meta"><span>更新于 18 分钟前</span><span>312 字</span></div>
-            <div class="doc-tags" style="position:relative;">
-              <span class="tag-pill" data-tag="产品" style="--tc:#4caf72">产品 <svg class="tag-x" viewBox="0 0 24 24" fill="currentColor"><path d="M6.7 6.7a1 1 0 0 1 1.4 0L12 10.6l3.9-3.9a1 1 0 1 1 1.4 1.4L13.4 12l3.9 3.9a1 1 0 0 1-1.4 1.4L12 13.4l-3.9 3.9a1 1 0 0 1-1.4-1.4L10.6 12 6.7 8.1a1 1 0 0 1 0-1.4"/></svg></span>
-              <span class="tag-pill" data-tag="AI" style="--tc:#e0a93a">AI <svg class="tag-x" viewBox="0 0 24 24" fill="currentColor"><path d="M6.7 6.7a1 1 0 0 1 1.4 0L12 10.6l3.9-3.9a1 1 0 1 1 1.4 1.4L13.4 12l3.9 3.9a1 1 0 0 1-1.4 1.4L12 13.4l-3.9 3.9a1 1 0 0 1-1.4-1.4L10.6 12 6.7 8.1a1 1 0 0 1 0-1.4"/></svg></span>
-              <button class="tag-add-btn" id="tag-add-btn" title="添加标签">
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              </button>
+            <div class="doc-meta"><span>更新于 18 分钟前</span><span>1,640 字</span><span class="doc-meta__tags" style="position:relative;">
+              <span class="tag-pill" data-tag="产品" style="--tc:#4caf72">产品</span>
+              <span class="tag-pill" data-tag="AI" style="--tc:#e0a93a">AI</span>
               <div class="tag-picker" id="tag-picker">
                 <input class="tag-picker__search" placeholder="搜索或创建标签…" id="tag-search" autocomplete="off" />
                 <div class="tag-picker__list" id="tag-list">
                   <div class="tag-picker__item checked" data-tag="产品"><span class="dot" style="background:#4caf72"></span>产品<span class="check-mark">✓</span></div>
                   <div class="tag-picker__item checked" data-tag="AI"><span class="dot" style="background:#e0a93a"></span>AI<span class="check-mark">✓</span></div>
-                  <div class="tag-picker__item" data-tag="设计"><span class="dot" style="background:#4f93e8"></span>设计<span class="check-mark">✓</span></div>
-                  <div class="tag-picker__item" data-tag="技术"><span class="dot" style="background:#a874e0"></span>技术<span class="check-mark">✓</span></div>
-                  <div class="tag-picker__item" data-tag="读书"><span class="dot" style="background:#5ba3d9"></span>读书<span class="check-mark">✓</span></div>
-                  <div class="tag-picker__item" data-tag="数据层"><span class="dot" style="background:#b07cd8"></span>数据层<span class="check-mark">✓</span></div>
+                  <div class="tag-picker__item" data-tag="读书"><span class="dot" style="background:#4f93e8"></span>读书<span class="check-mark">✓</span></div>
+                  <div class="tag-picker__item" data-tag="设计"><span class="dot" style="background:#e88478"></span>设计<span class="check-mark">✓</span></div>
+                  <div class="tag-picker__item" data-tag="数据层"><span class="dot" style="background:#a874e0"></span>数据层<span class="check-mark">✓</span></div>
                 </div>
-                <div class="tag-picker__divider"></div>
-                <div class="tag-picker__create" id="tag-create"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> 新建标签</div>
-                <div class="tag-picker__ai">🐱 建议：<span style="--tc:#a874e0">技术</span></div>
+                <div class="tag-picker__create"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span class="create-label">新建标签</span></div>
+                <div class="tag-picker__colors" style="display:none;"><span class="color-dot" data-color="#4caf72" style="background:#4caf72"></span><span class="color-dot" data-color="#4f93e8" style="background:#4f93e8"></span><span class="color-dot" data-color="#e0a93a" style="background:#e0a93a"></span><span class="color-dot" data-color="#a874e0" style="background:#a874e0"></span><span class="color-dot" data-color="#e88478" style="background:#e88478"></span><span class="color-dot" data-color="#5ba3d9" style="background:#5ba3d9"></span><span class="color-dot" data-color="#b07cd8" style="background:#b07cd8"></span><span class="color-dot" data-color="#62b87e" style="background:#62b87e"></span></div>
               </div>
-            </div>
-            <p>反复想 mewmo 到底跟 Notion、Bear、印象笔记差在哪。功能层面拼不过——大厂什么都能补齐。真正拼的是<strong>体感</strong>：打开它的时候，是面对一个冷冰冰的数据库，还是觉得「有个东西在陪我」。</p>
+            </span></div>
+            <p>反复想 mewmo 到底跟 Notion、Bear、印象笔记差在哪。功能层面拼不过——大厂什么都能补齐。真正拼的是<strong>体感</strong>：打开它的时候，是面对一个冷冰冰的数据库，还是觉得「有个东西在陪我」。这篇把这阵子零散的想法摊开，算一次自我对账。</p>
+            <p>先说结论：陪伴感不是一个功能，是无数个细节累加出来的<em>气质</em>。它藏在动画的缓动曲线里，藏在文案的语气里，藏在「什么时候 AI 选择闭嘴」的判断里。下面拆开讲。</p>
+
             <h2>不是助手，是陪伴</h2>
             <p>大多数产品把 AI 做成一个<em>助手图标</em>，点一下弹出对话框。那是工具关系。mewmo 想做的是让 AI 像桌上真的趴着一只猫——平时安静待着，<mark>会看你在记什么</mark>，偶尔抬头提醒一句「这条你三天没回顾了」。可以参考 <a href="#">陪伴式产品的几个案例</a>。</p>
             <ul><li>不打扰：默认安静，需要时才开口</li><li>有记忆：记得你最近在关注什么</li><li>有态度：偶尔主动，但从不卖萌过头</li></ul>
             <blockquote><p>「正式但不完全严肃」——像一个靠谱的同事，专业，但你愿意跟它多待一会儿。</p></blockquote>
+
+            <h2>陪伴感的三个来源</h2>
+            <p>把「陪伴感」这个模糊的词拆成可以下手的东西，我目前找到三个来源。它们互相叠加，缺一个都会让那只猫显得像个贴图。</p>
+            <p>第一是<strong>在场感</strong>。哪怕什么都不做，那只猫也得「在」——呼吸般的微动、视线偶尔扫过你正在编辑的段落。第二是<strong>记忆感</strong>，它得记得你上周在纠结什么，今天才接得上话。第三是<strong>分寸感</strong>，知道什么时候说话、说多长、用什么语气。三者里最难的是第三个，因为它没有量化指标，只能靠一遍遍调。</p>
+            <ul><li>在场感 → 靠动效和留白，技术上最轻</li><li>记忆感 → 靠 embedding + 回顾队列，技术上最重</li><li>分寸感 → 靠 prompt 和触发时机，最难调也最值钱</li></ul>
+
+            <h2>反例：为什么大多数 AI 笔记很冷</h2>
+            <p>市面上一票「AI 笔记」给人的感觉是：你在用一个数据库，旁边挂了个聊天框。冷的根源不在技术，在<em>交互姿态</em>——它永远等你先开口，回应永远是「请问需要我帮您做什么」这种客服腔。</p>
+            <p>客服腔的问题在于它把关系定死成「服务方 / 被服务方」。而陪伴的前提是<mark>对等</mark>：那只猫不伺候你，它只是和你共处一个空间。这一句话的差别，落到文案上就是把「为您整理了 3 条摘要」改成「翻到几条你可能想再看一眼的」。</p>
+            <blockquote><p>客服让你觉得被服务，陪伴让你觉得不孤单。前者越周到越像工具，后者越克制越像伙伴。</p></blockquote>
+
+            <h2>节奏感：什么时候开口</h2>
+            <p>这是整个产品最反直觉的地方：<strong>AI 主动说话的次数，应该远少于它能说话的次数</strong>。技术上我们能在每次保存、每次切换、每次停顿都插一句，但那会立刻变成骚扰。</p>
+            <p>当前的判断逻辑大概是这样——只在三类时机考虑开口：① 你完成了一件明显告一段落的事（合上一篇长笔记）；② 出现了和历史强相关的新内容（剪藏了一篇你标过同主题的文章）；③ 你主动停在某条旧笔记上超过几秒。其余时间一律闭嘴。</p>
+            <p>实现上，这套触发逻辑会沉淀到 <code>packages/ai/src/triggers/</code>，每个触发器是一个纯函数：输入当前上下文，输出「该不该说 / 说什么」。这样调节奏时只改触发器，不动 UI。</p>
+
+            <h2>视觉与文案的分寸</h2>
+            <p>陪伴感对视觉的要求是「<em>有温度但不幼稚</em>」。圆角不能太圆（会显得卡通），动效不能太弹（会显得廉价），配色要暖但不能糖。那只猫的存在感靠的是细微的呼吸动画，而不是夸张的表情包。</p>
+            <p>文案上立了几条铁律，违反任何一条都会让猫「出戏」：</p>
+            <ul><li>不用感叹号堆情绪，一句最多一个</li><li>不主动卖萌，不说「喵」「呀」这类语气词</li><li>提建议时给理由，不下命令</li><li>承认不确定，不假装什么都懂</li></ul>
+            <blockquote><p>分寸感是设计里最贵的东西——它没有 checklist，只能靠一次次「这句话猫会不会这么说」的自问来逼近。</p></blockquote>
+
+            <h2>技术上怎么落地</h2>
+            <p>陪伴感听起来很虚，但每一条都能落到具体模块。在场感是前端动效（<code>framer-motion</code> 的呼吸循环），记忆感是 <code>embeddings</code> 表 + 后台回顾 job，分寸感是 <code>prompts/</code> 里的语气模板加 <code>triggers/</code> 里的时机判断。</p>
+            <p>关键是别让这些逻辑散落在 UI 里。所有「猫该不该开口、说什么」的决策都收到 <code>packages/ai/</code>，前端只负责把决策渲染成那只猫的动作。这样产品同学调语气、调节奏时改一个地方，三端（Web / Mac / iOS）行为一致。</p>
+            <hr/>
+            <p>说到底，陪伴感是一个<strong>长期的、靠无数小决策累加</strong>的东西，没有银弹。下面是这周能先验证的几个最小切片。</p>
+
             <h2>这周要验证的</h2>
             <div class="todo done"><span class="box"><i data-i="check" style="width:12px;height:12px"></i></span><span>数据层六个包跑通验收</span></div>
             <div class="todo"><span class="box"></span><span>笔记主页接真实 repository，列表读 240 字 preview</span></div>
             <div class="todo"><span class="box"></span><span>AI 侧栏用 streamText 流式返回</span></div>
+            <div class="todo"><span class="box"></span><span>给那只猫做一版呼吸动画，验证「在场感」是否成立</span></div>
+            <div class="todo"><span class="box"></span><span>写三个触发器（合上长笔记 / 同主题剪藏 / 停留旧笔记），灰度试节奏</span></div>
+
+            <h2>还没想清楚的</h2>
+            <p>有几个问题还悬着，先记下来免得忘：陪伴感能不能被「关掉」——有人就是想要纯粹的工具，这个开关怎么设计才不破坏默认体感？记忆感会不会越界——它记得太多反而让人毛骨悚然，边界在哪？还有最现实的：这些细节用户感知得到吗，还是只有我自己沉浸在里面自我感动。</p>
+            <p>这些没有答案，留给下一篇。<mark>先把能验证的做出来，再回来回答想不清的</mark>。</p>
           </article>
         </div>
 
@@ -1153,7 +1239,21 @@
         <div class="readview" data-view="clips">
           <article class="doc">
             <h1>The Rise of the AI-Native Note App</h1>
-            <div class="doc-meta"><span>Stratechery</span><span>Ben Thompson</span><span>2026年6月28日</span><span>1,840 字</span><span>预计 8 分钟</span><span class="tag-pill" style="--tc:#4caf72">AI 产品</span></div>
+            <div class="doc-meta"><span>Stratechery</span><span>Ben Thompson</span><span>2026年6月28日</span><span>1,840 字</span><span>预计 8 分钟</span><span class="doc-meta__tags" style="position:relative;">
+              <span class="tag-pill" data-tag="AI 产品" style="--tc:#4caf72">AI 产品</span>
+              <div class="tag-picker" id="tag-picker-clips">
+                <input class="tag-picker__search" placeholder="搜索或创建标签…" autocomplete="off" />
+                <div class="tag-picker__list">
+                  <div class="tag-picker__item checked" data-tag="AI 产品"><span class="dot" style="background:#4caf72"></span>AI 产品<span class="check-mark">✓</span></div>
+                  <div class="tag-picker__item" data-tag="读书"><span class="dot" style="background:#4f93e8"></span>读书<span class="check-mark">✓</span></div>
+                  <div class="tag-picker__item" data-tag="设计"><span class="dot" style="background:#e88478"></span>设计<span class="check-mark">✓</span></div>
+                  <div class="tag-picker__item" data-tag="产品"><span class="dot" style="background:#4caf72"></span>产品<span class="check-mark">✓</span></div>
+                  <div class="tag-picker__item" data-tag="数据层"><span class="dot" style="background:#a874e0"></span>数据层<span class="check-mark">✓</span></div>
+                </div>
+                <div class="tag-picker__create"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span class="create-label">新建标签</span></div>
+                <div class="tag-picker__colors" style="display:none;"><span class="color-dot" data-color="#4caf72" style="background:#4caf72"></span><span class="color-dot" data-color="#4f93e8" style="background:#4f93e8"></span><span class="color-dot" data-color="#e0a93a" style="background:#e0a93a"></span><span class="color-dot" data-color="#a874e0" style="background:#a874e0"></span><span class="color-dot" data-color="#e88478" style="background:#e88478"></span><span class="color-dot" data-color="#5ba3d9" style="background:#5ba3d9"></span><span class="color-dot" data-color="#b07cd8" style="background:#b07cd8"></span><span class="color-dot" data-color="#62b87e" style="background:#62b87e"></span></div>
+              </div>
+            </span></div>
             <p>For two decades, note-taking apps competed on storage and sync. The next decade will be different: the app that <mark>understands</mark> your notes wins, not the one that merely stores them.</p>
             <p>这段是我剪藏时高亮的重点——<strong>理解</strong> 比 <strong>存储</strong> 更难，也更值钱。大厂能在一夜之间补齐存储和同步，但"懂你"需要长期陪伴积累的上下文。</p>
             <blockquote><p>The moat is no longer the database. It's the relationship.</p></blockquote>
@@ -1273,7 +1373,21 @@
         <div class="readview" data-view="feed">
           <article class="doc">
             <h1>AI 工具的祛魅时刻</h1>
-            <div class="doc-meta"><span>更新于 2 小时前</span></div>
+            <div class="doc-meta"><span>少数派</span><span>2026年6月30日 10:20</span><span>1,260 字</span><span>预计 5 分钟</span><span class="doc-meta__tags" style="position:relative;">
+              <span class="tag-pill" data-tag="AI" style="--tc:#e0a93a">AI</span>
+              <div class="tag-picker" id="tag-picker-feed">
+                <input class="tag-picker__search" placeholder="搜索或创建标签…" autocomplete="off" />
+                <div class="tag-picker__list">
+                  <div class="tag-picker__item checked" data-tag="AI"><span class="dot" style="background:#e0a93a"></span>AI<span class="check-mark">✓</span></div>
+                  <div class="tag-picker__item" data-tag="产品"><span class="dot" style="background:#4caf72"></span>产品<span class="check-mark">✓</span></div>
+                  <div class="tag-picker__item" data-tag="读书"><span class="dot" style="background:#4f93e8"></span>读书<span class="check-mark">✓</span></div>
+                  <div class="tag-picker__item" data-tag="设计"><span class="dot" style="background:#e88478"></span>设计<span class="check-mark">✓</span></div>
+                  <div class="tag-picker__item" data-tag="数据层"><span class="dot" style="background:#a874e0"></span>数据层<span class="check-mark">✓</span></div>
+                </div>
+                <div class="tag-picker__create"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span class="create-label">新建标签</span></div>
+                <div class="tag-picker__colors" style="display:none;"><span class="color-dot" data-color="#4caf72" style="background:#4caf72"></span><span class="color-dot" data-color="#4f93e8" style="background:#4f93e8"></span><span class="color-dot" data-color="#e0a93a" style="background:#e0a93a"></span><span class="color-dot" data-color="#a874e0" style="background:#a874e0"></span><span class="color-dot" data-color="#e88478" style="background:#e88478"></span><span class="color-dot" data-color="#5ba3d9" style="background:#5ba3d9"></span><span class="color-dot" data-color="#b07cd8" style="background:#b07cd8"></span><span class="color-dot" data-color="#62b87e" style="background:#62b87e"></span></div>
+              </div>
+            </span></div>
             <p>用了大半年 AI 工具之后，越来越多人开始问同一个问题：除了第一次的"惊艳"，它到底改变了我什么？本周我们聊聊 AI 产品的<strong>留存</strong>难题。</p>
             <p>结论先行：惊艳带来下载，<mark>陪伴带来留存</mark>。能记住你、随你成长的工具，才会被长期打开。这也解释了为什么"记忆层"会成为下一个护城河。</p>
           </article>
@@ -1368,6 +1482,9 @@
       </div>
     </aside>
 
+    <!-- 正文/AI 缝隙里的拖拽手柄（必须是 .app 直接子元素，否则被 aside overflow:hidden 裁掉） -->
+    <div class="ai__resizer" id="ai-resizer" title="拖动调整宽度 · 双击重置"></div>
+
   </div>
 
   <!-- 喵喵入口 tab：贴右边缘 -->
@@ -1378,6 +1495,10 @@
       <circle cx="20" cy="16" r="1.6" fill="var(--ink)"/>
       <path d="M14.5 20.5c.7.6 2.3.6 3 0" stroke="var(--ink)" stroke-width="1.5" stroke-linecap="round"/>
     </svg>
+  </button>
+
+  <button class="to-top" id="to-top" title="回到顶部" aria-label="回到顶部">
+    <svg viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" d="M6 11l6-4 6 4M6 17l6-4 6 4"/></svg>
   </button>
 
   <!-- 列表标题下拉：排序 + 快速跳转 -->
@@ -1440,10 +1561,34 @@
     // 展开/收起所有分组
     document.getElementById("toggle-groups").addEventListener("click", e => {
       const btn = e.currentTarget;
+      const stage = document.querySelector(".side__stage");
+      // 在知识库/订阅抽屉里：图标操作抽屉内的文件夹树（展开/收起子文件夹），不折叠隐藏的 nav、也不退出抽屉
+      if (stage && stage.classList.contains("drilled")) {
+        const folders = [...document.querySelectorAll("#kbPane .kbf-wrap")].filter(w => w.querySelector(":scope > .kbf-children"));
+        if (folders.length) {
+          const anyOpen = folders.some(w => !w.classList.contains("collapsed"));
+          folders.forEach(w => w.classList.toggle("collapsed", anyOpen));
+          btn.classList.toggle("is-collapsed", anyOpen);
+        }
+        return;
+      }
       const grps = document.querySelectorAll(".side__nav .nav-grp");
       const anyOpen = [...grps].some(g => !g.classList.contains("collapsed"));
-      grps.forEach(g => g.classList.toggle("collapsed", anyOpen));
-      btn.classList.toggle("is-collapsed", anyOpen);  // 全收起后显示“展开”箭头，反之显示“收起”
+      grps.forEach(g => {
+        const list = g.querySelector(".nav-sub-list");
+        if (!list) { g.classList.toggle("collapsed", anyOpen); return; }
+        if (anyOpen && !g.classList.contains("collapsed")) {
+          list.style.height = list.scrollHeight + "px";
+          requestAnimationFrame(() => { list.style.height = "0px"; list.style.opacity = "0"; });
+          list.addEventListener("transitionend", () => { g.classList.add("collapsed"); list.style.height = ""; list.style.opacity = ""; }, { once: true });
+        } else if (!anyOpen && g.classList.contains("collapsed")) {
+          list.style.height = "0px";
+          g.classList.remove("collapsed");
+          requestAnimationFrame(() => { list.style.height = list.scrollHeight + "px"; });
+          list.addEventListener("transitionend", () => { list.style.height = ""; }, { once: true });
+        }
+      });
+      btn.classList.toggle("is-collapsed", anyOpen);  // 全收起后显示"展开"箭头，反之显示"收起"
     });
 
     // 隐藏侧栏（完全折叠）
@@ -1471,7 +1616,23 @@
     // 一级分组标题：点击整行只折叠 / 展开，不选中、不切视图
     document.querySelectorAll(".nav-i.grp").forEach(g => g.addEventListener("click", e => {
       if (e.target.closest(".row-act")) return;
-      g.closest(".nav-grp").classList.toggle("collapsed");
+      const grp = g.closest(".nav-grp");
+      const list = grp.querySelector(".nav-sub-list");
+      if (!list) { grp.classList.toggle("collapsed"); return; }
+      if (grp.classList.contains("collapsed")) {
+        grp.classList.remove("collapsed");
+        list.style.height = "0px";
+        list.style.opacity = "0";
+        requestAnimationFrame(() => { list.style.height = list.scrollHeight + "px"; list.style.opacity = "1"; });
+        const done = (ev) => { if (ev.propertyName !== "height") return; list.removeEventListener("transitionend", done); list.style.height = ""; };
+        list.addEventListener("transitionend", done);
+      } else {
+        list.style.height = list.scrollHeight + "px";
+        list.style.opacity = "1";
+        requestAnimationFrame(() => { list.style.height = "0px"; list.style.opacity = "0"; });
+        const done = (ev) => { if (ev.propertyName !== "height") return; list.removeEventListener("transitionend", done); grp.classList.add("collapsed"); list.style.height = ""; list.style.opacity = ""; };
+        list.addEventListener("transitionend", done);
+      }
     }));
 
     // 视图切换
@@ -1486,10 +1647,14 @@
     const readShell = document.querySelector(".read");
     const readScroll = document.querySelector(".read__scroll");
     const readTitle = document.querySelector("#read-title span");
+    const toTop = document.getElementById("to-top");
     function syncReadScrollState() {
-      readShell.classList.toggle("scrolled", readScroll.scrollTop > 18);
+      const st = readScroll.scrollTop;
+      readShell.classList.toggle("scrolled", st > 18);
+      if (toTop) toTop.classList.toggle("show", st > 200);   // 下滑约 200px 才显现回到顶部
     }
     readScroll.addEventListener("scroll", syncReadScrollState);
+    if (toTop) toTop.addEventListener("click", () => readScroll.scrollTo({ top: 0, behavior: "smooth" }));
     document.getElementById("toggle-content-wide").addEventListener("click", () => {
       app.classList.toggle("content-wide");
     });
@@ -1506,8 +1671,9 @@
       app.classList.toggle("view-today", v === "today");
       app.classList.toggle("view-pinned", v === "pinned");
       app.classList.toggle("view-clips", v === "clips");
+      app.classList.toggle("view-feed", v === "feed");
       // 切换视图时收起剪藏输入框
-      document.getElementById("clipUrlInput").classList.remove("open");
+      { const _l = document.querySelector(".list"); _l.classList.remove("clip-adding"); document.getElementById("clipUrlField").value = ""; }
       // 书架模式隐藏列表列
       if (isShelf || v === "home") {
         document.querySelectorAll(".listview").forEach(x => x.classList.remove("on"));
@@ -1534,75 +1700,144 @@
       switchView(shelfMap[v] || v);
     }));
 
-    // ===== Tag Picker：标题下方标签管理 =====
+    // ===== Tag Picker：所有 .doc-meta__tags 共用逻辑 =====
     (function(){
-      const btn = document.getElementById("tag-add-btn");
-      const picker = document.getElementById("tag-picker");
-      const search = document.getElementById("tag-search");
-      const list = document.getElementById("tag-list");
-      const tagsContainer = btn.parentElement;
-      if (!btn || !picker) return;
+      const COLORS = ["#4caf72","#4f93e8","#e0a93a","#a874e0","#e88478","#5ba3d9","#b07cd8","#62b87e"];
+      const sidebarTagList = document.querySelector('.nav-i[data-view="tags"]')?.closest(".nav-grp")?.querySelector(".nav-sub-list");
 
-      btn.addEventListener("click", e => {
-        e.stopPropagation();
-        picker.classList.toggle("open");
-        if (picker.classList.contains("open")) { search.value = ""; filterTags(""); search.focus(); }
+      // 向侧栏添加标签
+      function addToSidebar(name, color) {
+        if (!sidebarTagList) return;
+        const btn = document.createElement("button");
+        btn.className = "nav-sub"; btn.dataset.view = "tags";
+        btn.innerHTML = `<span class="tag-dot" style="--tc:${color}"></span> <span class="lbl">${name}</span><span class="row-act" data-menu="tag-sub" title="操作"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg></span>`;
+        sidebarTagList.appendChild(btn);
+      }
+
+      // 向所有 picker 添加一个 tag item（新建时同步）
+      function addToAllPickers(name, color) {
+        document.querySelectorAll(".doc-meta__tags .tag-picker__list").forEach(list => {
+          if (list.querySelector(`.tag-picker__item[data-tag="${name}"]`)) return;
+          const item = document.createElement("div");
+          item.className = "tag-picker__item"; item.dataset.tag = name;
+          item.innerHTML = `<span class="dot" style="background:${color}"></span>${name}<span class="check-mark">✓</span>`;
+          list.appendChild(item);
+        });
+      }
+
+      document.querySelectorAll(".doc-meta__tags").forEach(container => {
+        const picker = container.querySelector(".tag-picker");
+        const search = picker.querySelector(".tag-picker__search");
+        const list = picker.querySelector(".tag-picker__list");
+        if (!picker) return;
+
+        function sortAndDivide() {
+          list.querySelectorAll(".tag-picker__sep").forEach(s => s.remove());
+          const items = [...list.querySelectorAll(".tag-picker__item")];
+          const checked = items.filter(i => i.classList.contains("checked"));
+          const unchecked = items.filter(i => !i.classList.contains("checked"));
+          checked.forEach(it => list.appendChild(it));
+          if (checked.length && unchecked.length) {
+            const sep = document.createElement("div");
+            sep.className = "tag-picker__sep";
+            list.appendChild(sep);
+          }
+          unchecked.forEach(it => list.appendChild(it));
+        }
+
+        function openPicker() {
+          document.querySelectorAll(".tag-picker.open").forEach(p => p.classList.remove("open"));
+          picker.classList.add("open");
+          search.value = ""; filterTags("");
+          sortAndDivide();
+          search.focus();
+        }
+
+        container.addEventListener("click", e => {
+          if (e.target.closest(".tag-picker")) return;
+          e.stopPropagation(); openPicker();
+        });
+
+        function filterTags(q) {
+          const items = list.querySelectorAll(".tag-picker__item");
+          const lower = q.toLowerCase();
+          let hasExact = false;
+          items.forEach(it => {
+            const show = it.dataset.tag.toLowerCase().includes(lower);
+            it.style.display = show ? "" : "none";
+            if (it.dataset.tag === q) hasExact = true;
+          });
+          // 显示/隐藏新建入口
+          const create = picker.querySelector(".tag-picker__create");
+          if (create) {
+            if (q && !hasExact) { create.style.display = ""; create.querySelector(".create-label").textContent = `新建「${q}」`; }
+            else { create.style.display = "none"; }
+          }
+        }
+        search.addEventListener("input", () => filterTags(search.value.trim()));
+
+        list.addEventListener("click", e => {
+          const item = e.target.closest(".tag-picker__item");
+          if (!item) return;
+          item.classList.toggle("checked");
+          const tag = item.dataset.tag;
+          const dot = item.querySelector(".dot");
+          const color = dot ? dot.style.background : "#888";
+          if (item.classList.contains("checked")) {
+            const pill = document.createElement("span");
+            pill.className = "tag-pill"; pill.style.setProperty("--tc", color);
+            pill.dataset.tag = tag;
+            pill.textContent = tag;
+            container.insertBefore(pill, picker);
+          } else {
+            const pill = container.querySelector(`.tag-pill[data-tag="${tag}"]`);
+            if (pill) pill.remove();
+          }
+          sortAndDivide();
+        });
+
+        // 新建标签：颜色选择
+        const createBtn = picker.querySelector(".tag-picker__create");
+        const colorsRow = picker.querySelector(".tag-picker__colors");
+        if (createBtn && colorsRow) {
+          createBtn.addEventListener("click", () => {
+            colorsRow.style.display = colorsRow.style.display === "flex" ? "none" : "flex";
+            colorsRow.querySelectorAll(".color-dot").forEach((d,i) => d.classList.toggle("sel", i===0));
+          });
+          colorsRow.addEventListener("click", e => {
+            const dot = e.target.closest(".color-dot");
+            if (!dot) return;
+            colorsRow.querySelectorAll(".color-dot").forEach(d => d.classList.remove("sel"));
+            dot.classList.add("sel");
+            const color = dot.dataset.color;
+            const name = search.value.trim();
+            if (!name) return;
+            // 创建标签
+            addToAllPickers(name, color);
+            addToSidebar(name, color);
+            // 勾选并加 pill
+            const newItem = list.querySelector(`.tag-picker__item[data-tag="${name}"]`);
+            if (newItem && !newItem.classList.contains("checked")) {
+              newItem.classList.add("checked");
+              const pill = document.createElement("span");
+              pill.className = "tag-pill"; pill.style.setProperty("--tc", color);
+              pill.dataset.tag = name;
+              pill.textContent = name;
+              container.insertBefore(pill, picker);
+            }
+            // reset
+            search.value = ""; filterTags("");
+            colorsRow.style.display = "none";
+            sortAndDivide();
+          });
+        }
       });
+
+      // 全局点击关闭所有 picker
       document.addEventListener("click", e => {
-        if (!picker.contains(e.target) && e.target !== btn) picker.classList.remove("open");
-      });
-
-      function filterTags(q) {
-        const items = list.querySelectorAll(".tag-picker__item");
-        const lower = q.toLowerCase();
-        items.forEach(it => { it.style.display = it.dataset.tag.toLowerCase().includes(lower) ? "" : "none"; });
-        const create = document.getElementById("tag-create");
-        if (q && ![...items].some(it => it.dataset.tag === q)) {
-          create.style.display = ""; create.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> 新建「${q}」`;
-        } else { create.style.display = "none"; }
-      }
-      search.addEventListener("input", () => filterTags(search.value.trim()));
-
-      list.addEventListener("click", e => {
-        const item = e.target.closest(".tag-picker__item");
-        if (!item) return;
-        item.classList.toggle("checked");
-        const tag = item.dataset.tag;
-        const dot = item.querySelector(".dot");
-        const color = dot ? dot.style.background : "#888";
-        if (item.classList.contains("checked")) {
-          const pill = document.createElement("span");
-          pill.className = "tag-pill"; pill.style.setProperty("--tc", color);
-          pill.dataset.tag = tag;
-          pill.innerHTML = `${tag} <svg class="tag-x" viewBox="0 0 24 24" fill="currentColor"><path d="M6.7 6.7a1 1 0 0 1 1.4 0L12 10.6l3.9-3.9a1 1 0 1 1 1.4 1.4L13.4 12l3.9 3.9a1 1 0 0 1-1.4 1.4L12 13.4l-3.9 3.9a1 1 0 0 1-1.4-1.4L10.6 12 6.7 8.1a1 1 0 0 1 0-1.4"/></svg>`;
-          tagsContainer.insertBefore(pill, btn);
-          pill.querySelector(".tag-x").addEventListener("click", () => removeTag(tag));
-        } else { removeTag(tag); }
-      });
-
-      function removeTag(tag) {
-        const pill = tagsContainer.querySelector(`.tag-pill[data-tag="${tag}"]`);
-        if (pill) pill.remove();
-        const item = list.querySelector(`.tag-picker__item[data-tag="${tag}"]`);
-        if (item) item.classList.remove("checked");
-      }
-
-      tagsContainer.querySelectorAll(".tag-pill .tag-x").forEach(x => {
-        x.addEventListener("click", () => {
-          const pill = x.closest(".tag-pill");
-          const tag = pill.textContent.trim().replace(/\s*✕$/, "");
-          removeTag(tag);
-        });
-      });
-
-      // AI 建议标签点击
-      tagsContainer.closest(".doc-tags").querySelectorAll(".tag-picker__ai span").forEach(s => {
-        s.addEventListener("click", () => {
-          const tag = s.textContent;
-          const item = list.querySelector(`.tag-picker__item[data-tag="${tag}"]`);
-          if (item && !item.classList.contains("checked")) { item.click(); }
-          s.style.opacity = ".4"; s.style.pointerEvents = "none";
-        });
+        if (!e.target.closest(".doc-meta__tags")) {
+          document.querySelectorAll(".tag-picker.open").forEach(p => p.classList.remove("open"));
+        }
       });
     })();
 
@@ -1653,7 +1888,7 @@
     rowmenu.className = "rowmenu";
     document.body.appendChild(rowmenu);
     let menuBtn = null;
-    const closeMenu = () => { rowmenu.classList.remove("on"); menuBtn = null; };
+    const closeMenu = () => { rowmenu.classList.remove("on"); if (menuBtn) menuBtn.classList.remove("menu-active"); menuBtn = null; };
     const ICN = {
       add: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M12.75 9a.75.75 0 0 0-1.5 0v2.25H9a.75.75 0 0 0 0 1.5h2.25V15a.75.75 0 0 0 1.5 0v-2.25H15a.75.75 0 0 0 0-1.5h-2.25z"/><path fill="currentColor" fill-rule="evenodd" d="M12.057 1.25h-.114c-2.309 0-4.118 0-5.53.19c-1.444.194-2.584.6-3.479 1.494c-.895.895-1.3 2.035-1.494 3.48c-.19 1.411-.19 3.22-.19 5.529v.114c0 2.309 0 4.118.19 5.53c.194 1.444.6 2.584 1.494 3.479c.895.895 2.035 1.3 3.48 1.494c1.411.19 3.22.19 5.529.19h.114c2.309 0 4.118 0 5.53-.19c1.444-.194 2.584-.6 3.479-1.494c.895-.895 1.3-2.035 1.494-3.48c.19-1.411.19-3.22.19-5.529v-.114c0-2.309 0-4.118-.19-5.53c-.194-1.444-.6-2.584-1.494-3.479c-.895-.895-2.035-1.3-3.48-1.494c-1.411-.19-3.22-.19-5.529-.19M3.995 3.995c.57-.57 1.34-.897 2.619-1.069c1.3-.174 3.008-.176 5.386-.176s4.086.002 5.386.176c1.279.172 2.05.5 2.62 1.069c.569.57.896 1.34 1.068 2.619c.174 1.3.176 3.008.176 5.386s-.002 4.086-.176 5.386c-.172 1.279-.5 2.05-1.069 2.62c-.57.569-1.34.896-2.619 1.068c-1.3.174-3.008.176-5.386.176s-4.086-.002-5.386-.176c-1.279-.172-2.05-.5-2.62-1.069c-.569-.57-.896-1.34-1.068-2.619c-.174-1.3-.176-3.008-.176-5.386s.002-4.086.176-5.386c.172-1.279.5-2.05 1.069-2.62" clip-rule="evenodd"/></svg>',
       sync: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" fill-rule="evenodd" d="M2.93 11.2c.072-4.96 4.146-8.95 9.149-8.95a9.16 9.16 0 0 1 7.814 4.357a.75.75 0 0 1-1.277.786a7.66 7.66 0 0 0-6.537-3.643c-4.185 0-7.575 3.328-7.648 7.448l.4-.397a.75.75 0 0 1 1.057 1.065l-1.68 1.666a.75.75 0 0 1-1.056 0l-1.68-1.666A.75.75 0 1 1 2.528 10.8zm16.856-.733a.75.75 0 0 1 1.055 0l1.686 1.666a.75.75 0 1 1-1.054 1.067l-.41-.405c-.07 4.965-4.161 8.955-9.18 8.955a9.2 9.2 0 0 1-7.842-4.356a.75.75 0 1 1 1.277-.788a7.7 7.7 0 0 0 6.565 3.644c4.206 0 7.61-3.333 7.68-7.453l-.408.403a.75.75 0 1 1-1.055-1.067z" clip-rule="evenodd"/></svg>',
@@ -1813,6 +2048,7 @@
       wrap.className = "kbf-wrap";
       const row = document.createElement("button");
       row.className = "nav-i kbf";
+      row.dataset.depth = depth;   // 0=一级 … 3=四级（最底层）；供 ⋯ 菜单按层级给选项
       row.style.paddingLeft = (40 + depth * 12) + "px";
       const hasKids = f.children && f.children.length;
       row.innerHTML =
@@ -1831,6 +2067,7 @@
         const kids = wrap.querySelector(":scope > .kbf-children");
         if (e.target.closest(".chev") && kids) { wrap.classList.toggle("collapsed"); return; }
         document.querySelectorAll("#kbPane .kbf").forEach(x => x.classList.remove("active"));
+        { const _bk = document.querySelector("#kbPane .kb-pane__back"); if (_bk) _bk.classList.remove("active"); }  // 选中子文件夹时返回行不再代表“全部”
         row.classList.add("active");
         const lbl = row.querySelector(".lbl");
         setListTitle((lbl && lbl.textContent) || "未命名");
@@ -1845,7 +2082,12 @@
       back.className = "nav-i kb-pane__back";
       back.innerHTML = '<i class="chev" data-i="caret"></i><i class="ic" data-i="' + (icon || "book") + '"></i> <span class="kb-pane__bname"></span><span class="kb-newfolder" title="新建文件夹"><i class="ic" data-i="addfolder"></i></span>';
       back.querySelector(".kb-pane__bname").textContent = name;
-      back.addEventListener("click", e => { if (e.target.closest(".kb-newfolder")) return; exitKb(); });
+      back.classList.add("active");  // 进抽屉默认高亮：正在看这一级的全部文件
+      back.addEventListener("click", e => {
+        if (e.target.closest(".kb-newfolder")) return;        // 新建文件夹有独立逻辑
+        if (e.target.closest(".chev")) { exitKb(); return; }  // 只有返回三角才回到 App 导航
+        showKbLevel(name);                                    // 点标题本身=看这一级全部文件（取消子文件夹筛选）
+      });
       back.querySelector(".kb-newfolder").addEventListener("click", e => { e.stopPropagation(); addRootFolder(); });
       pane.appendChild(back);
       const tree = document.createElement("div");
@@ -1862,10 +2104,18 @@
       document.querySelector(".side__stage").classList.add("drilled");
       document.querySelectorAll(".side .nav-i,.side .nav-sub").forEach(x => x.classList.remove("active"));
       entry.classList.add("active");
+      { const _bk = document.querySelector("#kbPane .kb-pane__back"); if (_bk) _bk.classList.add("active"); }  // 上一行清掉了所有 .side .nav-i 高亮（含返回行），补回：抽屉默认看这一级全部
       try { switchView("kb"); } catch (_) {}
       setListTitle(name);
     }
     function exitKb() { document.querySelector(".side__stage").classList.remove("drilled"); }
+    function showKbLevel(name) {  // 看这一级全部文件：取消子文件夹选中、返回行回到高亮
+      document.querySelectorAll("#kbPane .kbf").forEach(x => x.classList.remove("active"));
+      const back = document.querySelector("#kbPane .kb-pane__back");
+      if (back) back.classList.add("active");
+      try { switchView("kb"); } catch (_) {}
+      setListTitle(name);  // 必须在 switchView 之后：switchView 用 titles[v] 覆盖标题
+    }
     function removeFolder(row) { const w = row.closest(".kbf-wrap"); if (w) w.remove(); }
     function addRootFolder() {
       const tree = document.querySelector("#kbPane .kb-tree");
@@ -1914,15 +2164,55 @@
       video: { name: "视频", icon: "video", placeholder: true },
       podcast: { name: "播客", icon: "mic", placeholder: true },
     };
-    function showFeedList() { document.querySelectorAll(".listview").forEach(x => x.classList.toggle("on", x.dataset.view === "feed")); }
+    // 每个订阅类型的列表内容：文章 / 媒体 各自独立；视频 / 播客 占位。
+    // 文章复用页面里已有的静态卡片作模板，避免重复维护两份。
+    const FEED_LISTS = {
+      media: '<article class="ncard sel"><div class="ncard__t"><h3>差评：我们试戴了一周 AI 眼镜，然后把它摘了</h3></div><p class="ncard__sum">硬件确实酷，但日常佩戴的社交尴尬和续航焦虑，比技术问题更难解决——聊聊 AI 硬件的"最后一公里"。</p><div class="ncard__imgs"><div class="ncard__thumb"><i data-i="image" style="width:28px;height:28px"></i></div></div><div class="ncard__src"><span class="favi">差</span> <span class="srctxt">差评 · 4 小时前</span><span class="tag-pill" style="--tc:#e0a93a">硬件</span></div></article>'
+        + '<article class="ncard"><div class="ncard__t"><h3>PingWest 品玩：大模型价格战打到了 API 之外</h3></div><p class="ncard__sum">当推理成本逼近免费，厂商开始卷分发、卷入口、卷生态——这一轮竞争的主战场正从模型本身转移。</p><div class="ncard__src"><span class="favi">品</span> <span class="srctxt">PingWest 品玩 · 6 小时前</span><span class="tag-pill" style="--tc:#4f93e8">行业</span></div></article>'
+        + '<article class="ncard"><div class="ncard__t"><h3>Lenny\'s Newsletter: How the best PMs run discovery</h3></div><p class="ncard__sum">A breakdown of the rituals top product teams use to stay close to users — continuous interviews, opportunity trees, and saying no to roadmaps.</p><div class="ncard__imgs"><div class="ncard__thumb"><i data-i="image" style="width:28px;height:28px"></i></div></div><div class="ncard__src"><span class="favi">L</span> <span class="srctxt">Lenny\'s Newsletter · 1 天前</span><span class="tag-pill" style="--tc:#4caf72">产品</span></div></article>',
+      video: '<div class="feed-list-ph">视频订阅还在路上<br>敬请期待 (｡･ω･｡)</div>',
+      podcast: '<div class="feed-list-ph">播客订阅还在路上<br>敬请期待 (｡･ω･｡)</div>',
+    };
+    FEED_LISTS.article = (document.querySelector('.listview[data-view="feed"]') || {}).innerHTML || "";
+    const FT_TO_JV = { article: "feed-article", media: "feed-media", video: "feed-video", podcast: "feed-podcast" };
+    let currentFeedFt = "article";
+    function showFeedList(ft) {
+      const lv = document.querySelector('.listview[data-view="feed"]');
+      if (ft) { currentFeedFt = ft; window.currentFeedSub = FT_TO_JV[ft] || "feed-article"; }
+      if (lv && FEED_LISTS[currentFeedFt] != null) {
+        lv.innerHTML = FEED_LISTS[currentFeedFt];
+        if (window.paintIcons) window.paintIcons(lv);
+      }
+      document.querySelectorAll(".listview").forEach(x => x.classList.toggle("on", x.dataset.view === "feed"));
+      // 重放进入动画：rise+fade（同主侧栏点订阅的流程感），不经 display:none，避免快速跳转时的闪烁
+      if (lv) { lv.classList.remove("feed-swap"); void lv.offsetWidth; lv.classList.add("feed-swap"); }
+    }
+    function showFeedLevel(name) {  // 看这一类全部文章（所有作者）：取消单个订阅源选中、返回行回到高亮
+      document.querySelectorAll("#kbPane .feed-src").forEach(x => x.classList.remove("active"));
+      const back = document.querySelector("#kbPane .kb-pane__back");
+      if (back) back.classList.add("active");
+      try { switchView("feed"); } catch (_) {}
+      showFeedList();
+      setListTitle(name);  // 必须在 switchView 之后：switchView 用 titles[v] 覆盖标题
+    }
+    window.renderFeedPane = renderFeedPane;
     function renderFeedPane(ftId, name, icon) {
       const pane = document.getElementById("kbPane");
+      // 已在抽屉内切换类型：.drilled 不变、抽屉不会再触发滑入过渡，手动重放横向切入动画（首次 drill 走 .drilled 过渡，这里跳过避免重复）
+      const _stage = document.querySelector(".side__stage");
+      if (_stage && _stage.classList.contains("drilled")) {
+        pane.classList.remove("pane-swap"); void pane.offsetWidth; pane.classList.add("pane-swap");
+      }
       pane.innerHTML = "";
       const back = document.createElement("button");
       back.className = "nav-i kb-pane__back";
       back.innerHTML = '<i class="chev" data-i="caret"></i><i class="ic" data-i="' + (icon || "rss") + '"></i> <span class="kb-pane__bname"></span>';
       back.querySelector(".kb-pane__bname").textContent = name;
-      back.addEventListener("click", exitKb);
+      back.classList.add("active");  // 进抽屉默认高亮：正在看这一类的全部文章（所有作者）
+      back.addEventListener("click", e => {
+        if (e.target.closest(".chev")) { exitKb(); return; }  // 只有返回三角才回到 App 导航
+        showFeedLevel(name);                                  // 点标题本身=看所有作者的文章（取消单个订阅源筛选）
+      });
       pane.appendChild(back);
       const data = FEED_TYPES[ftId] || {};
       if (data.placeholder) {
@@ -1942,6 +2232,7 @@
         row.addEventListener("click", e => {
           if (e.target.closest(".row-act") || e.target.closest("input.rename")) return;
           document.querySelectorAll("#kbPane .feed-src").forEach(x => x.classList.remove("active"));
+          { const _bk = document.querySelector("#kbPane .kb-pane__back"); if (_bk) _bk.classList.remove("active"); }  // 选中单个订阅源时返回行不再代表“全部”
           row.classList.add("active");
           const lbl = row.querySelector(".lbl");
           setListTitle((lbl && lbl.textContent) || "订阅");
@@ -1960,8 +2251,9 @@
       document.querySelector(".side__stage").classList.add("drilled");
       document.querySelectorAll(".side .nav-i,.side .nav-sub").forEach(x => x.classList.remove("active"));
       entry.classList.add("active");
+      { const _bk = document.querySelector("#kbPane .kb-pane__back"); if (_bk) _bk.classList.add("active"); }  // 上一行清掉了所有 .side .nav-i 高亮（含返回行），补回：抽屉默认看这一级全部
       try { switchView("feed"); } catch (_) {}
-      showFeedList();
+      showFeedList(entry.dataset.ft);
       setListTitle(name);
     }
     document.addEventListener("click", e => {
@@ -2126,11 +2418,19 @@
         { label: "重命名", icon: ICN.edit, act: row => startRename(row, {}) },
         { label: "删除", danger: true, icon: ICN.del, act: row => { if (row) row.remove(); showToast("已删除知识库"); } },
       ],
-      "kb-folder": [
-        { label: "新建子文件夹", icon: ICN.add, act: row => addSubfolder(row) },
-        { label: "重命名", icon: ICN.edit, act: row => startRename(row, {}) },
-        { label: "删除", danger: true, icon: ICN.del, act: row => { removeFolder(row); showToast("已删除文件夹"); } },
-      ],
+      // 知识库文件夹：分支最多 4 级。1/2/3 级能往下建子层 → 给全部；4 级是最底层，新建文件夹/导入文件夹都会超 4 级，去掉只留导入收藏箱
+      "kb-folder": row => {
+        const depth = row ? +(row.dataset.depth || 0) : 0;   // 0=一级 … 3=四级（最底层）
+        const leaf = depth >= 3;
+        const items = [];
+        if (!leaf) items.push({ label: "新建文件夹", icon: ICN.add, act: r => addSubfolder(r) });
+        items.push({ label: "导入收藏箱", icon: ICN.bookmark, act: () => toastAsync("从收藏箱导入…", "已导入收藏箱内容") });
+        if (!leaf) items.push({ label: "导入本地文件/文件夹", icon: ICN.move, act: () => toastAsync("导入本地文件…", "已导入本地文件") });
+        items.push({ sep: true });
+        items.push({ label: "重命名", icon: ICN.edit, act: r => startRename(r, {}) });
+        items.push({ label: "删除", danger: true, icon: ICN.del, act: r => { removeFolder(r); showToast("已删除文件夹"); } });
+        return items;
+      },
       "tag-grp": [
         { label: "新建", icon: ICN.add, act: () => createTag() },
       ],
@@ -2140,10 +2440,12 @@
       ],
     };
     function openMenu(btn) {
-      const items = MENU[btn.dataset.menu] || [];
       const row = btn.closest(".nav-sub, .nav-i, .kbf");
+      let items = MENU[btn.dataset.menu] || [];
+      if (typeof items === "function") items = items(row);   // 动态菜单：如 kb-folder 按文件夹层级给不同选项
       rowmenu.innerHTML = "";
       items.forEach(it => {
+        if (it.sep) { const s = document.createElement("div"); s.className = "rowmenu__sep"; rowmenu.appendChild(s); return; }
         const mb = document.createElement("button");
         if (it.danger) mb.classList.add("danger");
         mb.innerHTML = '<span class="ic">' + it.icon + '</span>' + it.label;
@@ -2155,6 +2457,8 @@
       // 卡片左上角对齐三点位置，向右下展开；贴边时回收避免溢出
       rowmenu.style.left = Math.min(r.left, innerWidth - rowmenu.offsetWidth - 8) + "px";
       rowmenu.style.top = (r.bottom + 4) + "px";
+      if (menuBtn && menuBtn !== btn) menuBtn.classList.remove("menu-active");  // 切到另一行的菜单时，旧 ⋯ 先恢复 hover-only
+      btn.classList.add("menu-active");
       menuBtn = btn;
     }
     document.getElementById("read-more").addEventListener("click", e => {
@@ -2262,55 +2566,71 @@
       });
     });
 
-    // 剪藏：添加按钮 → 展开/收起 URL 输入框
-    document.getElementById("clipAddBtn").addEventListener("click", (ev) => {
+    // 剪藏：添加按钮 → 展开/收起 URL 输入框（与搜索同款 inline 展开：class 驱动，状态全在 .list.clip-adding 上，JS 不碰 inline style）
+    (function () {
+      const list = document.querySelector(".list");
+      const addBtn = document.getElementById("clipAddBtn");
       const wrap = document.getElementById("clipUrlInput");
       const field = document.getElementById("clipUrlField");
-      const btn = ev.currentTarget;
-      const rect = btn.getBoundingClientRect();
-      // 定位到 icon 右下方（卡片左边缘对齐 icon 左边缘，向右延伸）
-      wrap.style.top = (rect.bottom + 6) + "px";
-      wrap.style.left = rect.left + "px";
-      wrap.style.right = "auto";
-      wrap.classList.toggle("open");
-      if (wrap.classList.contains("open")) field.focus();
-    });
-    document.getElementById("clipUrlField").addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === "Escape") {
+      const openClip = () => { list.classList.add("clip-adding"); setTimeout(() => field.focus(), 80); };
+      const closeClip = () => { list.classList.remove("clip-adding"); field.value = ""; field.blur(); };
+      addBtn.addEventListener("click", (e) => { e.stopPropagation(); openClip(); });
+      document.addEventListener("click", (e) => {
+        if (list.classList.contains("clip-adding") && !wrap.contains(e.target) && e.target !== addBtn && !addBtn.contains(e.target)) closeClip();
+      });
+      field.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") { e.preventDefault(); closeClip(); return; }
+        if (e.key !== "Enter") return;
         e.preventDefault();
-        const wrap = document.getElementById("clipUrlInput");
-        const field = document.getElementById("clipUrlField");
-        if (e.key === "Enter" && field.value.trim()) {
-          const val = field.value.trim();
-          let hostname = val;
-          try { hostname = new URL(val).hostname.replace("www.",""); } catch(ex) {}
-          // 立即收起输入框
-          field.value = "";
-          wrap.classList.remove("open");
-          // 顶部 toast 显示异步抓取状态
-          window.showToast("正在抓取 " + hostname + "…", "loading");
-          // 模拟抓取完成
-          setTimeout(() => {
-            window.showToast("已收藏 " + hostname, "success");
-            const view = document.querySelector('.listview[data-view="clips"]');
-            const card = document.createElement("article");
-            card.className = "ncard sel";
-            card.innerHTML = '<div class="ncard__t"><h3>'+hostname+'</h3></div><p class="ncard__sum">'+val+'</p><div class="ncard__src"><span class="favi">🔗</span> <span class="srctxt">'+hostname+' · 刚刚</span></div>';
-            view.querySelectorAll(".ncard").forEach(x => x.classList.remove("sel"));
-            view.insertBefore(card, view.firstElementChild);
-          }, 1500);
-          return;
-        }
-        field.value = "";
-        wrap.classList.remove("open");
-      }
-    });
+        const val = field.value.trim();
+        if (!val) { closeClip(); return; }
+        let hostname = val;
+        try { hostname = new URL(val).hostname.replace("www.", ""); } catch (ex) {}
+        closeClip();
+        // 顶部 toast 显示异步抓取状态
+        window.showToast("正在抓取 " + hostname + "…", "loading");
+        setTimeout(() => {
+          window.showToast("已收藏 " + hostname, "success");
+          const view = document.querySelector('.listview[data-view="clips"]');
+          const card = document.createElement("article");
+          card.className = "ncard sel";
+          card.innerHTML = '<div class="ncard__t"><h3>' + hostname + '</h3></div><p class="ncard__sum">' + val + '</p><div class="ncard__src"><span class="favi">🔗</span> <span class="srctxt">' + hostname + ' · 刚刚</span></div>';
+          view.querySelectorAll(".ncard").forEach((x) => x.classList.remove("sel"));
+          view.insertBefore(card, view.firstElementChild);
+        }, 1500);
+      });
+    })();
 
     // AI 列：FAB 打开（隐藏 tab），X 关闭（显示 tab）
     const aiFab = document.getElementById('ai-fab');
     const aiClose = document.getElementById('ai-close');
     aiFab.addEventListener('click', (e) => { e.stopPropagation(); app.classList.add('ai-open'); aiFab.classList.add('hidden'); });
     aiClose.addEventListener('click', (e) => { e.stopPropagation(); app.classList.remove('ai-open'); aiFab.classList.remove('hidden'); });
+
+    // AI 列：左缘拖拽调画幅比例（改 --ai-w）。AI 在右侧，指针左移→AI 变宽、正文变窄。
+    // clamp 防 AI 吃掉编辑区：上限 = 视口宽 - 留给正文的下限；双击复位到默认。
+    const aiResizer = document.getElementById('ai-resizer');
+    const aiPanel = document.querySelector('aside.ai');
+    const AI_W_DEFAULT = 320, AI_W_MIN = 280, READ_W_FLOOR = 460;
+    const clampAiW = w => Math.max(AI_W_MIN, Math.min(w, Math.min(640, window.innerWidth - READ_W_FLOOR)));
+    let dragX0 = 0, dragW0 = 0;
+    const onAiMove = e => app.style.setProperty('--ai-w', clampAiW(dragW0 + (dragX0 - e.clientX)) + 'px');
+    const onAiUp = () => {
+      app.classList.remove('ai-resizing');
+      document.body.style.cursor = '';
+      window.removeEventListener('pointermove', onAiMove);
+      window.removeEventListener('pointerup', onAiUp);
+    };
+    aiResizer.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      dragX0 = e.clientX;
+      dragW0 = aiPanel.offsetWidth;   // 读真实渲染宽，首次拖动时 --ai-w 还没内联设过也准
+      app.classList.add('ai-resizing');
+      document.body.style.cursor = 'col-resize';
+      window.addEventListener('pointermove', onAiMove);
+      window.addEventListener('pointerup', onAiUp);
+    });
+    aiResizer.addEventListener('dblclick', () => app.style.setProperty('--ai-w', AI_W_DEFAULT + 'px'));
 
     // 账户菜单
     const acctMenu = document.getElementById("acct-menu");
@@ -2381,11 +2701,38 @@
         menu=document.getElementById("listMenu");
     if(!titleBtn||!menu)return;
     function openLMenu(){
-      // 快速跳转：隐藏当前所在区域那一项（已经在这了，无需跳）
       var cur=window.currentNavView;
-      menu.querySelectorAll(".jump").forEach(function(b){
-        b.style.display = (b.dataset.jv===cur) ? "none" : "";
+      var isFeed = (cur === "feed");
+      // 订阅视图：隐藏排序，直接平铺子分类（不用二级展开）
+      menu.querySelectorAll('[data-sub="method"],[data-sub="order"]').forEach(function(el){
+        el.style.display = isFeed ? "none" : "";
       });
+      var jumpRow = menu.querySelector('[data-sub="jump"]');
+      if (isFeed) {
+        // 替换整个 jump 行为平铺列表（无二级展开）
+        jumpRow.style.display = "none";
+        var feedItems = menu.querySelector('.feed-jump-items');
+        if (!feedItems) {
+          feedItems = document.createElement('div');
+          feedItems.className = 'feed-jump-items';
+          menu.appendChild(feedItems);
+        }
+        feedItems.style.display = '';
+        feedItems.innerHTML = '<button class="lmenu__item jump" data-view="feed" data-jv="feed-article"><i class="li" data-i="doc"></i><span>文章</span></button>'
+          + '<button class="lmenu__item jump" data-view="feed" data-jv="feed-media"><i class="li" data-i="media"></i><span>媒体</span></button>'
+          + '<button class="lmenu__item jump" data-view="feed" data-jv="feed-video"><i class="li" data-i="video"></i><span>视频</span></button>'
+          + '<button class="lmenu__item jump" data-view="feed" data-jv="feed-podcast"><i class="li" data-i="mic"></i><span>播客</span></button>';
+      } else {
+        jumpRow.style.display = "";
+        var feedItems = menu.querySelector('.feed-jump-items');
+        if (feedItems) feedItems.style.display = 'none';
+      }
+      var feedSub = window.currentFeedSub || "feed-article";
+      menu.querySelectorAll(".jump").forEach(function(b){
+        var hide = (b.dataset.jv===cur) || (isFeed && b.dataset.jv===feedSub);
+        b.style.display = hide ? "none" : "";
+      });
+      if (window.paintIcons) window.paintIcons(menu);
       menu.classList.add("on"); titleBtn.classList.add("menu-open");
       var r=titleBtn.getBoundingClientRect();
       menu.style.left=r.left+"px";
@@ -2419,6 +2766,20 @@
         var nav=document.querySelector('.side [data-view="'+v+'"]:not(.grp)');
         if(nav) nav.classList.add("active");
       });
+    });
+    // 事件委托：处理动态创建的订阅子分类跳转
+    menu.addEventListener("click", function(e) {
+      var btn = e.target.closest(".feed-jump-items .jump");
+      if (!btn) return;
+      e.stopPropagation(); closeLMenu();
+      var jv = btn.dataset.jv;
+      var ftMap = {"feed-article":"article","feed-media":"media","feed-video":"video","feed-podcast":"podcast"};
+      var ft = ftMap[jv];
+      window.currentFeedSub = jv;  // 记录当前子分类供下次菜单隐藏用
+      // 直接复用「主侧栏点订阅」的完整流程（drill-in + 标题 + 内容渲染 + rise/fade）。
+      // 不再手动 remove/add .on —— 那会让列表先 display:none 再出现 = 闪烁，且和下面 click 触发的流程动画打架。
+      var sideBtn = document.querySelector('.feed-type[data-ft="'+ft+'"]');
+      if (sideBtn) sideBtn.click();
     });
     document.addEventListener("click",function(e){
       if(menu.classList.contains("on")&&!menu.contains(e.target)&&!titleBtn.contains(e.target)) closeLMenu();
