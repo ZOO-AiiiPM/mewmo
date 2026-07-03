@@ -30,3 +30,9 @@ No Prisma schema change is required before worker agents start. Existing models 
 ## Deferred
 
 PDF, ebook, video, podcast, full knowledge base, import/export, and proactive AI are visible only as disabled/deferred UI entries.
+
+## Baseline Gate
+
+- `pnpm test`: passed.
+- `pnpm lint`: passed.
+- `pnpm --filter @mewmo/web build`: passed with one-time local dummy env values for the required build-time environment variables. Without those overrides, local `.env.local` is missing `ANTHROPIC_API_KEY` and the build fails during page prerender env validation.
