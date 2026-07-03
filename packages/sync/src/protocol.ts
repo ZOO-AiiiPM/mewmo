@@ -6,8 +6,8 @@ export type SyncOperation = "create" | "update" | "delete" | "mark_read" | "mark
 export interface SyncMutation {
   entity: SyncEntity;
   op: SyncOperation;
-  id?: string;
-  data?: Record<string, unknown>;
+  id?: string | undefined;
+  data?: Record<string, unknown> | undefined;
 }
 
 export interface SyncPullResponse<TRecord = unknown> {

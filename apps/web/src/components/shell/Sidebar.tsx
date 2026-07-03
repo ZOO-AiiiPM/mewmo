@@ -14,10 +14,10 @@ interface SidebarUser {
 }
 
 interface SidebarProps {
-  user?: SidebarUser;
+  user?: SidebarUser | undefined;
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
-  onMouseLeave?: () => void;
+  onMouseLeave?: (() => void) | undefined;
 }
 
 type NavEntry =
@@ -244,7 +244,7 @@ function SidebarLink({
   label: string;
   icon: string;
   active?: boolean;
-  badge?: string;
+  badge?: string | undefined;
 }) {
   return (
     <Link href={href} className={`mewmo-nav-row mewmo-nav-row--sub ${active ? "mewmo-nav-row--active" : ""}`}>
@@ -264,11 +264,11 @@ function SidebarButton({
   children,
 }: {
   label: string;
-  icon?: string;
-  badge?: string;
+  icon?: string | undefined;
+  badge?: string | undefined;
   muted?: boolean;
-  onClick?: () => void;
-  children?: ReactNode;
+  onClick?: (() => void) | undefined;
+  children?: ReactNode | undefined;
 }) {
   return (
     <button type="button" className={`mewmo-nav-row mewmo-nav-row--sub ${muted ? "mewmo-nav-row--muted" : ""}`} onClick={onClick}>

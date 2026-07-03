@@ -70,7 +70,14 @@ async function applyNoteMutation(userId: string, mutation: SyncMutation) {
 
     return {
       record: await prisma.note.create({
-        data: { ...noteData, userId },
+        data: {
+          slug: noteData.slug,
+          title: noteData.title,
+          content: noteData.content,
+          pinned: noteData.pinned,
+          ...(noteData.summary !== undefined ? { summary: noteData.summary } : {}),
+          userId,
+        },
       }),
     };
   }
@@ -86,7 +93,13 @@ async function applyNoteMutation(userId: string, mutation: SyncMutation) {
 
     const updateResult = await prisma.note.updateMany({
       where: { id: mutation.id, userId, deletedAt: null },
-      data: { ...noteData, version: { increment: 1 } },
+      data: {
+        ...(noteData.title !== undefined ? { title: noteData.title } : {}),
+        ...(noteData.content !== undefined ? { content: noteData.content } : {}),
+        ...(noteData.summary !== undefined ? { summary: noteData.summary } : {}),
+        ...(noteData.pinned !== undefined ? { pinned: noteData.pinned } : {}),
+        version: { increment: 1 },
+      },
     });
     if (updateResult.count === 0) return { error: "not_found" };
 
@@ -126,7 +139,14 @@ async function applyClipMutation(userId: string, mutation: SyncMutation) {
 
     return {
       record: await prisma.clip.create({
-        data: { ...clipData, userId },
+        data: {
+          url: clipData.url,
+          title: clipData.title,
+          content: clipData.content,
+          ...(clipData.summary !== undefined ? { summary: clipData.summary } : {}),
+          ...(clipData.favicon !== undefined ? { favicon: clipData.favicon } : {}),
+          userId,
+        },
       }),
     };
   }
@@ -142,7 +162,14 @@ async function applyClipMutation(userId: string, mutation: SyncMutation) {
 
     const updateResult = await prisma.clip.updateMany({
       where: { id: mutation.id, userId, deletedAt: null },
-      data: { ...clipData, version: { increment: 1 } },
+      data: {
+        ...(clipData.url !== undefined ? { url: clipData.url } : {}),
+        ...(clipData.title !== undefined ? { title: clipData.title } : {}),
+        ...(clipData.content !== undefined ? { content: clipData.content } : {}),
+        ...(clipData.summary !== undefined ? { summary: clipData.summary } : {}),
+        ...(clipData.favicon !== undefined ? { favicon: clipData.favicon } : {}),
+        version: { increment: 1 },
+      },
     });
     if (updateResult.count === 0) return { error: "not_found" };
 
