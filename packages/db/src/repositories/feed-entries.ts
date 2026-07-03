@@ -26,6 +26,7 @@ interface FeedEntriesClient {
     create(args: unknown): Promise<unknown>;
     findMany(args: unknown): Promise<unknown>;
     findFirst(args: unknown): Promise<unknown>;
+    upsert(args: unknown): Promise<unknown>;
     updateMany(args: unknown): Promise<unknown>;
   };
 }
@@ -56,6 +57,34 @@ export function createFeedEntriesRepository(client: unknown = getPrisma()) {
         where: { id, ...activeByUser(userId) },
         data: { readAt, version: { increment: 1 } },
       });
+    },
+
+    markAsUnread(userId: string, id: string) {
+      return db.feedEntry.updateMany({
+        where: { id, ...activeByUser(userId) },
+        data: { readAt: null, version: { increment: 1 } },
+      });
+    },
+
+    async upsertByFeedUrl(userId: string, input: CreateFeedEntryInput) {
+      const existing = await db.feedEntry.findFirst({
+        where: { feedId: input.feedId, url: input.url, userId },
+      });
+      const entry = await db.feedEntry.upsert({
+        where: { feedId_url: { feedId: input.feedId, url: input.url } },
+        create: { ...input, userId },
+        update: {
+          title: input.title,
+          content: input.content,
+          summary: input.summary ?? null,
+          author: input.author ?? null,
+          publishedAt: input.publishedAt ?? null,
+          deletedAt: null,
+          version: { increment: 1 },
+        },
+      });
+
+      return { entry, created: !existing };
     },
 
     update(userId: string, id: string, input: UpdateFeedEntryInput) {

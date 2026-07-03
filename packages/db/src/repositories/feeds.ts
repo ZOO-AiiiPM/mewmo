@@ -43,6 +43,20 @@ export function createFeedsRepository(client: unknown = getPrisma()) {
       });
     },
 
+    findByUserIdWithUnreadCount(userId: string) {
+      return db.feed.findMany({
+        where: activeByUser(userId),
+        orderBy: { createdAt: "desc" },
+        include: {
+          _count: {
+            select: {
+              entries: { where: { deletedAt: null, readAt: null } },
+            },
+          },
+        },
+      });
+    },
+
     findById(userId: string, id: string) {
       return db.feed.findFirst({
         where: { id, ...activeByUser(userId) },
