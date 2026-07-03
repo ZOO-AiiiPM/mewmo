@@ -17,25 +17,25 @@ export function ReaderToolbar({ title, onToggleList, listCollapsed = false, acti
   return (
     <header className="mewmo-reader-toolbar">
       <div className="mewmo-reader-toolbar__nav" aria-label="Reader navigation">
-        <button type="button" className="mewmo-icon-button" aria-label="Previous item">‹</button>
-        <button type="button" className="mewmo-icon-button" aria-label="Next item">›</button>
+        <button type="button" className="mewmo-icon-button" aria-label="上一篇">‹</button>
+        <button type="button" className="mewmo-icon-button" aria-label="下一篇">›</button>
       </div>
       <div className="mewmo-reader-toolbar__title" title={title}>{title}</div>
       <div className="mewmo-reader-toolbar__tools">
         {onToggleList && (
-          <button type="button" className="mewmo-icon-button" onClick={onToggleList} aria-label={listCollapsed ? "Show list" : "Hide list"}>
+          <button type="button" className="mewmo-icon-button" onClick={onToggleList} aria-label={listCollapsed ? "显示列表" : "收起列表"}>
             {listCollapsed ? "⊞" : "⊟"}
           </button>
         )}
         {actions}
         <div className="mewmo-reader-toolbar__menu-wrap">
-          <button type="button" className="mewmo-icon-button" onClick={() => setMenuOpen((value) => !value)} aria-label="Reader menu">
+          <button type="button" className="mewmo-icon-button" onClick={() => setMenuOpen((value) => !value)} aria-label="更多">
             ···
           </button>
           <FloatingMenu open={menuOpen} className="mewmo-reader-menu">
-            <FloatingMenuButton>Copy link</FloatingMenuButton>
-            <FloatingMenuButton>Open source</FloatingMenuButton>
-            <FloatingMenuButton danger>Delete</FloatingMenuButton>
+            <FloatingMenuButton>复制链接</FloatingMenuButton>
+            <FloatingMenuButton>打开来源</FloatingMenuButton>
+            <FloatingMenuButton danger>删除</FloatingMenuButton>
           </FloatingMenu>
         </div>
       </div>

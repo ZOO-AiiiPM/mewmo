@@ -49,7 +49,7 @@ export function ListColumn({
     const url = clipUrl.trim();
     if (!url) return;
     onSubmitClipUrl?.(url);
-    showToast("Clip URL queued for the dogfood save path.", "success");
+    showToast("已加入剪藏。", "success");
     setClipUrl("");
     setClipInputOpen(false);
   };
@@ -62,14 +62,14 @@ export function ListColumn({
           <span aria-hidden="true">⌄</span>
         </button>
         <FloatingMenu open={titleMenuOpen} className="mewmo-list-title-menu">
-          <div className="mewmo-menu-label">Sort</div>
-          <FloatingMenuButton>Recently updated ✓</FloatingMenuButton>
-          <FloatingMenuButton>Newest first</FloatingMenuButton>
+          <div className="mewmo-menu-label">排序</div>
+          <FloatingMenuButton>最近更新 ✓</FloatingMenuButton>
+          <FloatingMenuButton>最新创建</FloatingMenuButton>
           <div className="mewmo-menu-separator" />
-          <div className="mewmo-menu-label">Jump</div>
-          <FloatingMenuButton>Notes</FloatingMenuButton>
-          <FloatingMenuButton>Clips</FloatingMenuButton>
-          <FloatingMenuButton>Articles</FloatingMenuButton>
+          <div className="mewmo-menu-label">快速切换</div>
+          <FloatingMenuButton>笔记</FloatingMenuButton>
+          <FloatingMenuButton>剪藏</FloatingMenuButton>
+          <FloatingMenuButton>文章</FloatingMenuButton>
         </FloatingMenu>
         <div className="mewmo-list-column__spacer" />
         {action}
@@ -98,7 +98,7 @@ export function ListColumn({
             autoFocus={clipInputOpen}
             type="url"
             value={clipUrl}
-            placeholder="Paste a link and press Enter..."
+            placeholder="粘贴链接，按 Enter 保存..."
             onChange={(event) => setClipUrl(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Escape") setClipInputOpen(false);

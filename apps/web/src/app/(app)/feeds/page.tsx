@@ -71,7 +71,7 @@ export default function FeedsPage() {
   return (
     <div className="mewmo-workspace">
       <ListColumn
-        title="Articles"
+        title="文章"
         action={
           <button
             type="button"
@@ -96,7 +96,7 @@ export default function FeedsPage() {
               <input
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
-                placeholder="Feed title"
+                placeholder="订阅源标题"
                 required
               />
               <button type="submit" className="mewmo-icon-button mewmo-icon-button--primary" disabled={saving}>
@@ -106,8 +106,8 @@ export default function FeedsPage() {
           )}
 
           {error && <p className="mewmo-list-card text-coral">{error}</p>}
-          {loading && <p className="mewmo-list-card">Loading feeds...</p>}
-          {!loading && feeds.length === 0 && <p className="mewmo-list-card">No feeds yet.</p>}
+          {loading && <p className="mewmo-list-card">正在加载订阅...</p>}
+          {!loading && feeds.length === 0 && <p className="mewmo-list-card">还没有订阅源。</p>}
 
           {feeds.map((feed, index) => (
             <Link key={feed.id} href={`/feeds/${feed.id}`} className={`mewmo-list-card ${index === 0 ? "mewmo-list-card--selected" : ""}`}>
@@ -118,8 +118,8 @@ export default function FeedsPage() {
               </div>
               <p>{feed.description || feed.url}</p>
               <div className="mewmo-list-card__meta">
-                <span className="mewmo-tag-pill">article</span>
-                <span>{feed.lastFetchedAt ? new Date(feed.lastFetchedAt).toLocaleDateString() : "not fetched"}</span>
+                <span className="mewmo-tag-pill">文章</span>
+                <span>{feed.lastFetchedAt ? new Date(feed.lastFetchedAt).toLocaleDateString() : "未抓取"}</span>
               </div>
             </Link>
           ))}
@@ -127,11 +127,11 @@ export default function FeedsPage() {
       </ListColumn>
 
       <section className="mewmo-reader-surface">
-        <ReaderToolbar title={selected?.title ?? "Feeds"} />
+        <ReaderToolbar title={selected?.title ?? "订阅"} />
         <div className="mewmo-reader-scroll">
           <article className="mewmo-document mewmo-document--empty">
-            <h1>{selected?.title ?? "Select a feed"}</h1>
-            <p>{selected?.description ?? "Fetched articles will open in the reader."}</p>
+            <h1>{selected?.title ?? "选择一个订阅源"}</h1>
+            <p>{selected?.description ?? "抓取后的文章会在阅读区打开。"}</p>
           </article>
         </div>
       </section>

@@ -1,63 +1,108 @@
 @import "tailwindcss";
 
 @theme {
-  --color-paper: #f8f6f1;
-  --color-paper-2: #efebe2;
-  --color-ink: #1f2523;
-  --color-muted: #69716c;
-  --color-mist: #ddd7cb;
-  --color-moss: #2f6f5f;
-  --color-moss-2: #dce9e3;
-  --color-coral: #c65f4a;
-  --color-night: #121513;
-  --color-night-2: #1d221f;
-  --color-night-3: #28302b;
-  --color-line: rgba(31, 37, 35, 0.12);
+  --color-paper: #161719;
+  --color-paper-2: #2e2f34;
+  --color-ink: #ededf1;
+  --color-muted: #9a9aa1;
+  --color-mist: #232327;
+  --color-moss: #ededf1;
+  --color-moss-2: rgba(255, 255, 255, 0.1);
+  --color-coral: #e88478;
+  --color-night: #0c0c0e;
+  --color-night-2: #161719;
+  --color-night-3: #1c1d20;
+  --color-line: #494a52;
 
-  --shadow-panel: 0 1px 0 rgba(31, 37, 35, 0.04);
-  --shadow-float: 0 18px 50px rgba(31, 37, 35, 0.12);
+  --shadow-panel: 0 1px 3px rgba(0, 0, 0, 0.16);
+  --shadow-float: 0 2px 16px rgba(0, 0, 0, 0.28);
 
   --radius-sm: 4px;
   --radius-md: 8px;
   --radius-lg: 12px;
   --radius-full: 999px;
 
-  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", "Microsoft YaHei", sans-serif;
+}
+
+:root {
+  color-scheme: dark;
+  --scroll: #3a3b41;
+  --canvas: #232327;
+  --s1: #161719;
+  --s2: #1c1d20;
+  --s3: #0c0c0e;
+  --raised: #2e2f34;
+  --hover: #27282d;
+  --ink: #ededf1;
+  --ink-soft: #9a9aa1;
+  --ink-faint: #67676d;
+  --line: #494a52;
+  --line-soft: #3d3e45;
+  --accent: #ededf1;
+  --accent-2: rgba(255, 255, 255, 0.1);
+  --hl: rgba(255, 255, 255, 0.16);
+  --accent-ink: #161719;
+  --shadow: 0 2px 16px rgba(0, 0, 0, 0.28);
+  --ai-w: 320px;
+  --ui: -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", "Microsoft YaHei", sans-serif;
+  --serif: "New York", ui-serif, "Songti SC", Georgia, serif;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  --r: 12px;
+
+  --color-paper: var(--s1);
+  --color-paper-2: var(--raised);
+  --color-ink: var(--ink);
+  --color-muted: var(--ink-soft);
+  --color-mist: var(--canvas);
+  --color-moss: var(--accent);
+  --color-moss-2: var(--accent-2);
+  --color-line: var(--line);
+}
+
+html.light {
+  color-scheme: light;
+  --scroll: #cfc7b8;
+  --canvas: #f8f4ed;
+  --s1: #f8f4ed;
+  --s2: #f8f4ed;
+  --s3: #fffffe;
+  --raised: #ffffff;
+  --hover: #ececef;
+  --ink: #1d1d1f;
+  --ink-soft: #5e5e64;
+  --ink-faint: #9a9aa0;
+  --line: #eae3d8;
+  --line-soft: #f4efe6;
+  --accent: #1d1d1f;
+  --accent-2: rgba(0, 0, 0, 0.06);
+  --hl: rgba(0, 0, 0, 0.09);
+  --accent-ink: #ffffff;
+  --shadow: 0 2px 14px rgba(0, 0, 0, 0.08);
 }
 
 * {
   box-sizing: border-box;
 }
 
-html {
-  color-scheme: light;
-}
-
-html.dark {
-  color-scheme: dark;
-}
-
 body {
   margin: 0;
+  height: 100vh;
   min-height: 100vh;
-  background: var(--color-paper);
-  color: var(--color-ink);
-  font-family: var(--font-sans);
+  overflow: hidden;
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--ui);
+  font-size: 14px;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-.dark body,
-html.dark body {
-  --color-paper: #121513;
-  --color-paper-2: #1d221f;
-  --color-ink: #edf0ea;
-  --color-muted: #a4ada6;
-  --color-mist: #354139;
-  --color-moss-2: #20362f;
-  --color-line: rgba(237, 240, 234, 0.14);
-  background: var(--color-paper);
-  color: var(--color-ink);
+html.dark body,
+html.light body {
+  background: var(--canvas);
+  color: var(--ink);
 }
 
 button,
@@ -70,12 +115,33 @@ button {
 }
 
 ::selection {
-  background: color-mix(in srgb, var(--color-moss) 22%, transparent);
+  background: var(--hl);
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-moss);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scroll);
+  border: 3px solid transparent;
+  border-radius: 8px;
+  background-clip: padding-box;
 }
 
 .mewmo-shell {
@@ -83,8 +149,10 @@ button {
   --ai-w: 320px;
   display: grid;
   grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
-  min-height: 100vh;
-  background: color-mix(in srgb, var(--color-paper) 86%, var(--color-mist));
+  grid-template-rows: 100vh;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--canvas);
   transition: grid-template-columns 0.32s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -98,7 +166,7 @@ button {
 
 .mewmo-shell__main {
   min-width: 0;
-  min-height: 100vh;
+  min-height: 0;
 }
 
 .mewmo-sidebar {
@@ -113,15 +181,15 @@ button {
   padding: 12px 7px 6px;
   border: 1px solid color-mix(in srgb, var(--color-line) 75%, transparent);
   border-radius: 16px;
-  background: color-mix(in srgb, var(--color-paper) 78%, transparent);
-  box-shadow: var(--shadow-float);
-  backdrop-filter: blur(20px) saturate(1.2);
+  background: rgba(22, 23, 25, 0.6);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(20px) saturate(1.4);
   transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
-.dark .mewmo-sidebar,
-html.dark .mewmo-sidebar {
-  background: color-mix(in srgb, var(--color-paper-2) 84%, transparent);
+html.light .mewmo-sidebar {
+  border-color: rgba(255, 255, 255, 0.6);
+  background: rgba(244, 244, 246, 0.7);
 }
 
 .mewmo-shell--sidebar-collapsed .mewmo-sidebar {
@@ -154,7 +222,7 @@ html.dark .mewmo-sidebar {
   align-items: center;
   gap: 7px;
   min-width: 0;
-  color: var(--color-ink);
+  color: var(--ink);
   font-size: 14.5px;
   font-weight: 700;
   text-decoration: none;
@@ -166,10 +234,10 @@ html.dark .mewmo-sidebar {
   height: 23px;
   flex: none;
   place-items: center;
-  border: 1px solid var(--color-line);
+  border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--color-paper-2);
-  color: var(--color-moss);
+  background: var(--raised);
+  color: var(--accent);
   font-size: 12px;
   font-weight: 800;
 }
@@ -219,7 +287,7 @@ html.dark .mewmo-sidebar {
   border: 0;
   border-radius: 9px;
   background: transparent;
-  color: var(--color-ink);
+  color: var(--ink);
   text-align: left;
   text-decoration: none;
   cursor: pointer;
@@ -227,7 +295,7 @@ html.dark .mewmo-sidebar {
 }
 
 .mewmo-nav-row:hover {
-  background: var(--color-paper-2);
+  background: var(--hover);
 }
 
 .mewmo-nav-row--group {
@@ -242,9 +310,9 @@ html.dark .mewmo-sidebar {
 }
 
 .mewmo-nav-row--active {
-  background: var(--color-paper-2);
-  color: var(--color-moss);
-  font-weight: 700;
+  background: var(--raised);
+  color: var(--ink);
+  font-weight: 600;
 }
 
 .mewmo-nav-row--active::before {
@@ -254,12 +322,12 @@ html.dark .mewmo-sidebar {
   bottom: 9px;
   width: 3px;
   border-radius: 3px;
-  background: var(--color-moss);
+  background: var(--accent);
   content: "";
 }
 
 .mewmo-nav-row--muted {
-  color: var(--color-muted);
+  color: var(--ink-faint);
 }
 
 .mewmo-nav-row__chevron {
@@ -267,7 +335,7 @@ html.dark .mewmo-sidebar {
   width: 14px;
   height: 14px;
   place-items: center;
-  color: var(--color-muted);
+  color: var(--ink-faint);
   transition: transform 0.18s ease;
 }
 
@@ -277,7 +345,7 @@ html.dark .mewmo-sidebar {
   height: 16px;
   flex: none;
   place-items: center;
-  color: var(--color-muted);
+  color: var(--ink-soft);
   font-size: 10px;
   font-weight: 800;
 }
@@ -293,8 +361,8 @@ html.dark .mewmo-sidebar {
 .mewmo-nav-row__badge {
   flex: none;
   border-radius: 999px;
-  background: var(--color-paper-2);
-  color: var(--color-muted);
+  background: var(--hover);
+  color: var(--ink-faint);
   padding: 2px 6px;
   font-size: 9.5px;
   font-weight: 700;
@@ -312,7 +380,7 @@ html.dark .mewmo-sidebar {
   border: 0;
   border-radius: 7px;
   background: transparent;
-  color: var(--color-muted);
+  color: var(--ink-faint);
   opacity: 0;
   pointer-events: none;
   transform: translateY(-50%);
@@ -327,8 +395,8 @@ html.dark .mewmo-sidebar {
 
 .mewmo-row-action:hover,
 .mewmo-row-action--open {
-  background: var(--color-paper-2);
-  color: var(--color-ink);
+  background: var(--raised);
+  color: var(--ink);
 }
 
 .mewmo-row-menu {
@@ -366,7 +434,7 @@ html.dark .mewmo-sidebar {
 }
 
 .mewmo-account:hover {
-  background: var(--color-paper-2);
+  background: var(--hover);
 }
 
 .mewmo-account img,
@@ -377,8 +445,8 @@ html.dark .mewmo-sidebar {
   flex: none;
   place-items: center;
   border-radius: 999px;
-  background: var(--color-moss);
-  color: white;
+  background: linear-gradient(135deg, var(--accent) 0%, #4a4a4f 100%);
+  color: var(--accent-ink);
   font-size: 11px;
   font-weight: 800;
 }
@@ -398,12 +466,12 @@ html.dark .mewmo-sidebar {
 }
 
 .mewmo-account__copy strong {
-  color: var(--color-ink);
+  color: var(--ink);
   font-size: 13px;
 }
 
 .mewmo-account__copy small {
-  color: var(--color-muted);
+  color: var(--ink-faint);
   font-size: 11px;
 }
 
@@ -424,24 +492,25 @@ html.dark .mewmo-sidebar {
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: var(--color-muted);
+  color: var(--ink-soft);
   cursor: pointer;
   transition: background 0.14s, color 0.14s, transform 0.14s;
 }
 
 .mewmo-icon-button:hover:not(:disabled) {
-  background: var(--color-paper-2);
-  color: var(--color-ink);
+  background: var(--hover);
+  color: var(--ink);
 }
 
 .mewmo-icon-button--primary {
-  background: var(--color-moss);
-  color: white;
+  background: var(--accent);
+  color: var(--accent-ink);
 }
 
 .mewmo-icon-button--primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--color-moss) 88%, black);
-  color: white;
+  background: var(--accent);
+  color: var(--accent-ink);
+  opacity: 0.88;
 }
 
 .mewmo-button {
@@ -470,6 +539,7 @@ html.dark .mewmo-sidebar {
   grid-template-columns: 312px minmax(0, 1fr);
   height: 100vh;
   min-width: 0;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -478,8 +548,9 @@ html.dark .mewmo-sidebar {
   min-width: 0;
   min-height: 0;
   flex-direction: column;
-  background: color-mix(in srgb, var(--color-paper) 78%, var(--color-paper-2));
-  border-right: 1px solid var(--color-line);
+  width: 312px;
+  background: var(--canvas);
+  border-right: 0;
 }
 
 .mewmo-list-column__bar {
@@ -503,7 +574,7 @@ html.dark .mewmo-sidebar {
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: var(--color-ink);
+  color: var(--ink);
   padding: 3px 7px;
   font-size: 15px;
   font-weight: 750;
@@ -511,7 +582,7 @@ html.dark .mewmo-sidebar {
 }
 
 .mewmo-list-title:hover {
-  background: var(--color-paper-2);
+  background: var(--hover);
 }
 
 .mewmo-list-title-menu {
@@ -547,10 +618,10 @@ html.dark .mewmo-sidebar {
   min-width: 0;
   flex: 1;
   height: 36px;
-  border: 1px solid var(--color-line);
+  border: 1px solid var(--line);
   border-radius: 10px;
-  background: var(--color-paper-2);
-  color: var(--color-ink);
+  background: var(--raised);
+  color: var(--ink);
   outline: none;
   padding: 0 12px;
   font-size: 13px;
@@ -563,8 +634,8 @@ html.dark .mewmo-sidebar {
   place-items: center;
   border: 0;
   border-radius: 8px;
-  background: var(--color-moss);
-  color: white;
+  background: var(--accent);
+  color: var(--accent-ink);
 }
 
 .mewmo-list-column--searching .mewmo-list-column__search-button,
@@ -596,7 +667,7 @@ html.dark .mewmo-sidebar {
   display: block;
   width: 100%;
   border: 0;
-  border-top: 1px solid color-mix(in srgb, var(--color-line) 65%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--line) 65%, transparent);
   border-radius: 0;
   background: transparent;
   color: inherit;
@@ -608,14 +679,14 @@ html.dark .mewmo-sidebar {
 
 .mewmo-list-card:hover {
   border-radius: 12px;
-  background: color-mix(in srgb, var(--color-paper-2) 70%, transparent);
+  background: var(--hover);
 }
 
 .mewmo-list-card--selected {
   border-top-color: transparent;
   border-radius: 12px;
-  background: var(--color-paper-2);
-  box-shadow: var(--shadow-panel);
+  background: var(--raised);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.16);
 }
 
 .mewmo-list-card--selected::before {
@@ -625,7 +696,7 @@ html.dark .mewmo-sidebar {
   bottom: 12px;
   width: 3px;
   border-radius: 3px;
-  background: var(--color-moss);
+  background: var(--accent);
   content: "";
 }
 
@@ -647,10 +718,10 @@ form.mewmo-list-card {
 form.mewmo-list-card input {
   width: 100%;
   min-width: 0;
-  border: 1px solid var(--color-line);
+  border: 1px solid var(--line);
   border-radius: 9px;
-  background: var(--color-paper);
-  color: var(--color-ink);
+  background: var(--s2);
+  color: var(--ink);
   padding: 8px 10px;
   outline: none;
   font-size: 12.5px;
@@ -660,15 +731,15 @@ form.mewmo-list-card input {
   flex: none;
   border: 0;
   border-radius: 7px;
-  background: var(--color-paper-2);
-  color: var(--color-muted);
+  background: var(--raised);
+  color: var(--ink-faint);
   padding: 4px 8px;
   font-size: 11px;
   cursor: pointer;
 }
 
 .mewmo-list-card__source button:hover {
-  color: var(--color-ink);
+  color: var(--ink);
 }
 
 .mewmo-list-card__title {
@@ -682,7 +753,7 @@ form.mewmo-list-card input {
   min-width: 0;
   flex: 1;
   overflow: hidden;
-  color: var(--color-ink);
+  color: var(--ink);
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 14px;
@@ -690,7 +761,7 @@ form.mewmo-list-card input {
 }
 
 .mewmo-list-card__title b {
-  color: var(--color-moss);
+  color: var(--accent);
   font-size: 11px;
 }
 
@@ -700,7 +771,7 @@ form.mewmo-list-card input {
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
-  color: var(--color-muted);
+  color: var(--ink-soft);
   font-size: 12.7px;
   line-height: 1.5;
 }
@@ -712,7 +783,7 @@ form.mewmo-list-card input {
   gap: 7px;
   min-width: 0;
   margin-top: 9px;
-  color: var(--color-muted);
+  color: var(--ink-faint);
   font-size: 11px;
 }
 
@@ -742,10 +813,10 @@ form.mewmo-list-card input {
   height: 18px;
   flex: none;
   place-items: center;
-  border: 1px solid var(--color-line);
+  border: 1px solid var(--line);
   border-radius: 6px;
-  background: var(--color-paper-2);
-  color: var(--color-muted);
+  background: var(--raised);
+  color: var(--ink-soft);
   font-size: 9px;
   font-weight: 800;
   text-transform: uppercase;
@@ -753,8 +824,8 @@ form.mewmo-list-card input {
 
 .mewmo-tag-pill {
   border-radius: 5px;
-  background: color-mix(in srgb, var(--color-moss) 14%, transparent);
-  color: var(--color-moss);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
   padding: 1px 7px;
   font-size: 10.5px;
   font-weight: 650;
@@ -770,14 +841,14 @@ form.mewmo-list-card input {
 }
 
 .mewmo-empty-state {
-  color: var(--color-muted);
+  color: var(--ink-faint);
   padding: 28px 18px;
   text-align: center;
   font-size: 13px;
 }
 
 .mewmo-list-empty {
-  color: var(--color-muted);
+  color: var(--ink-faint);
   padding: 28px 18px;
   text-align: center;
   font-size: 13px;
@@ -796,26 +867,28 @@ form.mewmo-list-card input {
   overflow: hidden;
   margin-top: 9px;
   border-radius: 22px 22px 0 0;
-  background: color-mix(in srgb, var(--color-paper) 78%, white);
+  background: var(--s3);
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.06), 0 4px 16px rgba(0, 0, 0, 0.04);
 }
 
-.dark .mewmo-reader-surface,
-html.dark .mewmo-reader-surface {
-  background: #0f1110;
-}
-
 .mewmo-reader-toolbar {
-  position: sticky;
+  position: absolute;
   top: 0;
+  left: 0;
+  right: 0;
   z-index: 20;
   display: flex;
   align-items: center;
   gap: 12px;
   min-height: 46px;
   padding: 6px 16px;
-  background: color-mix(in srgb, var(--color-paper) 60%, transparent);
-  backdrop-filter: blur(20px) saturate(1.3);
+  border-radius: 22px 22px 0 0;
+  background: rgba(35, 35, 39, 0.1);
+  backdrop-filter: blur(20px) saturate(1.4);
+}
+
+html.light .mewmo-reader-toolbar {
+  background: rgba(255, 255, 255, 0.16);
 }
 
 .mewmo-reader-toolbar__nav,
@@ -834,7 +907,7 @@ html.dark .mewmo-reader-surface {
   min-width: 0;
   flex: 2;
   overflow: hidden;
-  color: var(--color-ink);
+  color: var(--ink);
   text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -858,7 +931,7 @@ html.dark .mewmo-reader-surface {
   min-height: 0;
   flex: 1;
   overflow-y: auto;
-  padding: 30px 64px 64px;
+  padding: 74px 64px 64px;
 }
 
 .mewmo-document {
@@ -868,7 +941,7 @@ html.dark .mewmo-reader-surface {
 
 .mewmo-document h1 {
   margin: 0 0 10px;
-  color: var(--color-ink);
+  color: var(--ink);
   font-size: 27px;
   font-weight: 760;
   line-height: 1.25;
@@ -876,13 +949,13 @@ html.dark .mewmo-reader-surface {
 
 .mewmo-document p {
   margin: 0 0 15px;
-  color: var(--color-ink);
+  color: var(--ink-soft);
   font-size: 15.5px;
   line-height: 1.78;
 }
 
 .mewmo-document--empty {
-  color: var(--color-muted);
+  color: var(--ink-faint);
 }
 
 .mewmo-document--empty p {
@@ -894,7 +967,7 @@ html.dark .mewmo-reader-surface {
   align-items: center;
   gap: 10px;
   margin-bottom: 18px;
-  color: var(--color-muted);
+  color: var(--ink-soft);
   font-size: 12px;
 }
 
@@ -905,12 +978,13 @@ html.dark .mewmo-reader-surface {
   bottom: 0;
   z-index: 40;
   display: flex;
-  width: calc(var(--ai-w) - 8px);
+  width: var(--ai-w);
   min-height: 0;
   flex-direction: column;
   overflow: hidden;
   border-radius: 22px 0 0 0;
-  background: var(--color-paper-2);
+  border-left: 1px solid var(--line);
+  background: var(--s1);
   opacity: 0;
   pointer-events: none;
   transform: translateX(calc(100% + 12px));
@@ -940,20 +1014,20 @@ html.dark .mewmo-reader-surface {
   height: 26px;
   place-items: center;
   border-radius: 8px;
-  background: var(--color-moss);
-  color: white;
+  background: var(--accent);
+  color: var(--accent-ink);
   font-size: 10px;
   font-weight: 800;
 }
 
 .mewmo-ai-rail__name {
-  color: var(--color-ink);
+  color: var(--ink);
   font-size: 13.5px;
   font-weight: 700;
 }
 
 .mewmo-ai-rail__state {
-  color: var(--color-muted);
+  color: var(--ink-faint);
   font-size: 11px;
 }
 
@@ -972,14 +1046,14 @@ html.dark .mewmo-reader-surface {
   flex-direction: column;
   gap: 2px;
   border-radius: 8px;
-  background: color-mix(in srgb, var(--color-moss) 10%, transparent);
-  color: var(--color-muted);
+  background: var(--accent-2);
+  color: var(--ink-faint);
   padding: 7px 10px;
   font-size: 11px;
 }
 
 .mewmo-ai-rail__context strong {
-  color: var(--color-ink);
+  color: var(--ink);
   font-size: 12px;
 }
 
@@ -994,15 +1068,15 @@ html.dark .mewmo-reader-surface {
 .mewmo-ai-message--assistant {
   align-self: flex-start;
   border-top-left-radius: 4px;
-  background: var(--color-paper);
-  color: var(--color-muted);
+  background: var(--s2);
+  color: var(--ink-soft);
 }
 
 .mewmo-ai-message--user {
   align-self: flex-end;
   border-top-right-radius: 4px;
-  background: var(--color-moss);
-  color: white;
+  background: var(--accent);
+  color: var(--accent-ink);
 }
 
 .mewmo-ai-rail__actions {
@@ -1015,8 +1089,8 @@ html.dark .mewmo-reader-surface {
 .mewmo-ai-rail__ask button {
   border: 0;
   border-radius: 7px;
-  background: color-mix(in srgb, var(--color-moss) 14%, transparent);
-  color: var(--color-muted);
+  background: var(--accent-2);
+  color: var(--ink-faint);
   padding: 5px 10px;
   font-size: 11.5px;
 }
@@ -1032,10 +1106,10 @@ html.dark .mewmo-reader-surface {
 .mewmo-ai-rail__ask input {
   min-width: 0;
   flex: 1;
-  border: 1px solid var(--color-line);
+  border: 1px solid var(--line);
   border-radius: 12px;
-  background: var(--color-paper);
-  color: var(--color-muted);
+  background: var(--s2);
+  color: var(--ink-faint);
   padding: 9px 12px;
   outline: none;
 }
@@ -1049,12 +1123,12 @@ html.dark .mewmo-reader-surface {
   width: 58px;
   height: 52px;
   place-items: center;
-  border: 1px solid var(--color-line);
+  border: 1px solid var(--line);
   border-right: 0;
   border-radius: 16px 0 0 16px;
-  background: var(--color-paper-2);
+  background: var(--s1);
   box-shadow: -2px 0 14px rgba(0, 0, 0, 0.12);
-  color: var(--color-ink);
+  color: var(--ink);
   font-size: 12px;
   font-weight: 800;
   cursor: pointer;
@@ -1063,16 +1137,16 @@ html.dark .mewmo-reader-surface {
 
 .mewmo-ai-fab:hover {
   width: 70px;
-  background: var(--color-paper);
+  background: var(--raised);
 }
 
 .mewmo-floating-menu {
-  border: 1px solid var(--color-line);
+  border: 1px solid var(--line);
   border-radius: 12px;
-  background: var(--color-paper);
-  box-shadow: var(--shadow-float);
+  background: var(--s1);
+  box-shadow: var(--shadow);
   padding: 5px;
-  color: var(--color-ink);
+  color: var(--ink);
   animation: mewmo-menu-in 0.14s cubic-bezier(0.34, 1.16, 0.64, 1);
 }
 
@@ -1096,7 +1170,7 @@ html.dark .mewmo-reader-surface {
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: var(--color-ink);
+  color: var(--ink);
   padding: 7px 10px;
   text-align: left;
   font-size: 12.5px;
@@ -1104,7 +1178,7 @@ html.dark .mewmo-reader-surface {
 }
 
 .mewmo-floating-menu__item:hover {
-  background: var(--color-paper-2);
+  background: var(--hover);
 }
 
 .mewmo-floating-menu__item--danger {
@@ -1113,14 +1187,14 @@ html.dark .mewmo-reader-surface {
 
 .mewmo-menu-label,
 .mewmo-sync-state {
-  color: var(--color-muted);
+  color: var(--ink-faint);
   padding: 7px 10px 4px;
   font-size: 11px;
 }
 
 .mewmo-menu-separator {
   height: 1px;
-  background: var(--color-line);
+  background: var(--line-soft);
   margin: 4px 6px;
 }
 
@@ -1138,11 +1212,11 @@ html.dark .mewmo-reader-surface {
   align-items: center;
   gap: 8px;
   max-width: 80vw;
-  border: 1px solid var(--color-line);
+  border: 1px solid var(--line);
   border-radius: 11px;
-  background: var(--color-paper-2);
-  box-shadow: var(--shadow-float);
-  color: var(--color-ink);
+  background: var(--raised);
+  box-shadow: var(--shadow);
+  color: var(--ink);
   opacity: 0;
   padding: 9px 15px 9px 12px;
   transform: translateY(-10px);
@@ -1179,8 +1253,8 @@ html.dark .mewmo-reader-surface {
   width: 14px;
   height: 14px;
   flex: none;
-  border: 2px solid var(--color-line);
-  border-top-color: var(--color-muted);
+  border: 2px solid var(--line);
+  border-top-color: var(--ink-faint);
   border-radius: 999px;
   animation: mewmo-toast-spin 0.6s linear infinite;
 }

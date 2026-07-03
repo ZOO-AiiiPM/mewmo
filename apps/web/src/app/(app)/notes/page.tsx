@@ -46,19 +46,19 @@ export default function NotesPage() {
   return (
     <div className="mewmo-workspace">
       <ListColumn
-        title="Notes"
+        title="笔记"
         action={
           <button type="button" className="mewmo-icon-button mewmo-icon-button--primary" onClick={handleNewNote} aria-label="New note">
             +
           </button>
         }
       >
-        {loading && <div className="mewmo-empty-state">Loading notes...</div>}
+        {loading && <div className="mewmo-empty-state">正在加载笔记...</div>}
 
         {!loading && notes.length === 0 && (
           <div className="mewmo-empty-state">
-            <p>No notes yet</p>
-            <button type="button" className="mewmo-button" onClick={handleNewNote}>New note</button>
+            <p>还没有笔记</p>
+            <button type="button" className="mewmo-button" onClick={handleNewNote}>新建笔记</button>
           </div>
         )}
 
@@ -73,7 +73,7 @@ export default function NotesPage() {
                 {note.summary && <p>{note.summary}</p>}
                 <div className="mewmo-list-card__meta">
                   <span>{new Date(note.updatedAt).toLocaleDateString()}</span>
-                  <span className="mewmo-tag-pill">note</span>
+                  <span className="mewmo-tag-pill">笔记</span>
                 </div>
               </Link>
             ))}
@@ -82,11 +82,11 @@ export default function NotesPage() {
       </ListColumn>
 
       <section className="mewmo-reader-surface">
-        <ReaderToolbar title={selected?.title ?? "Notes"} />
+        <ReaderToolbar title={selected?.title ?? "笔记"} />
         <div className="mewmo-reader-scroll">
           <article className="mewmo-document mewmo-document--empty">
-            <h1>{selected?.title ?? "Select a note"}</h1>
-            <p>{selected?.summary ?? "Create or choose a note from the list."}</p>
+            <h1>{selected?.title ?? "选择一条笔记"}</h1>
+            <p>{selected?.summary ?? "从左侧列表选择，或新建一条笔记。"}</p>
           </article>
         </div>
       </section>

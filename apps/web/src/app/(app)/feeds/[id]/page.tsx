@@ -77,10 +77,10 @@ export default function FeedDetailPage({ params }: { params: Promise<{ id: strin
 
   return (
     <div className="mewmo-workspace">
-      <ListColumn title={feed?.title ?? "Articles"} bodyRef={parentRef}>
-        {loading && <p className="mewmo-list-card">Loading entries...</p>}
+      <ListColumn title={feed?.title ?? "文章"} bodyRef={parentRef}>
+        {loading && <p className="mewmo-list-card">正在加载文章...</p>}
         {error && <p className="mewmo-list-card text-coral">{error}</p>}
-        {!loading && !error && entries.length === 0 && <p className="mewmo-list-card">No entries fetched yet.</p>}
+        {!loading && !error && entries.length === 0 && <p className="mewmo-list-card">还没有抓取到文章。</p>}
 
         <div className="relative w-full" style={{ height: `${virtualizer.getTotalSize()}px` }}>
           {virtualizer.getVirtualItems().map((virtualRow) => {
@@ -98,9 +98,9 @@ export default function FeedDetailPage({ params }: { params: Promise<{ id: strin
                 </Link>
                 <div className="mewmo-list-card__source">
                   {entry.author && <span>{entry.author}</span>}
-                  <time>{entry.publishedAt ? new Date(entry.publishedAt).toLocaleDateString() : "Undated"}</time>
+                  <time>{entry.publishedAt ? new Date(entry.publishedAt).toLocaleDateString() : "无日期"}</time>
                   <button type="button" onClick={() => void setReadState(entry.id, !isRead)}>
-                    {isRead ? "Unread" : "Read"}
+                    {isRead ? "标为未读" : "标为已读"}
                   </button>
                 </div>
               </div>
@@ -110,16 +110,16 @@ export default function FeedDetailPage({ params }: { params: Promise<{ id: strin
       </ListColumn>
 
       <section className="mewmo-reader-surface">
-        <ReaderToolbar title={selected?.title ?? feed?.title ?? "Feed"} />
+        <ReaderToolbar title={selected?.title ?? feed?.title ?? "订阅"} />
         <div className="mewmo-reader-scroll">
           <article className="mewmo-document">
             <div className="mewmo-source-strip">
               <span className="mewmo-favicon">{feed?.title.charAt(0).toUpperCase() ?? "R"}</span>
-              <span>{feed?.title ?? "Feed"}</span>
+              <span>{feed?.title ?? "订阅"}</span>
               <time>{selected?.publishedAt ? new Date(selected.publishedAt).toLocaleDateString() : ""}</time>
             </div>
-            <h1>{selected?.title ?? feed?.title ?? "Select an article"}</h1>
-            <p>{selected?.summary ?? selected?.content ?? "Select an article from this feed."}</p>
+            <h1>{selected?.title ?? feed?.title ?? "选择一篇文章"}</h1>
+            <p>{selected?.summary ?? selected?.content ?? "从左侧订阅列表选择一篇文章。"}</p>
           </article>
         </div>
       </section>

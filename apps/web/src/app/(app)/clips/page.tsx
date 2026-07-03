@@ -90,17 +90,17 @@ export default function ClipsPage() {
   return (
     <div className="mewmo-workspace">
       <ListColumn
-        title="Clips"
+        title="剪藏"
         bodyRef={parentRef}
         clipUrlInput
         onSubmitClipUrl={(url) => void createClipFromUrl(url)}
       >
         {isLoading ? (
-          <div className="mewmo-list-empty">Loading clips...</div>
+          <div className="mewmo-list-empty">正在加载剪藏...</div>
         ) : error ? (
           <div className="mewmo-list-empty">{error}</div>
         ) : clips.length === 0 ? (
-          <div className="mewmo-list-empty">No clips yet.</div>
+          <div className="mewmo-list-empty">还没有剪藏。</div>
         ) : (
           <div className="relative w-full" style={{ height: `${virtualizer.getTotalSize()}px` }}>
             {virtualizer.getVirtualItems().map((virtualRow) => {
@@ -120,7 +120,7 @@ export default function ClipsPage() {
                   </div>
                   <div className="mewmo-list-card__title"><span>{clip.title}</span></div>
                   <p>{clip.summary || clip.url}</p>
-                  <div className="mewmo-list-card__meta"><span className="mewmo-tag-pill">clip</span></div>
+                  <div className="mewmo-list-card__meta"><span className="mewmo-tag-pill">剪藏</span></div>
                 </Link>
               );
             })}
@@ -129,17 +129,17 @@ export default function ClipsPage() {
       </ListColumn>
 
       <section className="mewmo-reader-surface">
-        <ReaderToolbar title={firstClip?.title ?? "Clips"} />
+        <ReaderToolbar title={firstClip?.title ?? "剪藏"} />
         <div className="mewmo-reader-scroll">
           <article className="mewmo-document">
             <div className="mewmo-source-strip">
               <span className="mewmo-favicon">
                 {firstClip ? getDomain(firstClip.url).charAt(0).toUpperCase() : "C"}
               </span>
-              <span>{firstClip ? getDomain(firstClip.url) : "Saved source"}</span>
+              <span>{firstClip ? getDomain(firstClip.url) : "已保存来源"}</span>
             </div>
-            <h1>{firstClip?.title ?? "Select a clip"}</h1>
-            <p>{firstClip?.summary ?? "Saved articles and pages appear here."}</p>
+            <h1>{firstClip?.title ?? "选择一条剪藏"}</h1>
+            <p>{firstClip?.summary ?? "保存的文章和网页会在这里打开。"}</p>
           </article>
         </div>
       </section>
