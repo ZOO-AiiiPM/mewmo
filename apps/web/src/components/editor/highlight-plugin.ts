@@ -15,6 +15,26 @@ import { toggleMark } from "@milkdown/kit/prose/commands";
 
 const MARK_RE = /==([^=]+)==/g;
 
+interface MarkdownPhrasingState {
+  containerPhrasing(node: unknown, info: { before?: string; after?: string }): string;
+}
+
+interface RemarkProcessor {
+  data(): {
+    toMarkdownExtensions?: Array<{
+      handlers?: Record<
+        string,
+        (
+          node: unknown,
+          parent: unknown,
+          state: MarkdownPhrasingState,
+          info: unknown,
+        ) => string
+      >;
+    }>;
+  };
+}
+
 // 把一个 text 字符串按 ==x== 切成 [text, mark, text, ...] mdast 节点
 function splitText(value: string): Array<Record<string, unknown>> {
   const parts: Array<Record<string, unknown>> = [];
@@ -47,13 +67,18 @@ function expandHighlights(node: { children?: Array<Record<string, unknown>> }) {
 }
 
 // 序列化：mdast mark 节点 → ==value==
-function handleMark(node: unknown, _parent: unknown, state: any, info: unknown) {
+function handleMark(
+  node: unknown,
+  _parent: unknown,
+  state: MarkdownPhrasingState,
+  info: unknown,
+) {
   const value = state.containerPhrasing(node, { ...(info as object), before: "=", after: "=" });
   return `==${value}==`;
 }
 
 const remarkHighlight = $remark("remarkHighlight", () =>
-  function (this: any) {
+  function (this: RemarkProcessor) {
     const data = this.data();
     const toMd = (data.toMarkdownExtensions || (data.toMarkdownExtensions = []));
     toMd.push({ handlers: { mark: handleMark } });
