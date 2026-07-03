@@ -16,7 +16,7 @@ export default async function NoteDetailPage({ params }: { params: Promise<{ slu
     prisma.note.findMany({
       where: { userId: session.user.id, deletedAt: null },
       orderBy: { updatedAt: "desc" },
-      select: { id: true, slug: true, title: true, summary: true, pinned: true, updatedAt: true },
+      select: { id: true, slug: true, title: true, summary: true, pinned: true, createdAt: true, updatedAt: true },
     }),
   ]);
 
@@ -32,6 +32,7 @@ export default async function NoteDetailPage({ params }: { params: Promise<{ slu
       }}
       notes={notes.map((item) => ({
         ...item,
+        createdAt: item.createdAt.toISOString(),
         updatedAt: item.updatedAt.toISOString(),
       }))}
     />
