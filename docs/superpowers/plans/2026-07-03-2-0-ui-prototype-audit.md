@@ -44,3 +44,14 @@
 
 - Must implement in first UI pass: four-surface shell, grouped sidebar IA, collapse/peek affordance, row/list floating menu primitives, list toolbar search and clip URL expansion, reader toolbar shell, top-center toast, destructive confirm shell, AI contextual rail, disabled deferred entries, compact list cards for notes/clips/feeds.
 - Can defer with honest disabled UI: PDF/books shelves and readers, video/podcast feeds, full Knowledge Base drawer data, import/export workflows, AI streaming/proactive behavior, AI rail resizing, cat ambient animation, full tag management.
+
+## Implementation Status
+
+- Shell/layout: Implemented `AppShell` with sidebar collapse/peek state, reserved AI rail column, fixed AI edge entry, and route content slot.
+- Sidebar IA: Implemented grouped Home/Today, Collection, Subscription, Knowledge Base, Tags, Trash, footer account menu, group collapse, global group collapse, hover row action menus, and toast-gated deferred entries.
+- List toolbar/search: Implemented shared `ListColumn` with title dropdown, inline search expansion, action slot, and clip URL input expansion; Notes, Clips, Feeds, and feed detail use the shared shell rhythm while preserving existing data calls.
+- Reader toolbar: Implemented `ReaderToolbar` with previous/next, centered title, optional list focus control hook, and lightweight more menu.
+- Toast/menu/modal: Implemented top-center `ToastProvider`, shared `FloatingMenu`, and reusable `ConfirmDialog`; destructive confirm is available for touched delete flows but no owned page had a direct delete path in this task.
+- AI rail: Implemented contextual side rail shell with current-context strip, assistant/user bubbles, disabled action buttons, and explicit not-connected status.
+- Deferred entries: PDF, Books, Video, Podcast, Knowledge Base, and import/export stay visible but are toast-gated or disabled/deferred rather than fake navigation.
+- Browser checks: Checked `/notes`, `/clips`, `/feeds` on desktop and 820px tablet via Playwright CLI. Verified deferred toast, list search expansion, clip URL expansion, AI rail opening with reserved grid column, feeds empty state, and no horizontal overflow at tablet width.
