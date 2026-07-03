@@ -19,25 +19,24 @@ interface MarkdownPhrasingState {
   containerPhrasing(node: unknown, info: { before?: string; after?: string }): string;
 }
 
-interface RemarkProcessor {
-  data(): {
-    toMarkdownExtensions?: Array<{
-      handlers?: Record<
-        string,
-        (
-          node: unknown,
-          parent: unknown,
-          state: MarkdownPhrasingState,
-          info: unknown,
-        ) => string
-      >;
-    }>;
-  };
+interface MarkdownExtensionData {
+  toMarkdownExtensions?: Array<{
+    handlers?: Record<
+      string,
+      (node: unknown, parent: unknown, state: MarkdownPhrasingState, info: unknown) => string
+    >;
+  }>;
+}
+
+interface MdastNode {
+  type?: string;
+  value?: unknown;
+  children?: MdastNode[];
 }
 
 // 把一个 text 字符串按 ==x== 切成 [text, mark, text, ...] mdast 节点
-function splitText(value: string): Array<Record<string, unknown>> {
-  const parts: Array<Record<string, unknown>> = [];
+function splitText(value: string): MdastNode[] {
+  const parts: MdastNode[] = [];
   let last = 0;
   let m: RegExpExecArray | null;
   MARK_RE.lastIndex = 0;
@@ -52,14 +51,14 @@ function splitText(value: string): Array<Record<string, unknown>> {
 }
 
 // 递归遍历 mdast 树，就地展开 text 节点里的高亮语法
-function expandHighlights(node: { children?: Array<Record<string, unknown>> }) {
+function expandHighlights(node: MdastNode) {
   if (!node || !Array.isArray(node.children)) return;
-  const out: Array<Record<string, unknown>> = [];
+  const out: MdastNode[] = [];
   for (const child of node.children) {
     if (child.type === "text" && typeof child.value === "string" && (child.value as string).includes("==")) {
       out.push(...splitText(child.value as string));
     } else {
-      expandHighlights(child as { children?: Array<Record<string, unknown>> });
+      expandHighlights(child);
       out.push(child);
     }
   }
@@ -78,12 +77,12 @@ function handleMark(
 }
 
 const remarkHighlight = $remark("remarkHighlight", () =>
-  function (this: RemarkProcessor) {
-    const data = this.data();
+  function () {
+    const data = this.data() as MarkdownExtensionData;
     const toMd = (data.toMarkdownExtensions || (data.toMarkdownExtensions = []));
     toMd.push({ handlers: { mark: handleMark } });
-    return (tree: { children?: Array<Record<string, unknown>> }) => {
-      expandHighlights(tree);
+    return (tree: unknown) => {
+      expandHighlights(tree as MdastNode);
     };
   },
 );
