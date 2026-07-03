@@ -13,6 +13,7 @@ interface NoteEditorProps {
   noteId: string;
   initialTitle: string;
   initialContent: string;
+  embedded?: boolean;
 }
 
 /**
@@ -52,7 +53,7 @@ function CrepeContent({
   return <Milkdown />;
 }
 
-export function NoteEditor({ noteId, initialTitle, initialContent }: NoteEditorProps) {
+export function NoteEditor({ noteId, initialTitle, initialContent, embedded = false }: NoteEditorProps) {
   const router = useRouter();
   const contentSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const titleSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -124,28 +125,55 @@ export function NoteEditor({ noteId, initialTitle, initialContent }: NoteEditorP
     router.push("/notes");
   }, [noteId, router]);
 
+  const status = (
+    <span className={embedded ? "mewmo-note-editor__status" : "text-xs text-muted"}>
+      {saveStatus === "saving" && "保存中..."}
+      {saveStatus === "saved" && "已保存"}
+      {saveStatus === "error" && "保存失败"}
+    </span>
+  );
+
+  const titleEditor = (
+    <h1
+      contentEditable
+      suppressContentEditableWarning
+      onBlur={handleTitleBlur}
+      className={embedded ? "mewmo-note-title-editor" : "text-xl font-bold text-ink outline-none flex-1 mr-4"}
+    >
+      {initialTitle}
+    </h1>
+  );
+
+  if (embedded) {
+    return (
+      <div className="mewmo-note-editor">
+        <div className="mewmo-note-editor__head">
+          {titleEditor}
+          {status}
+        </div>
+        <div className="mewmo-note-editor__body">
+          <MilkdownProvider>
+            <div className="h-full overflow-auto crepe-editor-wrapper crepe-editor-wrapper--embedded">
+              <CrepeContent initialContent={initialContent} onContentChange={queueContentSave} />
+            </div>
+            <InsertToolbar />
+          </MilkdownProvider>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between px-6 py-3 border-b border-line">
-        <h1
-          contentEditable
-          suppressContentEditableWarning
-          onBlur={handleTitleBlur}
-          className="text-xl font-bold text-ink outline-none flex-1 mr-4"
-        >
-          {initialTitle}
-        </h1>
+        {titleEditor}
         <div className="flex items-center gap-3">
-          <span className="text-xs text-muted">
-            {saveStatus === "saving" && "Saving..."}
-            {saveStatus === "saved" && "Saved"}
-            {saveStatus === "error" && "Save failed"}
-          </span>
+          {status}
           <button
             onClick={handleDelete}
             className="text-xs text-muted hover:text-coral transition-colors"
           >
-            Delete
+            删除
           </button>
         </div>
       </div>

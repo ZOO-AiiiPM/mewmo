@@ -934,9 +934,54 @@ html.light .mewmo-reader-toolbar {
   padding: 74px 64px 64px;
 }
 
+.mewmo-reader-scroll--editor {
+  padding: 74px 0 0;
+}
+
 .mewmo-document {
   max-width: 680px;
   margin: 0 auto;
+}
+
+.mewmo-note-editor {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  color: var(--ink);
+}
+
+.mewmo-note-editor__head {
+  width: min(100%, 760px);
+  margin: 0 auto;
+  padding: 0 40px 14px;
+}
+
+.mewmo-note-title-editor {
+  margin: 0;
+  color: var(--ink);
+  font-size: 42px;
+  font-weight: 720;
+  line-height: 1.18;
+  letter-spacing: 0;
+  outline: none;
+}
+
+.mewmo-note-title-editor:empty::before {
+  content: "Untitled";
+  color: var(--ink-faint);
+}
+
+.mewmo-note-editor__status {
+  display: block;
+  min-height: 18px;
+  margin-top: 8px;
+  color: var(--ink-faint);
+  font-size: 12px;
+}
+
+.mewmo-note-editor__body {
+  min-height: 0;
+  flex: 1;
 }
 
 .mewmo-document h1 {

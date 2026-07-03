@@ -9,11 +9,31 @@ export default async function NoteDetailPage({ params }: { params: Promise<{ slu
 
   const { slug } = await params;
   const prisma = getPrisma();
-  const note = await prisma.note.findFirst({
-    where: { userId: session.user.id, slug, deletedAt: null },
-  });
+  const [note, notes] = await Promise.all([
+    prisma.note.findFirst({
+      where: { userId: session.user.id, slug, deletedAt: null },
+    }),
+    prisma.note.findMany({
+      where: { userId: session.user.id, deletedAt: null },
+      orderBy: { updatedAt: "desc" },
+      select: { id: true, slug: true, title: true, summary: true, pinned: true, updatedAt: true },
+    }),
+  ]);
 
   if (!note) notFound();
 
-  return <NoteEditorPage noteId={note.id} title={note.title} content={note.content} />;
+  return (
+    <NoteEditorPage
+      note={{
+        id: note.id,
+        slug: note.slug,
+        title: note.title,
+        content: note.content,
+      }}
+      notes={notes.map((item) => ({
+        ...item,
+        updatedAt: item.updatedAt.toISOString(),
+      }))}
+    />
+  );
 }

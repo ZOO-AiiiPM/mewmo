@@ -38,6 +38,38 @@
   min-height: 100%;
 }
 
+.crepe-editor-wrapper--embedded {
+  height: 100%;
+}
+
+.crepe-editor-wrapper--embedded .milkdown {
+  max-width: 760px;
+  margin: 0 auto;
+  --crepe-color-background: var(--s3);
+  --crepe-color-on-background: var(--ink);
+  --crepe-color-surface: var(--raised);
+  --crepe-color-surface-low: var(--s2);
+  --crepe-color-on-surface: var(--ink);
+  --crepe-color-on-surface-variant: var(--ink-soft);
+  --crepe-color-outline: var(--line);
+  --crepe-color-primary: var(--accent);
+  --crepe-color-secondary: var(--raised);
+  --crepe-color-on-secondary: var(--ink);
+  --crepe-color-inverse: var(--raised);
+  --crepe-color-on-inverse: var(--ink);
+  --crepe-color-hover: var(--accent-2);
+  --crepe-color-selected: var(--accent-2);
+  --crepe-color-inline-area: var(--raised);
+}
+
+.crepe-editor-wrapper--embedded .milkdown .ProseMirror {
+  padding: 8px 40px 96px 92px;
+}
+
+.crepe-editor-wrapper--embedded .milkdown .ProseMirror:focus {
+  outline: none;
+}
+
 /* code 块：CodeMirror 默认主题会给当前行行号一个深色块，这里压平 gutter 背景、
    行号用 muted 灰，整体跟随上面的 surface 映射，呈干净的 paper 质感代码块。
    圆角 + overflow hidden 让顶部工具条 / 行号 gutter 都裁进圆角内。 */
