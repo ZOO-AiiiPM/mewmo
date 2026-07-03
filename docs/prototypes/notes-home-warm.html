@@ -18,8 +18,8 @@
     --ink:     #ededf1;
     --ink-soft:#9a9aa1;
     --ink-faint:#67676d;
-    --line:    #494a52;
-    --line-soft:#3d3e45;
+    --line:    #2c2d31;
+    --line-soft:#232428;
     --accent:    #ededf1;
     --accent-2:  rgba(255,255,255,.10);
     --hl:        rgba(255,255,255,.16);
@@ -129,8 +129,7 @@
   .nav-i.active .ic { color: var(--accent); opacity: 1; }
   .nav-i .chev { position: absolute; left: 1px; top: 50%; width: 12px; height: 12px; padding: 5px; box-sizing: content-box; color: var(--ink-faint); transform: translateY(-50%); transition: transform .18s; cursor: pointer; border-radius: 6px; }
   .nav-i .chev:hover { background: var(--hover); color: var(--ink-soft); }
-  .nav-sub-list { overflow: hidden; transition: height .35s cubic-bezier(.32,0,.2,1), opacity .3s ease; will-change: height; opacity: 1; }
-  .nav-grp.collapsed .nav-sub-list { height: 0 !important; opacity: 0; }
+  .nav-grp.collapsed .nav-sub-list { display: none; }
   .nav-grp.collapsed .nav-i.grp .chev { transform: translateY(-50%) rotate(-90deg); }
   .nav-sub { position: relative; display: flex; align-items: center; gap: 9px; width: 100%; text-align: left; padding: 5px 8px 5px 32px; border-radius: 9px; color: var(--ink); font-size: 12.5px; }
   .nav-sub:hover { background: var(--hover); }
@@ -140,8 +139,7 @@
   .nav-sub .lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .nav-sub.kb-l1 .subchev { position: absolute; left: 16px; top: 50%; width: 11px; height: 11px; padding: 3px; box-sizing: content-box; color: var(--ink-faint); transform: translateY(-50%); transition: transform .18s; border-radius: 5px; }
   .nav-sub.kb-l1 .subchev:hover { background: var(--hover); color: var(--ink-soft); }
-  .nav-sub2-list { overflow: hidden; transition: height .35s cubic-bezier(.32,0,.2,1), opacity .3s ease; will-change: height; opacity: 1; }
-  .kb-item.collapsed .nav-sub2-list { height: 0 !important; opacity: 0; }
+  .kb-item.collapsed .nav-sub2-list { display: none; }
   .kb-item.collapsed .kb-l1 .subchev { transform: translateY(-50%) rotate(-90deg); }
   .nav-sub.kb-l2 { padding-left: 51px; }
 
@@ -154,16 +152,15 @@
   .side__stage.drilled > .kb-pane { transform: translateX(0); opacity: 1; pointer-events: auto; }
   .kb-pane__back { flex: none; }
   .kb-pane__back .chev { transform: translateY(-50%) rotate(90deg); }
-  .kb-pane__back .row-act { position: absolute; right: 7px; top: 50%; transform: translateY(-50%); width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center; color: var(--ink-faint); opacity: 0; pointer-events: none; transition: opacity .12s, background .12s, color .12s; }
-  .kb-pane__back:hover .row-act { opacity: 1; pointer-events: auto; }
-  .kb-pane__back .row-act:hover { background: var(--raised); color: var(--ink); }
-  .kb-pane__back .row-act svg { width: 16px; height: 16px; display: block; }
+  .kb-pane__back .kb-newfolder { position: absolute; right: 7px; top: 50%; transform: translateY(-50%); width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center; color: var(--ink-faint); opacity: 0; pointer-events: none; transition: opacity .12s, background .12s, color .12s; }
+  .kb-pane__back:hover .kb-newfolder { opacity: 1; pointer-events: auto; }
+  .kb-pane__back .kb-newfolder:hover { background: var(--raised); color: var(--ink); }
+  .kb-pane__back .kb-newfolder .ic { width: 17px; height: 17px; color: inherit; }
   .kbf .row-act .ic { width: 16px; height: 16px; color: inherit; }
   .kb-pane__bname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .kb-tree { padding-bottom: 8px; }
-  .kbf-children { overflow: hidden; transition: height .35s cubic-bezier(.32,0,.2,1), opacity .3s ease; will-change: height; opacity: 1; }
   .kbf-wrap.collapsed > .nav-i .chev { transform: translateY(-50%) rotate(-90deg); }
-  .kbf-wrap.collapsed > .kbf-children { height: 0 !important; opacity: 0; }
+  .kbf-wrap.collapsed > .kbf-children { display: none; }
   .kbf .row-act, .feed-src .row-act { position: absolute; right: 7px; top: 50%; transform: translateY(-50%); width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; color: var(--ink-faint); opacity: 0; pointer-events: none; transition: opacity .12s, background .12s, color .12s; }
   .kbf:hover .row-act, .feed-src:hover .row-act { opacity: 1; pointer-events: auto; background: var(--hover); }
   .kbf .row-act svg, .feed-src .row-act svg { width: 16px; height: 16px; display: block; }
@@ -188,8 +185,8 @@
   .nav-sub .upd-dot { position: absolute; left: 20px; top: 50%; transform: translateY(-50%); width: 6px; height: 6px; border-radius: 50%; background: var(--accent); display: none; }
   .nav-sub.has-update .upd-dot { display: block; }
   /* 订阅：类型占位（视频/播客未开发）+ 抽屉内订阅源行（Apple Notes 源列表） */
-  .nav-sub.is-ph { opacity: .42; }
-  .nav-sub.is-ph .ic { color: var(--ink-faint); }
+  .feed-type.is-ph { opacity: .42; }
+  .feed-type.is-ph .ic { color: var(--ink-faint); }
   .ph-pill { margin-left: auto; font-size: 9.5px; line-height: 1; padding: 2px 6px; border-radius: 999px; background: var(--hover); color: var(--ink-faint); font-weight: 500; flex: none; }
   .feed-srclist { padding-bottom: 8px; }
   .feed-src { padding-left: 32px; }
@@ -238,36 +235,6 @@
   .modal__field input::placeholder, .modal__field textarea::placeholder { color: var(--ink-faint); }
   .modal__field input:focus, .modal__field textarea:focus { outline: none; border-color: var(--ink-faint); }
   .modal__field textarea { resize: vertical; min-height: 62px; line-height: 1.5; }
-  /* 从收藏箱导入：大弹窗（顶部 笔记/剪藏 tab + 左标题列表可勾选 + 右详情预览）*/
-  .modal__hint { font-size: 12px; color: var(--ink-soft); margin-bottom: 10px; }
-  .modal--wide .modal__panel { width: 880px; max-width: 94vw; height: 74vh; display: flex; flex-direction: column; }
-  .modal--wide .modal__body { flex: 1; min-height: 0; gap: 12px; }
-  .imp-tabs { display: flex; gap: 4px; flex: none; }
-  .imp-tab { padding: 6px 15px; border-radius: 9px; font-size: 13px; color: var(--ink-soft); transition: background .12s, color .12s; }
-  .imp-tab:hover { background: var(--hover); color: var(--ink); }
-  .imp-tab.on { background: var(--raised); color: var(--ink); font-weight: 600; }
-  .imp-cols { display: flex; gap: 14px; flex: 1; min-height: 0; }
-  .imp-left { width: 292px; flex: none; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; margin: 0 -6px; padding: 0 4px; }
-  .imp-right { flex: 1; min-width: 0; min-height: 0; overflow-y: auto; border-left: 1px solid var(--line); padding-left: 16px; }
-  .imp-row { display: flex; align-items: center; gap: 9px; padding: 8px 8px; border-radius: 9px; cursor: pointer; transition: background .12s; }
-  .imp-row:hover { background: var(--hover); }
-  .imp-row.active { background: var(--raised); }
-  .imp-cb { width: 18px; height: 18px; flex: none; border-radius: 6px; border: 1.5px solid var(--ink-faint); display: grid; place-items: center; color: var(--accent-ink); transition: background .12s, border-color .12s; }
-  .imp-cb svg { width: 12px; height: 12px; opacity: 0; }
-  .imp-row.on .imp-cb { background: var(--accent); border-color: var(--accent); }
-  .imp-row.on .imp-cb svg { opacity: 1; }
-  .imp-row__ic { width: 15px; height: 15px; flex: none; color: var(--ink-soft); }
-  .imp-row__main { flex: 1; min-width: 0; }
-  .imp-row__title { font-size: 13px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .imp-row__src { font-size: 11px; color: var(--ink-faint); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .imp-detail { display: flex; flex-direction: column; min-height: 100%; }
-  .imp-detail__empty { margin: auto; color: var(--ink-faint); font-size: 13px; }
-  .imp-detail__title { font-size: 17px; font-weight: 650; color: var(--ink); letter-spacing: -.01em; margin: 2px 0 7px; }
-  .imp-detail__meta { font-size: 12px; color: var(--ink-faint); margin-bottom: 13px; display: flex; align-items: center; gap: 7px; }
-  .imp-detail__body { font-size: 13px; line-height: 1.72; color: var(--ink-soft); }
-  .imp-detail__body p { margin: 0 0 10px; }
-  .imp-detail__add { margin-top: 15px; align-self: flex-start; font-size: 12.5px; padding: 7px 15px; border-radius: 9px; background: var(--accent); color: var(--accent-ink); font-weight: 550; transition: opacity .12s, background .12s; }
-  .imp-detail__add.on { background: var(--raised); color: var(--ink); }
   /* 新增订阅：智能输入（RSS / 网站 / 自部署 / 搜索）+ 自定义栏目选择 */
   .addfeed { display: flex; flex-direction: column; gap: 11px; }
   .addfeed__inputwrap { position: relative; }
@@ -352,7 +319,7 @@
   .acct-ic { width: 16px; height: 16px; flex: none; opacity: .7; }
   .acct-menu__item:hover .acct-ic { opacity: 1; }
   .acct-chev { width: 12px; height: 12px; margin-left: auto; opacity: .4; }
-  .acct-menu__sync { padding: 8px 10px 6px; font-size: 11px; color: var(--ink-soft); border-top: 1px solid var(--line-soft); margin-top: 2px; }
+  .acct-menu__sync { padding: 8px 10px 6px; font-size: 11px; color: var(--ink-faint); border-top: 1px solid var(--line-soft); margin-top: 2px; }
   .acct-menu__has-sub { position: relative; }
   .acct-submenu { display: none; position: absolute; left: calc(100% + 4px); top: -6px; min-width: 140px; background: var(--s1); border: 1px solid var(--line); border-radius: 10px; padding: 5px; box-shadow: 0 8px 24px rgba(0,0,0,.25); z-index: 60; }
   html.light .acct-submenu { background: var(--raised); box-shadow: 0 6px 20px rgba(0,0,0,.1); }
@@ -377,7 +344,7 @@
   .list { background: var(--canvas); display: flex; flex-direction: column; width: 312px; min-width: 0; min-height: 0; overflow: hidden; }
   .list__bar { position: relative; display: flex; align-items: center; gap: 8px; padding: 14px 14px 10px; flex: none; }
   .filter-wrap { position: relative; display: none; align-items: center; width: 24px; height: 28px; }
-  /* 漏斗筛选已迁入标题下拉菜单，不再独立显示 */
+  .app.view-today .filter-wrap { display: flex; }
   .app.view-today #newBtn, .app.view-pinned #newBtn, .app.view-feed #newBtn { display: none; }  /* 订阅区不创建笔记，隐藏新建按钮 */
 
   /* 剪藏专属：添加按钮 + inline URL 输入框（与搜索同款：class 驱动 + 按钮自带 scale/fade 过渡，状态全交给 CSS，JS 不碰 inline style 避免漂移） */
@@ -432,10 +399,7 @@
   .ncard__t { display: flex; align-items: baseline; gap: 8px; }
   .ncard__t h3 { margin: 0; font-size: 14.5px; font-weight: 620; letter-spacing: -.01em; line-height: 1.35; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ncard__pin { color: var(--accent); flex: none; }
-  .ncard__cat { color: var(--ink); flex: none; position: relative; display: inline-flex; }
-  .ncard__cat .src-badge { position: absolute; right: -3px; bottom: -3px; width: 10px; height: 10px; border-radius: 50%; background: var(--s2); display: grid; place-items: center; }
-  .ncard.sel .ncard__cat .src-badge { background: var(--raised); }
-  .ncard__cat .src-badge svg { width: 8px; height: 8px; color: var(--ink-faint); }
+  .ncard__cat { color: var(--ink); flex: none; }
   .ncard__sum { margin: 5px 0 0; font-size: 12.7px; color: var(--ink-soft); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .ncard__imgs { display: flex; gap: 8px; margin-top: 10px; }
   .ncard__thumb { flex: 1; max-width: 132px; height: 76px; border-radius: 8px; background: var(--s2); border: 1px solid var(--line); display: grid; place-items: center; color: var(--ink-faint); overflow: hidden; }
@@ -660,19 +624,12 @@
 
   /* ============ 喵喵 AI：grid 第 4 列全高侧栏（与编辑区同层） ============ */
   aside.ai {
-    /* 浮片：脱离 grid 流，始终满宽 var(--ai-w)，开合只靠整体 translateX 平移 + 淡入，
-       不靠列宽 0→320 撑开——后者会让面板内文字逐帧重排挤压。grid 第 4 列照旧保留空间，
-       正文让位与浮片滑入同步（.32s 同曲线）。 */
-    position: fixed; top: 9px; right: 0; bottom: 0; z-index: 35;
-    width: calc(var(--ai-w) - 8px);   /* 左侧留 8px 缝露出 --canvas 背景，resizer 拖拽手柄落在此缝 */
+    grid-column: 4;
     display: flex; flex-direction: column; min-height: 0; overflow: hidden;
     background: var(--s2);
     border-radius: 22px 0 0 0;
-    transform: translateX(calc(100% + 12px));
-    opacity: 0; pointer-events: none;
-    transition: transform .32s cubic-bezier(.4,0,.2,1), opacity .24s ease;
+    margin: 9px 0 0 8px;
   }
-  .app.ai-open aside.ai { transform: translateX(0); opacity: 1; pointer-events: auto; }
   html.light aside.ai { background: #fdf9f1; }
 
   /* 拖拽手柄：浮在正文与 AI 之间缝隙里的竖向小条，按住拖动调画幅比例。
@@ -740,43 +697,40 @@
 
   /* ============ 喵喵入口：右下角贴边横长条 ============ */
   .ai-fab {
-    position: fixed; bottom: 80px; right: 0; z-index: 51;
+    position: fixed; bottom: 28px; right: 0; z-index: 51;
     width: 58px; height: 52px;
     border-radius: 16px 0 0 16px;
     background: var(--s2);
     border: 1px solid var(--line); border-right: none;
     box-shadow: -2px 0 14px rgba(0,0,0,.12);
     display: grid; place-items: center;
-    cursor: grab; touch-action: none;
+    cursor: pointer;
     transition: width .16s cubic-bezier(.34,1.4,.5,1), opacity .18s, background .14s;
   }
   html.light .ai-fab { background: var(--raised); box-shadow: -2px 0 10px rgba(0,0,0,.05); }
   .ai-fab:hover { width: 70px; background: var(--hover); }
   .ai-fab:active { width: 64px; }
-  /* 可拖动：仅沿右缘上下移动（始终 right:0 贴边、不脱离、不拖出视口）；拖动中固定宽、不做展宽 */
-  .ai-fab.dragging { cursor: grabbing; transition: none; }
-  .ai-fab.dragging:hover, .ai-fab.dragging:active { width: 58px; }
   .ai-fab .fab-icon { width: 26px; height: 26px; color: var(--ink); }
   /* AI 展开时：隐藏 */
   .ai-fab.hidden { opacity: 0; pointer-events: none; width: 0; }
 
-  /* ============ 回到顶部：与喵喵入口同轴、居其正下方（角落），下滑一段才显现 ============ */
-  /* 几何对齐喵喵(.ai-fab right:0 width:58 → 中心距右缘29；bottom:80)：right:9+宽40→中心距右缘29 重合；to-top bottom:28(角落)、顶边68，猫底80→二者留12 */
+  /* ============ 回到顶部：悬于喵喵入口中心正上方，下滑一段才显现 ============ */
+  /* 几何对齐喵喵(.ai-fab right:0 width:58 → 中心距右缘29；顶边距底80)：right:9+宽40→中心距右缘29 重合；bottom:92→猫顶上方留12 */
   .to-top {
-    position: fixed; right: 9px; bottom: 28px; z-index: 50;
+    position: fixed; right: 9px; bottom: 92px; z-index: 50;
     width: 40px; height: 40px; border-radius: 12px;
     background: var(--s2); border: 1px solid var(--line);
     box-shadow: 0 4px 14px rgba(0,0,0,.14);
     display: grid; place-items: center;
     color: var(--ink-soft); cursor: pointer;
     opacity: 0; transform: translateY(8px) scale(.92); pointer-events: none;
-    transition: opacity .2s ease, transform .2s cubic-bezier(.34,1.4,.5,1), background .14s, color .14s, right .32s cubic-bezier(.4,0,.2,1);
+    transition: opacity .2s ease, transform .2s cubic-bezier(.34,1.4,.5,1), background .14s, color .14s;
   }
   html.light .to-top { background: var(--raised); box-shadow: 0 4px 12px rgba(0,0,0,.08); }
   .to-top:hover { background: var(--hover); color: var(--ink); }
   .to-top svg { width: 20px; height: 20px; }
   .to-top.show { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
-  body:has(.app.ai-open) .to-top { right: calc(var(--ai-w) + 9px); }  /* AI 展开：随正文区右缘左移；#to-top 是 body 直接子节点不在 .app 内，故用 :has 跨节点匹配（旧 .app.ai-open .to-top 后代选择器从未生效） */
+  .app.ai-open .to-top { opacity: 0; transform: translateY(8px) scale(.92); pointer-events: none; }  /* AI 展开时隐藏，避免浮在面板上 */
 
   /* ============ 设置弹窗 ============ */
   .modal { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; }
@@ -821,18 +775,6 @@
   @keyframes popIn { from { opacity: 0; transform: scale(.96) translateY(6px); } to { opacity: 1; transform: none; } }
   @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
   @keyframes viewIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-  /* 订阅类型切换：列表 rise+fade 重放（快速跳转/抽屉切类型共用），替代旧的 display:none 闪烁 */
-  @keyframes feedSwapIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-  .listview[data-view="feed"].feed-swap { animation: feedSwapIn .3s cubic-bezier(.4,0,.2,1); }
-  .feed-list-ph { padding: 56px 24px; text-align: center; color: var(--ink-faint); font-size: 13px; line-height: 1.8; }
-  /* 抽屉内切换订阅类型时，重放横向切入（和首次从主导航 drill 进来同款 translateX 滑动）。
-     首次 drill 由 .drilled 过渡负责；已 drill 时 .drilled 不变、不会再触发过渡，故用这条动画补上。 */
-  @keyframes paneSlideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-  .kb-pane.pane-swap { animation: paneSlideIn .34s cubic-bezier(.4,0,.2,1); z-index: 2; }
-  /* 抽屉内切类型用 push 切换：旧栏左移淡出（同主导航 drill 时 -26% 的退场），新栏右滑入盖上。
-     旧内容是临时克隆层 .pane-exit，动画结束即移除。 */
-  @keyframes paneSlideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(-26%); opacity: 0; } }
-  .kb-pane.pane-exit { z-index: 1; pointer-events: none; animation: paneSlideOut .34s cubic-bezier(.4,0,.2,1) forwards; }
   /* 新增笔记：按钮按压反馈（卡片展开由 JS 按真实高度做 transition，更丝滑） */
   @keyframes newBtnPulse { 0% { transform: scale(1); } 38% { transform: scale(.86); } 100% { transform: scale(1); } }
   #newBtn.pulsing i { display: inline-flex; animation: newBtnPulse .3s ease; }
@@ -889,14 +831,15 @@
       <nav class="side__nav">
         <button class="nav-i" data-view="home"><i class="ic" data-i="home"></i> 首页</button>
         <button class="nav-i" data-view="today"><i class="ic" data-i="calendar"></i> 今天</button>
+        <button class="nav-i" data-view="pinned"><i class="ic" data-i="pin"></i> 置顶</button>
 
         <div class="nav-grp">
           <button class="nav-i grp" data-view="inbox"><i class="chev" data-i="caret"></i><i class="ic" data-i="inbox"></i> 收集箱</button>
           <div class="nav-sub-list">
             <button class="nav-sub active" data-view="notes"><i class="ic" data-i="note"></i> <span class="lbl">笔记</span></button>
             <button class="nav-sub" data-view="clips"><i class="ic" data-i="bookmark"></i> <span class="lbl">剪藏</span></button>
-            <button class="nav-sub is-ph" data-view="pdf-shelf"><i class="ic" data-i="pdf"></i> <span class="lbl">PDF</span><span class="ph-pill">待开发</span></button>
-            <button class="nav-sub is-ph" data-view="books-shelf"><i class="ic" data-i="shelf"></i> <span class="lbl">电子书</span><span class="ph-pill">待开发</span></button>
+            <button class="nav-sub" data-view="pdf-shelf"><i class="ic" data-i="pdf"></i> <span class="lbl">PDF</span></button>
+            <button class="nav-sub" data-view="books-shelf"><i class="ic" data-i="shelf"></i> <span class="lbl">电子书</span></button>
           </div>
         </div>
 
@@ -925,7 +868,6 @@
             <button class="nav-sub" data-view="tags"><span class="tag-dot" style="--tc:#e88478"></span> <span class="lbl">设计</span><span class="row-act" data-menu="tag-sub" title="操作"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg></span></button>
             <button class="nav-sub" data-view="tags"><span class="tag-dot" style="--tc:#4caf72"></span> <span class="lbl">产品</span><span class="row-act" data-menu="tag-sub" title="操作"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg></span></button>
             <button class="nav-sub" data-view="tags"><span class="tag-dot" style="--tc:#a874e0"></span> <span class="lbl">数据层</span><span class="row-act" data-menu="tag-sub" title="操作"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg></span></button>
-            <button class="nav-sub" data-view="tags"><span class="tag-dot" style="--tc:#e0a93a"></span> <span class="lbl">AI</span><span class="row-act" data-menu="tag-sub" title="操作"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg></span></button>
           </div>
         </div>
 
@@ -945,6 +887,7 @@
           <div class="acct-menu__item acct-menu__has-sub">
             <svg class="acct-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18c.97 0 1.75-.78 1.75-1.75 0-.45-.17-.86-.46-1.17a1.74 1.74 0 0 1 1.28-2.93H16a5 5 0 0 0 5-5c0-3.87-4.03-7-9-7Z"/><circle cx="7.5" cy="11.5" r="1.05" fill="currentColor" stroke="none"/><circle cx="12" cy="8" r="1.05" fill="currentColor" stroke="none"/><circle cx="16.5" cy="11.5" r="1.05" fill="currentColor" stroke="none"/></svg> 主题色<svg class="acct-chev" viewBox="0 0 24 24" fill="currentColor"><path d="M8.512 4.43a.75.75 0 0 1 1.057.082l6 7a.75.75 0 0 1 0 .976l-6 7a.75.75 0 0 1-1.138-.976L14.012 12L8.431 5.488a.75.75 0 0 1 .08-1.057"/></svg>
             <div class="acct-submenu acct-submenu--color" id="acct-swatches">
+              <div class="acct-sub__label">强调色</div>
               <div class="acct-sub__swatches">
                 <button class="sw sw--mono on" data-accent="" title="单色"></button>
                 <button class="sw" data-accent="#3b6cff" style="--c:#3b6cff" title="靛蓝"></button>
@@ -1077,12 +1020,12 @@
             <div class="ncard__meta"><span class="ncard__time">创建于 18 分钟前</span><span class="tag-pill" style="--tc:#4caf72">产品</span></div>
           </article>
           <article class="ncard">
-            <div class="ncard__t"><h3>少数派周报 #284：AI 工具的祛魅时刻</h3><span class="ncard__cat"><i data-i="doc" style="width:14px;height:14px" title="文章 · 订阅"></i><span class="src-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1.5" fill="currentColor" stroke="none"/></svg></span></span></div>
+            <div class="ncard__t"><h3>少数派周报 #284：AI 工具的祛魅时刻</h3><i class="ncard__cat" data-i="doc" style="width:14px;height:14px" title="文章"></i></div>
             <p class="ncard__sum">本周聊聊大家用 AI 工具半年后的真实留存，为什么当初"惊艳"的产品大多没能留住人，以及哪一类反而沉淀了下来。</p>
             <div class="ncard__src"><span class="favi">少</span> <span class="srctxt">少数派 · 2 小时前</span><span class="tag-pill" style="--tc:#e0a93a">AI</span></div>
           </article>
           <article class="ncard">
-            <div class="ncard__t"><h3>把信息管家做成陪伴：可爱的反义词不是严肃</h3><span class="ncard__cat"><i data-i="doc" style="width:14px;height:14px" title="文章 · 剪藏"></i><span class="src-badge"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 5.25a.75.75 0 0 0 0 1.5h6a.75.75 0 0 0 0-1.5z"/><path fill-rule="evenodd" d="M21 11.098v4.993c0 3.096 0 4.645-.734 5.321c-.35.323-.792.526-1.263.58c-.987.113-2.14-.907-4.445-2.946c-1.02-.901-1.529-1.352-2.118-1.47a2.2 2.2 0 0 0-.88 0c-.59.118-1.099.569-2.118 1.47c-2.305 2.039-3.458 3.059-4.445 2.945a2.24 2.24 0 0 1-1.263-.579C3 20.736 3 19.188 3 16.091v-4.994C3 6.81 3 4.666 4.318 3.333S7.758 2 12 2s6.364 0 7.682 1.332S21 6.81 21 11.098" clip-rule="evenodd"/></svg></span></span></div>
+            <div class="ncard__t"><h3>把信息管家做成陪伴：可爱的反义词不是严肃</h3><i class="ncard__cat" data-i="bookmark" style="width:14px;height:14px" title="剪藏"></i></div>
             <p class="ncard__sum">为什么一个有"性格"的产品反而更容易被长期使用？作者从工具关系聊到陪伴关系的转变，以及可爱并不等于不专业。</p>
             <div class="ncard__src"><span class="favi">少</span> <span class="srctxt">sspai.com · 收藏于 3 小时前</span><span class="tag-pill" style="--tc:#4caf72">产品</span></div>
           </article>
@@ -1092,38 +1035,9 @@
             <div class="ncard__meta"><span class="ncard__time">创建于 1 小时前</span><span class="tag-pill" style="--tc:#a874e0">数据层</span></div>
           </article>
           <article class="ncard">
-            <div class="ncard__t"><h3>科技爱好者周刊（第 300 期）</h3><span class="ncard__cat"><i data-i="doc" style="width:14px;height:14px" title="文章 · 订阅"></i><span class="src-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1.5" fill="currentColor" stroke="none"/></svg></span></span></div>
+            <div class="ncard__t"><h3>科技爱好者周刊（第 300 期）</h3><i class="ncard__cat" data-i="doc" style="width:14px;height:14px" title="文章"></i></div>
             <p class="ncard__sum">本周话题：本地优先软件（local-first）的复兴，关键在于谁是真相源、冲突怎么合并。</p>
             <div class="ncard__src"><span class="favi">阮</span> <span class="srctxt">阮一峰 · 上午 9:20</span><span class="tag-pill" style="--tc:#4f93e8">技术</span></div>
-          </article>
-        </div>
-
-        <!-- 知识库（什么都能装：笔记 + 从收藏箱(剪藏)导入的文章/视频[原始类型icon+剪藏角标] + 本地导入的 PDF/电子书；每条标类型，今天风格）-->
-        <div class="listview" data-view="kb">
-          <article class="ncard sel">
-            <div class="ncard__t"><h3>产品定位：一只猫的陪伴感从哪来</h3><i class="ncard__cat" data-i="note" style="width:14px;height:14px" title="笔记"></i></div>
-            <p class="ncard__sum">不是把 AI 做成助手图标，而是让它像桌上真的趴着一只猫——会看你在记什么，偶尔抬头提醒你。</p>
-            <div class="ncard__meta"><span class="ncard__time">18 分钟前</span><span class="tag-pill" style="--tc:#4caf72">产品</span></div>
-          </article>
-          <article class="ncard">
-            <div class="ncard__t"><h3>把信息管家做成陪伴：可爱的反义词不是严肃</h3><span class="ncard__cat"><i data-i="doc" style="width:14px;height:14px" title="文章 · 剪藏"></i><span class="src-badge"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 5.25a.75.75 0 0 0 0 1.5h6a.75.75 0 0 0 0-1.5z"/><path fill-rule="evenodd" d="M21 11.098v4.993c0 3.096 0 4.645-.734 5.321c-.35.323-.792.526-1.263.58c-.987.113-2.14-.907-4.445-2.946c-1.02-.901-1.529-1.352-2.118-1.47a2.2 2.2 0 0 0-.88 0c-.59.118-1.099.569-2.118 1.47c-2.305 2.039-3.458 3.059-4.445 2.945a2.24 2.24 0 0 1-1.263-.579C3 20.736 3 19.188 3 16.091v-4.994C3 6.81 3 4.666 4.318 3.333S7.758 2 12 2s6.364 0 7.682 1.332S21 6.81 21 11.098" clip-rule="evenodd"/></svg></span></span></div>
-            <p class="ncard__sum">为什么一个有"性格"的产品反而更容易被长期使用？从工具关系聊到陪伴关系的转变。</p>
-            <div class="ncard__src"><span class="favi">少</span> <span class="srctxt">少数派 · 收藏于 3 小时前</span><span class="tag-pill" style="--tc:#4caf72">产品</span></div>
-          </article>
-          <article class="ncard">
-            <div class="ncard__t"><h3>Figma 如何做产品决策（设计负责人访谈）</h3><span class="ncard__cat"><i data-i="video" style="width:14px;height:14px" title="视频 · 剪藏"></i><span class="src-badge"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 5.25a.75.75 0 0 0 0 1.5h6a.75.75 0 0 0 0-1.5z"/><path fill-rule="evenodd" d="M21 11.098v4.993c0 3.096 0 4.645-.734 5.321c-.35.323-.792.526-1.263.58c-.987.113-2.14-.907-4.445-2.946c-1.02-.901-1.529-1.352-2.118-1.47a2.2 2.2 0 0 0-.88 0c-.59.118-1.099.569-2.118 1.47c-2.305 2.039-3.458 3.059-4.445 2.945a2.24 2.24 0 0 1-1.263-.579C3 20.736 3 19.188 3 16.091v-4.994C3 6.81 3 4.666 4.318 3.333S7.758 2 12 2s6.364 0 7.682 1.332S21 6.81 21 11.098" clip-rule="evenodd"/></svg></span></span></div>
-            <p class="ncard__sum">从「先发散再收敛」到用原型代替评审文档，聊团队怎么把设计决策做轻。</p>
-            <div class="ncard__src"><span class="favi">Y</span> <span class="srctxt">YouTube · 收藏于 昨天</span><span class="tag-pill" style="--tc:#e88478">设计</span></div>
-          </article>
-          <article class="ncard">
-            <div class="ncard__t"><h3>Design Systems Handbook</h3><i class="ncard__cat" data-i="pdf" style="width:14px;height:14px" title="PDF"></i></div>
-            <p class="ncard__sum">设计系统从 0 到 1 的搭建：组件、令牌、文档与协作流程。</p>
-            <div class="ncard__meta"><span class="ncard__time">从本地导入 · 昨天</span><span class="tag-pill" style="--tc:#e88478">设计</span></div>
-          </article>
-          <article class="ncard">
-            <div class="ncard__t"><h3>About Face：交互设计精髓</h3><i class="ncard__cat" data-i="book" style="width:14px;height:14px" title="电子书"></i></div>
-            <p class="ncard__sum">交互设计的目标、行为模型与界面细节，Alan Cooper 的经典之作。</p>
-            <div class="ncard__meta"><span class="ncard__time">从本地导入 · 前天</span><span class="tag-pill" style="--tc:#4f93e8">读书</span></div>
           </article>
         </div>
 
@@ -1575,18 +1489,23 @@
   </button>
 
   <button class="to-top" id="to-top" title="回到顶部" aria-label="回到顶部">
-    <svg viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" d="M6 11l6-4 6 4M6 17l6-4 6 4"/></svg>
+    <svg viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" d="M12 20V4m0 0l-6 6m6-6l6 6"/></svg>
   </button>
 
   <!-- 列表标题下拉：排序 + 快速跳转 -->
   <div class="lmenu" id="listMenu">
-    <div class="lmenu__row" data-sub="type-filter">
-      <button class="lmenu__item lmenu__parent"><i class="li" data-i="list"></i><span>筛选</span><i class="arr" data-i="chev-right"></i></button>
+    <div class="lmenu__row" data-sub="method">
+      <button class="lmenu__item lmenu__parent"><i class="li" data-i="list"></i><span>排序方式</span><i class="arr" data-i="chev-right"></i></button>
       <div class="lsub">
-        <button class="lmenu__item sel" data-typefilter="all"><i class="li" data-i="inbox"></i><span>全部</span><i class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17.5 19 6.5"/></svg></i></button>
-        <button class="lmenu__item" data-typefilter="note"><i class="li" data-i="note"></i><span>笔记</span><i class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17.5 19 6.5"/></svg></i></button>
-        <button class="lmenu__item" data-typefilter="clip"><i class="li" data-i="bookmark"></i><span>剪藏</span><i class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17.5 19 6.5"/></svg></i></button>
-        <button class="lmenu__item" data-typefilter="feed"><i class="li" data-i="rss"></i><span>订阅</span><i class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17.5 19 6.5"/></svg></i></button>
+        <button class="lmenu__item sel" data-sort="mtime"><i class="li" data-i="clock"></i><span>修改时间</span><i class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17.5 19 6.5"/></svg></i></button>
+        <button class="lmenu__item" data-sort="ctime"><i class="li" data-i="calendar-add"></i><span>创建时间</span><i class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17.5 19 6.5"/></svg></i></button>
+      </div>
+    </div>
+    <div class="lmenu__row" data-sub="order">
+      <button class="lmenu__item lmenu__parent"><i class="li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v15M7 4 4.3 6.7M7 4l2.7 2.7"/><path d="M17 20V5M17 20l-2.7-2.7M17 20l2.7-2.7"/></svg></i><span>排序顺序</span><i class="arr" data-i="chev-right"></i></button>
+      <div class="lsub">
+        <button class="lmenu__item sel" data-order="desc"><i class="li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M12 19l-5-5M12 19l5-5"/></svg></i><span>最新在前</span><i class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17.5 19 6.5"/></svg></i></button>
+        <button class="lmenu__item" data-order="asc"><i class="li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M12 5 7 10M12 5l5 5"/></svg></i><span>最早在前</span><i class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17.5 19 6.5"/></svg></i></button>
       </div>
     </div>
     <div class="lmenu__row" data-sub="jump">
@@ -1639,28 +1558,15 @@
         const folders = [...document.querySelectorAll("#kbPane .kbf-wrap")].filter(w => w.querySelector(":scope > .kbf-children"));
         if (folders.length) {
           const anyOpen = folders.some(w => !w.classList.contains("collapsed"));
-          folders.forEach(w => { const kids = w.querySelector(":scope > .kbf-children"); if (kids && ((anyOpen && !w.classList.contains("collapsed")) || (!anyOpen && w.classList.contains("collapsed")))) toggleKbFolder(w, kids); else w.classList.toggle("collapsed", anyOpen); });
+          folders.forEach(w => w.classList.toggle("collapsed", anyOpen));
           btn.classList.toggle("is-collapsed", anyOpen);
         }
         return;
       }
       const grps = document.querySelectorAll(".side__nav .nav-grp");
       const anyOpen = [...grps].some(g => !g.classList.contains("collapsed"));
-      grps.forEach(g => {
-        const list = g.querySelector(".nav-sub-list");
-        if (!list) { g.classList.toggle("collapsed", anyOpen); return; }
-        if (anyOpen && !g.classList.contains("collapsed")) {
-          list.style.height = list.scrollHeight + "px";
-          requestAnimationFrame(() => { list.style.height = "0px"; list.style.opacity = "0"; });
-          list.addEventListener("transitionend", () => { g.classList.add("collapsed"); list.style.height = ""; list.style.opacity = ""; }, { once: true });
-        } else if (!anyOpen && g.classList.contains("collapsed")) {
-          list.style.height = "0px";
-          g.classList.remove("collapsed");
-          requestAnimationFrame(() => { list.style.height = list.scrollHeight + "px"; });
-          list.addEventListener("transitionend", () => { list.style.height = ""; }, { once: true });
-        }
-      });
-      btn.classList.toggle("is-collapsed", anyOpen);  // 全收起后显示"展开"箭头，反之显示"收起"
+      grps.forEach(g => g.classList.toggle("collapsed", anyOpen));
+      btn.classList.toggle("is-collapsed", anyOpen);  // 全收起后显示“展开”箭头，反之显示“收起”
     });
 
     // 隐藏侧栏（完全折叠）
@@ -1685,64 +1591,10 @@
     });
     sideEl.addEventListener("mouseenter", () => clearTimeout(peekTimer));
 
-    // 知识库二级目录折叠动画
-    function toggleKbItem(item) {
-      const list = item.querySelector(".nav-sub2-list");
-      if (!list) { item.classList.toggle("collapsed"); return; }
-      if (item.classList.contains("collapsed")) {
-        item.classList.remove("collapsed");
-        list.style.height = "0px";
-        list.style.opacity = "0";
-        requestAnimationFrame(() => { list.style.height = list.scrollHeight + "px"; list.style.opacity = "1"; });
-        const done = (ev) => { if (ev.propertyName !== "height") return; list.removeEventListener("transitionend", done); list.style.height = ""; };
-        list.addEventListener("transitionend", done);
-      } else {
-        list.style.height = list.scrollHeight + "px";
-        list.style.opacity = "1";
-        requestAnimationFrame(() => { list.style.height = "0px"; list.style.opacity = "0"; });
-        const done = (ev) => { if (ev.propertyName !== "height") return; list.removeEventListener("transitionend", done); item.classList.add("collapsed"); list.style.height = ""; list.style.opacity = ""; };
-        list.addEventListener("transitionend", done);
-      }
-    }
-
-    // 知识库抽屉文件夹树折叠动画
-    function toggleKbFolder(wrap, list) {
-      if (wrap.classList.contains("collapsed")) {
-        wrap.classList.remove("collapsed");
-        list.style.height = "0px";
-        list.style.opacity = "0";
-        requestAnimationFrame(() => { list.style.height = list.scrollHeight + "px"; list.style.opacity = "1"; });
-        const done = (ev) => { if (ev.propertyName !== "height") return; list.removeEventListener("transitionend", done); list.style.height = ""; };
-        list.addEventListener("transitionend", done);
-      } else {
-        list.style.height = list.scrollHeight + "px";
-        list.style.opacity = "1";
-        requestAnimationFrame(() => { list.style.height = "0px"; list.style.opacity = "0"; });
-        const done = (ev) => { if (ev.propertyName !== "height") return; list.removeEventListener("transitionend", done); wrap.classList.add("collapsed"); list.style.height = ""; list.style.opacity = ""; };
-        list.addEventListener("transitionend", done);
-      }
-    }
-
     // 一级分组标题：点击整行只折叠 / 展开，不选中、不切视图
     document.querySelectorAll(".nav-i.grp").forEach(g => g.addEventListener("click", e => {
       if (e.target.closest(".row-act")) return;
-      const grp = g.closest(".nav-grp");
-      const list = grp.querySelector(".nav-sub-list");
-      if (!list) { grp.classList.toggle("collapsed"); return; }
-      if (grp.classList.contains("collapsed")) {
-        grp.classList.remove("collapsed");
-        list.style.height = "0px";
-        list.style.opacity = "0";
-        requestAnimationFrame(() => { list.style.height = list.scrollHeight + "px"; list.style.opacity = "1"; });
-        const done = (ev) => { if (ev.propertyName !== "height") return; list.removeEventListener("transitionend", done); list.style.height = ""; };
-        list.addEventListener("transitionend", done);
-      } else {
-        list.style.height = list.scrollHeight + "px";
-        list.style.opacity = "1";
-        requestAnimationFrame(() => { list.style.height = "0px"; list.style.opacity = "0"; });
-        const done = (ev) => { if (ev.propertyName !== "height") return; list.removeEventListener("transitionend", done); grp.classList.add("collapsed"); list.style.height = ""; list.style.opacity = ""; };
-        list.addEventListener("transitionend", done);
-      }
+      g.closest(".nav-grp").classList.toggle("collapsed");
     }));
 
     // 视图切换
@@ -1800,8 +1652,7 @@
     document.querySelectorAll("[data-view]").forEach(b => b.addEventListener("click", e => {
       if (e.target.closest(".row-act")) return;           // ⋯ 按钮由菜单系统处理，不切视图
       if (b.classList.contains("grp")) return;            // 分组标题只折叠，不切视图（见上方折叠处理）
-      if (b.classList.contains("is-ph")) { showToast("功能还在开发中 (｡･ω･｡)"); return; }  // 待开发占位项：给个反馈，不进入实际视图
-      if (e.target.closest(".subchev")) { toggleKbItem(b.closest(".kb-item")); return; }  // 知识库 L1 展开/折叠
+      if (e.target.closest(".subchev")) { b.closest(".kb-item").classList.toggle("collapsed"); return; }  // 知识库 L1 展开/折叠
       if (b.classList.contains("nav-sub")) b.classList.remove("has-update");  // 点开订阅清除“新内容”点
       if (b.classList.contains("nav-sub") || b.classList.contains("nav-i")) {
         document.querySelectorAll(".side .nav-i,.side .nav-sub").forEach(x=>x.classList.remove("active"));
@@ -2027,7 +1878,6 @@
       modalBody.innerHTML = cfg.body;
       modalOk.textContent = cfg.ok || "确定";
       modalOk.onclick = ev => { ev.stopPropagation(); cfg.onOk && cfg.onOk(modalBody); closeModal(); };
-      modal.classList.toggle("modal--wide", !!cfg.wide);   // 大弹窗变体（从收藏箱导入用）
       modal.hidden = false;
       const ft = document.querySelector("#dialog .modal__foot"); if (ft) ft.style.display = "";
       const f = modalBody.querySelector("input,textarea"); if (f) f.focus();
@@ -2088,7 +1938,7 @@
     function wireNav(row) {
       row.addEventListener("click", e => {
         if (e.target.closest(".row-act") || e.target.closest("input.rename") || e.target.closest(".tag-dot")) return;
-        if (e.target.closest(".subchev")) { toggleKbItem(row.closest(".kb-item")); return; }
+        if (e.target.closest(".subchev")) { row.closest(".kb-item").classList.toggle("collapsed"); return; }
         document.querySelectorAll(".side .nav-i,.side .nav-sub").forEach(x => x.classList.remove("active"));
         row.classList.add("active"); switchView(row.dataset.view);
       });
@@ -2155,7 +2005,6 @@
     const CHEV_BACK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>';
     function setListTitle(t) { document.getElementById("list-title").textContent = t; }
     function showNotesList() { document.querySelectorAll(".listview").forEach(x => x.classList.toggle("on", x.dataset.view === "notes")); }
-    function showKbList() { document.querySelectorAll(".listview").forEach(x => x.classList.toggle("on", x.dataset.view === "kb")); }  // 知识库用今天风格混合类型列表
     function buildFolder(f, depth) {
       const wrap = document.createElement("div");
       wrap.className = "kbf-wrap";
@@ -2178,13 +2027,13 @@
       row.addEventListener("click", e => {
         if (e.target.closest(".row-act") || e.target.closest("input.rename")) return;
         const kids = wrap.querySelector(":scope > .kbf-children");
-        if (e.target.closest(".chev") && kids) { toggleKbFolder(wrap, kids); return; }
+        if (e.target.closest(".chev") && kids) { wrap.classList.toggle("collapsed"); return; }
         document.querySelectorAll("#kbPane .kbf").forEach(x => x.classList.remove("active"));
         { const _bk = document.querySelector("#kbPane .kb-pane__back"); if (_bk) _bk.classList.remove("active"); }  // 选中子文件夹时返回行不再代表“全部”
         row.classList.add("active");
         const lbl = row.querySelector(".lbl");
         setListTitle((lbl && lbl.textContent) || "未命名");
-        showKbList();
+        showNotesList();
       });
       return wrap;
     }
@@ -2193,14 +2042,15 @@
       pane.innerHTML = "";
       const back = document.createElement("button");
       back.className = "nav-i kb-pane__back";
-      back.innerHTML = '<i class="chev" data-i="caret"></i><i class="ic" data-i="' + (icon || "book") + '"></i> <span class="kb-pane__bname"></span><span class="row-act" data-menu="kb-root" title="操作">' + DOTS + '</span>';
+      back.innerHTML = '<i class="chev" data-i="caret"></i><i class="ic" data-i="' + (icon || "book") + '"></i> <span class="kb-pane__bname"></span><span class="kb-newfolder" title="新建文件夹"><i class="ic" data-i="addfolder"></i></span>';
       back.querySelector(".kb-pane__bname").textContent = name;
       back.classList.add("active");  // 进抽屉默认高亮：正在看这一级的全部文件
       back.addEventListener("click", e => {
-        if (e.target.closest(".row-act")) return;             // ⋯ 交给菜单系统（kb-root 菜单）
+        if (e.target.closest(".kb-newfolder")) return;        // 新建文件夹有独立逻辑
         if (e.target.closest(".chev")) { exitKb(); return; }  // 只有返回三角才回到 App 导航
         showKbLevel(name);                                    // 点标题本身=看这一级全部文件（取消子文件夹筛选）
       });
+      back.querySelector(".kb-newfolder").addEventListener("click", e => { e.stopPropagation(); addRootFolder(); });
       pane.appendChild(back);
       const tree = document.createElement("div");
       tree.className = "kb-tree";
@@ -2276,29 +2126,7 @@
       video: { name: "视频", icon: "video", placeholder: true },
       podcast: { name: "播客", icon: "mic", placeholder: true },
     };
-    // 每个订阅类型的列表内容：文章 / 媒体 各自独立；视频 / 播客 占位。
-    // 文章复用页面里已有的静态卡片作模板，避免重复维护两份。
-    const FEED_LISTS = {
-      media: '<article class="ncard sel"><div class="ncard__t"><h3>差评：我们试戴了一周 AI 眼镜，然后把它摘了</h3></div><p class="ncard__sum">硬件确实酷，但日常佩戴的社交尴尬和续航焦虑，比技术问题更难解决——聊聊 AI 硬件的"最后一公里"。</p><div class="ncard__imgs"><div class="ncard__thumb"><i data-i="image" style="width:28px;height:28px"></i></div></div><div class="ncard__src"><span class="favi">差</span> <span class="srctxt">差评 · 4 小时前</span><span class="tag-pill" style="--tc:#e0a93a">硬件</span></div></article>'
-        + '<article class="ncard"><div class="ncard__t"><h3>PingWest 品玩：大模型价格战打到了 API 之外</h3></div><p class="ncard__sum">当推理成本逼近免费，厂商开始卷分发、卷入口、卷生态——这一轮竞争的主战场正从模型本身转移。</p><div class="ncard__src"><span class="favi">品</span> <span class="srctxt">PingWest 品玩 · 6 小时前</span><span class="tag-pill" style="--tc:#4f93e8">行业</span></div></article>'
-        + '<article class="ncard"><div class="ncard__t"><h3>Lenny\'s Newsletter: How the best PMs run discovery</h3></div><p class="ncard__sum">A breakdown of the rituals top product teams use to stay close to users — continuous interviews, opportunity trees, and saying no to roadmaps.</p><div class="ncard__imgs"><div class="ncard__thumb"><i data-i="image" style="width:28px;height:28px"></i></div></div><div class="ncard__src"><span class="favi">L</span> <span class="srctxt">Lenny\'s Newsletter · 1 天前</span><span class="tag-pill" style="--tc:#4caf72">产品</span></div></article>',
-      video: '<div class="feed-list-ph">视频订阅还在路上<br>敬请期待 (｡･ω･｡)</div>',
-      podcast: '<div class="feed-list-ph">播客订阅还在路上<br>敬请期待 (｡･ω･｡)</div>',
-    };
-    FEED_LISTS.article = (document.querySelector('.listview[data-view="feed"]') || {}).innerHTML || "";
-    const FT_TO_JV = { article: "feed-article", media: "feed-media", video: "feed-video", podcast: "feed-podcast" };
-    let currentFeedFt = "article";
-    function showFeedList(ft) {
-      const lv = document.querySelector('.listview[data-view="feed"]');
-      if (ft) { currentFeedFt = ft; window.currentFeedSub = FT_TO_JV[ft] || "feed-article"; }
-      if (lv && FEED_LISTS[currentFeedFt] != null) {
-        lv.innerHTML = FEED_LISTS[currentFeedFt];
-        if (window.paintIcons) window.paintIcons(lv);
-      }
-      document.querySelectorAll(".listview").forEach(x => x.classList.toggle("on", x.dataset.view === "feed"));
-      // 重放进入动画：rise+fade（同主侧栏点订阅的流程感），不经 display:none，避免快速跳转时的闪烁
-      if (lv) { lv.classList.remove("feed-swap"); void lv.offsetWidth; lv.classList.add("feed-swap"); }
-    }
+    function showFeedList() { document.querySelectorAll(".listview").forEach(x => x.classList.toggle("on", x.dataset.view === "feed")); }
     function showFeedLevel(name) {  // 看这一类全部文章（所有作者）：取消单个订阅源选中、返回行回到高亮
       document.querySelectorAll("#kbPane .feed-src").forEach(x => x.classList.remove("active"));
       const back = document.querySelector("#kbPane .kb-pane__back");
@@ -2310,17 +2138,6 @@
     window.renderFeedPane = renderFeedPane;
     function renderFeedPane(ftId, name, icon) {
       const pane = document.getElementById("kbPane");
-      // 已在抽屉内切换类型：做 push 切换——旧栏内容克隆出来左移淡出，新栏右滑入。
-      // （首次 drill 由 .drilled 过渡负责进入，这里跳过，只在已 drill 时补这套切换。）
-      const _stage = document.querySelector(".side__stage");
-      if (_stage && _stage.classList.contains("drilled") && pane.innerHTML.trim()) {
-        const exit = document.createElement("div");
-        exit.className = "kb-pane pane-exit";
-        exit.innerHTML = pane.innerHTML;  // 克隆旧内容（无监听器、pointer-events:none，纯展示）
-        _stage.appendChild(exit);
-        exit.addEventListener("animationend", () => exit.remove(), { once: true });
-        pane.classList.remove("pane-swap"); void pane.offsetWidth; pane.classList.add("pane-swap");
-      }
       pane.innerHTML = "";
       const back = document.createElement("button");
       back.className = "nav-i kb-pane__back";
@@ -2371,7 +2188,7 @@
       entry.classList.add("active");
       { const _bk = document.querySelector("#kbPane .kb-pane__back"); if (_bk) _bk.classList.add("active"); }  // 上一行清掉了所有 .side .nav-i 高亮（含返回行），补回：抽屉默认看这一级全部
       try { switchView("feed"); } catch (_) {}
-      showFeedList(entry.dataset.ft);
+      showFeedList();
       setListTitle(name);
     }
     document.addEventListener("click", e => {
@@ -2471,114 +2288,6 @@
       t.feeds.push({ favi: ((name || "·").trim()[0] || "·").toUpperCase(), name: name });
       showToast("已添加订阅");
     }
-    // 从收藏箱(剪藏)导入：勾选要放进知识库的内容
-    // 从收藏箱导入：大弹窗，顶部 笔记/剪藏 tab + 左标题列表(可勾选) + 右详情预览
-    function openImportInbox() {
-      const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
-      const DATA = {
-        note: [
-          { t: "产品定位：一只猫的陪伴感从哪来", s: "笔记 · 18 分钟前", b: [
-            "反复想 mewmo 到底跟 Notion、Bear、印象笔记差在哪。功能层面拼不过——大厂什么都能补齐。",
-            "真正拼的是体感：打开它的时候，是面对一个冷冰冰的数据库，还是觉得「有个东西在陪我」。",
-            "陪伴感不是一个功能，是无数个细节累加出来的气质。它藏在动画的缓动曲线里，藏在文案的语气里，藏在「什么时候 AI 选择闭嘴」的判断里。",
-            "第一是在场感。哪怕什么都不做，那只猫也得「在」——呼吸般的微动、视线偶尔扫过你正在编辑的段落。",
-            "第二是记忆感，它得记得你上周在纠结什么，今天才接得上话。第三是分寸感，知道什么时候说话、说多长、用什么语气。三者里最难的是第三个，因为它没有量化指标，只能靠一遍遍调。",
-            "结论：先把单用户跑通，把这只猫的「在场 / 记忆 / 分寸」调到自己每天愿意打开，再谈别的。",
-          ] },
-          { t: "2.0 数据层验收清单", s: "笔记 · 1 小时前", b: [
-            "db / auth / queue / storage / email 六个包的验证状态。db:push 已连上本地 15432。",
-            "users / notes / clips / feeds / feed_entries 五张核心表建好，软删除用 deletedAt tombstone，不物理删。",
-            "还差：sync_cursors 的 version 自增触发器、embeddings 的 pgvector 索引。下周补。",
-          ] },
-          { t: "和阿杰聊产品的几个点", s: "笔记 · 昨天", b: [
-            "1. 先把单用户跑通，别一上来就想多端同步。",
-            "2. 猫是差异化不是装饰——如果去掉猫产品就垮，那它才算核心。",
-            "3. 回顾比收集更难做但更值钱，收集人人都有，帮你「回头看」的没几个。",
-          ] },
-          { t: "RSS 抓取去重策略草稿", s: "笔记 · 昨天", b: [
-            "用 (feedId, url) 唯一约束兜底，summary-only 的公众号条目直接跳过。",
-            "全文抓取失败时降级存 summary，标记 partial，后台重试三次再放弃。",
-          ] },
-        ],
-        clip: [
-          { t: "The Rise of the AI-Native Note App", s: "stratechery.com · 昨天", ic: "doc", b: [
-            "A deep look at how note-taking tools are rebuilding their entire interface around language models, and what that shift means for the apps we've relied on for the last decade.",
-            "The core argument: the value is moving from storage to retrieval and synthesis. Whoever owns the memory layer owns the moat.",
-            "Incumbents can bolt on a chat box, but the interaction model — quiet by default, speaking only when useful — is much harder to retrofit.",
-          ] },
-          { t: "把信息管家做成陪伴：可爱的反义词不是严肃", s: "少数派 · 3 小时前", ic: "doc", b: [
-            "为什么一个有「性格」的产品反而更容易被长期使用？作者从工具关系聊到陪伴关系的转变。",
-            "可爱并不等于不专业——像一个靠谱的同事，专业，但你愿意跟它多待一会儿。",
-            "关键在分寸：卖萌过头会显得幼稚，太严肃又回到冷冰冰的工具。中间那条线，是产品的手艺。",
-          ] },
-          { t: "Figma 如何做产品决策（设计负责人访谈）", s: "YouTube · 昨天", ic: "video", b: [
-            "从「先发散再收敛」到用原型代替评审文档，聊团队怎么把设计决策做轻。（视频转录摘要）",
-            "他们几乎不写长评审文档，而是直接做可点的原型让人体验，用真实反馈代替纸面辩论。",
-            "决策权下放到最靠近问题的人，负责人只在方向和取舍上把关。",
-          ] },
-          { t: "Dieter Rams 十条设计原则解读", s: "哔哩哔哩 · 上周", ic: "video", b: [
-            "好设计是尽可能少的设计。逐条拆解 Rams 的十项原则在数字产品里的对应。",
-            "「好设计是诚实的」——不假装产品能做到它做不到的事，不用动效掩盖功能缺失。",
-            "「好设计是持久的」——不追潮流，因此不会显得过时。这条在今天的 UI 里尤其稀缺。",
-          ] },
-        ],
-      };
-      const sel = new Set(["clip:0", "clip:1"]);   // 预勾两条
-      let curTab = "note", curKey = null;
-      const keyOf = (cat, i) => cat + ":" + i;
-      const iconOf = it => it.ic || "note";
-      const updateOk = () => { modalOk.textContent = sel.size ? "导入 " + sel.size + " 项" : "导入"; };
-
-      openModal({
-        title: "从收藏箱导入", wide: true, ok: "导入",
-        body:
-          '<div class="imp-tabs"><button class="imp-tab" data-tab="note">笔记</button><button class="imp-tab" data-tab="clip">剪藏</button></div>' +
-          '<div class="imp-cols"><div class="imp-left"></div><div class="imp-right"></div></div>',
-        onOk: () => { if (sel.size) toastAsync("正在导入…", "已导入 " + sel.size + " 项到知识库"); else showToast("未选择内容"); },
-      });
-      const left = modalBody.querySelector(".imp-left");
-      const right = modalBody.querySelector(".imp-right");
-
-      function renderDetail() {
-        if (!curKey) { right.innerHTML = '<div class="imp-detail"><div class="imp-detail__empty">选择左侧内容查看详情</div></div>'; return; }
-        const [cat, i] = curKey.split(":"); const it = DATA[cat][+i];
-        right.innerHTML = '<div class="imp-detail">' +
-          '<div class="imp-detail__title">' + it.t + '</div>' +
-          '<div class="imp-detail__meta"><i class="imp-row__ic" data-i="' + iconOf(it) + '"></i>' + it.s + '</div>' +
-          '<div class="imp-detail__body">' + it.b.map(p => '<p>' + p + '</p>').join("") + '</div>' +
-          '</div>';
-        window.paintIcons(right);
-      }
-      function renderList() {
-        left.innerHTML = DATA[curTab].map((it, i) => {
-          const k = keyOf(curTab, i);
-          return '<div class="imp-row' + (sel.has(k) ? ' on' : '') + (k === curKey ? ' active' : '') + '" data-key="' + k + '">' +
-            '<span class="imp-cb">' + CHECK + '</span>' +
-            '<i class="imp-row__ic" data-i="' + iconOf(it) + '"></i>' +
-            '<div class="imp-row__main"><div class="imp-row__title">' + it.t + '</div><div class="imp-row__src">' + it.s + '</div></div>' +
-          '</div>';
-        }).join("");
-        window.paintIcons(left);
-      }
-      const toggleSel = k => { sel.has(k) ? sel.delete(k) : sel.add(k); updateOk(); };
-
-      modalBody.querySelectorAll(".imp-tab").forEach(tb => tb.addEventListener("click", () => {
-        curTab = tb.dataset.tab;
-        modalBody.querySelectorAll(".imp-tab").forEach(x => x.classList.toggle("on", x === tb));
-        curKey = keyOf(curTab, 0);   // 切 tab 默认预览该类第一条
-        renderList(); renderDetail();
-      }));
-      left.addEventListener("click", e => {
-        const row = e.target.closest(".imp-row"); if (!row) return;
-        const k = row.dataset.key;
-        if (e.target.closest(".imp-cb")) { toggleSel(k); renderList(); if (k === curKey) renderDetail(); return; }  // 勾选框=选中导入
-        curKey = k; renderList(); renderDetail();   // 点行=预览详情
-      });
-
-      modalBody.querySelector('.imp-tab[data-tab="note"]').classList.add("on");
-      curKey = keyOf("note", 0);
-      renderList(); renderDetail(); updateOk();
-    }
     function openAddFeedModal() {
       openModal({
         title: "新增订阅",
@@ -2644,27 +2353,19 @@
         { label: "重命名", icon: ICN.edit, act: row => startRename(row, {}) },
         { label: "删除", danger: true, icon: ICN.del, act: row => { if (row) row.remove(); showToast("已删除知识库"); } },
       ],
-      // 知识库文件夹：分支最多 4 级。1/2/3 级能往下建子层 → 给「新建/从本地导入」；4 级最底层（再建会超 4 级）去掉这俩，只留从收藏箱导入
+      // 知识库文件夹：分支最多 4 级。1/2/3 级能往下建子层 → 给全部；4 级是最底层，新建文件夹/导入文件夹都会超 4 级，去掉只留导入收藏箱
       "kb-folder": row => {
         const depth = row ? +(row.dataset.depth || 0) : 0;   // 0=一级 … 3=四级（最底层）
         const leaf = depth >= 3;
         const items = [];
-        if (!leaf) items.push({ label: "新建文件夹", di: "addfolder", act: r => addSubfolder(r) });
-        items.push({ label: "从收藏箱导入", di: "inbox", act: () => openImportInbox() });
-        if (!leaf) items.push({ label: "从本地导入", di: "folder", act: () => toastAsync("从本地导入…", "已从本地导入") });
-        items.push({ label: "导出到本地", icon: ICN.export, act: () => toastAsync("导出到本地…", "已导出到本地") });
+        if (!leaf) items.push({ label: "新建文件夹", icon: ICN.add, act: r => addSubfolder(r) });
+        items.push({ label: "导入收藏箱", icon: ICN.bookmark, act: () => toastAsync("从收藏箱导入…", "已导入收藏箱内容") });
+        if (!leaf) items.push({ label: "导入本地文件/文件夹", icon: ICN.move, act: () => toastAsync("导入本地文件…", "已导入本地文件") });
         items.push({ sep: true });
         items.push({ label: "重命名", icon: ICN.edit, act: r => startRename(r, {}) });
         items.push({ label: "删除", danger: true, icon: ICN.del, act: r => { removeFolder(r); showToast("已删除文件夹"); } });
         return items;
       },
-      // 知识库根（抽屉返回行「产品设计」的 ⋯）：建顶层文件夹 + 从收藏箱/本地导入 + 整库导出到本地
-      "kb-root": [
-        { label: "新建文件夹", di: "addfolder", act: () => addRootFolder() },
-        { label: "从收藏箱导入", di: "inbox", act: () => openImportInbox() },
-        { label: "从本地导入", di: "folder", act: () => toastAsync("从本地导入…", "已从本地导入") },
-        { label: "导出到本地", icon: ICN.export, act: () => toastAsync("导出知识库…", "已导出到本地") },
-      ],
       "tag-grp": [
         { label: "新建", icon: ICN.add, act: () => createTag() },
       ],
@@ -2682,12 +2383,10 @@
         if (it.sep) { const s = document.createElement("div"); s.className = "rowmenu__sep"; rowmenu.appendChild(s); return; }
         const mb = document.createElement("button");
         if (it.danger) mb.classList.add("danger");
-        const iconHtml = it.di ? '<i class="ic" data-i="' + it.di + '"></i>' : '<span class="ic">' + it.icon + '</span>';  // di=图标库 key(走 paintIcons)，icon=内联 SVG
-        mb.innerHTML = iconHtml + it.label;
+        mb.innerHTML = '<span class="ic">' + it.icon + '</span>' + it.label;
         mb.addEventListener("click", ev => { ev.stopPropagation(); it.act(row); closeMenu(); });
         rowmenu.appendChild(mb);
       });
-      try { window.paintIcons(rowmenu); } catch (_) {}   // 渲染 data-i 图标
       const r = btn.getBoundingClientRect();
       rowmenu.classList.add("on");
       // 卡片左上角对齐三点位置，向右下展开；贴边时回收避免溢出
@@ -2837,42 +2536,11 @@
       });
     })();
 
-    // AI 列：FAB 打开（隐藏 tab），X 关闭（显示 tab）；喵喵可拖动重新摆放
+    // AI 列：FAB 打开（隐藏 tab），X 关闭（显示 tab）
     const aiFab = document.getElementById('ai-fab');
     const aiClose = document.getElementById('ai-close');
+    aiFab.addEventListener('click', (e) => { e.stopPropagation(); app.classList.add('ai-open'); aiFab.classList.add('hidden'); });
     aiClose.addEventListener('click', (e) => { e.stopPropagation(); app.classList.remove('ai-open'); aiFab.classList.remove('hidden'); });
-
-    // 喵喵可拖动：移动超过阈值=拖动（松手不开 AI），否则=点击打开。
-    // 拖动用 left/top 自由定位并 clamp 在视口内；离开右缘贴边态加 .floating 切全圆角。
-    (function () {
-      let st = null, didDrag = false;
-      const TH = 5, M = 6;
-      aiFab.addEventListener('pointerdown', (e) => {
-        if (aiFab.classList.contains('hidden')) return;
-        const r = aiFab.getBoundingClientRect();
-        st = { sx: e.clientX, sy: e.clientY, ox: e.clientX - r.left, oy: e.clientY - r.top };
-        didDrag = false;
-        try { aiFab.setPointerCapture(e.pointerId); } catch (_) {}
-      });
-      aiFab.addEventListener('pointermove', (e) => {
-        if (!st) return;
-        if (!didDrag && Math.hypot(e.clientX - st.sx, e.clientY - st.sy) < TH) return;
-        didDrag = true;
-        aiFab.classList.add('dragging');
-        // 仅垂直：保持 right:0 贴边，只改 top 并 clamp 在视口内（不脱离、不拖出）
-        const h = aiFab.offsetHeight;
-        const top = Math.max(M, Math.min(e.clientY - st.oy, innerHeight - h - M));
-        aiFab.style.top = top + 'px'; aiFab.style.bottom = 'auto';
-      });
-      const end = (e) => { if (st) { try { aiFab.releasePointerCapture(e.pointerId); } catch (_) {} } st = null; aiFab.classList.remove('dragging'); };
-      aiFab.addEventListener('pointerup', end);
-      aiFab.addEventListener('pointercancel', end);
-      aiFab.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (didDrag) { didDrag = false; return; }   // 拖动收尾的 click 不触发打开
-        app.classList.add('ai-open'); aiFab.classList.add('hidden');
-      });
-    })();
 
     // AI 列：左缘拖拽调画幅比例（改 --ai-w）。AI 在右侧，指针左移→AI 变宽、正文变窄。
     // clamp 防 AI 吃掉编辑区：上限 = 视口宽 - 留给正文的下限；双击复位到默认。
@@ -2970,10 +2638,10 @@
     function openLMenu(){
       var cur=window.currentNavView;
       var isFeed = (cur === "feed");
-      var showTypeFilter = (cur === "today" || cur === "clips");
-      // 类型筛选：只在今天/剪藏显示
-      var typeFilterRow = menu.querySelector('[data-sub="type-filter"]');
-      if (typeFilterRow) typeFilterRow.style.display = showTypeFilter ? "" : "none";
+      // 订阅视图：隐藏排序，直接平铺子分类（不用二级展开）
+      menu.querySelectorAll('[data-sub="method"],[data-sub="order"]').forEach(function(el){
+        el.style.display = isFeed ? "none" : "";
+      });
       var jumpRow = menu.querySelector('[data-sub="jump"]');
       if (isFeed) {
         // 替换整个 jump 行为平铺列表（无二级展开）
@@ -3012,13 +2680,15 @@
       e.stopPropagation();
       menu.classList.contains("on")?closeLMenu():openLMenu();
     });
-    // 按类型筛选：组内单选
-    menu.querySelectorAll("[data-typefilter]").forEach(function(b){
-      b.addEventListener("click",function(e){
-        e.stopPropagation();
-        menu.querySelectorAll("[data-typefilter]").forEach(function(x){x.classList.remove("sel");});
-        b.classList.add("sel");
-        closeLMenu();
+    // 排序方式 / 排序顺序：组内单选
+    ["data-sort","data-order"].forEach(function(attr){
+      menu.querySelectorAll("["+attr+"]").forEach(function(b){
+        b.addEventListener("click",function(e){
+          e.stopPropagation();
+          menu.querySelectorAll("["+attr+"]").forEach(function(x){x.classList.remove("sel");});
+          b.classList.add("sel");
+          closeLMenu();
+        });
       });
     });
     // 快速跳转
@@ -3026,7 +2696,6 @@
       b.addEventListener("click",function(e){
         e.stopPropagation(); closeLMenu();
         var v=b.dataset.view;
-        if(v==="pdf-shelf"||v==="books-shelf"){ showToast("功能还在开发中 (｡･ω･｡)"); return; }  // 待开发占位：快跳同样不进入
         if(typeof switchView==="function") switchView(v);
         document.querySelectorAll(".side .nav-i,.side .nav-sub").forEach(function(x){x.classList.remove("active");});
         var nav=document.querySelector('.side [data-view="'+v+'"]:not(.grp)');
@@ -3039,11 +2708,15 @@
       if (!btn) return;
       e.stopPropagation(); closeLMenu();
       var jv = btn.dataset.jv;
+      var labelMap = {"feed-article":"文章","feed-media":"媒体","feed-video":"视频","feed-podcast":"播客"};
       var ftMap = {"feed-article":"article","feed-media":"media","feed-video":"video","feed-podcast":"podcast"};
       var ft = ftMap[jv];
-      window.currentFeedSub = jv;  // 记录当前子分类供下次菜单隐藏用
-      // 直接复用「主侧栏点订阅」的完整流程（drill-in + 标题 + 内容渲染 + rise/fade）。
-      // 不再手动 remove/add .on —— 那会让列表先 display:none 再出现 = 闪烁，且和下面 click 触发的流程动画打架。
+      // 记录当前子分类供下次菜单隐藏用
+      window.currentFeedSub = jv;
+      // 触发列表淡入动画（先移除 on 再加回来）
+      var feedLv = document.querySelector('.listview[data-view="feed"]');
+      if (feedLv) { feedLv.classList.remove("on"); void feedLv.offsetHeight; feedLv.classList.add("on"); }
+      // 模拟点击侧栏对应的 feed-type 按钮（触发完整的 drill-in + 标题更新 + 渲染流程）
       var sideBtn = document.querySelector('.feed-type[data-ft="'+ft+'"]');
       if (sideBtn) sideBtn.click();
     });
