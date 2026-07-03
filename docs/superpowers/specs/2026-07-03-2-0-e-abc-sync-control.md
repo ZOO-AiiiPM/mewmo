@@ -104,6 +104,188 @@ The first pass should prioritize structure over ornament:
 
 The UI agent should not implement backend logic. It should consume typed data adapters and keep missing capabilities visually honest through disabled or empty states.
 
+## 5.1 Prototype Interaction Contract
+
+The high-fidelity prototype is not just visual mood. It defines the workspace behavior that makes 2.0 feel like mewmo instead of a generic CRUD dashboard. The implementation plan must treat the following details as product requirements unless explicitly marked as deferred.
+
+### Shell and Layout
+
+The app uses a four-surface desktop workspace:
+
+- Left navigation panel.
+- Middle list column.
+- Main reader/editor column.
+- Optional AI side rail.
+
+The first dogfood implementation should keep this spatial model. The exact pixel widths may adapt to React/Tailwind, but the behavior should remain: navigation and lists are persistent, the reader/editor is the focus surface, and the AI rail opens without replacing the content.
+
+Required shell behaviors:
+
+- Sidebar can collapse completely.
+- When collapsed, moving near the left edge can temporarily reveal it, or an equivalent explicit affordance must exist if hover-peek is not implemented in the first pass.
+- List column can collapse/expand from the reader toolbar for focused reading.
+- AI rail opens as a side surface and should not cause text to reflow character-by-character during animation.
+- The reader toolbar is glass/sticky-like and content should not scroll under it in a visually broken way.
+- A back-to-top control appears only after the reader scrolls enough to justify it.
+
+### Sidebar Information Architecture
+
+The sidebar organizes work by intent, not by database table. The expected groups are:
+
+- Top-level: Home and Today.
+- Collection group: Notes, Clips, PDF, Books.
+- Subscription group: Articles, Media, Video, Podcast.
+- Knowledge Base group.
+- Tags group.
+- Trash.
+- Account/settings footer.
+
+Dogfood scope:
+
+- Home, Today, Notes, Clips, Subscription Articles, Tags, Trash entry, and account/settings footer must be visible.
+- PDF, Books, Video, and Podcast remain visible as disabled or "coming later" entries, because the prototype uses them to set the information architecture, but they are not implemented in this slice.
+- Knowledge Base can remain a visible shell/deferred entry unless its old 1.0 implementation is intentionally ported later. Do not silently imply it is complete.
+
+Required sidebar interactions:
+
+- Groups expand/collapse with height/opacity animation, not abrupt display toggles.
+- A global expand/collapse-groups control exists.
+- Active navigation uses the prototype's line-to-fill icon language where feasible.
+- Row action menus use hover-revealed three-dot buttons that remain visible while their menu is open.
+- Subscription and Knowledge Base drawer-style navigation should be preserved as a design direction, even if Knowledge Base is deferred.
+
+### List Column
+
+The list column is not a plain table. It has a title bar, actions, search, filter/sort affordances, and content-specific cards.
+
+Required list behaviors:
+
+- Title dropdown supports quick jump and context-sensitive filter options.
+- Search expands inline from the list toolbar and closes on Escape/outside click.
+- Notes, Clips, Today, and Feed lists share rhythm but have distinct metadata.
+- Notes show title, preview, updated/created time, optional pin state, tags, and attachment/thumbnail hints when present.
+- Clips show source/domain, title, preview/summary, saved time, optional thumbnail, and tags.
+- Feeds show source, unread/new state, author/source metadata, published time, and read state.
+- Empty states are intentional and compact, not centered marketing panels.
+- Virtual scrolling remains required for large lists.
+
+Clip-specific behavior:
+
+- The clip add action should support an inline URL input expanding into the list title bar.
+- First dogfood may save a URL plus provided metadata/content; full remote extraction can be queued for later.
+
+Feed-specific behavior:
+
+- Article and Media are first-class categories in the UI.
+- Video and Podcast remain disabled/deferred but visible.
+- Switching feed category should feel like a state change, not a page reload; the prototype uses rise/fade in the list and push-style drawer transitions.
+
+### Reader, Editor, and Content Types
+
+The reader/editor area must communicate the content type clearly.
+
+Required reader behaviors:
+
+- Notes use the editor path and show editable title/content plus save status.
+- Clips use a reader path with source, author/domain, saved/published metadata, estimated reading time if available, summary/preview, and sanitized article HTML.
+- Feed entries use a reader path similar to clips but preserve feed source and read/unread behavior.
+- The reader toolbar includes previous/next navigation affordances, centered/current title, focus-mode/list-collapse control, and a more menu.
+- A lightweight document table of contents or heading minimap is required for long note/clip/feed content when headings are available. If implementation cost is too high for the first pass, a stable placeholder area should not be shipped; omit it rather than showing fake headings.
+- PDF and ebook shelf/reader surfaces are deferred for this slice. Keep their navigation entries disabled rather than implementing mock shelves in the real app.
+
+Editor-specific behavior:
+
+- Crepe remains the chosen editor.
+- Bottom insert toolbar from the existing editor polish stays in scope.
+- Save state must be visible and honest: idle, saving, saved, and error.
+- Initial editor normalization must not count as a user edit.
+
+### Tags
+
+Tags are a cross-content affordance, not only a note field.
+
+Required tag behaviors:
+
+- Notes, Clips, and Feed entries can display tags in list cards and reader metadata.
+- Tag picker supports selecting existing tags.
+- Tag creation can be deferred only if the UI makes that clear; otherwise it must create a real user-owned tag.
+- Tag colors must remain stable per tag.
+- Sidebar tag entries need rename/delete actions eventually; first dogfood may support display and filtering before full management.
+
+### Menus, Modals, and Toasts
+
+The prototype establishes a unified interaction language for small actions.
+
+Required behaviors:
+
+- Row and toolbar menus are lightweight floating menus, not full dialogs.
+- Destructive actions use confirmation.
+- Global toast appears at the top center for quick feedback such as copied, saved, refreshed, deleted, feed added, and sync failed.
+- Toast supports success, loading, and error states. Loading toasts should be replaceable by success/error rather than stacking.
+- Modal forms share one centered shell for add feed, create/edit tag, create knowledge base if implemented, and import/export entry points.
+
+### Account and Appearance
+
+The account footer is part of the working app, not a separate settings-only page.
+
+Required account footer behaviors:
+
+- Theme mode: system, dark, light.
+- Accent color selection can be implemented if cheap, but the app must not depend on it for core readability.
+- Font family and size controls are prototype evidence, but first dogfood may keep them as deferred settings unless reader typography is already abstracted.
+- Import/export entries can be visible but should not pretend to work until implemented.
+- Sync status belongs in the account/footer area or an equivalent always-findable place.
+
+### AI Side Rail
+
+The prototype frames AI as a contextual side rail with a compact entry point, not a separate full-page chat app.
+
+Dogfood scope:
+
+- AI rail should be openable from the main workspace.
+- The rail shows current context, such as the active note, clip, or feed entry.
+- Messages should support assistant/user bubbles and action buttons.
+- If real streaming AI is not included in this first slice, the UI must label the rail as not yet connected rather than presenting fake intelligence.
+
+Deferred:
+
+- Draggable AI floating button.
+- AI rail width resize.
+- Cat breathing/ambient presence.
+- Proactive suggestions and trigger timing.
+
+### Home and Today
+
+Home and Today are important to the prototype's shape, but they should not block ABC+Sync.
+
+Home dogfood scope:
+
+- Show real aggregate counts for notes, clips, and feeds if available.
+- Show recent content from real records.
+- AI review suggestions can remain deferred unless backed by real data.
+
+Today dogfood scope:
+
+- Show a combined recent stream from notes, clips, and feed entries.
+- Support filtering by content type.
+- It may be read-only in the first slice.
+
+### Prototype Details Explicitly Deferred
+
+These are visible in the prototype but out of scope for the first dogfood slice unless a later plan pulls them forward:
+
+- PDF storage, shelf, table of contents, and PDF reader.
+- Ebook storage, shelf, progress, and reader.
+- Video and podcast subscription playback.
+- Full Knowledge Base drawer/file-tree port.
+- Import/export data flows.
+- Font-size/font-family preference persistence.
+- Draggable AI entry point and AI rail resize.
+- Proactive AI companion triggers.
+- Advanced animated drawer transitions if they fight reliability.
+
+The real app can show deferred entries only when they are clearly disabled, labelled, or otherwise honest. It must not ship fake data paths for deferred surfaces.
+
 ### A: Notes Polish
 
 Notes already have a real DB path and Crepe editor. The polish work should make that path dependable:
@@ -271,4 +453,3 @@ The first dogfood slice is done when:
 - Worker can fetch one feed source without duplicating entries.
 - UI shell is recognizably aligned with the prototype's main navigation, list, and detail layout.
 - The final handoff lists remaining non-dogfood features separately from bugs.
-
