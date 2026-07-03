@@ -238,8 +238,11 @@ html.light .mewmo-sidebar {
   border-radius: 8px;
   background: var(--raised);
   color: var(--accent);
-  font-size: 12px;
-  font-weight: 800;
+}
+
+.mewmo-sidebar__logo-cat {
+  width: 18px;
+  height: 18px;
 }
 
 .mewmo-sidebar__nav {
@@ -513,6 +516,51 @@ html.light .mewmo-sidebar {
   opacity: 0.88;
 }
 
+.mewmo-prototype-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  vertical-align: middle;
+}
+
+.mewmo-prototype-icon svg,
+.mewmo-prototype-icon__line,
+.mewmo-prototype-icon__fill {
+  width: 100%;
+  height: 100%;
+}
+
+.mewmo-prototype-icon__line,
+.mewmo-prototype-icon__fill {
+  align-items: center;
+  justify-content: center;
+}
+
+.mewmo-prototype-icon__line {
+  display: inline-flex;
+}
+
+.mewmo-prototype-icon__fill {
+  display: none;
+}
+
+.mewmo-prototype-icon--filled .mewmo-prototype-icon__line,
+.mewmo-nav-row--active .mewmo-prototype-icon__line,
+.mewmo-list-card--selected .mewmo-prototype-icon__line {
+  display: none;
+}
+
+.mewmo-prototype-icon--filled .mewmo-prototype-icon__fill,
+.mewmo-nav-row--active .mewmo-prototype-icon__fill,
+.mewmo-list-card--selected .mewmo-prototype-icon__fill {
+  display: inline-flex;
+}
+
+.mewmo-icon-rotated {
+  transform: rotate(-90deg);
+}
+
 .mewmo-button {
   border: 0;
   border-radius: 8px;
@@ -541,6 +589,17 @@ html.light .mewmo-sidebar {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+  transition: grid-template-columns 0.32s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.mewmo-workspace--list-collapsed {
+  grid-template-columns: 0 minmax(0, 1fr);
+}
+
+.mewmo-workspace--list-collapsed .mewmo-list-column {
+  width: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .mewmo-list-column {
@@ -581,14 +640,28 @@ html.light .mewmo-sidebar {
   cursor: pointer;
 }
 
+.mewmo-list-title-wrap {
+  position: relative;
+  margin-left: -7px;
+}
+
+.mewmo-list-title__caret {
+  color: var(--accent);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.mewmo-list-title--open .mewmo-list-title__caret {
+  transform: rotate(180deg);
+}
+
 .mewmo-list-title:hover {
   background: var(--hover);
 }
 
 .mewmo-list-title-menu {
   position: absolute;
-  top: 48px;
-  left: 12px;
+  top: 34px;
+  left: 0;
   z-index: 80;
   width: 190px;
 }
@@ -627,6 +700,28 @@ html.light .mewmo-sidebar {
   font-size: 13px;
 }
 
+.mewmo-list-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+  height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--raised);
+  color: var(--ink-faint);
+  padding: 0 11px;
+}
+
+.mewmo-list-field input {
+  height: auto;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+}
+
 .mewmo-clip-url button {
   display: grid;
   width: 32px;
@@ -660,6 +755,16 @@ html.light .mewmo-sidebar {
 .mewmo-list-stack {
   display: flex;
   flex-direction: column;
+}
+
+.mewmo-list-card-wrap {
+  position: relative;
+}
+
+.mewmo-list-card-wrap--virtual {
+  position: absolute;
+  left: 0;
+  right: 0;
 }
 
 .mewmo-list-card {
@@ -765,6 +870,81 @@ form.mewmo-list-card input {
   font-size: 11px;
 }
 
+.mewmo-list-card__action {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 15;
+}
+
+.mewmo-row-action-card {
+  display: grid;
+  width: 25px;
+  height: 25px;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink-faint);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s, background 0.12s, color 0.12s;
+}
+
+.mewmo-list-card-wrap:hover .mewmo-row-action-card,
+.mewmo-list-card-wrap--menu-open .mewmo-row-action-card {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.mewmo-row-action-card:hover,
+.mewmo-list-card-wrap--menu-open .mewmo-row-action-card {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.mewmo-card-menu {
+  position: absolute;
+  right: 0;
+  top: 30px;
+  z-index: 90;
+  min-width: 132px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--s1);
+  box-shadow: var(--shadow);
+  padding: 4px;
+  animation: popIn 0.16s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+html.light .mewmo-card-menu {
+  background: var(--raised);
+}
+
+.mewmo-card-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink);
+  padding: 7px 10px;
+  text-align: left;
+  text-decoration: none;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.mewmo-card-menu__item:hover {
+  background: var(--hover);
+}
+
+.mewmo-card-menu__item--danger {
+  color: #f87171;
+}
+
 .mewmo-list-card p {
   display: -webkit-box;
   margin: 5px 0 0;
@@ -824,8 +1004,8 @@ form.mewmo-list-card input {
 
 .mewmo-tag-pill {
   border-radius: 5px;
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-  color: var(--accent);
+  background: color-mix(in srgb, var(--tc, var(--accent)) 16%, transparent);
+  color: var(--tc, var(--accent));
   padding: 1px 7px;
   font-size: 10.5px;
   font-weight: 650;
@@ -841,6 +1021,10 @@ form.mewmo-list-card input {
 }
 
 .mewmo-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
   color: var(--ink-faint);
   padding: 28px 18px;
   text-align: center;
@@ -848,6 +1032,10 @@ form.mewmo-list-card input {
 }
 
 .mewmo-list-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
   color: var(--ink-faint);
   padding: 28px 18px;
   text-align: center;
@@ -856,6 +1044,26 @@ form.mewmo-list-card input {
 
 .mewmo-empty-state p {
   margin: 0 0 12px;
+}
+
+.mewmo-list-empty p {
+  margin: 0;
+}
+
+.mewmo-spinner {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border: 2px solid var(--line);
+  border-top-color: var(--ink-soft);
+  border-radius: 999px;
+  animation: mewmoSpin 0.7s linear infinite;
+}
+
+@keyframes mewmoSpin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .mewmo-reader-surface {
@@ -938,6 +1146,111 @@ html.light .mewmo-reader-toolbar {
   padding: 74px 0 0;
 }
 
+.mewmo-doc-toc {
+  position: absolute;
+  top: 110px;
+  right: 14px;
+  z-index: 18;
+  display: grid;
+  width: 28px;
+  grid-template-columns: minmax(0, 1fr);
+  overflow: hidden;
+  border: 1px solid transparent;
+  border-radius: 22px;
+  padding: 12px 6px;
+  transition: width 0.35s ease, background 0.35s ease, box-shadow 0.35s ease, padding 0.35s ease, border-color 0.35s ease;
+}
+
+.mewmo-doc-toc:hover {
+  width: 180px;
+  border-color: var(--line);
+  background: var(--raised);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+  padding: 14px;
+}
+
+html.light .mewmo-doc-toc:hover {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+}
+
+.mewmo-doc-toc__bars,
+.mewmo-doc-toc__links {
+  grid-area: 1 / 1;
+}
+
+.mewmo-doc-toc__bars {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 14px;
+  opacity: 1;
+  transition: opacity 0.2s ease;
+}
+
+.mewmo-doc-toc:hover .mewmo-doc-toc__bars {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.mewmo-doc-toc__bar {
+  display: block;
+  height: 2.5px;
+  border: 0;
+  border-radius: 2px;
+  background: var(--ink-soft);
+  opacity: 0.6;
+  padding: 0;
+}
+
+.mewmo-doc-toc__bar--active {
+  background: var(--accent);
+  opacity: 1;
+}
+
+.mewmo-doc-toc__links {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s ease;
+}
+
+.mewmo-doc-toc:hover .mewmo-doc-toc__links {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.mewmo-doc-toc__link {
+  display: block;
+  overflow: hidden;
+  border: 0;
+  border-left: 2px solid transparent;
+  border-radius: 0 4px 4px 0;
+  background: transparent;
+  color: var(--ink-soft);
+  padding: 5px 8px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.mewmo-doc-toc__link:hover {
+  color: var(--ink);
+}
+
+.mewmo-doc-toc__link--active {
+  border-left-color: var(--accent);
+  color: var(--accent);
+  font-weight: 650;
+}
+
+.mewmo-doc-toc__link--nested {
+  padding-left: 16px;
+  font-size: 11.5px;
+}
+
 .mewmo-document {
   max-width: 680px;
   margin: 0 auto;
@@ -1014,6 +1327,38 @@ html.light .mewmo-reader-toolbar {
   margin-bottom: 18px;
   color: var(--ink-soft);
   font-size: 12px;
+}
+
+.mewmo-clip-src {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 680px;
+  margin: 0 auto 18px;
+  color: var(--ink-soft);
+  font-size: 12.5px;
+}
+
+.mewmo-clip-src strong {
+  display: block;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.mewmo-clip-src a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--accent);
+  padding: 6px 12px;
+  text-decoration: none;
+}
+
+.mewmo-clip-src a:hover {
+  background: var(--accent-2);
 }
 
 .mewmo-ai-rail {
