@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@mewmo/db";
-import { updateNoteSchema } from "@mewmo/shared";
+import { updateClipSchema } from "@mewmo/shared";
 import { auth } from "../../../../lib/auth";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -11,15 +11,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
   const { id } = await params;
   const prisma = getPrisma();
-  const note = await prisma.note.findFirst({
+  const clip = await prisma.clip.findFirst({
     where: { id, userId: session.user.id, deletedAt: null },
   });
 
-  if (!note) {
+  if (!clip) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  return NextResponse.json(note);
+  return NextResponse.json(clip);
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -28,38 +28,35 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { id } = await params;
-  const body = await request.json();
-  const parsed = updateNoteSchema.safeParse(body);
+  const parsed = updateClipSchema.safeParse(await request.json());
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
+  const { id } = await params;
   const prisma = getPrisma();
-
-  const note = await prisma.note.findFirst({
+  const clip = await prisma.clip.findFirst({
     where: { id, userId: session.user.id, deletedAt: null },
   });
 
-  if (!note) {
+  if (!clip) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const updateData: {
-    title?: string;
-    content?: string;
-    summary?: string;
-    pinned?: boolean;
-    version: { increment: number };
-  } = { version: { increment: 1 } };
-  if (parsed.data.title !== undefined) updateData.title = parsed.data.title;
-  if (parsed.data.content !== undefined) updateData.content = parsed.data.content;
-  if (parsed.data.summary !== undefined) updateData.summary = parsed.data.summary;
-  if (parsed.data.pinned !== undefined) updateData.pinned = parsed.data.pinned;
+  const data = {
+    ...(parsed.data.url !== undefined ? { url: parsed.data.url } : {}),
+    ...(parsed.data.title !== undefined ? { title: parsed.data.title } : {}),
+    ...(parsed.data.content !== undefined ? { content: parsed.data.content } : {}),
+    ...(parsed.data.summary !== undefined ? { summary: parsed.data.summary } : {}),
+    ...(parsed.data.favicon !== undefined ? { favicon: parsed.data.favicon } : {}),
+  };
 
-  const updated = await prisma.note.update({
+  const updated = await prisma.clip.update({
     where: { id },
-    data: updateData,
+    data: {
+      ...data,
+      version: { increment: 1 },
+    },
   });
 
   return NextResponse.json(updated);
@@ -73,19 +70,18 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
 
   const { id } = await params;
   const prisma = getPrisma();
-
-  const note = await prisma.note.findFirst({
+  const clip = await prisma.clip.findFirst({
     where: { id, userId: session.user.id, deletedAt: null },
   });
 
-  if (!note) {
+  if (!clip) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  await prisma.note.update({
+  const deleted = await prisma.clip.update({
     where: { id },
     data: { deletedAt: new Date(), version: { increment: 1 } },
   });
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, version: deleted.version });
 }
