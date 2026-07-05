@@ -2,7 +2,7 @@
 
 > Date: 2026-07-03
 > Status: Draft for review
-> Branch/worktree: `2.0` at `/Users/zoo/zoo/CC工作目录/进行中/mewmo/worktree/2.0`
+> Branch/worktree: originally `2.0`; after promotion, `main` is the 2.0 primary line.
 > Scope: high-fidelity Web UI implementation, Notes polish, Clips, RSS, and minimum sync loop
 
 ## 1. Goal
@@ -19,11 +19,8 @@ The objective is not a polished public launch. The objective is a coherent dogfo
 
 ## 2. Operating Constraint
 
-All work for this effort happens only inside the 2.0 worktree:
-
-`/Users/zoo/zoo/CC工作目录/进行中/mewmo/worktree/2.0`
-
-The main worktree is a 1.0/legacy surface and must not receive specs, plans, code, generated files, or validation side effects for this effort. If a command or path does not clearly point to the 2.0 worktree, stop and re-check before acting.
+All work for this effort now happens on `main`, which is the promoted 2.0 primary line.
+Older notes in this spec may mention the separate `2.0` worktree because that was true while the slice was being built.
 
 Existing uncommitted prototype files are treated as user work unless an assigned UI task explicitly claims them.
 

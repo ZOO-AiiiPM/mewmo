@@ -4,6 +4,8 @@ import { auth } from "../../lib/auth";
 import { AppShell } from "../../components/shell/AppShell";
 import { ToastProvider } from "../../components/ui/ToastProvider";
 
+export const dynamic = "force-dynamic";
+
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const session = await auth();
 

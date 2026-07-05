@@ -2,13 +2,29 @@ name: CI
 
 on:
   pull_request:
-    branches: [2.0]
+    branches: [main]
   push:
-    branches: [2.0]
+    branches: [main]
 
 jobs:
   ci:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://mewmo:mewmo@localhost:5432/mewmo_dev
+      REDIS_URL: redis://localhost:6379
+      NEXTAUTH_SECRET: ci-test-secret
+      NEXTAUTH_URL: http://localhost:3000
+      GOOGLE_CLIENT_ID: ci-google-client-id
+      GOOGLE_CLIENT_SECRET: ci-google-client-secret
+      OPENAI_API_KEY: ci-openai-api-key
+      ANTHROPIC_API_KEY: ci-anthropic-api-key
+      R2_ENDPOINT: https://example.r2.cloudflarestorage.com
+      R2_ACCESS_KEY: ci-r2-access-key
+      R2_SECRET_KEY: ci-r2-secret-key
+      R2_BUCKET: mewmo-ci
+      R2_PUBLIC_BASE_URL: https://cdn.mewmo.test
+      RESEND_API_KEY: ci-resend-api-key
+      EMAIL_FROM: Mewmo <login@mewmo.app>
 
     services:
       postgres:
@@ -49,17 +65,10 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - run: pnpm db:generate
+
       - run: pnpm lint
 
       - run: pnpm build
-        env:
-          DATABASE_URL: postgresql://mewmo:mewmo@localhost:5432/mewmo_dev
-          REDIS_URL: redis://localhost:6379
-          NEXTAUTH_SECRET: ci-test-secret
-          NEXTAUTH_URL: http://localhost:3000
 
       - run: pnpm test
-        env:
-          DATABASE_URL: postgresql://mewmo:mewmo@localhost:5432/mewmo_dev
-          REDIS_URL: redis://localhost:6379
-          NEXTAUTH_SECRET: ci-test-secret

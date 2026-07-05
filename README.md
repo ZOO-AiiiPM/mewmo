@@ -16,7 +16,6 @@ Cloud-first AI information manager. Collect, organize, and resurface your knowle
 # 1. Clone & install
 git clone https://github.com/ZOO-AiiiPM/mewmo.git
 cd mewmo
-git checkout 2.0
 pnpm install
 
 # 2. Environment
@@ -65,9 +64,9 @@ See `.env.example` for the full list with comments. Summary:
 
 ### Branch Strategy
 
-- `main` — 1.0 legacy (do not develop here)
-- `2.0` — current development branch
-- `feature/*` — feature branches off `2.0`
+- `main` — 2.0 primary development branch
+- `1.0version` — legacy Tauri reference only
+- `feature/*` — feature branches off `main`
 
 ### PR Preview
 
@@ -75,11 +74,11 @@ Every PR automatically gets:
 - **Vercel Preview Deploy** — live URL in the PR comment
 - **Neon Database Branch** — isolated DB, no data pollution
 
-Just push your branch and open a PR against `2.0`.
+Just push your branch and open a PR against `main`.
 
 ### Staging
 
-The `2.0` branch auto-deploys to staging on every push.
+The `main` branch auto-deploys to staging on every push.
 
 ## Architecture
 

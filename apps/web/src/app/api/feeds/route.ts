@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { createFeedSchema } from "@mewmo/shared";
-import { Prisma, createFeedsRepository, getPrisma } from "@mewmo/db";
+import { createFeedsRepository, getPrisma } from "@mewmo/db";
 
 import { auth } from "../../../lib/auth";
+
+function isUniqueConstraintError(error: unknown): error is { code: "P2002" } {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "P2002";
+}
 
 export async function GET() {
   const session = await auth();
@@ -43,7 +47,7 @@ export async function POST(request: Request) {
     });
     return NextResponse.json(feed, { status: 201 });
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+    if (isUniqueConstraintError(error)) {
       const existing = await getPrisma().feed.findFirst({
         where: { url: parsed.data.url, userId: session.user.id, deletedAt: null },
       });

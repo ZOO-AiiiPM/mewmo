@@ -1,7 +1,19 @@
 import { notFound, redirect } from "next/navigation";
-import { getPrisma } from "@mewmo/db";
+import { getPrisma, Prisma } from "@mewmo/db";
 import { auth } from "../../../../lib/auth";
 import { ClipDetailClient } from "./ClipDetailClient";
+
+const clipListSelect = {
+  id: true,
+  url: true,
+  title: true,
+  summary: true,
+  favicon: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.ClipSelect;
+
+type ClipListItem = Prisma.ClipGetPayload<{ select: typeof clipListSelect }>;
 
 function toPlainText(content: string) {
   return content
@@ -29,7 +41,7 @@ export default async function ClipDetailPage({ params }: { params: Promise<{ id:
     prisma.clip.findMany({
       where: { userId: session.user.id, deletedAt: null },
       orderBy: { updatedAt: "desc" },
-      select: { id: true, url: true, title: true, summary: true, favicon: true, createdAt: true, updatedAt: true },
+      select: clipListSelect,
     }),
   ]);
 
@@ -47,7 +59,7 @@ export default async function ClipDetailPage({ params }: { params: Promise<{ id:
         createdAt: clip.createdAt.toISOString(),
         updatedAt: clip.updatedAt.toISOString(),
       }}
-      clips={clips.map((item) => ({
+      clips={clips.map((item: ClipListItem) => ({
         ...item,
         createdAt: item.createdAt.toISOString(),
         updatedAt: item.updatedAt.toISOString(),
