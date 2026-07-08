@@ -7,6 +7,9 @@ const slugSchema = z
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "slug must be kebab-case");
 
 const urlSchema = z.url();
+export const feedTypeSchema = z.enum(["article", "media", "video", "podcast"]);
+export const knowledgeItemKindSchema = z.enum(["note", "clip", "feed_entry", "asset"]);
+export const knowledgeAssetTypeSchema = z.enum(["pdf", "ebook"]);
 const nonEmptyUpdate = (value: Record<string, unknown>) =>
   Object.values(value).some((item) => item !== undefined);
 
@@ -38,6 +41,11 @@ export const updateClipSchema = z
     content: z.string().optional(),
     summary: z.string().nullable().optional(),
     favicon: z.string().nullable().optional(),
+    coverImage: z.string().nullable().optional(),
+    excerpt: z.string().nullable().optional(),
+    sourceName: z.string().nullable().optional(),
+    author: z.string().nullable().optional(),
+    publishedAt: z.coerce.date().nullable().optional(),
     tags: z.array(z.string().min(1)).optional(),
   })
   .refine(nonEmptyUpdate, { message: "at least one field must be provided" });
@@ -45,14 +53,20 @@ export const updateClipSchema = z
 export const createClipSchema = z.object({
   url: urlSchema,
   title: z.string().min(1),
-  content: z.string(),
+  content: z.string().optional().default(""),
   summary: z.string().optional(),
   favicon: z.string().optional(),
+  coverImage: z.string().optional(),
+  excerpt: z.string().optional(),
+  sourceName: z.string().optional(),
+  author: z.string().optional(),
+  publishedAt: z.coerce.date().optional(),
   tags: z.array(z.string().min(1)).optional().default([]),
 });
 
 export const createFeedSchema = z.object({
   url: urlSchema,
+  type: feedTypeSchema.optional().default("article"),
   title: z.string().min(1),
   description: z.string().optional(),
   favicon: z.string().optional(),
@@ -62,6 +76,7 @@ export const createFeedSchema = z.object({
 export const updateFeedSchema = z
   .object({
     url: urlSchema.optional(),
+    type: feedTypeSchema.optional(),
     title: z.string().min(1).optional(),
     description: z.string().nullable().optional(),
     favicon: z.string().nullable().optional(),
@@ -75,6 +90,9 @@ export const createFeedEntrySchema = z.object({
   url: urlSchema,
   content: z.string(),
   summary: z.string().optional(),
+  coverImage: z.string().optional(),
+  excerpt: z.string().optional(),
+  sourceName: z.string().optional(),
   author: z.string().optional(),
   publishedAt: z.coerce.date().optional(),
 });
@@ -85,13 +103,84 @@ export const updateFeedEntrySchema = z
     url: urlSchema.optional(),
     content: z.string().optional(),
     summary: z.string().nullable().optional(),
+    coverImage: z.string().nullable().optional(),
+    excerpt: z.string().nullable().optional(),
+    sourceName: z.string().nullable().optional(),
     author: z.string().nullable().optional(),
     publishedAt: z.coerce.date().nullable().optional(),
     readAt: z.coerce.date().nullable().optional(),
   })
   .refine(nonEmptyUpdate, { message: "at least one field must be provided" });
 
+export const createKnowledgeBaseSchema = z.object({
+  title: z.string().trim().min(1).max(80),
+  icon: z.string().trim().min(1).max(40).optional().default("book"),
+});
+
+export const updateKnowledgeBaseSchema = z
+  .object({
+    title: z.string().trim().min(1).max(80).optional(),
+    icon: z.string().trim().min(1).max(40).optional(),
+    position: z.number().int().min(0).optional(),
+  })
+  .refine(nonEmptyUpdate, { message: "at least one field must be provided" });
+
+export const createKnowledgeFolderSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  parentId: z.string().min(1).nullable().optional(),
+  depth: z.number().int().min(0).max(3).optional(),
+  position: z.number().int().min(0).optional(),
+});
+
+export const updateKnowledgeFolderSchema = z
+  .object({
+    name: z.string().trim().min(1).max(80).optional(),
+    parentId: z.string().min(1).nullable().optional(),
+    position: z.number().int().min(0).optional(),
+  })
+  .refine(nonEmptyUpdate, { message: "at least one field must be provided" });
+
+const importKnowledgeNoteSchema = z.object({
+  kind: z.literal("note"),
+  noteId: z.string().min(1),
+});
+
+const importKnowledgeClipSchema = z.object({
+  kind: z.literal("clip"),
+  clipId: z.string().min(1),
+});
+
+const importKnowledgeFeedEntrySchema = z.object({
+  kind: z.literal("feed_entry"),
+  feedEntryId: z.string().min(1),
+});
+
+export const importKnowledgeItemsSchema = z.object({
+  folderId: z.string().min(1).nullable().optional(),
+  items: z
+    .array(
+      z.discriminatedUnion("kind", [
+        importKnowledgeNoteSchema,
+        importKnowledgeClipSchema,
+        importKnowledgeFeedEntrySchema,
+      ]),
+    )
+    .min(1),
+});
+
+export const createKnowledgeAssetSchema = z.object({
+  folderId: z.string().min(1).nullable().optional(),
+  title: z.string().trim().min(1).max(180),
+  summary: z.string().trim().max(2000).nullable().optional(),
+  assetType: knowledgeAssetTypeSchema,
+  sourceName: z.string().trim().max(120).nullable().optional(),
+  sourceUrl: urlSchema.nullable().optional(),
+});
+
 export const syncEntitySchema = z.enum(["note", "clip", "feed", "feed_entry"]);
+export const discoverFeedSchema = z.object({
+  query: z.string().trim().min(1),
+});
 export const syncOperationSchema = z.enum([
   "create",
   "update",

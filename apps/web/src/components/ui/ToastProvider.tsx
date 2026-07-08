@@ -19,7 +19,7 @@ interface ToastState {
 }
 
 interface ToastContextValue {
-  showToast: (text: string, type?: ToastType) => void;
+  showToast: (text: string, type: ToastType) => void;
 }
 
 const ToastContext = createContext<ToastContextValue | null>(null);
@@ -27,7 +27,7 @@ const ToastContext = createContext<ToastContextValue | null>(null);
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toast, setToast] = useState<ToastState | null>(null);
 
-  const showToast = useCallback((text: string, type: ToastType = "success") => {
+  const showToast = useCallback((text: string, type: ToastType) => {
     setToast({ id: Date.now(), text, type });
   }, []);
 
@@ -52,7 +52,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 {toast.type === "success" ? "✓" : "!"}
               </span>
             )}
-            <span>{toast.text}</span>
+            <span className="mewmo-toast__message">{toast.text}</span>
           </div>
         )}
       </div>

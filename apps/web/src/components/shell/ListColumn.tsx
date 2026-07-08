@@ -1,40 +1,63 @@
 "use client";
 
-import Link from "next/link";
+import { usePathname } from "next/navigation";
 import type { ReactNode, Ref } from "react";
 import { useEffect, useRef, useState } from "react";
-import { FloatingMenu, FloatingMenuButton } from "../ui/FloatingMenu";
+import { useRememberedWorkspaceHref } from "../../lib/workspace-memory";
+import { FloatingMenu, FloatingMenuLink } from "../ui/FloatingMenu";
 import { useToast } from "../ui/ToastProvider";
 import { PrototypeIcon } from "./PrototypeIcon";
-
-export type ListSortMode = "updated" | "created";
 
 interface ListColumnProps {
   title: string;
   action?: ReactNode;
   children: ReactNode;
+  quickSwitch?: ReactNode;
+  titleMenuLabel?: string;
   bodyRef?: Ref<HTMLDivElement>;
   searchPlaceholder?: string;
   clipUrlInput?: boolean;
   onSubmitClipUrl?: (url: string) => void;
   onSearchChange?: (query: string) => void;
-  sortMode?: ListSortMode;
-  onSortChange?: (mode: ListSortMode) => void;
+}
+
+function trimUrlToken(value: string) {
+  return value.replace(/[),，。；;、]+$/u, "");
+}
+
+function extractClipboardUrl(text: string) {
+  const explicitUrl = text.match(/https?:\/\/[^\s<>"']+/iu)?.[0];
+  if (explicitUrl) return trimUrlToken(explicitUrl);
+
+  const tokens = text
+    .split(/\s+/u)
+    .map((token) => trimUrlToken(token.trim()))
+    .filter(Boolean);
+
+  for (const token of tokens) {
+    if (token.includes("@")) continue;
+    if (/^(?:www\.)?(?:[a-z0-9-]+\.)+[a-z]{2,}(?:\/[^\s<>"']*)?$/iu.test(token)) {
+      return `https://${token}`;
+    }
+  }
+
+  return null;
 }
 
 export function ListColumn({
   title,
   action,
   children,
+  quickSwitch,
+  titleMenuLabel = "快速切换",
   bodyRef,
   searchPlaceholder = "搜索当前列表...",
   clipUrlInput = false,
   onSubmitClipUrl,
   onSearchChange,
-  sortMode = "updated",
-  onSortChange,
 }: ListColumnProps) {
   const { showToast } = useToast();
+  const pathname = usePathname();
   const [titleMenuOpen, setTitleMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [clipInputOpen, setClipInputOpen] = useState(false);
@@ -42,7 +65,13 @@ export function ListColumn({
   const [searchQuery, setSearchQuery] = useState("");
   const searchWrapRef = useRef<HTMLDivElement>(null);
   const clipWrapRef = useRef<HTMLDivElement>(null);
-  const titleWrapRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const clipInputRef = useRef<HTMLInputElement>(null);
+  const titleButtonRef = useRef<HTMLButtonElement>(null);
+  const rememberedNotesHref = useRememberedWorkspaceHref("notes", "/notes");
+  const rememberedClipsHref = useRememberedWorkspaceHref("clips", "/clips");
+  const isNotesSection = pathname === "/notes" || pathname.startsWith("/notes/");
+  const isClipsSection = pathname === "/clips" || pathname.startsWith("/clips/");
 
   useEffect(() => {
     function handlePointer(event: MouseEvent) {
@@ -53,13 +82,10 @@ export function ListColumn({
       if (clipInputOpen && clipWrapRef.current && !clipWrapRef.current.contains(target)) {
         setClipInputOpen(false);
       }
-      if (titleMenuOpen && titleWrapRef.current && !titleWrapRef.current.contains(target)) {
-        setTitleMenuOpen(false);
-      }
     }
     document.addEventListener("mousedown", handlePointer);
     return () => document.removeEventListener("mousedown", handlePointer);
-  }, [clipInputOpen, searchOpen, titleMenuOpen]);
+  }, [clipInputOpen, searchOpen]);
 
   const closeSearch = () => {
     setSearchOpen(false);
@@ -76,51 +102,122 @@ export function ListColumn({
     setClipInputOpen(false);
   };
 
-  const changeSort = (mode: ListSortMode) => {
-    onSortChange?.(mode);
-    setTitleMenuOpen(false);
+  const openClipInput = async () => {
+    if (clipInputOpen) {
+      setClipInputOpen(false);
+      return;
+    }
+    closeSearch();
+    setClipInputOpen(true);
+    const clipboardText = await navigator.clipboard?.readText().catch(() => null);
+    const clipboardUrl = clipboardText ? extractClipboardUrl(clipboardText) : null;
+    if (clipboardUrl) setClipUrl(clipboardUrl);
   };
+
+  useEffect(() => {
+    if (!searchOpen) return;
+    const timer = window.setTimeout(() => {
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [searchOpen]);
+
+  useEffect(() => {
+    if (!clipInputOpen) return;
+    const timer = window.setTimeout(() => {
+      clipInputRef.current?.focus();
+      clipInputRef.current?.select();
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [clipInputOpen]);
 
   return (
     <section className={`mewmo-list-column ${searchOpen ? "mewmo-list-column--searching" : ""} ${clipInputOpen ? "mewmo-list-column--clip-input" : ""}`}>
       <div className="mewmo-list-column__bar">
-        <div className="mewmo-list-title-wrap" ref={titleWrapRef}>
+        <div className="mewmo-list-title-wrap">
           <button
+            ref={titleButtonRef}
             type="button"
             className={`mewmo-list-title ${titleMenuOpen ? "mewmo-list-title--open" : ""}`}
             onClick={() => setTitleMenuOpen((value) => !value)}
+            aria-haspopup="menu"
+            aria-expanded={titleMenuOpen}
           >
             <span>{title}</span>
             <PrototypeIcon name="caret" size={13} className="mewmo-list-title__caret" />
           </button>
-          <FloatingMenu open={titleMenuOpen} className="mewmo-list-title-menu">
-            <div className="mewmo-menu-label">排序</div>
-            <FloatingMenuButton onClick={() => changeSort("updated")}>
-              <span>最近更新</span>
-              {sortMode === "updated" && <PrototypeIcon name="check" size={14} />}
-            </FloatingMenuButton>
-            <FloatingMenuButton onClick={() => changeSort("created")}>
-              <span>最新创建</span>
-              {sortMode === "created" && <PrototypeIcon name="check" size={14} />}
-            </FloatingMenuButton>
-            <div className="mewmo-menu-separator" />
-            <div className="mewmo-menu-label">快速切换</div>
-            <Link href="/notes" className="mewmo-floating-menu__item" onClick={() => setTitleMenuOpen(false)}>
-              <PrototypeIcon name="note" size={15} /> 笔记
-            </Link>
-            <Link href="/clips" className="mewmo-floating-menu__item" onClick={() => setTitleMenuOpen(false)}>
-              <PrototypeIcon name="bookmark" size={15} /> 剪藏
-            </Link>
+          <FloatingMenu
+            open={titleMenuOpen}
+            anchorRef={titleButtonRef}
+            onOpenChange={setTitleMenuOpen}
+            boundary="main"
+            className="mewmo-list-title-menu"
+          >
+            <div className="mewmo-menu-label">{titleMenuLabel}</div>
+            {quickSwitch ?? (
+              <>
+                {!isNotesSection && (
+                  <FloatingMenuLink
+                    href={rememberedNotesHref}
+                    icon="note"
+                    scroll={false}
+                    onClick={() => setTitleMenuOpen(false)}
+                  >
+                    笔记
+                  </FloatingMenuLink>
+                )}
+                {!isClipsSection && (
+                  <FloatingMenuLink
+                    href={rememberedClipsHref}
+                    icon="bookmark"
+                    scroll={false}
+                    onClick={() => setTitleMenuOpen(false)}
+                  >
+                    剪藏
+                  </FloatingMenuLink>
+                )}
+              </>
+            )}
           </FloatingMenu>
         </div>
         <div className="mewmo-list-column__spacer" />
         {action}
         {clipUrlInput && (
-          <button type="button" className="mewmo-icon-button mewmo-list-column__clip-button" onClick={() => setClipInputOpen(true)} aria-label="添加剪藏">
-            <PrototypeIcon name="plus" size={17} />
-          </button>
+          <>
+            <button
+              type="button"
+              className={`mewmo-icon-button mewmo-list-column__clip-button ${clipInputOpen ? "mewmo-icon-button--active" : ""}`}
+              onClick={() => void openClipInput()}
+              aria-label="添加剪藏"
+            >
+              <PrototypeIcon name="plus" size={17} />
+            </button>
+            <div className="mewmo-clip-url" ref={clipWrapRef}>
+              <span className="mewmo-clip-url__field">
+                <PrototypeIcon name="plus" size={16} />
+                <input
+                  ref={clipInputRef}
+                  type="url"
+                  value={clipUrl}
+                  placeholder="粘贴链接，回车收藏..."
+                  onChange={(event) => setClipUrl(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") setClipInputOpen(false);
+                    if (event.key === "Enter") submitClip();
+                  }}
+                />
+              </span>
+              <button type="button" className="mewmo-clip-url__submit" onClick={submitClip} aria-label="保存剪藏链接">
+                <PrototypeIcon name="chev-right" size={16} />
+              </button>
+            </div>
+          </>
         )}
-        <button type="button" className="mewmo-icon-button mewmo-list-column__search-button" onClick={() => setSearchOpen(true)} aria-label="搜索列表">
+        <button type="button" className="mewmo-icon-button mewmo-list-column__search-button" onClick={() => {
+          setClipInputOpen(false);
+          setSearchOpen(true);
+        }} aria-label="搜索列表">
           <PrototypeIcon name="search" size={17} />
         </button>
 
@@ -128,7 +225,7 @@ export function ListColumn({
           <span className="mewmo-list-field">
             <PrototypeIcon name="search" size={16} />
             <input
-              autoFocus={searchOpen}
+              ref={searchInputRef}
               type="search"
               value={searchQuery}
               placeholder={searchPlaceholder}
@@ -143,25 +240,6 @@ export function ListColumn({
           </span>
         </div>
 
-        <div className="mewmo-clip-url" ref={clipWrapRef}>
-          <span className="mewmo-list-field">
-            <PrototypeIcon name="plus" size={16} />
-            <input
-              autoFocus={clipInputOpen}
-              type="url"
-              value={clipUrl}
-              placeholder="粘贴链接，回车收藏..."
-              onChange={(event) => setClipUrl(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Escape") setClipInputOpen(false);
-                if (event.key === "Enter") submitClip();
-              }}
-            />
-          </span>
-          <button type="button" onClick={submitClip} aria-label="保存剪藏链接">
-            <PrototypeIcon name="chev-right" size={16} />
-          </button>
-        </div>
       </div>
       <div ref={bodyRef} className="mewmo-list-column__body">
         {children}

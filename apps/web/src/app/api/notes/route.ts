@@ -12,7 +12,7 @@ export async function GET() {
   const notes = await prisma.note.findMany({
     where: { userId: session.user.id, deletedAt: null },
     orderBy: { updatedAt: "desc" },
-    select: { id: true, slug: true, title: true, summary: true, pinned: true, createdAt: true, updatedAt: true },
+    select: { id: true, slug: true, title: true, summary: true, content: true, pinned: true, createdAt: true, updatedAt: true },
   });
 
   return NextResponse.json(notes);

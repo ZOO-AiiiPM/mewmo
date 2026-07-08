@@ -5,9 +5,8 @@
 
 .crepe-editor-wrapper .milkdown {
   height: 100%;
-  font-family: var(--font-sans);
-  /* 标题回落到项目黑体：frame 主题默认 --crepe-font-title 是 Noto Serif 衬线。 */
-  --crepe-font-title: var(--font-sans);
+  font-family: var(--reader-font);
+  --crepe-font-title: var(--reader-font);
 
   /* 把 Crepe frame 主题的整套色变量映射到项目调色板，code 块 / 表格 / 选区等所有
      surface 一致变成 paper 质感；项目 token 在 .dark 下自动翻转，故暗色也顺带对了。 */
@@ -16,8 +15,8 @@
   --crepe-color-surface: var(--color-paper-2);
   --crepe-color-surface-low: var(--color-paper-2);
   --crepe-color-on-surface: var(--color-ink);
-  --crepe-color-on-surface-variant: var(--color-muted);
-  --crepe-color-outline: var(--color-muted);
+  --crepe-color-on-surface-variant: var(--color-ink);
+  --crepe-color-outline: var(--color-ink);
   --crepe-color-primary: var(--color-moss);
   --crepe-color-secondary: var(--color-paper-2);
   --crepe-color-on-secondary: var(--color-ink);
@@ -28,21 +27,29 @@
   --crepe-color-hover: var(--color-moss-2);
   --crepe-color-selected: var(--color-moss-2);
   --crepe-color-inline-area: var(--color-paper-2);
+  --mewmo-code-block-bg: #24262a;
 }
 
-/* 左侧留出 gutter：block handle（+ / ⠿，约 66px 宽 + 16px gap）由 floating-ui
-   锚在块左侧。实测 padding-left 需 ≥ 柄宽+gap(~82px) 柄才完整落在 .milkdown 盒内、
-   不被外层 overflow:auto 裁切。取 88px，hover 任意块都能稳定出现完整的 +/⠿。 */
+html.light .crepe-editor-wrapper .milkdown {
+  --mewmo-code-block-bg: #f6f8fa;
+}
+
+/* Content column: title and body share the same 40px inset; block handles live in
+   the left gutter via floating-ui and do not consume text-column width. */
 .crepe-editor-wrapper .milkdown .ProseMirror {
-  padding: 16px 32px 64px 88px;
+  padding: 16px 40px 64px;
   min-height: 100%;
+  caret-color: var(--ink, var(--color-ink));
+  color: var(--ink, var(--color-ink));
+  font-size: var(--reader-font-size);
 }
 
 .crepe-editor-wrapper--embedded {
-  height: 100%;
+  height: auto;
 }
 
 .crepe-editor-wrapper--embedded .milkdown {
+  height: auto;
   max-width: 760px;
   margin: 0 auto;
   --crepe-color-background: var(--s3);
@@ -50,8 +57,8 @@
   --crepe-color-surface: var(--raised);
   --crepe-color-surface-low: var(--s2);
   --crepe-color-on-surface: var(--ink);
-  --crepe-color-on-surface-variant: var(--ink-soft);
-  --crepe-color-outline: var(--line);
+  --crepe-color-on-surface-variant: var(--ink);
+  --crepe-color-outline: var(--ink);
   --crepe-color-primary: var(--accent);
   --crepe-color-secondary: var(--raised);
   --crepe-color-on-secondary: var(--ink);
@@ -63,29 +70,289 @@
 }
 
 .crepe-editor-wrapper--embedded .milkdown .ProseMirror {
-  padding: 8px 40px 96px 92px;
+  min-height: 0;
+  padding: 0 40px 96px;
 }
 
 .crepe-editor-wrapper--embedded .milkdown .ProseMirror:focus {
   outline: none;
 }
 
+.crepe-editor-wrapper--embedded .milkdown .ProseMirror h1 {
+  margin: 18px 0 8px;
+  font-size: 23px;
+  font-weight: 720;
+  line-height: 1.3;
+}
+
+.crepe-editor-wrapper--embedded .milkdown .ProseMirror h2 {
+  margin: 16px 0 7px;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.32;
+}
+
+.crepe-editor-wrapper--embedded .milkdown .ProseMirror h3 {
+  margin: 14px 0 6px;
+  font-size: 17px;
+  font-weight: 680;
+  line-height: 1.35;
+}
+
+.crepe-editor-wrapper--embedded .milkdown .ProseMirror h4,
+.crepe-editor-wrapper--embedded .milkdown .ProseMirror h5,
+.crepe-editor-wrapper--embedded .milkdown .ProseMirror h6 {
+  margin: 12px 0 6px;
+  font-size: 15px;
+  font-weight: 660;
+  line-height: 1.38;
+}
+
 /* code 块：CodeMirror 默认主题会给当前行行号一个深色块，这里压平 gutter 背景、
    行号用 muted 灰，整体跟随上面的 surface 映射，呈干净的 paper 质感代码块。
    圆角 + overflow hidden 让顶部工具条 / 行号 gutter 都裁进圆角内。 */
 .crepe-editor-wrapper .milkdown .milkdown-code-block {
+  border: 1px solid color-mix(in srgb, var(--line, var(--color-line)) 82%, var(--ink-faint, var(--color-muted)));
   border-radius: 12px;
+  background: var(--mewmo-code-block-bg);
+  overflow: visible;
+  z-index: 1;
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-code-block .cm-editor,
+.crepe-editor-wrapper .milkdown .milkdown-code-block .cm-gutters,
+.crepe-editor-wrapper .milkdown .milkdown-code-block .cm-scroller {
+  background: var(--mewmo-code-block-bg);
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-code-block .cm-editor {
+  border-radius: 8px;
   overflow: hidden;
 }
+
+.crepe-editor-wrapper .milkdown .milkdown-code-block .cm-content,
+.crepe-editor-wrapper .milkdown .milkdown-code-block .milkdown-code-block-placeholder {
+  color: var(--ink, var(--color-ink));
+}
+
 .crepe-editor-wrapper .milkdown .milkdown-code-block .cm-gutters,
 .crepe-editor-wrapper .milkdown .milkdown-code-block .cm-activeLineGutter {
   background: transparent;
 }
 .crepe-editor-wrapper .milkdown .milkdown-code-block .cm-lineNumbers .cm-gutterElement {
-  color: var(--color-muted);
+  color: var(--ink-soft, var(--color-muted));
 }
+
+.crepe-editor-wrapper .milkdown .milkdown-code-block .cm-cursor {
+  border-left-color: var(--ink, var(--color-ink));
+}
+
 .crepe-editor-wrapper .milkdown .milkdown-code-block .cm-activeLine {
-  background: transparent;
+  background: transparent !important;
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-code-block .cm-activeLineGutter {
+  background: transparent !important;
+  color: var(--ink-soft, var(--color-muted));
+}
+
+.crepe-editor-wrapper .milkdown .ProseMirror .milkdown-code-block + p {
+  min-height: 1.55em;
+  margin: 8px 0 0;
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-code-block .list-wrapper {
+  width: 260px;
+  overflow: hidden;
+  border: 1px solid var(--line, var(--color-line));
+  border-radius: 10px;
+  background: var(--raised, var(--color-paper-2));
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.18);
+  padding: 8px;
+  transform-origin: top left;
+  transition:
+    opacity 0.12s ease,
+    transform 0.14s cubic-bezier(0.34, 1.16, 0.64, 1),
+    visibility 0.12s;
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-code-block .search-box {
+  margin: 0 0 7px;
+  gap: 6px;
+  border: 1px solid var(--line, var(--color-line));
+  border-radius: 7px;
+  outline: none;
+  background: color-mix(in srgb, var(--line-soft, var(--color-paper-2)) 48%, transparent);
+  padding: 7px 9px;
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-code-block .search-box:has(input:focus) {
+  border-color: color-mix(in srgb, var(--ink-soft, var(--color-muted)) 72%, var(--line, var(--color-line)));
+  outline: none;
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-code-block .search-box input {
+  color: var(--ink, var(--color-ink));
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-code-block .search-box input::placeholder {
+  color: var(--ink-faint, var(--color-muted));
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-code-block .search-box .clear-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  color: var(--ink-soft, var(--color-muted));
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-code-block .search-box .clear-icon svg {
+  width: 16px;
+  height: 16px;
+  color: currentColor;
+  fill: currentColor;
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-code-block .search-box .clear-icon:hover {
+  background: var(--accent-2, var(--color-moss-2));
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-code-block .language-list {
+  max-height: 230px;
+  height: auto;
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-code-block .language-list-item {
+  gap: 8px;
+  border-radius: 7px;
+  padding: 6px 8px;
+  color: var(--ink, var(--color-ink));
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 540;
+  line-height: 17px;
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-code-block .language-list-item:hover,
+.crepe-editor-wrapper .milkdown .milkdown-code-block .language-list-item:focus-visible {
+  background: var(--accent-2, var(--color-moss-2));
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-code-block .language-list-item .leading,
+.crepe-editor-wrapper .milkdown .milkdown-code-block .language-list-item .leading svg {
+  width: 16px;
+  height: 16px;
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview-divider {
+  background: var(--line, var(--color-line));
+  opacity: 1;
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview-label {
+  color: var(--ink-soft, var(--color-muted));
+  font-family: var(--font-sans);
+  font-size: 11px;
+  letter-spacing: 0;
+}
+
+/* Structural marks need enough contrast in light mode: list bullets/numbers,
+   to-do boxes, quote rails, and dividers are controls, not decorative mist. */
+.crepe-editor-wrapper .milkdown .ProseMirror .crepe-placeholder::before {
+  content: none;
+  color: var(--ink-soft, var(--color-muted));
+}
+
+.crepe-editor-wrapper .milkdown .ProseMirror .milkdown-list-item-block li .label-wrapper {
+  color: var(--ink, var(--color-ink));
+}
+
+.crepe-editor-wrapper .milkdown .ProseMirror .milkdown-list-item-block li .label-wrapper svg {
+  fill: var(--ink, var(--color-ink));
+}
+
+.crepe-editor-wrapper .milkdown .ProseMirror .milkdown-list-item-block li .label-wrapper .checked,
+.crepe-editor-wrapper .milkdown .ProseMirror .milkdown-list-item-block li .label-wrapper .unchecked {
+  color: var(--ink, var(--color-ink));
+}
+
+.crepe-editor-wrapper .milkdown .ProseMirror .milkdown-list-item-block li .label-wrapper .label {
+  font-weight: 560;
+}
+
+.crepe-editor-wrapper .milkdown .ProseMirror blockquote {
+  margin: 6px 0;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--line-soft, var(--color-paper-2)) 54%, transparent);
+  padding-left: 28px;
+}
+
+.crepe-editor-wrapper .milkdown .ProseMirror blockquote::before {
+  width: 3px;
+  background: var(--ink, var(--color-ink));
+}
+
+.crepe-editor-wrapper .milkdown .ProseMirror hr {
+  background-color: var(--ink, var(--color-ink));
+}
+
+/* Tables need stronger affordance than Crepe's default faint grid, especially
+   when a newly inserted table is empty. */
+.crepe-editor-wrapper .milkdown .milkdown-table-block {
+  margin: 12px 0 18px;
+  overflow: auto;
+  border: 1px solid color-mix(in srgb, var(--ink-faint, var(--color-muted)) 55%, var(--line, var(--color-line)));
+  border-radius: 8px;
+  background: var(--line-soft, var(--color-paper-2));
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-table-block table {
+  width: 100%;
+  border-collapse: collapse;
+  border-style: hidden;
+  table-layout: fixed;
+  background: var(--raised, var(--color-paper-2));
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-table-block th,
+.crepe-editor-wrapper .milkdown .milkdown-table-block td {
+  min-width: 120px;
+  height: 38px;
+  border: 1px solid color-mix(in srgb, var(--ink-faint, var(--color-muted)) 64%, var(--line, var(--color-line)));
+  padding: 8px 10px;
+  color: var(--ink, var(--color-ink));
+  font-size: 14px;
+  line-height: 1.55;
+  vertical-align: top;
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-table-block th {
+  background: color-mix(in srgb, var(--line-soft, var(--color-paper-2)) 72%, var(--raised, var(--color-paper-2)));
+  font-weight: 650;
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-table-block td {
+  background: color-mix(in srgb, var(--line-soft, var(--color-paper-2)) 28%, var(--raised, var(--color-paper-2)));
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-table-block p {
+  min-height: 21px;
+  margin: 0;
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-table-block .selectedCell::after {
+  background-color: var(--accent-2, var(--color-moss-2));
+  opacity: 0.72;
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-table-block th:has(.ProseMirror-selectednode),
+.crepe-editor-wrapper .milkdown .milkdown-table-block td:has(.ProseMirror-selectednode) {
+  outline: 2px solid var(--accent, var(--color-moss));
+  outline-offset: -2px;
 }
 
 /* 自定义高亮 mark：暖色半透明，明暗模式都可读；box-decoration-break 让换行处也连续着色。 */
@@ -96,4 +363,226 @@
   padding: 0 2px;
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-toolbar {
+  display: none !important;
+  z-index: 90;
+  gap: 2px;
+  align-items: center;
+  border: 1px solid var(--line, var(--color-line));
+  border-radius: 10px;
+  background: var(--raised, var(--color-paper-2));
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.16);
+  padding: 5px;
+  color: var(--ink, var(--color-ink));
+  font-family: var(--font-sans);
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-toolbar .divider {
+  width: 1px;
+  height: 22px;
+  margin: 4px 5px;
+  background: var(--line, var(--color-line));
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-toolbar .toolbar-item {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  border-radius: 7px;
+  padding: 0;
+  color: var(--ink-soft, var(--color-muted));
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-toolbar .toolbar-item:hover {
+  background: var(--accent-2, var(--color-moss-2));
+  color: var(--ink, var(--color-ink));
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-toolbar .toolbar-item:active,
+.crepe-editor-wrapper .milkdown .milkdown-toolbar .toolbar-item.active {
+  background: color-mix(in srgb, var(--accent-2, var(--color-moss-2)) 72%, transparent);
+  color: var(--accent, var(--color-moss));
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-toolbar .toolbar-item svg {
+  width: 18px;
+  height: 18px;
+  color: currentColor;
+  fill: currentColor;
+}
+
+/* Crepe block handle: keep controls in the left gutter, never in the text column. */
+.crepe-editor-wrapper .milkdown .milkdown-block-handle {
+  gap: 0;
+  z-index: 12;
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-block-handle .operation-item {
+  display: flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  padding: 0;
+  color: var(--ink, var(--color-ink));
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-block-handle .operation-item svg {
+  width: 17px;
+  height: 17px;
+  fill: currentColor;
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-block-handle .operation-item:hover,
+.crepe-editor-wrapper .milkdown .milkdown-block-handle .operation-item.active {
+  background: var(--accent-2, var(--color-moss-2));
+  color: var(--accent, var(--color-moss));
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-block-handle[data-mewmo-mode="add"] .operation-item:nth-child(2),
+.crepe-editor-wrapper .milkdown .milkdown-block-handle[data-mewmo-mode="drag"] .operation-item:first-child {
+  display: none;
+}
+
+/* Crepe slash menu: compact mewmo-native command palette. */
+.crepe-editor-wrapper .milkdown .milkdown-slash-menu,
+.crepe-editor-wrapper .mewmo-block-style-menu {
+  z-index: 80;
+  width: min(260px, calc(100vw - 48px));
+  overflow: hidden;
+  border: 1px solid var(--line, var(--color-line));
+  border-radius: 10px;
+  background: var(--raised, var(--color-paper-2));
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.18);
+  color: var(--ink, var(--color-ink));
+  font-family: var(--font-sans);
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-slash-menu {
+  transform-origin: top left;
+  transition:
+    opacity 0.14s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.14s cubic-bezier(0.34, 1.16, 0.64, 1),
+    visibility 0.14s;
+}
+
+.crepe-editor-wrapper .mewmo-block-style-menu {
+  width: min(218px, calc(100vw - 48px));
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transform-origin: top right;
+  pointer-events: auto;
+  transition:
+    opacity 0.14s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.14s cubic-bezier(0.34, 1.16, 0.64, 1),
+    visibility 0.14s;
+}
+
+.crepe-editor-wrapper .mewmo-block-style-menu[data-show="false"] {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px) scale(0.97);
+  pointer-events: none;
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-slash-menu .tab-group,
+.crepe-editor-wrapper .milkdown .milkdown-slash-menu .menu-groups .menu-group h6,
+.crepe-editor-wrapper .milkdown .milkdown-slash-menu .menu-groups .menu-group + .menu-group::before,
+.crepe-editor-wrapper .mewmo-block-style-menu .tab-group,
+.crepe-editor-wrapper .mewmo-block-style-menu .menu-groups .menu-group h6,
+.crepe-editor-wrapper .mewmo-block-style-menu .menu-groups .menu-group + .menu-group::before {
+  display: none;
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-slash-menu .menu-groups,
+.crepe-editor-wrapper .mewmo-block-style-menu .menu-groups {
+  max-height: min(316px, calc(100vh - 48px));
+  padding: 7px;
+}
+
+.crepe-editor-wrapper .mewmo-block-style-menu .menu-groups .menu-group ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-slash-menu .menu-groups .menu-group li,
+.crepe-editor-wrapper .mewmo-block-style-menu .menu-groups .menu-group li {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  border-radius: 7px;
+  padding: 7px 9px;
+  cursor: default;
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-slash-menu .menu-groups .menu-group li.hover,
+.crepe-editor-wrapper .milkdown .milkdown-slash-menu .menu-groups .menu-group li.active,
+.crepe-editor-wrapper .mewmo-block-style-menu .menu-groups .menu-group li:hover,
+.crepe-editor-wrapper .mewmo-block-style-menu .menu-groups .menu-group li.active,
+.crepe-editor-wrapper .mewmo-block-style-menu .menu-groups .menu-group li[data-mewmo-active="true"] {
+  background: var(--accent-2, var(--color-moss-2));
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-slash-menu .menu-groups .menu-group li svg,
+.crepe-editor-wrapper .mewmo-block-style-menu .menu-groups .menu-group li svg {
+  width: 16px;
+  height: 16px;
+  color: var(--ink-soft, var(--color-muted));
+  fill: currentColor;
+  flex: 0 0 auto;
+}
+
+.crepe-editor-wrapper .mewmo-block-style-menu__icon {
+  display: grid;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  place-items: center;
+  color: var(--ink-soft, var(--color-muted));
+}
+
+.crepe-editor-wrapper .mewmo-block-style-menu__icon svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+  color: currentColor;
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-slash-menu .menu-groups .menu-group li > span,
+.crepe-editor-wrapper .mewmo-block-style-menu .menu-groups .menu-group li > span:not(.mewmo-block-style-menu__icon, .mewmo-block-style-menu__check) {
+  color: var(--ink, var(--color-ink));
+  font-size: 12.5px;
+  font-weight: 540;
+  line-height: 17px;
+}
+
+.crepe-editor-wrapper .mewmo-block-style-menu__check {
+  display: grid;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  margin-left: auto;
+  place-items: center;
+  opacity: 0;
+  color: var(--accent, var(--color-moss));
+}
+
+.crepe-editor-wrapper .mewmo-block-style-menu__check svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+  color: currentColor;
+}
+
+.crepe-editor-wrapper .mewmo-block-style-menu li[data-mewmo-active="true"] .mewmo-block-style-menu__check {
+  opacity: 1;
 }

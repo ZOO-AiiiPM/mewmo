@@ -7,6 +7,11 @@ export interface CreateClipInput {
   content: string;
   summary?: string;
   favicon?: string;
+  coverImage?: string;
+  excerpt?: string;
+  sourceName?: string;
+  author?: string;
+  publishedAt?: Date;
 }
 
 export interface UpdateClipInput {
@@ -15,6 +20,11 @@ export interface UpdateClipInput {
   content?: string;
   summary?: string | null;
   favicon?: string | null;
+  coverImage?: string | null;
+  excerpt?: string | null;
+  sourceName?: string | null;
+  author?: string | null;
+  publishedAt?: Date | null;
 }
 
 interface ClipsClient {

@@ -6,7 +6,7 @@
     "dev": "turbo run dev",
     "build": "turbo run build",
     "lint": "turbo run lint",
-    "test": "node --test tests/*.test.mjs && turbo run test",
+    "test": "tsx --test tests/*.test.mjs tests/unit/*.test.mjs && vitest run tests/unit/*.test.ts && turbo run test",
     "db:push": "pnpm --filter @mewmo/db db:push",
     "db:generate": "pnpm --filter @mewmo/db db:generate"
   },

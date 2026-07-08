@@ -9,24 +9,16 @@ const clipListSelect = {
   title: true,
   summary: true,
   favicon: true,
+  coverImage: true,
+  excerpt: true,
+  sourceName: true,
+  author: true,
+  publishedAt: true,
   createdAt: true,
   updatedAt: true,
 } satisfies Prisma.ClipSelect;
 
 type ClipListItem = Prisma.ClipGetPayload<{ select: typeof clipListSelect }>;
-
-function toPlainText(content: string) {
-  return content
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
 export default async function ClipDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -55,16 +47,21 @@ export default async function ClipDetailPage({ params }: { params: Promise<{ id:
         title: clip.title,
         summary: clip.summary,
         favicon: clip.favicon,
+        coverImage: clip.coverImage,
+        excerpt: clip.excerpt,
+        sourceName: clip.sourceName,
+        author: clip.author,
+        publishedAt: clip.publishedAt?.toISOString() ?? null,
         content: clip.content,
         createdAt: clip.createdAt.toISOString(),
         updatedAt: clip.updatedAt.toISOString(),
       }}
       clips={clips.map((item: ClipListItem) => ({
         ...item,
+        publishedAt: item.publishedAt?.toISOString() ?? null,
         createdAt: item.createdAt.toISOString(),
         updatedAt: item.updatedAt.toISOString(),
       }))}
-      contentText={toPlainText(clip.content)}
     />
   );
 }

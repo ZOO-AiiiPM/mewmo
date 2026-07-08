@@ -49,6 +49,8 @@ test("root package exposes required workspace scripts", () => {
     "lint",
     "test",
   ]);
+  assert.match(pkg.scripts.test, /tsx --test tests\/\*\.test\.mjs tests\/unit\/\*\.test\.mjs/);
+  assert.match(pkg.scripts.test, /vitest run tests\/unit\/\*\.test\.ts/);
 });
 
 test("all apps and packages expose @mewmo package names", () => {

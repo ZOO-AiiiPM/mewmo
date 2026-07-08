@@ -113,15 +113,24 @@ importers:
 
   apps/web:
     dependencies:
+      '@mewmo/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
       '@mewmo/auth':
         specifier: workspace:*
         version: link:../../packages/auth
       '@mewmo/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@mewmo/queue':
+        specifier: workspace:*
+        version: link:../../packages/queue
       '@mewmo/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@mewmo/storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
       '@mewmo/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -137,6 +146,9 @@ importers:
       '@tanstack/react-virtual':
         specifier: ^3.14.3
         version: 3.14.3(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      fast-xml-parser:
+        specifier: ^5.9.3
+        version: 5.9.3
       next:
         specifier: 16.2.9
         version: 16.2.9(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -152,6 +164,9 @@ importers:
       undici:
         specifier: ^8.5.0
         version: 8.5.0
+      zod:
+        specifier: 4.3.0
+        version: 4.3.0
     devDependencies:
       '@tailwindcss/postcss':
         specifier: 4.3.1

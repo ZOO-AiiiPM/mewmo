@@ -20,5 +20,6 @@ export const config = {
     "/feeds/:path*",
     "/chat/:path*",
     "/settings/:path*",
+    "/share/:path*",
   ],
 };

@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="220" viewBox="0 0 760 220">
+  <rect width="760" height="220" rx="18" fill="#161719"/>
+  <style>
+    .card { fill: #232327; stroke: #3b3c42; stroke-width: 1; }
+    .icon { fill: none; stroke: #d3d4d9; stroke-width: 2.15; stroke-linecap: round; stroke-linejoin: round; }
+    .label { fill: #d7d8dc; font: 600 14px -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
+    .sub { fill: #8f9098; font: 12px -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
+  </style>
+
+  <g transform="translate(24 24)">
+    <rect class="card" width="104" height="148" rx="12"/>
+    <g transform="translate(34 22)">
+      <path class="icon" d="M16 15c0-5.66 0-8.49 1.76-10.24S22.34 3 28 3h4c5.66 0 8.49 0 10.24 1.76S44 9.34 44 15v4c0 5.66 0 8.49-1.76 10.24S37.66 31 32 31h-4c-5.66 0-8.49 0-10.24-1.76S16 24.66 16 19z"/>
+      <path class="icon" d="M9 17v10c0 5.66 0 8.49 1.76 10.24S15.34 39 21 39h10"/>
+    </g>
+    <text class="label" x="52" y="106" text-anchor="middle">A</text>
+    <text class="sub" x="52" y="127" text-anchor="middle">Solar 线性</text>
+  </g>
+
+  <g transform="translate(144 24)">
+    <rect class="card" width="104" height="148" rx="12"/>
+    <g transform="translate(34 22)">
+      <rect class="icon" x="16" y="4" width="28" height="28" rx="6"/>
+      <rect class="icon" x="8" y="12" width="28" height="28" rx="6"/>
+    </g>
+    <text class="label" x="52" y="106" text-anchor="middle">B</text>
+    <text class="sub" x="52" y="127" text-anchor="middle">圆角方框</text>
+  </g>
+
+  <g transform="translate(264 24)">
+    <rect class="card" width="104" height="148" rx="12"/>
+    <g transform="translate(34 22)">
+      <path class="icon" d="M15 11c0-4.42 0-6.63 1.37-8S19.95 1.63 24.37 1.63h7.26c4.42 0 6.63 0 8 1.37S41 6.58 41 11v7.26c0 4.42 0 6.63-1.37 8s-3.58 1.37-8 1.37h-7.26c-4.42 0-6.63 0-8-1.37S15 22.68 15 18.26z"/>
+      <path class="icon" d="M8 12.5v14.13c0 4.42 0 6.63 1.37 8S12.95 36 17.37 36H31.5"/>
+    </g>
+    <text class="label" x="52" y="106" text-anchor="middle">C</text>
+    <text class="sub" x="52" y="127" text-anchor="middle">细偏移</text>
+  </g>
+
+  <g transform="translate(384 24)">
+    <rect class="card" width="104" height="148" rx="12"/>
+    <g transform="translate(34 22)">
+      <rect class="icon" x="16" y="4" width="24" height="30" rx="4"/>
+      <path class="icon" d="M10 12H8a4 4 0 0 0-4 4v24a4 4 0 0 0 4 4h18a4 4 0 0 0 4-4v-2"/>
+    </g>
+    <text class="label" x="52" y="106" text-anchor="middle">D</text>
+    <text class="sub" x="52" y="127" text-anchor="middle">Lucide</text>
+  </g>
+
+  <g transform="translate(504 24)">
+    <rect class="card" width="104" height="148" rx="12"/>
+    <g transform="translate(34 22)">
+      <path class="icon" d="M17 9a6 6 0 0 1 6-6h11a6 6 0 0 1 6 6v11a6 6 0 0 1-6 6H23a6 6 0 0 1-6-6z"/>
+      <path class="icon" d="M8 17v17a6 6 0 0 0 6 6h17"/>
+    </g>
+    <text class="label" x="52" y="106" text-anchor="middle">E</text>
+    <text class="sub" x="52" y="127" text-anchor="middle">Tabler</text>
+  </g>
+
+  <g transform="translate(624 24)">
+    <rect class="card" width="104" height="148" rx="12"/>
+    <g transform="translate(34 22)">
+      <path class="icon" d="M12 15c0-6.13 0-9.19 1.9-11.1S18.87 2 25 2h5c6.13 0 9.19 0 11.1 1.9S43 8.87 43 15v5c0 6.13 0 9.19-1.9 11.1S36.13 33 30 33h-5"/>
+      <path class="icon" d="M5 23v9c0 6.13 0 9.19 1.9 11.1S11.87 45 18 45h9"/>
+    </g>
+    <text class="label" x="52" y="106" text-anchor="middle">F</text>
+    <text class="sub" x="52" y="127" text-anchor="middle">大留白</text>
+  </g>
+</svg>

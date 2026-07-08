@@ -3,5 +3,8 @@ export * from "./repositories/ai-chats";
 export * from "./repositories/clips";
 export * from "./repositories/feed-entries";
 export * from "./repositories/feeds";
+export * from "./repositories/knowledge-bases";
+export * from "./repositories/note-shares";
 export * from "./repositories/notes";
 export * from "./repositories/tags";
+export * from "./repositories/trash";

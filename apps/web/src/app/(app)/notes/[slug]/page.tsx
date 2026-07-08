@@ -8,6 +8,7 @@ const noteListSelect = {
   slug: true,
   title: true,
   summary: true,
+  content: true,
   pinned: true,
   createdAt: true,
   updatedAt: true,
@@ -40,7 +41,9 @@ export default async function NoteDetailPage({ params }: { params: Promise<{ slu
         id: note.id,
         slug: note.slug,
         title: note.title,
+        summary: note.summary,
         content: note.content,
+        updatedAt: note.updatedAt.toISOString(),
       }}
       notes={notes.map((item: NoteListItem) => ({
         ...item,

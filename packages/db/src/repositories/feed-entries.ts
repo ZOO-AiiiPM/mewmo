@@ -7,6 +7,9 @@ export interface CreateFeedEntryInput {
   url: string;
   content: string;
   summary?: string;
+  coverImage?: string;
+  excerpt?: string;
+  sourceName?: string;
   author?: string;
   publishedAt?: Date;
 }
@@ -16,6 +19,9 @@ export interface UpdateFeedEntryInput {
   url?: string;
   content?: string;
   summary?: string | null;
+  coverImage?: string | null;
+  excerpt?: string | null;
+  sourceName?: string | null;
   author?: string | null;
   publishedAt?: Date | null;
   readAt?: Date | null;
@@ -42,6 +48,18 @@ export function createFeedEntriesRepository(client: unknown = getPrisma()) {
     findByFeedId(userId: string, feedId: string) {
       return db.feedEntry.findMany({
         where: { feedId, ...activeByUser(userId) },
+        include: { feed: { select: { id: true, title: true, url: true, favicon: true, type: true } } },
+        orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+      });
+    },
+
+    findByUserFeedType(userId: string, type: "article" | "media" | "video" | "podcast") {
+      return db.feedEntry.findMany({
+        where: {
+          ...activeByUser(userId),
+          feed: { ...activeByUser(userId), type },
+        },
+        include: { feed: { select: { id: true, title: true, url: true, favicon: true, type: true } } },
         orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
       });
     },
@@ -77,6 +95,9 @@ export function createFeedEntriesRepository(client: unknown = getPrisma()) {
           title: input.title,
           content: input.content,
           summary: input.summary ?? null,
+          coverImage: input.coverImage ?? null,
+          excerpt: input.excerpt ?? null,
+          sourceName: input.sourceName ?? null,
           author: input.author ?? null,
           publishedAt: input.publishedAt ?? null,
           deletedAt: null,

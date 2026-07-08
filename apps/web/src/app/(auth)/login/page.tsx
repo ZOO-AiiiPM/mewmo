@@ -1,11 +1,31 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 
-export default function LoginPage() {
+function normalizeAuthCallbackUrl(value: string | null) {
+  if (!value) return null;
+  if (value.startsWith("/") && !value.startsWith("//")) return value;
+  try {
+    const url = new URL(value);
+    if (url.origin !== window.location.origin) return null;
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return null;
+  }
+}
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const rawCallbackUrl = searchParams.get("callbackUrl");
+  const registerHref = rawCallbackUrl
+    ? `/register?callbackUrl=${encodeURIComponent(rawCallbackUrl)}`
+    : "/register";
+  const googleHref = rawCallbackUrl
+    ? `/api/auth/signin/google?callbackUrl=${encodeURIComponent(rawCallbackUrl)}`
+    : "/api/auth/signin/google";
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -31,7 +51,8 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/notes");
+    const callbackUrl = normalizeAuthCallbackUrl(rawCallbackUrl);
+    router.push(callbackUrl || "/notes");
     router.refresh();
   }
 
@@ -90,7 +111,7 @@ export default function LoginPage() {
           </div>
 
           <a
-            href="/api/auth/signin/google"
+            href={googleHref}
             className="w-full py-2.5 rounded-md border border-line bg-paper text-sm font-medium text-ink hover:bg-mist/30 transition-colors flex items-center justify-center gap-2"
           >
             <span>G</span>
@@ -100,11 +121,19 @@ export default function LoginPage() {
 
         <p className="text-center text-sm text-muted mt-4">
           Don&apos;t have an account?{" "}
-          <Link href="/register" className="text-moss hover:underline">
+          <Link href={registerHref} className="text-moss hover:underline">
             Sign up
           </Link>
         </p>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
   );
 }

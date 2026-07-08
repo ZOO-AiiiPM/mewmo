@@ -3,6 +3,7 @@ import { activeByUser, softDeleteData, versionedUpdateData } from "./repository-
 
 export interface CreateFeedInput {
   url: string;
+  type?: "article" | "media" | "video" | "podcast";
   title: string;
   description?: string;
   favicon?: string;
@@ -11,11 +12,16 @@ export interface CreateFeedInput {
 
 export interface UpdateFeedInput {
   url?: string;
+  type?: "article" | "media" | "video" | "podcast";
   title?: string;
   description?: string | null;
   favicon?: string | null;
   refreshInterval?: number;
   lastFetchedAt?: Date | null;
+  lastFetchStartedAt?: Date | null;
+  lastFetchStatus?: string;
+  lastFetchError?: string | null;
+  lastFetchCount?: number;
 }
 
 interface FeedsClient {
@@ -43,9 +49,9 @@ export function createFeedsRepository(client: unknown = getPrisma()) {
       });
     },
 
-    findByUserIdWithUnreadCount(userId: string) {
+    findByUserIdWithUnreadCount(userId: string, type?: "article" | "media" | "video" | "podcast") {
       return db.feed.findMany({
-        where: activeByUser(userId),
+        where: { ...activeByUser(userId), ...(type ? { type } : {}) },
         orderBy: { createdAt: "desc" },
         include: {
           _count: {

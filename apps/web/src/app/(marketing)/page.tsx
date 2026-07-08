@@ -1,68 +1,120 @@
 import Link from "next/link";
+import { MewmoLogo } from "../../components/shell/PrototypeIcon";
+
+const scenarios = [
+  {
+    step: "Collect",
+    title: "Save without sorting.",
+    body: "Clip a page, write a raw note, or subscribe to a feed. mewmo keeps the intake light so useful material does not disappear while you are still thinking.",
+    meta: "Clips / RSS / notes",
+    signal: "3 new items held for Today",
+  },
+  {
+    step: "Read",
+    title: "Read what is already waiting.",
+    body: "The first screen is not an empty dashboard. Today brings notes, saved pages, and fresh articles into one calm queue so you can reopen context immediately.",
+    meta: "Today / reader / search",
+    signal: "Recent work stays warm",
+  },
+  {
+    step: "Rediscover",
+    title: "Rediscover the thread.",
+    body: "The AI sidebar works beside the content, not above it. Ask about the open note, pull related clips forward, and turn old fragments into current context.",
+    meta: "AI sidebar / tags / summaries",
+    signal: "2 related memories found",
+  },
+];
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-paper">
-      <header className="flex items-center justify-between px-6 py-4 max-w-6xl mx-auto">
-        <span className="text-xl font-extrabold text-moss tracking-tight">mewmo</span>
-        <div className="flex items-center gap-3">
-          <Link href="/login" className="text-sm text-muted hover:text-ink transition-colors">
-            Log in
+    <div className="mewmo-marketing-page">
+      <header className="mewmo-marketing-nav">
+        <Link href="/" className="mewmo-marketing-brand" aria-label="mewmo home">
+          <MewmoLogo />
+          <span>mewmo</span>
+        </Link>
+        <nav aria-label="Primary" className="mewmo-marketing-links">
+          <Link href="/login">Log in</Link>
+          <Link href="/register" className="mewmo-marketing-nav-cta">
+            Get started
           </Link>
-          <Link
-            href="/register"
-            className="px-4 py-2 rounded-md bg-moss text-white text-sm font-medium hover:bg-moss/90 transition-colors"
-          >
-            Get Started
-          </Link>
-        </div>
+        </nav>
       </header>
 
-      <main className="max-w-4xl mx-auto px-6 pt-20 pb-32 text-center">
-        <h1 className="text-4xl sm:text-5xl font-bold text-ink leading-tight mb-6">
-          Your AI-powered
-          <br />
-          <span className="text-moss">knowledge workspace</span>
-        </h1>
-        <p className="text-lg text-muted max-w-xl mx-auto mb-10">
-          Collect, record, and rediscover what matters. mewmo helps you capture web articles,
-          write notes, subscribe to feeds, and let AI surface connections you missed.
-        </p>
-        <Link
-          href="/register"
-          className="inline-block px-6 py-3 rounded-md bg-moss text-white text-base font-medium hover:bg-moss/90 transition-colors"
-        >
-          Start for free →
-        </Link>
+      <main>
+        <section className="mewmo-marketing-hero">
+          <div className="mewmo-hero-copy">
+            <p className="mewmo-kicker">AI information manager</p>
+            <h1>Everything worth remembering, already waiting for you.</h1>
+            <p className="mewmo-hero-lede">
+              mewmo collects notes, clips, feeds, and AI conversations into one fast workspace
+              so your next idea starts with the context you already saved.
+            </p>
+            <div className="mewmo-hero-actions">
+              <Link href="/register" className="mewmo-primary-cta">
+                Start for free
+              </Link>
+              <Link href="/login" className="mewmo-secondary-cta">
+                Open workspace
+              </Link>
+            </div>
+            <div className="mewmo-hero-proof" aria-label="Product promises">
+              <span>Cloud-first</span>
+              <span>Fast open</span>
+              <span>AI in context</span>
+            </div>
+          </div>
 
-        <div className="mt-24 grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
-          <FeatureCard
-            title="Collect"
-            description="Clip web articles, subscribe to RSS feeds, and save anything worth reading later."
-          />
-          <FeatureCard
-            title="Record"
-            description="Write markdown notes with tags. Your thoughts live alongside your collected knowledge."
-          />
-          <FeatureCard
-            title="Rediscover"
-            description="AI reviews your library, surfaces patterns, and helps you connect ideas across sources."
-          />
-        </div>
+          <ProductStage />
+        </section>
+
+        <section className="mewmo-scenario-section" aria-labelledby="scenario-title">
+          <div className="mewmo-section-heading">
+            <p className="mewmo-kicker">Product rhythm</p>
+            <h2 id="scenario-title">Save, read, and return to the ideas that still matter.</h2>
+          </div>
+          <div className="mewmo-scenario-list">
+            {scenarios.map((item) => (
+              <article key={item.step} className="mewmo-scenario-item">
+                <span className="mewmo-scenario-step">{item.step}</span>
+                <div>
+                  <h3>{item.title}</h3>
+                  <p>{item.body}</p>
+                </div>
+                <div className="mewmo-scenario-meta">
+                  <span>{item.meta}</span>
+                  <strong>{item.signal}</strong>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
       </main>
 
-      <footer className="border-t border-line py-8 text-center text-sm text-muted">
-        © 2026 mewmo. Built for curious minds.
+      <footer className="mewmo-marketing-footer">
+        <span>mewmo</span>
+        <span>Built for people who read, save, and think across sources.</span>
       </footer>
     </div>
   );
 }
 
-function FeatureCard({ title, description }: { title: string; description: string }) {
+function ProductStage() {
   return (
-    <div className="rounded-lg border border-line bg-paper-2 p-5">
-      <h3 className="text-base font-semibold text-ink mb-2">{title}</h3>
-      <p className="text-sm text-muted leading-relaxed">{description}</p>
+    <div className="mewmo-product-stage" aria-label="mewmo product preview">
+      <div className="mewmo-product-window">
+        <img
+          className="mewmo-product-window__image"
+          src="/mewmo-workspace-preview.png"
+          alt="mewmo workspace showing notes, saved items, and reader context"
+        />
+      </div>
+      <div className="mewmo-context-rail" aria-label="AI sidebar preview">
+        <img
+          src="/mewmo-ai-sidebar-preview.png"
+          alt="mewmo AI sidebar showing summary and related content"
+        />
+      </div>
     </div>
   );
 }

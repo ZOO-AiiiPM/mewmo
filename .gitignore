@@ -19,6 +19,7 @@
 
 **/node_modules/
 **/.next/
+**/.next-*/
 **/.turbo/
 **/dist/
 **/coverage/
@@ -27,3 +28,4 @@
 **/.DS_Store
 .env.local
 .env*.local
+.vercel

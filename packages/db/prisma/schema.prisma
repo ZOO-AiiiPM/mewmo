@@ -18,17 +18,22 @@ model User {
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
-  accounts      Account[]
-  sessions      Session[]
+  accounts       Account[]
+  sessions       Session[]
   authenticators Authenticator[]
-  notes         Note[]
-  clips         Clip[]
-  feeds         Feed[]
-  feedEntries   FeedEntry[]
-  aiChats       AiChat[]
-  tags          Tag[]
-  tagPool       TagPool[]
-  syncCursors   SyncCursor[]
+  notes          Note[]
+  clips          Clip[]
+  feeds          Feed[]
+  feedEntries    FeedEntry[]
+  aiChats        AiChat[]
+  aiContextAttachments AiContextAttachment[]
+  tags           Tag[]
+  tagPool        TagPool[]
+  syncCursors    SyncCursor[]
+  knowledgeBases KnowledgeBase[]
+  knowledgeFolders KnowledgeFolder[]
+  knowledgeItems KnowledgeItem[]
+  noteShares     NoteShare[]
 
   @@map("users")
 }
@@ -105,26 +110,50 @@ model Note {
   deletedAt DateTime? @map("deleted_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  knowledgeItems KnowledgeItem[]
+  shares NoteShare[]
 
   @@unique([userId, slug])
   @@index([userId, deletedAt, updatedAt])
   @@map("notes")
 }
 
-model Clip {
+model NoteShare {
   id        String    @id @default(cuid())
-  url       String
-  title     String
-  content   String    @default("")
-  summary   String?
-  favicon   String?
-  version   Int       @default(1)
-  userId    String    @map("user_id")
+  noteId    String    @map("note_id")
+  ownerId   String    @map("owner_id")
+  token     String    @unique
   createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
-  deletedAt DateTime? @map("deleted_at")
+  revokedAt DateTime? @map("revoked_at")
+
+  note  Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([noteId, revokedAt])
+  @@index([ownerId, revokedAt])
+  @@map("note_shares")
+}
+
+model Clip {
+  id          String    @id @default(cuid())
+  url         String
+  title       String
+  content     String    @default("")
+  summary     String?
+  favicon     String?
+  coverImage  String?   @map("cover_image")
+  excerpt     String?
+  sourceName  String?   @map("source_name")
+  author      String?
+  publishedAt DateTime? @map("published_at")
+  version     Int       @default(1)
+  userId      String    @map("user_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  knowledgeItems KnowledgeItem[]
 
   @@index([userId, deletedAt, updatedAt])
   @@map("clips")
@@ -133,10 +162,15 @@ model Clip {
 model Feed {
   id              String      @id @default(cuid())
   url             String
+  type            FeedType    @default(article)
   title           String
   description     String?
   favicon         String?
   refreshInterval Int         @default(3600) @map("refresh_interval")
+  lastFetchStartedAt DateTime? @map("last_fetch_started_at")
+  lastFetchStatus String       @default("idle") @map("last_fetch_status")
+  lastFetchError  String?      @map("last_fetch_error")
+  lastFetchCount  Int          @default(0) @map("last_fetch_count")
   lastFetchedAt   DateTime?   @map("last_fetched_at")
   version         Int         @default(1)
   userId          String      @map("user_id")
@@ -147,7 +181,7 @@ model Feed {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, url])
+  @@unique([userId, url, type])
   @@index([userId, deletedAt, lastFetchedAt])
   @@map("feeds")
 }
@@ -159,6 +193,9 @@ model FeedEntry {
   url         String
   content     String    @default("")
   summary     String?
+  coverImage  String?   @map("cover_image")
+  excerpt     String?
+  sourceName  String?   @map("source_name")
   author      String?
   publishedAt DateTime? @map("published_at")
   readAt      DateTime? @map("read_at")
@@ -170,6 +207,7 @@ model FeedEntry {
 
   feed Feed @relation(fields: [feedId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  knowledgeItems KnowledgeItem[]
 
   @@unique([feedId, url])
   @@index([feedId, deletedAt, publishedAt])
@@ -198,14 +236,38 @@ model AiMessage {
   chatId    String        @map("chat_id")
   role      AiMessageRole
   content   String
+  status    AiMessageStatus @default(completed)
+  metadata  Json?
   version   Int           @default(1)
   createdAt DateTime      @default(now()) @map("created_at")
   deletedAt DateTime?     @map("deleted_at")
 
   chat AiChat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  contextAttachments AiContextAttachment[]
 
   @@index([chatId, deletedAt, createdAt])
   @@map("ai_messages")
+}
+
+model AiContextAttachment {
+  id              String              @id @default(cuid())
+  messageId       String              @map("message_id")
+  targetType      AiContextTargetType @map("target_type")
+  targetId        String              @map("target_id")
+  title           String
+  sourceUrl       String?             @map("source_url")
+  summarySnapshot String?             @map("summary_snapshot")
+  contentSnapshot String?             @map("content_snapshot")
+  userId          String              @map("user_id")
+  createdAt       DateTime            @default(now()) @map("created_at")
+
+  message AiMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@index([targetType, targetId])
+  @@index([userId, createdAt])
+  @@map("ai_context_attachments")
 }
 
 model Tag {
@@ -266,13 +328,124 @@ model SyncCursor {
   @@map("sync_cursors")
 }
 
+model KnowledgeBase {
+  id        String    @id @default(cuid())
+  title     String
+  icon      String    @default("book")
+  position  Int       @default(0)
+  version   Int       @default(1)
+  userId    String    @map("user_id")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  user    User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folders KnowledgeFolder[]
+  items   KnowledgeItem[]
+
+  @@index([userId, deletedAt, position])
+  @@map("knowledge_bases")
+}
+
+model KnowledgeFolder {
+  id              String    @id @default(cuid())
+  knowledgeBaseId String    @map("knowledge_base_id")
+  parentId        String?   @map("parent_id")
+  name            String
+  depth           Int       @default(0)
+  position        Int       @default(0)
+  version         Int       @default(1)
+  userId          String    @map("user_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+
+  knowledgeBase KnowledgeBase     @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+  parent        KnowledgeFolder?  @relation("KnowledgeFolderChildren", fields: [parentId], references: [id], onDelete: Cascade)
+  children      KnowledgeFolder[] @relation("KnowledgeFolderChildren")
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items         KnowledgeItem[]
+
+  @@index([knowledgeBaseId, parentId, deletedAt, position])
+  @@index([userId, deletedAt])
+  @@map("knowledge_folders")
+}
+
+model KnowledgeItem {
+  id              String              @id @default(cuid())
+  knowledgeBaseId String              @map("knowledge_base_id")
+  folderId        String?             @map("folder_id")
+  kind            KnowledgeItemKind
+  noteId          String?             @map("note_id")
+  clipId          String?             @map("clip_id")
+  feedEntryId     String?             @map("feed_entry_id")
+  assetType       KnowledgeAssetType? @map("asset_type")
+  title           String?
+  summary         String?
+  sourceName      String?             @map("source_name")
+  sourceUrl       String?             @map("source_url")
+  position        Int                 @default(0)
+  version         Int                 @default(1)
+  userId          String              @map("user_id")
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+  deletedAt       DateTime?           @map("deleted_at")
+
+  knowledgeBase KnowledgeBase    @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+  folder        KnowledgeFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  note          Note?            @relation(fields: [noteId], references: [id], onDelete: SetNull)
+  clip          Clip?            @relation(fields: [clipId], references: [id], onDelete: SetNull)
+  feedEntry     FeedEntry?       @relation(fields: [feedEntryId], references: [id], onDelete: SetNull)
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([knowledgeBaseId, folderId, deletedAt, position])
+  @@index([userId, deletedAt])
+  @@index([noteId])
+  @@index([clipId])
+  @@index([feedEntryId])
+  @@map("knowledge_items")
+}
+
 enum AiMessageRole {
   user
   assistant
+  tool
+}
+
+enum AiMessageStatus {
+  pending
+  completed
+  failed
+  cancelled
+}
+
+enum AiContextTargetType {
+  note
+  clip
+  feed_entry
 }
 
 enum TaggableType {
   note
   clip
   feed_entry
+}
+
+enum FeedType {
+  article
+  media
+  video
+  podcast
+}
+
+enum KnowledgeItemKind {
+  note
+  clip
+  feed_entry
+  asset
+}
+
+enum KnowledgeAssetType {
+  pdf
+  ebook
 }

@@ -1,17 +1,51 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useRef, useState, type CSSProperties } from "react";
-import { ListColumn, type ListSortMode } from "../../../../components/shell/ListColumn";
-import { PinIcon, PrototypeIcon } from "../../../../components/shell/PrototypeIcon";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
+import { CardActionMenu } from "../../../../components/shell/CardActionMenu";
+import { useAISidebarContext } from "../../../../components/shell/AISidebar";
+import { ListColumn } from "../../../../components/shell/ListColumn";
+import {
+  PinIcon,
+  PrototypeIcon,
+} from "../../../../components/shell/PrototypeIcon";
+import { ReaderBackToTopButton } from "../../../../components/shell/ReaderBackToTopButton";
 import { ReaderToolbar } from "../../../../components/shell/ReaderToolbar";
+import { ReaderToc } from "../../../../components/shell/ReaderToc";
+import {
+  useReaderToolbarTitleVisibility,
+} from "../../../../components/shell/useReaderToolbarTitleVisibility";
 import { useToast } from "../../../../components/ui/ToastProvider";
+import {
+  buildNoteCardTitle,
+  contentTags,
+  extractNoteImages,
+  formatNoteListTime,
+  notePreviewText,
+  noteTagPalette,
+} from "../../../../lib/note-list-preview";
+import {
+  buildNoteToc,
+} from "../../../../lib/note-toc";
+import {
+  currentStableSelectionPath,
+  pushStableSelectionUrl,
+} from "../../../../lib/stable-selection-url";
+import { useWorkspaceMemory } from "../../../../lib/workspace-memory";
 import "../../../../components/editor/editor-theme.css";
 
 const NoteEditor = dynamic(
-  () => import("../../../../components/editor/NoteEditor").then((m) => ({ default: m.NoteEditor })),
+  () =>
+    import("../../../../components/editor/NoteEditor").then((m) => ({
+      default: m.NoteEditor,
+    })),
   {
     ssr: false,
     loading: () => (
@@ -28,6 +62,7 @@ interface NoteListItem {
   slug: string;
   title: string;
   summary: string | null;
+  content: string;
   pinned: boolean;
   updatedAt: string;
   createdAt?: string;
@@ -37,96 +72,144 @@ interface CurrentNote {
   id: string;
   slug: string;
   title: string;
+  summary: string | null;
   content: string;
+  updatedAt: string;
 }
 
 interface NoteEditorPageProps {
-  note: CurrentNote;
+  note?: CurrentNote | null;
   notes: NoteListItem[];
 }
 
-const tagPalette: Record<string, string> = {
-  产品: "#4caf72",
-  数据层: "#a874e0",
-  读书: "#4f93e8",
-  AI: "#e0a93a",
-  灵感: "#5ba3d9",
-};
-
-function contentTags(note: NoteListItem) {
-  const text = `${note.title} ${note.summary ?? ""}`.toLowerCase();
-  const tags = [];
-  if (text.includes("产品") || text.includes("定位")) tags.push("产品");
-  if (text.includes("数据") || text.includes("db") || text.includes("api")) tags.push("数据层");
-  if (text.includes("ai")) tags.push("AI");
-  if (text.includes("读") || text.includes("book")) tags.push("读书");
-  return tags.length ? tags.slice(0, 2) : ["灵感"];
-}
-
-function buildToc(content: string) {
-  const headings = content
-    .split("\n")
-    .map((line) => line.match(/^(#{1,2})\s+(.+)$/))
-    .filter((match): match is RegExpMatchArray => Boolean(match))
-    .map((match, index) => ({ id: `heading-${index}`, title: match[2] ?? "", level: match[1]?.length ?? 1 }));
-  return headings.length
-    ? headings.slice(0, 8)
-    : [
-        { id: "heading-empty-0", title: noteFallbackTitle(content), level: 1 },
-        { id: "heading-empty-1", title: "正文", level: 2 },
-      ];
-}
-
-function noteFallbackTitle(content: string) {
-  return content.trim().split("\n").find(Boolean)?.replace(/^#+\s*/, "") || "当前笔记";
-}
-
-export function NoteEditorPage({ note, notes: initialNotes }: NoteEditorPageProps) {
-  const router = useRouter();
+export function NoteEditorPage({
+  note,
+  notes: initialNotes,
+}: NoteEditorPageProps) {
   const { showToast } = useToast();
+  const { setContentContext } = useAISidebarContext();
+  const listRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [notes, setNotes] = useState(initialNotes);
+  const [selectedSlug, setSelectedSlug] = useState<string | null>(
+    note?.slug ?? initialNotes[0]?.slug ?? null,
+  );
   const [query, setQuery] = useState("");
-  const [sortMode, setSortMode] = useState<ListSortMode>("updated");
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
   const [listCollapsed, setListCollapsed] = useState(false);
-  const [activeToc, setActiveToc] = useState(0);
+  const selectedNote = useMemo(() => {
+    if (selectedSlug) {
+      const selected = notes.find((item) => item.slug === selectedSlug);
+      if (selected) return selected;
+    }
+    return notes[0] ?? null;
+  }, [notes, selectedSlug]);
+  const [editorContent, setEditorContent] = useState(selectedNote?.content ?? "");
+
+  const selectNote = useCallback(
+    (item: NoteListItem | null, mode: "push" | "replace" = "push") => {
+      setSelectedSlug(item?.slug ?? null);
+      pushStableSelectionUrl(item ? `/notes/${item.slug}` : "/notes", mode);
+    },
+    [],
+  );
 
   const handleNewNote = useCallback(async () => {
-    const response = await fetch("/api/notes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: "Untitled" }),
-    });
-    if (response.ok) {
-      const created = await response.json();
-      router.push(`/notes/${created.slug}`);
+    try {
+      const response = await fetch("/api/notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: "Untitled" }),
+      });
+      if (!response.ok) throw new Error("create note failed");
+
+      const created = (await response.json()) as NoteListItem;
+      setNotes((current) => [created, ...current.filter((item) => item.id !== created.id)]);
+      selectNote(created);
+    } catch {
+      showToast("新建笔记失败", "error");
     }
-  }, [router]);
+  }, [selectNote, showToast]);
 
   const visibleNotes = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     return [...notes]
       .filter((item) => {
         if (!normalizedQuery) return true;
-        return `${item.title} ${item.summary ?? ""}`.toLowerCase().includes(normalizedQuery);
+        return `${item.title} ${item.summary ?? ""} ${item.content}`
+          .toLowerCase()
+          .includes(normalizedQuery);
       })
       .sort((a, b) => {
         if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-        const aDate = sortMode === "created" ? a.createdAt ?? a.updatedAt : a.updatedAt;
-        const bDate = sortMode === "created" ? b.createdAt ?? b.updatedAt : b.updatedAt;
-        return new Date(bDate).getTime() - new Date(aDate).getTime();
+        return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
       });
-  }, [notes, query, sortMode]);
+  }, [notes, query]);
 
-  const toc = useMemo(() => buildToc(note.content), [note.content]);
+  const toc = useMemo(() => buildNoteToc(editorContent), [editorContent]);
+  const currentToolbarNote = useMemo<NoteListItem>(
+    () =>
+      selectedNote ?? {
+        id: "",
+        slug: "",
+        title: "笔记",
+        summary: null,
+        content: "",
+        updatedAt: "",
+        pinned: false,
+      },
+    [selectedNote],
+  );
+  const { toolbarTitleVisible } = useReaderToolbarTitleVisibility({
+    scrollRef,
+  });
+  useWorkspaceMemory({
+    section: "notes",
+    href: selectedNote ? `/notes/${selectedNote.slug}` : "/notes",
+    listRef,
+    readerRef: scrollRef,
+    restoreKey: selectedNote?.id ?? "empty",
+  });
+
+  useEffect(() => {
+    setEditorContent(selectedNote?.content ?? "");
+  }, [selectedNote?.content, selectedNote?.id]);
+
+  useEffect(() => {
+    if (!selectedNote) {
+      setContentContext(null);
+      return;
+    }
+
+    setContentContext({
+      kind: "note",
+      id: selectedNote.id,
+      title: selectedNote.title,
+      sourceLabel: "笔记",
+      summary: selectedNote.summary,
+    });
+
+    return () => setContentContext(null);
+  }, [selectedNote, setContentContext]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const match = currentStableSelectionPath().match(/^\/notes\/([^/?#]+)/);
+      setSelectedSlug(match?.[1] ? decodeURIComponent(match[1]) : (notes[0]?.slug ?? null));
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [notes]);
 
   const deleteNote = async (item: NoteListItem) => {
     const response = await fetch(`/api/notes/${item.id}`, { method: "DELETE" });
     if (response.ok) {
-      showToast("已删除笔记");
-      if (item.slug === note.slug) router.push("/notes");
-      else setNotes((current) => current.filter((entry) => entry.id !== item.id));
+      showToast("已删除笔记", "success");
+      const remaining = visibleNotes.filter((entry) => entry.id !== item.id);
+      const next = remaining[0] ?? null;
+      setNotes((current) => current.filter((entry) => entry.id !== item.id));
+      if (item.slug === selectedNote?.slug) selectNote(next, "replace");
     }
   };
 
@@ -138,36 +221,78 @@ export function NoteEditorPage({ note, notes: initialNotes }: NoteEditorPageProp
     });
     if (response.ok) {
       const updated = await response.json();
-      setNotes((current) => current.map((entry) => (entry.id === item.id ? { ...entry, pinned: updated.pinned } : entry)));
-      showToast(updated.pinned ? "已置顶" : "已取消置顶");
+      setNotes((current) =>
+        current.map((entry) =>
+          entry.id === item.id ? { ...entry, pinned: updated.pinned } : entry,
+        ),
+      );
+      showToast(updated.pinned ? "已置顶" : "已取消置顶", "success");
     }
   };
 
-  const updateTocFromScroll = () => {
-    const el = scrollRef.current;
-    if (!el || toc.length <= 1) return;
-    const max = Math.max(1, el.scrollHeight - el.clientHeight);
-    const progress = el.scrollTop / max;
-    setActiveToc(Math.min(toc.length - 1, Math.floor(progress * toc.length)));
+  const shareNote = async (item: NoteListItem) => {
+    showToast("正在生成分享链接...", "loading");
+    try {
+      const response = await fetch(`/api/notes/${item.id}/share`, {
+        method: "POST",
+      });
+      if (!response.ok) throw new Error("share failed");
+
+      const data = (await response.json()) as { url?: string };
+      if (!data.url) throw new Error("missing share url");
+
+      const shareUrl = new URL(data.url, window.location.origin).toString();
+      await navigator.clipboard?.writeText(shareUrl);
+      showToast(`已复制分享链接：${shareUrl}`, "success");
+    } catch {
+      showToast("分享链接生成失败", "error");
+    }
   };
 
-  const jumpToToc = (index: number) => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const max = Math.max(0, el.scrollHeight - el.clientHeight);
-    el.scrollTo({ top: max * (index / Math.max(1, toc.length - 1)), behavior: "smooth" });
-    setActiveToc(index);
+  const updateSelectedNoteContent = useCallback(
+    (content: string) => {
+      if (!selectedNote) return;
+      setEditorContent(content);
+      setNotes((current) =>
+        current.map((item) =>
+          item.id === selectedNote.id ? { ...item, content } : item,
+        ),
+      );
+    },
+    [selectedNote],
+  );
+
+  const updateSelectedNoteTitle = useCallback(
+    (title: string) => {
+      if (!selectedNote) return;
+      setNotes((current) =>
+        current.map((item) =>
+          item.id === selectedNote.id ? { ...item, title } : item,
+        ),
+      );
+    },
+    [selectedNote],
+  );
+
+  const scrollToTop = () => {
+    scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   return (
-    <div className={`mewmo-workspace ${listCollapsed ? "mewmo-workspace--list-collapsed" : ""}`}>
+    <div
+      className={`mewmo-workspace ${listCollapsed ? "mewmo-workspace--list-collapsed" : ""}`}
+    >
       <ListColumn
         title="笔记"
-        sortMode={sortMode}
-        onSortChange={setSortMode}
+        bodyRef={listRef}
         onSearchChange={setQuery}
         action={
-          <button type="button" className="mewmo-icon-button mewmo-icon-button--primary" onClick={handleNewNote} aria-label="新建笔记">
+          <button
+            type="button"
+            className="mewmo-icon-button"
+            onClick={handleNewNote}
+            aria-label="新建笔记"
+          >
             <PrototypeIcon name="pen-new-square" size={17} />
           </button>
         }
@@ -175,38 +300,79 @@ export function NoteEditorPage({ note, notes: initialNotes }: NoteEditorPageProp
         <div className="mewmo-list-stack">
           {visibleNotes.map((item) => {
             const tags = contentTags(item);
+            const preview = notePreviewText(item);
+            const images = extractNoteImages(item.content);
             const menuOpen = openMenuId === item.id;
+            const cardHovered = hoveredCardId === item.id || menuOpen;
             return (
-              <article key={item.id} className={`mewmo-list-card-wrap ${menuOpen ? "mewmo-list-card-wrap--menu-open" : ""}`}>
-                <Link
-                  href={`/notes/${item.slug}`}
-                  className={`mewmo-list-card ${item.slug === note.slug ? "mewmo-list-card--selected" : ""}`}
+              <article
+                key={item.id}
+                className={`mewmo-list-card-wrap ${cardHovered ? "mewmo-list-card-wrap--hover" : ""} ${menuOpen ? "mewmo-list-card-wrap--menu-open" : ""}`}
+                onMouseEnter={() => setHoveredCardId(item.id)}
+                onMouseLeave={() =>
+                  setHoveredCardId((current) =>
+                    current === item.id ? null : current,
+                  )
+                }
+              >
+                <button
+                  type="button"
+                  className={`mewmo-list-card mewmo-list-card--button ${item.slug === selectedNote?.slug ? "mewmo-list-card--selected" : ""} ${item.pinned ? "mewmo-list-card--pinned" : ""}`}
+                  onClick={() => selectNote(item)}
+                  title={buildNoteCardTitle({
+                    title: item.title,
+                    updatedAt: item.updatedAt,
+                    createdAt: item.createdAt,
+                    tags,
+                    preview,
+                  })}
                 >
                   <div className="mewmo-list-card__title">
                     <span>{item.title}</span>
-                    {item.pinned && <PinIcon />}
                   </div>
-                  {item.summary && <p>{item.summary}</p>}
-                  <div className="mewmo-list-card__meta">
-                    <span>{new Date(item.updatedAt).toLocaleDateString()}</span>
-                    {tags.map((tag) => (
-                      <span key={tag} className="mewmo-tag-pill" style={{ "--tc": tagPalette[tag] ?? tagPalette["灵感"] } as CSSProperties}>{tag}</span>
-                    ))}
-                  </div>
-                </Link>
-                <div className="mewmo-list-card__action">
-                  <button type="button" className="mewmo-row-action-card" onClick={() => setOpenMenuId(menuOpen ? null : item.id)} aria-label="笔记操作">
-                    <PrototypeIcon name="more-horizontal" size={16} />
-                  </button>
-                  {menuOpen && (
-                    <div className="mewmo-card-menu">
-                      <button type="button" className="mewmo-card-menu__item mewmo-card-menu__item--danger" onClick={() => void deleteNote(item)}><PrototypeIcon name="trash" size={15} /> 删除</button>
-                      <button type="button" className="mewmo-card-menu__item" onClick={() => void togglePin(item)}><PrototypeIcon name="pin" size={15} /> {item.pinned ? "取消置顶" : "置顶"}</button>
-                      <button type="button" className="mewmo-card-menu__item" onClick={() => showToast("已复制分享链接")}><PrototypeIcon name="share" size={15} /> 分享</button>
-                      <button type="button" className="mewmo-card-menu__item" onClick={() => showToast("已导出 Markdown 文件")}><PrototypeIcon name="export" size={15} /> 导出</button>
+                  {preview && <p>{preview}</p>}
+                  {images.length > 0 && (
+                    <div className="mewmo-list-card__thumbs" aria-hidden="true">
+                      {images.map((src) => (
+                        <span key={src} className="mewmo-list-card__thumb">
+                          <img src={src} alt="" loading="lazy" />
+                        </span>
+                      ))}
                     </div>
                   )}
-                </div>
+                  <div className="mewmo-list-card__meta">
+                    <span>{formatNoteListTime(item.createdAt ?? item.updatedAt)}</span>
+                    {tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="mewmo-tag-pill"
+                        style={
+                          {
+                            "--tc": noteTagPalette[tag],
+                          } as CSSProperties
+                        }
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </button>
+                {item.pinned && (
+                  <span className="mewmo-list-card__pin" aria-hidden="true">
+                    <PinIcon />
+                  </span>
+                )}
+                <CardActionMenu
+                  kind="notes"
+                  open={menuOpen}
+                  ariaLabel="笔记操作"
+                  pinned={item.pinned}
+                  onOpenChange={(open) => setOpenMenuId(open ? item.id : null)}
+                  onDelete={() => void deleteNote(item)}
+                  onTogglePin={() => void togglePin(item)}
+                  onShare={() => void shareNote(item)}
+                  onExport={() => showToast("已导出 Markdown 文件", "success")}
+                />
               </article>
             );
           })}
@@ -214,36 +380,50 @@ export function NoteEditorPage({ note, notes: initialNotes }: NoteEditorPageProp
       </ListColumn>
 
       <section className="mewmo-reader-surface">
-        <ReaderToolbar title={note.title} onToggleList={() => setListCollapsed((value) => !value)} listCollapsed={listCollapsed} menuKind="notes" />
-        <nav className="mewmo-doc-toc" aria-label="笔记目录">
-          <div className="mewmo-doc-toc__bars">
-            {toc.map((item, index) => (
-              <button
-                key={`${item.id}-bar`}
-                type="button"
-                className={`mewmo-doc-toc__bar ${activeToc === index ? "mewmo-doc-toc__bar--active" : ""}`}
-                style={{ width: `${item.level === 1 ? 22 : 15}px` }}
-                onClick={() => jumpToToc(index)}
-                aria-label={item.title}
-              />
-            ))}
-          </div>
-          <div className="mewmo-doc-toc__links">
-            {toc.map((item, index) => (
-              <button
-                key={item.id}
-                type="button"
-                className={`mewmo-doc-toc__link ${item.level === 2 ? "mewmo-doc-toc__link--nested" : ""} ${activeToc === index ? "mewmo-doc-toc__link--active" : ""}`}
-                onClick={() => jumpToToc(index)}
-              >
-                {item.title}
-              </button>
-            ))}
-          </div>
-        </nav>
-        <div ref={scrollRef} className="mewmo-reader-scroll mewmo-reader-scroll--editor" onScroll={updateTocFromScroll}>
-          <NoteEditor noteId={note.id} initialTitle={note.title} initialContent={note.content} embedded />
+        <ReaderToolbar
+          title={selectedNote?.title ?? "笔记"}
+          titleVisible={toolbarTitleVisible}
+          onTitleClick={scrollToTop}
+          onToggleList={() => setListCollapsed((value) => !value)}
+          listCollapsed={listCollapsed}
+          menuKind="notes"
+          pinned={currentToolbarNote.pinned}
+          onDelete={selectedNote ? () => void deleteNote(currentToolbarNote) : undefined}
+          onTogglePin={selectedNote ? () => void togglePin(currentToolbarNote) : undefined}
+          onShare={selectedNote ? () => void shareNote(currentToolbarNote) : undefined}
+          onExport={selectedNote ? () => showToast("已导出 Markdown 文件", "success") : undefined}
+        />
+        <ReaderToc
+          items={toc}
+          scrollRef={scrollRef}
+          headingSelector=".crepe-editor-wrapper .ProseMirror h1, .crepe-editor-wrapper .ProseMirror h2, .crepe-editor-wrapper .ProseMirror h3"
+          ariaLabel="笔记目录"
+        />
+        <div
+          ref={scrollRef}
+          className="mewmo-reader-scroll mewmo-reader-scroll--editor"
+        >
+          {selectedNote ? (
+            <NoteEditor
+              key={selectedNote.id}
+              noteId={selectedNote.id}
+              initialTitle={selectedNote.title}
+              initialSummary={selectedNote.summary}
+              initialContent={selectedNote.content}
+              updatedAt={selectedNote.updatedAt}
+              autoFocusTitle={selectedNote.title === "Untitled" && !selectedNote.content.trim()}
+              onContentChange={updateSelectedNoteContent}
+              onTitleChange={updateSelectedNoteTitle}
+              embedded
+            />
+          ) : (
+            <article className="mewmo-document mewmo-document--empty">
+              <h1>选择一条笔记</h1>
+              <p>从左侧列表选择，或新建一条笔记。</p>
+            </article>
+          )}
         </div>
+        <ReaderBackToTopButton scrollRef={scrollRef} visible={toolbarTitleVisible} />
       </section>
     </div>
   );

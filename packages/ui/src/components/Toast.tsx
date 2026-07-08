@@ -4,12 +4,12 @@ import { useEffect, useState, type ReactNode } from "react";
 
 interface ToastProps {
   message: string;
-  type?: "info" | "success" | "error";
+  type: "info" | "success" | "error";
   duration?: number;
   onDismiss?: () => void;
 }
 
-export function Toast({ message, type = "info", duration = 3000, onDismiss }: ToastProps) {
+export function Toast({ message, type, duration = 3000, onDismiss }: ToastProps) {
   const [visible, setVisible] = useState(true);
 
   useEffect(() => {
@@ -27,12 +27,18 @@ export function Toast({ message, type = "info", duration = 3000, onDismiss }: To
     success: "bg-moss-2 border-moss/30 text-ink",
     error: "bg-coral/10 border-coral/30 text-coral",
   };
+  const mark = type === "error" ? "!" : type === "success" ? "✓" : null;
 
   return (
     <div
-      className={`fixed bottom-4 right-4 z-50 rounded-md border px-4 py-3 text-sm shadow-float animate-in slide-in-from-bottom-2 ${typeClasses[type]}`}
+      className={`fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-md border px-4 py-3 text-sm shadow-float animate-in slide-in-from-bottom-2 ${typeClasses[type]}`}
     >
-      {message}
+      {mark ? (
+        <span className="grid h-4 w-4 place-items-center text-xs font-black" aria-hidden="true">
+          {mark}
+        </span>
+      ) : null}
+      <span>{message}</span>
     </div>
   );
 }

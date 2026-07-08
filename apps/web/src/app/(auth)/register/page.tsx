@@ -1,11 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get("callbackUrl");
+  const loginHref = callbackUrl
+    ? `/login?callbackUrl=${encodeURIComponent(callbackUrl)}`
+    : "/login";
+  const googleAction = callbackUrl
+    ? `/api/auth/signin/google?callbackUrl=${encodeURIComponent(callbackUrl)}`
+    : "/api/auth/signin/google";
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -38,7 +46,7 @@ export default function RegisterPage() {
       return;
     }
 
-    router.push("/login");
+    router.push(loginHref);
   }
 
   return (
@@ -106,7 +114,7 @@ export default function RegisterPage() {
             </div>
           </div>
 
-          <form action="/api/auth/signin/google" method="POST">
+          <form action={googleAction} method="POST">
             <button
               type="submit"
               className="w-full py-2.5 rounded-md border border-line bg-paper text-sm font-medium text-ink hover:bg-mist/30 transition-colors flex items-center justify-center gap-2"
@@ -119,11 +127,19 @@ export default function RegisterPage() {
 
         <p className="text-center text-sm text-muted mt-4">
           Already have an account?{" "}
-          <Link href="/login" className="text-moss hover:underline">
+          <Link href={loginHref} className="text-moss hover:underline">
             Log in
           </Link>
         </p>
       </div>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={null}>
+      <RegisterForm />
+    </Suspense>
   );
 }

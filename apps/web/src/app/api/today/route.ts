@@ -1,0 +1,162 @@
+import { NextResponse } from "next/server";
+import { getPrisma } from "@mewmo/db";
+import { auth } from "../../../lib/auth";
+
+function todayWindow() {
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfTomorrow = new Date(startOfToday);
+  startOfTomorrow.setDate(startOfToday.getDate() + 1);
+  return { startOfToday, startOfTomorrow };
+}
+
+function isInWindow(date: Date | null, start: Date, end: Date) {
+  return Boolean(date && date >= start && date < end);
+}
+
+export async function GET() {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const prisma = getPrisma();
+  const { startOfToday, startOfTomorrow } = todayWindow();
+
+  const [notes, clips, feedEntries] = await Promise.all([
+    prisma.note.findMany({
+      where: {
+        userId: session.user.id,
+        deletedAt: null,
+        OR: [
+          { createdAt: { gte: startOfToday, lt: startOfTomorrow } },
+          { updatedAt: { gte: startOfToday, lt: startOfTomorrow } },
+        ],
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 16,
+      select: {
+        id: true,
+        slug: true,
+        title: true,
+        summary: true,
+        content: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    }),
+    prisma.clip.findMany({
+      where: {
+        userId: session.user.id,
+        deletedAt: null,
+        createdAt: { gte: startOfToday, lt: startOfTomorrow },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 16,
+      select: {
+        id: true,
+        url: true,
+        title: true,
+        summary: true,
+        content: true,
+        excerpt: true,
+        coverImage: true,
+        favicon: true,
+        sourceName: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    }),
+    prisma.feedEntry.findMany({
+      where: {
+        userId: session.user.id,
+        deletedAt: null,
+        OR: [
+          { createdAt: { gte: startOfToday, lt: startOfTomorrow } },
+          { publishedAt: { gte: startOfToday, lt: startOfTomorrow } },
+        ],
+      },
+      orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+      take: 16,
+      select: {
+        id: true,
+        feedId: true,
+        title: true,
+        url: true,
+        summary: true,
+        content: true,
+        excerpt: true,
+        coverImage: true,
+        sourceName: true,
+        author: true,
+        publishedAt: true,
+        createdAt: true,
+        updatedAt: true,
+        feed: {
+          select: {
+            title: true,
+            favicon: true,
+            type: true,
+          },
+        },
+      },
+    }),
+  ]);
+
+  const items = [
+    ...notes.map((note) => ({
+      type: "note" as const,
+      id: note.id,
+      href: `/notes/${note.slug}`,
+      title: note.title,
+      summary: note.summary,
+      content: note.content,
+      eventAt: note.updatedAt,
+      createdAt: note.createdAt,
+      updatedAt: note.updatedAt,
+    })),
+    ...clips.map((clip) => ({
+      type: "clip" as const,
+      id: clip.id,
+      href: `/clips/${clip.id}`,
+      title: clip.title,
+      summary: clip.summary,
+      content: clip.content,
+      excerpt: clip.excerpt,
+      url: clip.url,
+      coverImage: clip.coverImage,
+      favicon: clip.favicon,
+      sourceName: clip.sourceName,
+      eventAt: clip.createdAt,
+      createdAt: clip.createdAt,
+      updatedAt: clip.updatedAt,
+    })),
+    ...feedEntries.map((entry) => {
+      const eventAt = isInWindow(entry.publishedAt, startOfToday, startOfTomorrow)
+        ? entry.publishedAt!
+        : entry.createdAt;
+      return {
+        type: "feed" as const,
+        id: entry.id,
+        href: `/feeds?type=${entry.feed.type}&feedId=${entry.feedId}&entryId=${entry.id}`,
+        feedId: entry.feedId,
+        title: entry.title,
+        summary: entry.summary,
+        content: entry.content,
+        excerpt: entry.excerpt,
+        url: entry.url,
+        coverImage: entry.coverImage,
+        sourceName: entry.sourceName,
+        author: entry.author,
+        publishedAt: entry.publishedAt,
+        favicon: entry.feed.favicon,
+        feedTitle: entry.feed.title,
+        eventAt,
+        createdAt: entry.createdAt,
+        updatedAt: entry.updatedAt,
+      };
+    }),
+  ].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+  return NextResponse.json(items.slice(0, 40));
+}
