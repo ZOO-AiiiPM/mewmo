@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 
@@ -23,11 +24,9 @@ function LoginForm() {
   const registerHref = rawCallbackUrl
     ? `/register?callbackUrl=${encodeURIComponent(rawCallbackUrl)}`
     : "/register";
-  const googleHref = rawCallbackUrl
-    ? `/api/auth/signin/google?callbackUrl=${encodeURIComponent(rawCallbackUrl)}`
-    : "/api/auth/signin/google";
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -54,6 +53,13 @@ function LoginForm() {
     const callbackUrl = normalizeAuthCallbackUrl(rawCallbackUrl);
     router.push(callbackUrl || "/notes");
     router.refresh();
+  }
+
+  async function handleGoogleSignIn() {
+    setError("");
+    setGoogleLoading(true);
+    const callbackUrl = normalizeAuthCallbackUrl(rawCallbackUrl) || "/notes";
+    await signIn("google", { callbackUrl });
   }
 
   return (
@@ -110,13 +116,15 @@ function LoginForm() {
             </div>
           </div>
 
-          <a
-            href={googleHref}
+          <button
+            type="button"
+            onClick={handleGoogleSignIn}
+            disabled={googleLoading}
             className="w-full py-2.5 rounded-md border border-line bg-paper text-sm font-medium text-ink hover:bg-mist/30 transition-colors flex items-center justify-center gap-2"
           >
             <span>G</span>
-            Continue with Google
-          </a>
+            {googleLoading ? "Opening Google..." : "Continue with Google"}
+          </button>
         </div>
 
         <p className="text-center text-sm text-muted mt-4">

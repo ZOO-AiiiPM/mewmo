@@ -1,8 +1,21 @@
 "use client";
 
 import Link from "next/link";
+import { signIn } from "next-auth/react";
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+
+function normalizeAuthCallbackUrl(value: string | null) {
+  if (!value) return null;
+  if (value.startsWith("/") && !value.startsWith("//")) return value;
+  try {
+    const url = new URL(value);
+    if (url.origin !== window.location.origin) return null;
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return null;
+  }
+}
 
 function RegisterForm() {
   const router = useRouter();
@@ -11,11 +24,9 @@ function RegisterForm() {
   const loginHref = callbackUrl
     ? `/login?callbackUrl=${encodeURIComponent(callbackUrl)}`
     : "/login";
-  const googleAction = callbackUrl
-    ? `/api/auth/signin/google?callbackUrl=${encodeURIComponent(callbackUrl)}`
-    : "/api/auth/signin/google";
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -47,6 +58,12 @@ function RegisterForm() {
     }
 
     router.push(loginHref);
+  }
+
+  async function handleGoogleSignIn() {
+    setError("");
+    setGoogleLoading(true);
+    await signIn("google", { callbackUrl: normalizeAuthCallbackUrl(callbackUrl) || "/notes" });
   }
 
   return (
@@ -114,15 +131,15 @@ function RegisterForm() {
             </div>
           </div>
 
-          <form action={googleAction} method="POST">
-            <button
-              type="submit"
-              className="w-full py-2.5 rounded-md border border-line bg-paper text-sm font-medium text-ink hover:bg-mist/30 transition-colors flex items-center justify-center gap-2"
-            >
-              <span>G</span>
-              Continue with Google
-            </button>
-          </form>
+          <button
+            type="button"
+            onClick={handleGoogleSignIn}
+            disabled={googleLoading}
+            className="w-full py-2.5 rounded-md border border-line bg-paper text-sm font-medium text-ink hover:bg-mist/30 transition-colors flex items-center justify-center gap-2"
+          >
+            <span>G</span>
+            {googleLoading ? "Opening Google..." : "Continue with Google"}
+          </button>
         </div>
 
         <p className="text-center text-sm text-muted mt-4">
