@@ -4,6 +4,7 @@ import test from "node:test";
 
 const prismaConfig = readFileSync("packages/db/prisma.config.ts", "utf8");
 const dbClient = readFileSync("packages/db/src/client.ts", "utf8");
+const dbPackage = JSON.parse(readFileSync("packages/db/package.json", "utf8"));
 
 test("Prisma CLI config uses the same local database as the web runtime", () => {
   assert.match(
@@ -20,5 +21,13 @@ test("Prisma CLI config uses the same local database as the web runtime", () => 
     dbClient,
     /localhost:15432\/mewmo_dev/,
     "runtime fallback should stay on the local Docker database",
+  );
+});
+
+test("db package build generates Prisma Client before TypeScript compilation", () => {
+  assert.match(
+    dbPackage.scripts.build,
+    /prisma generate\s*&&\s*tsc -p tsconfig\.json/,
+    "cloud builds should not rely on a manually generated local Prisma Client",
   );
 });
