@@ -111,6 +111,400 @@ html.light body {
   color: var(--ink);
 }
 
+.mewmo-auth-page {
+  --auth-bg: #14130f;
+  --auth-stage: #191813;
+  --auth-panel: #f3eee5;
+  --auth-panel-ink: #171611;
+  --auth-muted: #766f62;
+  --auth-border: rgba(255, 255, 255, 0.12);
+  --auth-field: #fffaf0;
+  --auth-field-border: #ded4c3;
+  --auth-primary: #171611;
+  --auth-primary-ink: #f8f2e8;
+  --auth-secondary-hover: #ece5d8;
+  --auth-danger: #b24a3d;
+  --auth-focus: #8c7b57;
+  --auth-shadow: 0 24px 80px rgba(0, 0, 0, 0.34);
+  display: grid;
+  grid-template-columns: minmax(0, 1.04fr) minmax(420px, 0.96fr);
+  height: 100dvh;
+  overflow-y: auto;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(255, 255, 255, 0.028) 1px, transparent 1px),
+    var(--auth-bg);
+  background-size: 56px 56px, 56px 56px, auto;
+  color: var(--auth-panel-ink);
+}
+
+html.light .mewmo-auth-page {
+  --auth-bg: #f4efe6;
+  --auth-stage: #eee7da;
+  --auth-panel: #fffaf1;
+  --auth-panel-ink: #171611;
+  --auth-muted: #746c5f;
+  --auth-border: rgba(33, 29, 22, 0.12);
+  --auth-field: #fffdf8;
+  --auth-field-border: #ddd2bf;
+  --auth-primary: #171611;
+  --auth-primary-ink: #fffaf1;
+  --auth-secondary-hover: #f1eadf;
+  --auth-danger: #a84439;
+  --auth-focus: #7d6b47;
+  --auth-shadow: 0 24px 70px rgba(91, 72, 43, 0.18);
+  background:
+    linear-gradient(90deg, rgba(33, 29, 22, 0.055) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(33, 29, 22, 0.045) 1px, transparent 1px),
+    var(--auth-bg);
+  background-size: 56px 56px, 56px 56px, auto;
+}
+
+.mewmo-auth-visual {
+  position: relative;
+  display: grid;
+  align-content: space-between;
+  min-height: 100dvh;
+  overflow: hidden;
+  padding: 48px clamp(32px, 5vw, 72px);
+  color: #f7f2e8;
+}
+
+html.light .mewmo-auth-visual {
+  color: #1d1a14;
+}
+
+.mewmo-auth-visual::before {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+  background:
+    linear-gradient(120deg, rgba(255, 250, 239, 0.1), transparent 42%),
+    radial-gradient(circle at 18% 24%, rgba(177, 155, 104, 0.18), transparent 30%),
+    linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.28) 100%);
+}
+
+html.light .mewmo-auth-visual::before {
+  background:
+    linear-gradient(120deg, rgba(255, 255, 255, 0.72), transparent 42%),
+    radial-gradient(circle at 18% 24%, rgba(177, 155, 104, 0.18), transparent 30%);
+}
+
+.mewmo-auth-brand,
+.mewmo-auth-mobile-brand {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  width: fit-content;
+  color: inherit;
+  font-size: 15px;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.mewmo-auth-brand-mark {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  border-radius: 9px;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.mewmo-auth-copy {
+  position: relative;
+  z-index: 1;
+  max-width: 540px;
+  padding: 72px 0 48px;
+}
+
+.mewmo-auth-kicker {
+  margin: 0 0 18px;
+  color: color-mix(in srgb, currentColor 62%, transparent);
+  font-size: 12px;
+  font-weight: 720;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.mewmo-auth-copy h1 {
+  max-width: 11ch;
+  margin: 0;
+  color: inherit;
+  font-size: clamp(44px, 6.8vw, 86px);
+  font-weight: 760;
+  letter-spacing: 0;
+  line-height: 0.94;
+}
+
+.mewmo-auth-copy p:last-child {
+  max-width: 46ch;
+  margin: 24px 0 0;
+  color: color-mix(in srgb, currentColor 68%, transparent);
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.mewmo-auth-preview {
+  position: relative;
+  z-index: 1;
+  width: min(640px, 100%);
+  overflow: hidden;
+  border: 1px solid var(--auth-border);
+  border-radius: 22px;
+  background: var(--auth-stage);
+  box-shadow: var(--auth-shadow);
+}
+
+.mewmo-auth-preview img {
+  display: block;
+  width: 100%;
+  height: auto;
+  opacity: 0.94;
+}
+
+.mewmo-auth-form-region {
+  display: grid;
+  align-content: center;
+  min-height: 100dvh;
+  padding: 48px clamp(24px, 4.8vw, 72px);
+}
+
+.mewmo-auth-mobile-brand {
+  display: none;
+  margin-bottom: 28px;
+}
+
+.mewmo-auth-panel {
+  width: min(100%, 430px);
+  margin: 0 auto;
+  border: 1px solid var(--auth-border);
+  border-radius: 8px;
+  background: var(--auth-panel);
+  box-shadow: var(--auth-shadow);
+  padding: clamp(24px, 4vw, 40px);
+}
+
+.mewmo-auth-panel-header {
+  margin-bottom: 28px;
+}
+
+.mewmo-auth-panel-header p {
+  margin: 0 0 10px;
+  color: var(--auth-muted);
+  font-size: 13px;
+  font-weight: 620;
+}
+
+.mewmo-auth-panel-header h2 {
+  margin: 0;
+  color: var(--auth-panel-ink);
+  font-size: clamp(28px, 3.2vw, 38px);
+  font-weight: 760;
+  letter-spacing: 0;
+  line-height: 1.05;
+}
+
+.mewmo-auth-form {
+  display: grid;
+  gap: 16px;
+}
+
+.mewmo-auth-field {
+  display: grid;
+  gap: 8px;
+}
+
+.mewmo-auth-field label {
+  color: var(--auth-panel-ink);
+  font-size: 13px;
+  font-weight: 680;
+}
+
+.mewmo-auth-field input {
+  width: 100%;
+  height: 48px;
+  border: 1px solid var(--auth-field-border);
+  border-radius: 8px;
+  background: var(--auth-field);
+  color: var(--auth-panel-ink);
+  padding: 0 14px;
+  outline: none;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.18s ease;
+}
+
+.mewmo-auth-field input::placeholder {
+  color: color-mix(in srgb, var(--auth-muted) 72%, transparent);
+}
+
+.mewmo-auth-field input:focus {
+  border-color: var(--auth-focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--auth-focus) 18%, transparent);
+}
+
+.mewmo-auth-error {
+  margin: -2px 0 0;
+  color: var(--auth-danger);
+  font-size: 13px;
+  font-weight: 620;
+}
+
+.mewmo-auth-primary,
+.mewmo-auth-secondary {
+  display: inline-flex;
+  width: 100%;
+  height: 48px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-radius: 8px;
+  font-weight: 700;
+  transition:
+    transform 0.16s ease,
+    border-color 0.16s ease,
+    background 0.16s ease,
+    opacity 0.16s ease;
+}
+
+.mewmo-auth-primary {
+  border: 1px solid var(--auth-primary);
+  background: var(--auth-primary);
+  color: var(--auth-primary-ink);
+  margin-top: 4px;
+}
+
+.mewmo-auth-secondary {
+  border: 1px solid var(--auth-field-border);
+  background: transparent;
+  color: var(--auth-panel-ink);
+}
+
+.mewmo-auth-primary:hover,
+.mewmo-auth-secondary:hover {
+  transform: translateY(-1px);
+}
+
+.mewmo-auth-primary:active,
+.mewmo-auth-secondary:active {
+  transform: translateY(0);
+}
+
+.mewmo-auth-primary:disabled,
+.mewmo-auth-secondary:disabled {
+  cursor: wait;
+  opacity: 0.64;
+  transform: none;
+}
+
+.mewmo-auth-secondary:hover {
+  background: var(--auth-secondary-hover);
+}
+
+.mewmo-auth-google-mark {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.mewmo-auth-divider {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 14px;
+  margin: 22px 0;
+  color: var(--auth-muted);
+  font-size: 12px;
+  font-weight: 680;
+  text-transform: uppercase;
+}
+
+.mewmo-auth-divider::before,
+.mewmo-auth-divider::after {
+  height: 1px;
+  background: var(--auth-field-border);
+  content: "";
+}
+
+.mewmo-auth-footer {
+  width: min(100%, 430px);
+  margin: 18px auto 0;
+  color: color-mix(in srgb, #f8f2e8 58%, transparent);
+  text-align: center;
+}
+
+html.light .mewmo-auth-footer {
+  color: var(--auth-muted);
+}
+
+.mewmo-auth-footer p {
+  margin: 0;
+}
+
+.mewmo-auth-footer a {
+  color: color-mix(in srgb, #f8f2e8 88%, transparent);
+  font-weight: 720;
+  text-decoration: none;
+}
+
+html.light .mewmo-auth-footer a {
+  color: var(--auth-panel-ink);
+}
+
+.mewmo-auth-footer a:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+@media (max-width: 980px) {
+  .mewmo-auth-page {
+    grid-template-columns: 1fr;
+  }
+
+  .mewmo-auth-visual {
+    min-height: auto;
+    padding: 28px 24px 0;
+  }
+
+  .mewmo-auth-brand,
+  .mewmo-auth-copy,
+  .mewmo-auth-preview {
+    display: none;
+  }
+
+  .mewmo-auth-form-region {
+    min-height: 100dvh;
+    padding: 28px 20px 40px;
+  }
+
+  .mewmo-auth-mobile-brand {
+    display: inline-flex;
+    color: #f8f2e8;
+  }
+
+  html.light .mewmo-auth-mobile-brand {
+    color: var(--auth-panel-ink);
+  }
+}
+
+@media (max-width: 520px) {
+  .mewmo-auth-panel {
+    padding: 24px;
+  }
+
+  .mewmo-auth-panel-header {
+    margin-bottom: 24px;
+  }
+}
+
 button,
 input {
   font: inherit;

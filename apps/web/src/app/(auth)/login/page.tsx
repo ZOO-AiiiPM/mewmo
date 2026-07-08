@@ -4,6 +4,7 @@ import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
+import { AuthFrame } from "../../../components/auth/AuthFrame";
 
 function normalizeAuthCallbackUrl(value: string | null) {
   if (!value) return null;
@@ -63,78 +64,50 @@ function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen bg-paper flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <span className="text-2xl font-extrabold text-moss">mewmo</span>
-          <p className="text-sm text-muted mt-2">Welcome back</p>
-        </div>
-
-        <div className="rounded-lg border border-line bg-paper-2 p-6 space-y-4">
-          <form onSubmit={handleSubmit}>
-            <div className="flex flex-col gap-1 mb-3">
-              <label className="text-sm font-medium text-ink">Email</label>
-              <input
-                name="email"
-                type="email"
-                required
-                placeholder="you@example.com"
-                className="w-full rounded-md border border-line bg-paper px-3 py-2 text-sm text-ink placeholder:text-muted outline-none focus:border-moss"
-              />
-            </div>
-
-            <div className="flex flex-col gap-1 mb-4">
-              <label className="text-sm font-medium text-ink">Password</label>
-              <input
-                name="password"
-                type="password"
-                required
-                placeholder="••••••••"
-                className="w-full rounded-md border border-line bg-paper px-3 py-2 text-sm text-ink placeholder:text-muted outline-none focus:border-moss"
-              />
-            </div>
-
-            {error && (
-              <p className="text-xs text-coral mb-3">{error}</p>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-2.5 rounded-md bg-moss text-white text-sm font-medium hover:bg-moss/90 transition-colors disabled:opacity-50"
-            >
-              {loading ? "Logging in..." : "Log in"}
-            </button>
-          </form>
-
-          <div className="relative py-3">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-line" />
-            </div>
-            <div className="relative flex justify-center">
-              <span className="bg-paper-2 px-2 text-xs text-muted">or</span>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleGoogleSignIn}
-            disabled={googleLoading}
-            className="w-full py-2.5 rounded-md border border-line bg-paper text-sm font-medium text-ink hover:bg-mist/30 transition-colors flex items-center justify-center gap-2"
-          >
-            <span>G</span>
-            {googleLoading ? "Opening Google..." : "Continue with Google"}
-          </button>
-        </div>
-
-        <p className="text-center text-sm text-muted mt-4">
+    <AuthFrame
+      eyebrow="Welcome back"
+      title="Log in to your workspace"
+      footer={
+        <p>
           Don&apos;t have an account?{" "}
-          <Link href={registerHref} className="text-moss hover:underline">
+          <Link href={registerHref}>
             Sign up
           </Link>
         </p>
+      }
+    >
+      <form onSubmit={handleSubmit} className="mewmo-auth-form">
+        <div className="mewmo-auth-field">
+          <label>Email</label>
+          <input name="email" type="email" required placeholder="you@example.com" />
+        </div>
+
+        <div className="mewmo-auth-field">
+          <label>Password</label>
+          <input name="password" type="password" required placeholder="••••••••" />
+        </div>
+
+        {error && <p className="mewmo-auth-error">{error}</p>}
+
+        <button type="submit" disabled={loading} className="mewmo-auth-primary">
+          {loading ? "Logging in..." : "Log in"}
+        </button>
+      </form>
+
+      <div className="mewmo-auth-divider">
+        <span>or</span>
       </div>
-    </div>
+
+      <button
+        type="button"
+        onClick={handleGoogleSignIn}
+        disabled={googleLoading}
+        className="mewmo-auth-secondary"
+      >
+        <span className="mewmo-auth-google-mark">G</span>
+        {googleLoading ? "Opening Google..." : "Continue with Google"}
+      </button>
+    </AuthFrame>
   );
 }
 
