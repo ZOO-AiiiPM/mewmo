@@ -150,7 +150,7 @@ export function KnowledgeImportModal({
 
       const [noteResponse, clipResponse, contentsResponse] = await Promise.all([
         fetch("/api/notes").catch(() => null),
-        fetch("/api/clips").catch(() => null),
+        fetch("/api/clips?includeContent=1").catch(() => null),
         knowledgeBaseId
           ? fetch(`/api/knowledge-bases/${knowledgeBaseId}/contents?${params.toString()}`).catch(
               () => null,

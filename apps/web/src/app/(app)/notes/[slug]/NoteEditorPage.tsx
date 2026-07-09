@@ -62,7 +62,7 @@ interface NoteListItem {
   slug: string;
   title: string;
   summary: string | null;
-  content: string;
+  content?: string;
   pinned: boolean;
   updatedAt: string;
   createdAt?: string;
@@ -111,6 +111,28 @@ export function NoteEditorPage({
     (item: NoteListItem | null, mode: "push" | "replace" = "push") => {
       setSelectedSlug(item?.slug ?? null);
       pushStableSelectionUrl(item ? `/notes/${item.slug}` : "/notes", mode);
+      if (!item || item.content !== undefined) return;
+
+      void fetch(`/api/notes/${item.id}`)
+        .then((response) => (response.ok ? response.json() : null))
+        .then((data: NoteListItem | null) => {
+          if (!data?.id || typeof data.content !== "string") return;
+          const content = data.content;
+          setNotes((current) =>
+            current.map((entry) =>
+              entry.id === data.id
+                ? {
+                    ...entry,
+                    content,
+                    summary: data.summary,
+                    title: data.title,
+                    updatedAt: data.updatedAt,
+                  }
+                : entry,
+            ),
+          );
+        })
+        .catch(() => undefined);
     },
     [],
   );
@@ -137,7 +159,7 @@ export function NoteEditorPage({
     return [...notes]
       .filter((item) => {
         if (!normalizedQuery) return true;
-        return `${item.title} ${item.summary ?? ""} ${item.content}`
+        return `${item.title} ${item.summary ?? ""} ${item.content ?? ""}`
           .toLowerCase()
           .includes(normalizedQuery);
       })
@@ -299,9 +321,10 @@ export function NoteEditorPage({
       >
         <div className="mewmo-list-stack">
           {visibleNotes.map((item) => {
-            const tags = contentTags(item);
-            const preview = notePreviewText(item);
-            const images = extractNoteImages(item.content);
+            const content = item.content ?? "";
+            const tags = contentTags({ ...item, content });
+            const preview = notePreviewText({ ...item, content });
+            const images = extractNoteImages(content);
             const menuOpen = openMenuId === item.id;
             const cardHovered = hoveredCardId === item.id || menuOpen;
             return (
@@ -404,18 +427,25 @@ export function NoteEditorPage({
           className="mewmo-reader-scroll mewmo-reader-scroll--editor"
         >
           {selectedNote ? (
-            <NoteEditor
-              key={selectedNote.id}
-              noteId={selectedNote.id}
-              initialTitle={selectedNote.title}
-              initialSummary={selectedNote.summary}
-              initialContent={selectedNote.content}
-              updatedAt={selectedNote.updatedAt}
-              autoFocusTitle={selectedNote.title === "Untitled" && !selectedNote.content.trim()}
-              onContentChange={updateSelectedNoteContent}
-              onTitleChange={updateSelectedNoteTitle}
-              embedded
-            />
+            selectedNote.content === undefined ? (
+              <div className="mewmo-empty-state">
+                <span className="mewmo-spinner" aria-hidden="true" />
+                <p>正在加载笔记...</p>
+              </div>
+            ) : (
+              <NoteEditor
+                key={selectedNote.id}
+                noteId={selectedNote.id}
+                initialTitle={selectedNote.title}
+                initialSummary={selectedNote.summary}
+                initialContent={selectedNote.content}
+                updatedAt={selectedNote.updatedAt}
+                autoFocusTitle={selectedNote.title === "Untitled" && !selectedNote.content.trim()}
+                onContentChange={updateSelectedNoteContent}
+                onTitleChange={updateSelectedNoteTitle}
+                embedded
+              />
+            )
           ) : (
             <article className="mewmo-document mewmo-document--empty">
               <h1>选择一条笔记</h1>

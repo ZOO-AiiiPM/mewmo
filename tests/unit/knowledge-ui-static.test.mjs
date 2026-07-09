@@ -273,9 +273,14 @@ test("knowledge base UI is wired as a real prototype drawer, not a deferred plac
   );
   assert.match(modal, /formatKnowledgeImportPreviewParagraphs/, "import modal preview should filter markdown/html before rendering");
   assert.match(
+    modal,
+    /fetch\("\/api\/clips\?includeContent=1"\)/,
+    "knowledge import should explicitly opt into clip body content for real article previews",
+  );
+  assert.match(
     clipsRoute,
-    /select:\s*\{[\s\S]*content:\s*true/,
-    "clip list API must include body content so knowledge import preview can show the real article body",
+    /includeContent[\s\S]*content:\s*true/,
+    "clip list API should only include body content when explicitly requested",
   );
   assert.match(
     modal,

@@ -76,6 +76,13 @@ test("web instrumentation keeps node-only undici out of non-node bundles", () =>
   assert.match(source, /NEXT_RUNTIME\s*===\s*["']nodejs["']/);
 });
 
+test("web instrumentation accepts lowercase proxy environment variables for local Node fetch", () => {
+  const source = readFileSync("apps/web/src/instrumentation.ts", "utf8");
+
+  assert.match(source, /process\.env\.https_proxy/, "local shells often expose lowercase https_proxy");
+  assert.match(source, /process\.env\.http_proxy/, "local shells often expose lowercase http_proxy");
+});
+
 test("web Next config stays compatible with default Turbopack builds", () => {
   const source = readFileSync("apps/web/next.config.mjs", "utf8");
 

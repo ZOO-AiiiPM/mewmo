@@ -5,31 +5,33 @@ import { createClipSchema } from "@mewmo/shared";
 import { auth } from "../../../lib/auth";
 import { fetchClipFromUrl } from "../../../lib/clip-fetch";
 
-export async function GET() {
+const clipListSelect = {
+  id: true,
+  url: true,
+  title: true,
+  summary: true,
+  favicon: true,
+  coverImage: true,
+  excerpt: true,
+  sourceName: true,
+  author: true,
+  publishedAt: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.ClipSelect;
+
+export async function GET(request: Request) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const includeContent = new URL(request.url).searchParams.get("includeContent") === "1";
   const prisma = getPrisma();
   const clips = await prisma.clip.findMany({
     where: { userId: session.user.id, deletedAt: null },
     orderBy: { updatedAt: "desc" },
-    select: {
-      id: true,
-      url: true,
-      title: true,
-      content: true,
-      summary: true,
-      favicon: true,
-      coverImage: true,
-      excerpt: true,
-      sourceName: true,
-      author: true,
-      publishedAt: true,
-      createdAt: true,
-      updatedAt: true,
-    },
+    select: { ...clipListSelect, ...(includeContent ? { content: true } : {}) },
   });
 
   return NextResponse.json(clips);

@@ -8,7 +8,6 @@ const noteListSelect = {
   slug: true,
   title: true,
   summary: true,
-  content: true,
   pinned: true,
   createdAt: true,
   updatedAt: true,
@@ -26,12 +25,29 @@ export default async function NotesPage() {
     orderBy: { updatedAt: "desc" },
     select: noteListSelect,
   });
+  const selectedNote = notes[0]
+    ? await prisma.note.findFirst({
+        where: { id: notes[0].id, userId: session.user.id, deletedAt: null },
+      })
+    : null;
 
   return (
     <NoteEditorPage
-      note={null}
+      note={
+        selectedNote
+          ? {
+              id: selectedNote.id,
+              slug: selectedNote.slug,
+              title: selectedNote.title,
+              summary: selectedNote.summary,
+              content: selectedNote.content,
+              updatedAt: selectedNote.updatedAt.toISOString(),
+            }
+          : null
+      }
       notes={notes.map((item: NoteListItem) => ({
         ...item,
+        ...(selectedNote?.id === item.id ? { content: selectedNote.content } : {}),
         createdAt: item.createdAt.toISOString(),
         updatedAt: item.updatedAt.toISOString(),
       }))}
