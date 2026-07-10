@@ -59,7 +59,7 @@ function RegisterForm() {
     }
 
     const data = (await res.json()) as { callbackUrl?: string };
-    const nextCallbackUrl = normalizeAuthCallbackUrl(data.callbackUrl) || "/notes";
+    const nextCallbackUrl = normalizeAuthCallbackUrl(data.callbackUrl ?? null) || "/notes";
     router.push(`/login?callbackUrl=${encodeURIComponent(nextCallbackUrl)}`);
   }
 
