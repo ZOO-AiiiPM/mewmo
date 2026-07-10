@@ -1,6 +1,17 @@
 import { NextResponse } from "next/server";
-import { getPrisma } from "@mewmo/db";
+import { getPrisma, Prisma } from "@mewmo/db";
 import { auth } from "../../../lib/auth";
+import { createNoteSlug } from "../../../lib/note-slug";
+
+const noteListSelect = {
+  id: true,
+  slug: true,
+  title: true,
+  summary: true,
+  pinned: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.NoteSelect;
 
 export async function GET() {
   const session = await auth();
@@ -11,8 +22,8 @@ export async function GET() {
   const prisma = getPrisma();
   const notes = await prisma.note.findMany({
     where: { userId: session.user.id, deletedAt: null },
-    orderBy: { updatedAt: "desc" },
-    select: { id: true, slug: true, title: true, summary: true, content: true, pinned: true, createdAt: true, updatedAt: true },
+    orderBy: [{ pinned: "desc" }, { updatedAt: "desc" }],
+    select: noteListSelect,
   });
 
   return NextResponse.json(notes);
@@ -26,7 +37,7 @@ export async function POST(request: Request) {
 
   const body = await request.json();
   const title = body.title || "Untitled";
-  const baseSlug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "untitled";
+  const baseSlug = createNoteSlug(title);
 
   const prisma = getPrisma();
 
