@@ -86,6 +86,7 @@ export function createAuthConfig(options: CreateAuthConfigOptions = {}): NextAut
     },
     events: {
       async createUser({ user }) {
+        if (!user.id) return;
         await ensureAccountOnboarding(user.id);
       },
     },

@@ -47,4 +47,19 @@ describe("auth config", () => {
 
     expect(ensureAccountOnboarding).toHaveBeenCalledWith("user-1");
   });
+
+  it("ignores incomplete createUser events without an account id", async () => {
+    const ensureAccountOnboarding = vi.fn();
+    const config = createAuthConfig({
+      env,
+      adapter: {} as Adapter,
+      ensureAccountOnboarding,
+    });
+
+    await config.events?.createUser?.({
+      user: { email: "new@mewmo.app", emailVerified: null },
+    });
+
+    expect(ensureAccountOnboarding).not.toHaveBeenCalled();
+  });
 });
