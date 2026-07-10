@@ -1,4 +1,5 @@
 export * from "./client";
+export * from "./cleanup-prototype-onboarding";
 export * from "./onboarding";
 export * from "./repositories/ai-chats";
 export * from "./repositories/clips";
