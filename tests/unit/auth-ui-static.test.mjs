@@ -4,6 +4,7 @@ import test from "node:test";
 
 const loginPage = readFileSync("apps/web/src/app/(auth)/login/page.tsx", "utf8");
 const registerPage = readFileSync("apps/web/src/app/(auth)/register/page.tsx", "utf8");
+const registerRoute = readFileSync("apps/web/src/app/api/register/route.ts", "utf8");
 const authFrame = readFileSync("apps/web/src/components/auth/AuthFrame.tsx", "utf8");
 const css = readFileSync("apps/web/src/app/globals.css", "utf8");
 
@@ -13,6 +14,14 @@ test("auth pages start Google OAuth through the Auth.js client helper", () => {
     assert.match(source, /signIn\("google"/);
     assert.doesNotMatch(source, /\/api\/auth\/signin\/google/);
   }
+});
+
+test("credentials registration initializes onboarding notes and preserves the first-note callback", () => {
+  assert.match(registerRoute, /\$transaction/);
+  assert.match(registerRoute, /ensureOnboardingNotes/);
+  assert.match(registerRoute, /ONBOARDING_NOTES\[0\].*\.slug/);
+  assert.match(registerPage, /data\.callbackUrl/);
+  assert.match(registerPage, /login\?callbackUrl=/);
 });
 
 test("auth pages use the dedicated brand frame and stable theme tokens", () => {

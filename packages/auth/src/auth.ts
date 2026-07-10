@@ -1,5 +1,5 @@
 import { PrismaAdapter } from "@auth/prisma-adapter";
-import { getPrisma } from "@mewmo/db";
+import { ensureOnboardingNotes, getPrisma } from "@mewmo/db";
 import { loadEnv, type AppEnv } from "@mewmo/shared";
 import bcrypt from "bcryptjs";
 import type { NextAuthConfig } from "next-auth";
@@ -13,12 +13,16 @@ export const protectedRouteMatcher = ["/app/:path*"];
 export interface CreateAuthConfigOptions {
   env?: Record<string, string | undefined>;
   adapter?: Adapter;
+  ensureAccountOnboarding?: (userId: string) => Promise<unknown>;
 }
 
 export function createAuthConfig(options: CreateAuthConfigOptions = {}): NextAuthConfig {
   const env = loadEnv(options.env) as AppEnv;
   const prisma = getPrisma();
   const adapter = options.adapter ?? PrismaAdapter(prisma);
+  const ensureAccountOnboarding =
+    options.ensureAccountOnboarding ??
+    ((userId: string) => ensureOnboardingNotes(prisma, userId));
 
   return {
     adapter,
@@ -78,6 +82,11 @@ export function createAuthConfig(options: CreateAuthConfigOptions = {}): NextAut
       },
       authorized({ auth }) {
         return Boolean(auth?.user);
+      },
+    },
+    events: {
+      async createUser({ user }) {
+        await ensureAccountOnboarding(user.id);
       },
     },
   };

@@ -1,4 +1,4 @@
-import { getPrisma } from "@mewmo/db";
+import { ONBOARDING_NOTES, ensureOnboardingNotes, getPrisma } from "@mewmo/db";
 import { hashPassword } from "@mewmo/auth";
 import { NextResponse } from "next/server";
 
@@ -23,14 +23,25 @@ export async function POST(request: Request) {
 
   const hashed = await hashPassword(password);
 
-  const user = await prisma.user.create({
-    data: {
-      email,
-      password: hashed,
-      name: name || null,
-      provider: "credentials",
-    },
+  const user = await prisma.$transaction(async (tx) => {
+    const created = await tx.user.create({
+      data: {
+        email,
+        password: hashed,
+        name: name || null,
+        provider: "credentials",
+      },
+    });
+    await ensureOnboardingNotes(tx, created.id);
+    return created;
   });
 
-  return NextResponse.json({ id: user.id, email: user.email }, { status: 201 });
+  return NextResponse.json(
+    {
+      id: user.id,
+      email: user.email,
+      callbackUrl: `/notes/${ONBOARDING_NOTES[0]!.slug}`,
+    },
+    { status: 201 },
+  );
 }

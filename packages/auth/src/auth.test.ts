@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { Adapter } from "next-auth/adapters";
 
 import { createAuthConfig, protectedRouteMatcher } from "./auth";
@@ -31,5 +31,20 @@ describe("auth config", () => {
 
   it("protects app routes", () => {
     expect(protectedRouteMatcher).toEqual(["/app/:path*"]);
+  });
+
+  it("initializes onboarding notes when an adapter creates a user", async () => {
+    const ensureAccountOnboarding = vi.fn().mockResolvedValue({ existing: 0, created: 3 });
+    const config = createAuthConfig({
+      env,
+      adapter: {} as Adapter,
+      ensureAccountOnboarding,
+    });
+
+    await config.events?.createUser?.({
+      user: { id: "user-1", email: "new@mewmo.app", emailVerified: null },
+    });
+
+    expect(ensureAccountOnboarding).toHaveBeenCalledWith("user-1");
   });
 });

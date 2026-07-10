@@ -58,7 +58,9 @@ function RegisterForm() {
       return;
     }
 
-    router.push(loginHref);
+    const data = (await res.json()) as { callbackUrl?: string };
+    const nextCallbackUrl = normalizeAuthCallbackUrl(data.callbackUrl) || "/notes";
+    router.push(`/login?callbackUrl=${encodeURIComponent(nextCallbackUrl)}`);
   }
 
   async function handleGoogleSignIn() {
