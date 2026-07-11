@@ -12,3 +12,11 @@ test("project testing SOP selects evidence by change and preserves the release g
   assert.match(sop, /稳定生产别名/);
   assert.match(sop, /Vercel.*Ready/);
 });
+
+test("CI gives the theme scanner an explicit comparison base", () => {
+  const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
+  assert.match(workflow, /fetch-depth:\s*0/);
+  assert.match(workflow, /THEME_COLOR_BASE_SHA/);
+  assert.match(workflow, /pull_request\.base\.sha/);
+  assert.match(workflow, /github\.event\.before/);
+});

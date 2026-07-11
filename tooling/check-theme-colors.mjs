@@ -70,8 +70,16 @@ function runCli() {
   validateAllowlist(allowlist);
 
   const diffs = [
-    gitDiff(["show", "--format=", "--unified=0", "HEAD", "--", "apps/web/src"]),
-    gitDiff(["diff", "--unified=0", "HEAD", "--", "apps/web/src"]),
+    process.env.THEME_COLOR_BASE_SHA
+      ? gitDiff([
+          "diff",
+          "--unified=0",
+          `${process.env.THEME_COLOR_BASE_SHA}...HEAD`,
+          "--",
+          "apps/web/src",
+        ])
+      : "",
+    gitDiff(["diff", "--unified=0", "--", "apps/web/src"]),
     gitDiff(["diff", "--cached", "--unified=0", "--", "apps/web/src"]),
   ];
   const unique = new Map();
