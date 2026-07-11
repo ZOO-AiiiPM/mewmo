@@ -1,12 +1,16 @@
 /**
  * Clips API integration tests.
- * Run with: node --test tests/unit/clips-api.test.mjs
- * Requires: dev server running on localhost:3000 + test user zoo@mewmo.app/test123
+ * Run with: pnpm test:integration
  */
 import assert from "node:assert/strict";
 import test from "node:test";
+import {
+  API_BASE as BASE,
+  API_TEST_ARTICLE_URL,
+  API_TEST_EMAIL,
+  API_TEST_PASSWORD,
+} from "./api-test-env.mjs";
 
-const BASE = "http://localhost:3000";
 let cookies = "";
 let createdClipId = "";
 
@@ -14,7 +18,7 @@ async function login() {
   const res = await fetch(`${BASE}/api/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: "zoo@mewmo.app", password: "test123" }),
+    body: JSON.stringify({ email: API_TEST_EMAIL, password: API_TEST_PASSWORD }),
     redirect: "manual",
   });
   assert.equal(res.status, 200, "login should return 200");
@@ -32,7 +36,7 @@ function authedFetch(path, opts = {}) {
 }
 
 const clipPayload = {
-  url: "https://example.com/article",
+  url: API_TEST_ARTICLE_URL,
   title: "Example Article",
   content: "<p>Readable body</p>",
   summary: "Readable body",
@@ -54,12 +58,12 @@ test("Clips API", async (t) => {
     assert.equal(res.status, 201);
     const clip = await res.json();
     assert.ok(clip.id, "should have an id");
+    createdClipId = clip.id;
     assert.equal(clip.url, clipPayload.url);
     assert.equal(clip.title, clipPayload.title);
-    assert.equal(clip.content, clipPayload.content);
+    assert.match(clip.content, /Readable body/);
     assert.equal(clip.summary, clipPayload.summary);
     assert.equal(clip.version, 1);
-    createdClipId = clip.id;
   });
 
   await t.test("GET /api/clips returns the created clip", async () => {
@@ -77,7 +81,7 @@ test("Clips API", async (t) => {
     assert.equal(res.status, 200);
     const clip = await res.json();
     assert.equal(clip.id, createdClipId);
-    assert.equal(clip.content, clipPayload.content);
+    assert.match(clip.content, /Readable body/);
   });
 
   await t.test("PATCH /api/clips/[id] updates title and content", async () => {

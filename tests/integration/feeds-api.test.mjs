@@ -1,12 +1,16 @@
 /**
  * Feeds API integration smoke tests.
- * Run with: node --test tests/unit/feeds-api.test.mjs
- * Requires: dev server running on localhost:3000 + test user zoo@mewmo.app/test123
+ * Run with: pnpm test:integration
  */
 import assert from "node:assert/strict";
 import test from "node:test";
+import {
+  API_BASE as BASE,
+  API_TEST_ARTICLE_URL,
+  API_TEST_EMAIL,
+  API_TEST_PASSWORD,
+} from "./api-test-env.mjs";
 
-const BASE = "http://localhost:3000";
 let cookies = "";
 let createdFeedId = "";
 let createdEntryId = "";
@@ -15,7 +19,7 @@ async function login() {
   const res = await fetch(`${BASE}/api/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: "zoo@mewmo.app", password: "test123" }),
+    body: JSON.stringify({ email: API_TEST_EMAIL, password: API_TEST_PASSWORD }),
     redirect: "manual",
   });
   assert.equal(res.status, 200, "login should return 200");
@@ -39,7 +43,7 @@ test("Feeds API", async (t) => {
     const res = await authedFetch("/api/feeds", {
       method: "POST",
       body: JSON.stringify({
-        url: `https://example.com/rss-${Date.now()}.xml`,
+        url: `${API_TEST_ARTICLE_URL}?rss=${Date.now()}`,
         title: "Test Feed from TDD",
         description: "Created by feeds API smoke test",
       }),
