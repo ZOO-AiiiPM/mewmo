@@ -38,6 +38,15 @@ import { getFeedAddToast, getFeedEmptyState } from "../../../lib/feed-status";
 import { proxiedImageUrl } from "../../../lib/image-proxy";
 import { buildHtmlToc } from "../../../lib/note-toc";
 import {
+  clearCachedFeedEntries,
+  getCachedFeedEntries,
+  getCachedFeedSources,
+  loadWorkspaceResource,
+  setCachedFeedEntries,
+  setCachedFeedSources,
+  updateCachedFeedEntry,
+} from "../../../lib/workspace-data-cache";
+import {
   useRememberedFeedTypeHref,
   useWorkspaceMemory,
 } from "../../../lib/workspace-memory";
@@ -133,12 +142,20 @@ export default function FeedsPage() {
     feedTypes.find((item) => item.type === type) ?? feedTypes[0]!;
   const isDeferredType = Boolean(currentType.deferred);
 
-  const [feeds, setFeeds] = useState<FeedSource[]>([]);
-  const [entries, setEntries] = useState<FeedEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [feedsLoaded, setFeedsLoaded] = useState(false);
+  const initialFeeds = getCachedFeedSources<FeedSource>(type);
+  const initialFeedId = feedId ?? initialFeeds?.[0]?.id ?? null;
+  const initialEntries = initialFeedId
+    ? getCachedFeedEntries<FeedEntry>(initialFeedId)
+    : null;
+
+  const [feeds, setFeeds] = useState<FeedSource[]>(() => initialFeeds ?? []);
+  const [entries, setEntries] = useState<FeedEntry[]>(() => initialEntries ?? []);
+  const [loading, setLoading] = useState(() => initialEntries === null);
+  const [feedsLoaded, setFeedsLoaded] = useState(() => initialFeeds !== null);
   const [error, setError] = useState("");
   const [swapKey, setSwapKey] = useState(`${type}:${feedId ?? "all"}`);
+  const feedsRequestRef = useRef(0);
+  const entriesRequestRef = useRef(0);
   const effectiveFeedId = feedId ?? feeds[0]?.id ?? null;
 
   const selectedFeed = useMemo(
@@ -146,7 +163,7 @@ export default function FeedsPage() {
     [effectiveFeedId, feeds],
   );
   const visibleEntries = useMemo(
-    () => [...entries].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+    () => [...entries].sort((left, right) => feedEntryTimestamp(right) - feedEntryTimestamp(left)),
     [entries],
   );
   const selectedEntry = useMemo(() => {
@@ -195,19 +212,36 @@ export default function FeedsPage() {
   const openAddModal = () => updateParams({ add: "1" });
 
   const loadFeeds = useCallback(async () => {
-    setFeedsLoaded(false);
+    const requestId = ++feedsRequestRef.current;
+    const cachedFeeds = getCachedFeedSources<FeedSource>(type);
+    if (cachedFeeds) {
+      setFeeds(cachedFeeds);
+      setFeedsLoaded(true);
+    } else {
+      setFeeds([]);
+      setFeedsLoaded(false);
+    }
     if (isDeferredType) {
       setFeeds([]);
       setFeedsLoaded(true);
       return;
     }
-    const response = await fetch(`/api/feeds?type=${type}`);
-    if (!response.ok) throw new Error("feeds");
-    setFeeds(await response.json());
-    setFeedsLoaded(true);
+    try {
+      const nextFeeds = await loadWorkspaceResource(`feeds:list:${type}`, async () => {
+        const response = await fetch(`/api/feeds?type=${type}`);
+        if (!response.ok) throw new Error("feeds");
+        return (await response.json()) as FeedSource[];
+      });
+      if (feedsRequestRef.current !== requestId) return;
+      setCachedFeedSources(type, nextFeeds);
+      setFeeds(nextFeeds);
+    } finally {
+      if (feedsRequestRef.current === requestId) setFeedsLoaded(true);
+    }
   }, [isDeferredType, type]);
 
   const loadEntries = useCallback(async () => {
+    const requestId = ++entriesRequestRef.current;
     if (isDeferredType) {
       setEntries([]);
       setLoading(false);
@@ -219,30 +253,62 @@ export default function FeedsPage() {
       setError("");
       return;
     }
-    setLoading(true);
+    const cachedEntries = effectiveFeedId
+      ? getCachedFeedEntries<FeedEntry>(effectiveFeedId)
+      : null;
+    if (cachedEntries) {
+      setEntries(cachedEntries);
+      setLoading(false);
+    } else {
+      setEntries([]);
+      setLoading(true);
+    }
     setError("");
     const params = new URLSearchParams({ type });
     if (effectiveFeedId) params.set("feedId", effectiveFeedId);
-    const response = await fetch(`/api/feed-entries?${params.toString()}`);
-    if (!response.ok) {
-      setError(
-        response.status === 404
-          ? "这个订阅源不存在或已删除。"
-          : "订阅条目加载失败。",
-      );
-      setLoading(false);
-      return;
+    try {
+      const requestKey = effectiveFeedId
+        ? `feeds:entries:${effectiveFeedId}`
+        : `feeds:entries:all:${type}`;
+      const result = await loadWorkspaceResource(requestKey, async () => {
+        const response = await fetch(`/api/feed-entries?${params.toString()}`);
+        if (!response.ok) {
+          return { entries: null, status: response.status } as const;
+        }
+        return {
+          entries: (await response.json()) as FeedEntry[],
+          status: response.status,
+        };
+      });
+      if (entriesRequestRef.current !== requestId) return;
+      if (!result.entries) {
+        if (!cachedEntries) {
+          setError(
+            result.status === 404
+              ? "这个订阅源不存在或已删除。"
+              : "订阅条目加载失败。",
+          );
+        }
+        return;
+      }
+      const nextEntries = result.entries;
+      if (effectiveFeedId) setCachedFeedEntries(effectiveFeedId, nextEntries);
+      setEntries(nextEntries);
+    } catch {
+      if (entriesRequestRef.current === requestId && !cachedEntries) {
+        setError("订阅条目加载失败。");
+      }
+    } finally {
+      if (entriesRequestRef.current === requestId) setLoading(false);
     }
-    setEntries(await response.json());
-    setLoading(false);
   }, [effectiveFeedId, feedsLoaded, isDeferredType, type]);
 
   useEffect(() => {
     void loadFeeds().catch(() => {
-      setFeeds([]);
+      if (!getCachedFeedSources<FeedSource>(type)) setFeeds([]);
       setFeedsLoaded(true);
     });
-  }, [loadFeeds]);
+  }, [loadFeeds, type]);
 
   useEffect(() => {
     setSwapKey(`${type}:${effectiveFeedId ?? "none"}:${Date.now()}`);
@@ -286,13 +352,18 @@ export default function FeedsPage() {
       body: JSON.stringify({ read: true }),
     }).then((response) => {
       if (!response.ok) return;
+      const readAt = new Date().toISOString();
       setEntries((current) =>
         current.map((entry) =>
           entry.id === selectedEntry.id
-            ? { ...entry, readAt: new Date().toISOString() }
+            ? { ...entry, readAt }
             : entry,
         ),
       );
+      updateCachedFeedEntry<FeedEntry>(selectedEntry.feedId, selectedEntry.id, (entry) => ({
+        ...entry,
+        readAt,
+      }));
     });
   }, [selectedEntry]);
 
@@ -355,6 +426,10 @@ export default function FeedsPage() {
           entry.id === selectedEntry.id ? { ...entry, isFavorited: true } : entry,
         ),
       );
+      updateCachedFeedEntry<FeedEntry>(selectedEntry.feedId, selectedEntry.id, (entry) => ({
+        ...entry,
+        isFavorited: true,
+      }));
       showToast(data.created ? "已保存到剪藏" : "已收藏", "success");
     } catch {
       showToast("收藏失败，请稍后再试", "error");
@@ -534,6 +609,12 @@ export default function FeedsPage() {
           closeAddModal();
           const toast = getFeedAddToast(feed);
           showToast(toast.text, toast.type);
+          const cachedSources = getCachedFeedSources<FeedSource>(feed.type) ?? [];
+          setCachedFeedSources(feed.type, [
+            feed,
+            ...cachedSources.filter((source) => source.id !== feed.id),
+          ]);
+          clearCachedFeedEntries(feed.id);
           router.push(`/feeds?type=${feed.type}&feedId=${feed.id}`, { scroll: false });
           void loadFeeds();
           void loadEntries();
@@ -590,6 +671,11 @@ function FeedReader({
       />
     </article>
   );
+}
+
+function feedEntryTimestamp(entry: FeedEntry) {
+  const timestamp = Date.parse(entry.publishedAt ?? entry.createdAt);
+  return Number.isNaN(timestamp) ? 0 : timestamp;
 }
 
 function AddFeedModal({

@@ -12,6 +12,7 @@ import {
 } from "@mewmo/shared";
 
 import { auth } from "../../../../lib/auth";
+import { createNoteSlug } from "../../../../lib/note-slug";
 
 interface AppliedMutation {
   index: number;
@@ -25,13 +26,9 @@ interface MutationError {
   reason: string;
 }
 
-function createSlug(title: string): string {
-  return title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "untitled";
-}
-
 async function createUniqueNoteSlug(userId: string, title: string): Promise<string> {
   const prisma = getPrisma();
-  const baseSlug = createSlug(title);
+  const baseSlug = createNoteSlug(title);
   let slug = baseSlug;
   let attempt = 0;
 

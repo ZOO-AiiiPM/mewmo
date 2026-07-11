@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { useRouter } from "next/navigation";
 import { Crepe } from "@milkdown/crepe";
 import { Milkdown, MilkdownProvider, useEditor } from "@milkdown/react";
+import { $prose } from "@milkdown/kit/utils";
+import { Plugin } from "@milkdown/kit/prose/state";
 import "@milkdown/crepe/theme/common/style.css";
 import "@milkdown/crepe/theme/frame.css";
 import { buildNoteMetadataItems, noteTagPalette } from "../../lib/note-list-preview";
@@ -23,6 +25,7 @@ import {
   retryStoredNoteContent,
 } from "./note-draft-sync";
 import { uploadNoteImage } from "./note-image-client";
+import { normalizePastedImageSlice } from "./note-image-paste";
 import {
   getInitialTitleSelectionMode,
   normalizeTitleText,
@@ -38,7 +41,7 @@ interface NoteEditorProps {
   embedded?: boolean;
   autoFocusTitle?: boolean;
   onContentChange?: (content: string) => void;
-  onTitleChange?: (title: string) => void;
+  onTitleChange?: (title: string, slug?: string) => void;
 }
 
 const TAG_PICKER_OPTIONS = ["产品", "AI", "读书", "设计", "数据层"];
@@ -97,6 +100,16 @@ function CrepeContent({
     });
     crepe.editor.use(highlight);
     crepe.editor.use(editorInteractions);
+    crepe.editor.use(
+      $prose(
+        () =>
+          new Plugin({
+            props: {
+              transformPasted: (slice, view) => normalizePastedImageSlice(slice, view.state.schema),
+            },
+          }),
+      ),
+    );
     crepe.on((listener) => {
       listener.markdownUpdated((_, markdown, prevMarkdown) => {
         const wasReady = readyRef.current;
@@ -167,8 +180,10 @@ export function NoteEditor({
           body: JSON.stringify(data),
         });
         if (!res.ok) throw new Error("Save failed");
+        return (await res.json()) as { title: string; slug: string };
       } catch {
         // Save errors stay silent in the editor chrome.
+        return null;
       }
     },
     [noteId],
@@ -186,10 +201,12 @@ export function NoteEditor({
     (title: string) => {
       if (titleSaveTimer.current) clearTimeout(titleSaveTimer.current);
       titleSaveTimer.current = setTimeout(() => {
-        void savePatch({ title });
+        void savePatch({ title }).then((updated) => {
+          if (updated) onTitleChange?.(updated.title, updated.slug);
+        });
       }, 300);
     },
-    [savePatch],
+    [onTitleChange, savePatch],
   );
 
   useEffect(() => {

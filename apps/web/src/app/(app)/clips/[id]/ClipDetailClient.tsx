@@ -19,6 +19,15 @@ import {
   pushStableSelectionUrl,
 } from "../../../../lib/stable-selection-url";
 import { useWorkspaceMemory } from "../../../../lib/workspace-memory";
+import {
+  getCachedWorkspaceDetail,
+  isWorkspaceDetailFresh,
+  loadWorkspaceResource,
+  removeCachedWorkspaceItem,
+  setCachedWorkspaceDetail,
+  setCachedWorkspaceList,
+  setCachedWorkspaceSelection,
+} from "../../../../lib/workspace-data-cache";
 
 interface ClipListItem {
   id: string;
@@ -97,6 +106,13 @@ export function ClipDetailClient({
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
   const [listCollapsed, setListCollapsed] = useState(false);
   const [selectedClip, setSelectedClip] = useState<ClipListItem | null>(clip);
+  const [loadingClipId, setLoadingClipId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setCachedWorkspaceList("clips", initialClips);
+    setCachedWorkspaceDetail("clips", clip);
+    setCachedWorkspaceSelection("clips", clip.id);
+  }, [clip, initialClips]);
 
   const { setContentContext } = useAISidebarContext();
 
@@ -138,11 +154,36 @@ export function ClipDetailClient({
   const selectClip = (item: ClipListItem | null, mode: "push" | "replace" = "push") => {
     if (!item) {
       setSelectedClip(null);
+      setCachedWorkspaceSelection("clips", null);
       pushStableSelectionUrl("/clips", mode);
       return;
     }
-    setSelectedClip(item);
+    setCachedWorkspaceSelection("clips", item.id);
+    const cachedDetail = getCachedWorkspaceDetail<ClipListItem>("clips", item.id);
+    setSelectedClip(cachedDetail ?? item);
     pushStableSelectionUrl(`/clips/${item.id}`, mode);
+    if (cachedDetail && isWorkspaceDetailFresh("clips", item)) return;
+
+    setLoadingClipId(item.id);
+    void loadWorkspaceResource(`clips:detail:${item.id}`, async () => {
+      const response = await fetch(`/api/clips/${item.id}`);
+      if (response.status === 404) {
+        removeCachedWorkspaceItem("clips", item.id);
+        throw new Error("Clip not found");
+      }
+      if (!response.ok) throw new Error("Failed to load clip");
+      return (await response.json()) as ClipListItem;
+    })
+      .then((data) => {
+        setCachedWorkspaceDetail("clips", data);
+        setSelectedClip((current) => (current?.id === data.id ? data : current));
+      })
+      .catch(() => {
+        if (!getCachedWorkspaceDetail("clips", item.id)) {
+          setSelectedClip(null);
+        }
+      })
+      .finally(() => setLoadingClipId((current) => (current === item.id ? null : current)));
   };
   const toc = useMemo(() => buildHtmlToc(selectedClip?.content ?? ""), [selectedClip?.content]);
   const { toolbarTitleVisible } = useReaderToolbarTitleVisibility({
@@ -194,6 +235,7 @@ export function ClipDetailClient({
       const remaining = visibleClips.filter((entry) => entry.id !== item.id);
       const next = remaining[0] ?? null;
       setClips((current) => current.filter((entry) => entry.id !== item.id));
+      removeCachedWorkspaceItem("clips", item.id);
       if (item.id === selectedClip?.id) selectClip(next, "replace");
     }
   };
@@ -208,6 +250,7 @@ export function ClipDetailClient({
       } | null;
       if (!response.ok || !data?.clip) throw new Error("Failed to refresh clip");
       const updatedClip = data.clip;
+      setCachedWorkspaceDetail("clips", updatedClip);
 
       setClips((current) =>
         current.map((entry) => (entry.id === updatedClip.id ? updatedClip : entry)),
@@ -229,6 +272,7 @@ export function ClipDetailClient({
   const scrollToTop = () => {
     scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   };
+  const isSelectedClipLoading = loadingClipId === selectedClip?.id;
 
   return (
     <div
@@ -339,6 +383,7 @@ export function ClipDetailClient({
                 html={selectedClip.content ?? ""}
                 sourceUrl={selectedClip.url}
                 contentKey={selectedClip.id}
+                loading={isSelectedClipLoading}
               />
             </article>
           ) : (

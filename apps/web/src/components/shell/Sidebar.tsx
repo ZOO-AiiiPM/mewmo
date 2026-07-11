@@ -25,6 +25,11 @@ import {
 } from "../../lib/knowledge-tree";
 import { useTheme } from "../../lib/theme";
 import {
+  clearCachedFeedEntries,
+  getCachedFeedSources,
+  setCachedFeedSources,
+} from "../../lib/workspace-data-cache";
+import {
   getRememberedFeedTypeHref,
   getRememberedKnowledgeBaseHref,
   useRememberedWorkspaceHref,
@@ -544,7 +549,23 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
       body: JSON.stringify({ title: nextTitle }),
     });
     if (response.ok) {
-      setFeeds((current) => current.map((item) => (item.id === feed.id ? { ...item, title: nextTitle } : item)));
+      setFeeds((current) =>
+        current.map((item) => (item.id === feed.id ? { ...item, title: nextTitle } : item)),
+      );
+      const cachedSources = getCachedFeedSources<SidebarFeed>(feed.type);
+      if (cachedSources) {
+        setCachedFeedSources(
+          feed.type,
+          cachedSources.map((item) =>
+            item.id === feed.id ? { ...item, title: nextTitle } : item,
+          ),
+        );
+      }
+      window.dispatchEvent(
+        new CustomEvent("mewmo:feed-refreshed", {
+          detail: { feedId: feed.id, type: feed.type },
+        }),
+      );
       showToast("已重命名订阅源", "success");
     }
   };
@@ -553,6 +574,19 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
     const response = await fetch(`/api/feeds/${feed.id}`, { method: "DELETE" });
     if (response.ok) {
       setFeeds((current) => current.filter((item) => item.id !== feed.id));
+      const cachedSources = getCachedFeedSources<SidebarFeed>(feed.type);
+      if (cachedSources) {
+        setCachedFeedSources(
+          feed.type,
+          cachedSources.filter((item) => item.id !== feed.id),
+        );
+      }
+      clearCachedFeedEntries(feed.id);
+      window.dispatchEvent(
+        new CustomEvent("mewmo:feed-refreshed", {
+          detail: { feedId: feed.id, type: feed.type },
+        }),
+      );
       showToast("已删除订阅源", "success");
     }
     setFeedMenuId(null);
@@ -1179,7 +1213,12 @@ function renderEntry(
     return <SidebarButton key={entry.label} icon={entry.icon} label={entry.label} badge={entry.badge} onClick={defer} muted />;
   }
   const section = workspaceSectionForEntryHref(entry.href);
-  const href = section ? rememberedWorkspaceHrefs[section] : entry.href;
+  const href =
+    section === "notes" || section === "clips"
+      ? entry.href
+      : section
+        ? rememberedWorkspaceHrefs[section]
+        : entry.href;
   const active =
     entry.href === "/feeds"
       ? pathname.startsWith("/feeds") && entry.label === "文章"

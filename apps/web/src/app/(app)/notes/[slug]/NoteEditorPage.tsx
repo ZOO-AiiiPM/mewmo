@@ -39,6 +39,18 @@ import {
   pushStableSelectionUrl,
 } from "../../../../lib/stable-selection-url";
 import { useWorkspaceMemory } from "../../../../lib/workspace-memory";
+import {
+  getCachedWorkspaceDetail,
+  getCachedWorkspaceList,
+  getCachedWorkspaceSelection,
+  isWorkspaceDetailFresh,
+  loadWorkspaceResource,
+  removeCachedWorkspaceItem,
+  setCachedWorkspaceDetail,
+  setCachedWorkspaceList,
+  setCachedWorkspaceSelection,
+  updateCachedWorkspaceItem,
+} from "../../../../lib/workspace-data-cache";
 import "../../../../components/editor/editor-theme.css";
 
 const NoteEditor = dynamic(
@@ -90,14 +102,30 @@ export function NoteEditorPage({
   const { setContentContext } = useAISidebarContext();
   const listRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [notes, setNotes] = useState(initialNotes);
+  const previousSelectedNoteRef = useRef<{ id: string; slug: string } | null>(null);
+  const cachedNotes = getCachedWorkspaceList<NoteListItem>("notes");
+  const mergeCachedDetail = (item: NoteListItem) => {
+    const cachedDetail = getCachedWorkspaceDetail<NoteListItem>("notes", item.id);
+    return cachedDetail
+      ? { ...item, ...cachedDetail, updatedAt: item.updatedAt }
+      : item;
+  };
+  const seededNotes = initialNotes.map(mergeCachedDetail);
+  const initialCachedNotes = (cachedNotes ?? seededNotes).map(mergeCachedDetail);
+  const cachedSelectedId = getCachedWorkspaceSelection("notes");
+  const cachedSelectedSlug = initialCachedNotes.find(
+    (item) => item.id === cachedSelectedId,
+  )?.slug;
+  const [notes, setNotes] = useState(initialCachedNotes);
   const [selectedSlug, setSelectedSlug] = useState<string | null>(
-    note?.slug ?? initialNotes[0]?.slug ?? null,
+    note?.slug ?? cachedSelectedSlug ?? seededNotes[0]?.slug ?? null,
   );
   const [query, setQuery] = useState("");
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
   const [listCollapsed, setListCollapsed] = useState(false);
+  const [isLoading, setIsLoading] = useState(!cachedNotes && initialNotes.length === 0);
+  const [loadError, setLoadError] = useState("");
   const selectedNote = useMemo(() => {
     if (selectedSlug) {
       const selected = notes.find((item) => item.slug === selectedSlug);
@@ -107,34 +135,122 @@ export function NoteEditorPage({
   }, [notes, selectedSlug]);
   const [editorContent, setEditorContent] = useState(selectedNote?.content ?? "");
 
+  const loadNoteDetail = useCallback((item: NoteListItem) => {
+    const cachedDetail = getCachedWorkspaceDetail<NoteListItem>("notes", item.id);
+    if (cachedDetail && isWorkspaceDetailFresh("notes", item)) {
+      if (item.content === undefined) {
+        setNotes((current) =>
+          current.map((entry) =>
+            entry.id === item.id
+              ? { ...entry, ...cachedDetail, updatedAt: entry.updatedAt }
+              : entry,
+          ),
+        );
+      }
+      return;
+    }
+    if (cachedDetail && item.content === undefined) {
+      setNotes((current) =>
+        current.map((entry) =>
+          entry.id === item.id
+            ? { ...entry, ...cachedDetail, updatedAt: entry.updatedAt }
+            : entry,
+        ),
+      );
+    }
+
+    void loadWorkspaceResource(`notes:detail:${item.id}`, () =>
+      fetch(`/api/notes/${item.id}`).then((response) =>
+        response.ok ? response.json() : null,
+      ),
+    )
+      .then((data: NoteListItem | null) => {
+        if (!data?.id || typeof data.content !== "string") return;
+        const content = data.content;
+        setCachedWorkspaceDetail("notes", data);
+        setNotes((current) =>
+          current.map((entry) =>
+            entry.id === data.id
+              ? {
+                  ...entry,
+                  content,
+                  summary: data.summary,
+                  title: data.title,
+                  updatedAt: data.updatedAt,
+                }
+              : entry,
+          ),
+        );
+      })
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    if (initialNotes.length > 0) return;
+    let cancelled = false;
+
+    void loadWorkspaceResource("notes:list", async () => {
+      const response = await fetch("/api/notes");
+      if (!response.ok) throw new Error("Failed to load notes");
+      return (await response.json()) as NoteListItem[];
+    })
+      .then((data) => {
+        setCachedWorkspaceList("notes", data);
+        if (cancelled) return;
+        setNotes(
+          data.map((item) => {
+            const detail = getCachedWorkspaceDetail<NoteListItem>("notes", item.id);
+            return detail ? { ...item, ...detail, updatedAt: item.updatedAt } : item;
+          }),
+        );
+        setSelectedSlug((current) => {
+          if (current && data.some((item) => item.slug === current)) return current;
+          const selectedId = getCachedWorkspaceSelection("notes");
+          const next = data.find((item) => item.id === selectedId) ?? data[0] ?? null;
+          setCachedWorkspaceSelection("notes", next?.id ?? null);
+          return next?.slug ?? null;
+        });
+        setLoadError("");
+      })
+      .catch(() => {
+        if (!cancelled && !cachedNotes) setLoadError("Could not load notes.");
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [initialNotes.length]);
+
+  useEffect(() => {
+    if (initialNotes.length === 0 && !note) return;
+    setCachedWorkspaceList("notes", seededNotes);
+    if (note) {
+      const pinned = initialNotes.find((item) => item.id === note.id)?.pinned ?? false;
+      setCachedWorkspaceDetail("notes", { ...note, pinned });
+    }
+
+    setNotes((current) =>
+      seededNotes.map((item) => {
+        const local = current.find((entry) => entry.id === item.id);
+        return local?.content !== undefined
+          ? { ...item, ...local }
+          : mergeCachedDetail(item);
+      }),
+    );
+  }, [initialNotes, note?.id, note?.updatedAt]);
+
   const selectNote = useCallback(
     (item: NoteListItem | null, mode: "push" | "replace" = "push") => {
       setSelectedSlug(item?.slug ?? null);
+      setCachedWorkspaceSelection("notes", item?.id ?? null);
       pushStableSelectionUrl(item ? `/notes/${item.slug}` : "/notes", mode);
-      if (!item || item.content !== undefined) return;
-
-      void fetch(`/api/notes/${item.id}`)
-        .then((response) => (response.ok ? response.json() : null))
-        .then((data: NoteListItem | null) => {
-          if (!data?.id || typeof data.content !== "string") return;
-          const content = data.content;
-          setNotes((current) =>
-            current.map((entry) =>
-              entry.id === data.id
-                ? {
-                    ...entry,
-                    content,
-                    summary: data.summary,
-                    title: data.title,
-                    updatedAt: data.updatedAt,
-                  }
-                : entry,
-            ),
-          );
-        })
-        .catch(() => undefined);
+      if (!item) return;
+      loadNoteDetail(item);
     },
-    [],
+    [loadNoteDetail],
   );
 
   const handleNewNote = useCallback(async () => {
@@ -147,7 +263,12 @@ export function NoteEditorPage({
       if (!response.ok) throw new Error("create note failed");
 
       const created = (await response.json()) as NoteListItem;
-      setNotes((current) => [created, ...current.filter((item) => item.id !== created.id)]);
+      setCachedWorkspaceDetail("notes", created);
+      setNotes((current) => {
+        const next = [created, ...current.filter((item) => item.id !== created.id)];
+        setCachedWorkspaceList("notes", next);
+        return next;
+      });
       selectNote(created);
     } catch {
       showToast("新建笔记失败", "error");
@@ -199,6 +320,25 @@ export function NoteEditorPage({
   }, [selectedNote?.content, selectedNote?.id]);
 
   useEffect(() => {
+    const previous = previousSelectedNoteRef.current;
+    if (
+      previous &&
+      selectedNote &&
+      previous.id === selectedNote.id &&
+      previous.slug !== selectedNote.slug
+    ) {
+      pushStableSelectionUrl(`/notes/${selectedNote.slug}`, "replace");
+    }
+    previousSelectedNoteRef.current = selectedNote
+      ? { id: selectedNote.id, slug: selectedNote.slug }
+      : null;
+  }, [selectedNote?.id, selectedNote?.slug]);
+
+  useEffect(() => {
+    if (selectedNote) loadNoteDetail(selectedNote);
+  }, [loadNoteDetail, selectedNote]);
+
+  useEffect(() => {
     if (!selectedNote) {
       setContentContext(null);
       return;
@@ -231,6 +371,7 @@ export function NoteEditorPage({
       const remaining = visibleNotes.filter((entry) => entry.id !== item.id);
       const next = remaining[0] ?? null;
       setNotes((current) => current.filter((entry) => entry.id !== item.id));
+      removeCachedWorkspaceItem("notes", item.id);
       if (item.slug === selectedNote?.slug) selectNote(next, "replace");
     }
   };
@@ -243,6 +384,10 @@ export function NoteEditorPage({
     });
     if (response.ok) {
       const updated = await response.json();
+      updateCachedWorkspaceItem<NoteListItem>("notes", item.id, (entry) => ({
+        ...entry,
+        pinned: updated.pinned,
+      }));
       setNotes((current) =>
         current.map((entry) =>
           entry.id === item.id ? { ...entry, pinned: updated.pinned } : entry,
@@ -275,6 +420,10 @@ export function NoteEditorPage({
     (content: string) => {
       if (!selectedNote) return;
       setEditorContent(content);
+      updateCachedWorkspaceItem<NoteListItem>("notes", selectedNote.id, (item) => ({
+        ...item,
+        content,
+      }));
       setNotes((current) =>
         current.map((item) =>
           item.id === selectedNote.id ? { ...item, content } : item,
@@ -285,13 +434,22 @@ export function NoteEditorPage({
   );
 
   const updateSelectedNoteTitle = useCallback(
-    (title: string) => {
+    (title: string, slug?: string) => {
       if (!selectedNote) return;
+      updateCachedWorkspaceItem<NoteListItem>("notes", selectedNote.id, (item) => ({
+        ...item,
+        title,
+        ...(slug ? { slug } : {}),
+      }));
       setNotes((current) =>
         current.map((item) =>
-          item.id === selectedNote.id ? { ...item, title } : item,
+          item.id === selectedNote.id ? { ...item, title, ...(slug ? { slug } : {}) } : item,
         ),
       );
+      if (slug && slug !== selectedNote.slug) {
+        setSelectedSlug(slug);
+        pushStableSelectionUrl(`/notes/${slug}`, "replace");
+      }
     },
     [selectedNote],
   );
@@ -319,6 +477,17 @@ export function NoteEditorPage({
           </button>
         }
       >
+        {isLoading ? (
+          <div className="mewmo-list-empty">
+            <span className="mewmo-spinner" aria-hidden="true" />
+            <p>正在加载笔记...</p>
+          </div>
+        ) : loadError && notes.length === 0 ? (
+          <div className="mewmo-list-empty">
+            <PrototypeIcon name="empty" size={36} />
+            <p>{loadError}</p>
+          </div>
+        ) : (
         <div className="mewmo-list-stack">
           {visibleNotes.map((item) => {
             const content = item.content ?? "";
@@ -400,6 +569,7 @@ export function NoteEditorPage({
             );
           })}
         </div>
+        )}
       </ListColumn>
 
       <section className="mewmo-reader-surface">

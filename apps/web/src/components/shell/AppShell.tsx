@@ -6,6 +6,7 @@ import {
   AI_FAB_DEFAULT_BOTTOM,
   clampAiFabBottom,
 } from "../../lib/ai-fab-position";
+import { scopeWorkspaceDataCache } from "../../lib/workspace-data-cache";
 import { AISidebar, AISidebarProvider } from "./AISidebar";
 import { PrototypeIcon } from "./PrototypeIcon";
 import { Sidebar } from "./Sidebar";
@@ -27,6 +28,7 @@ function clampAiWidth(width: number) {
 }
 
 export function AppShell({ children, user }: AppShellProps) {
+  scopeWorkspaceDataCache(user?.email);
   const shellRef = useRef<HTMLDivElement>(null);
   const sidebarPeekTimer = useRef<number | null>(null);
   const aiFabDragRef = useRef<{

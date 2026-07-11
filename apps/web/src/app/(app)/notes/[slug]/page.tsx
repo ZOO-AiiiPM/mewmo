@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { getPrisma, Prisma } from "@mewmo/db";
 import { auth } from "../../../../lib/auth";
+import { decodeNoteSlug } from "../../../../lib/note-slug";
 import { NoteEditorPage } from "./NoteEditorPage";
 
 const noteListSelect = {
@@ -19,7 +20,8 @@ export default async function NoteDetailPage({ params }: { params: Promise<{ slu
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
-  const { slug } = await params;
+  const { slug: encodedSlug } = await params;
+  const slug = decodeNoteSlug(encodedSlug);
   const prisma = getPrisma();
   const [note, notes] = await Promise.all([
     prisma.note.findFirst({

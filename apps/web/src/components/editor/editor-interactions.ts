@@ -16,10 +16,9 @@ import {
   wrapInBlockTypeCommand,
 } from "@milkdown/kit/preset/commonmark";
 import { createTable } from "@milkdown/kit/preset/gfm";
-import { lift } from "@milkdown/kit/prose/commands";
+import { joinTextblockBackward, lift } from "@milkdown/kit/prose/commands";
 import { NodeSelection, Plugin, TextSelection } from "@milkdown/kit/prose/state";
 import { liftListItem } from "@milkdown/kit/prose/schema-list";
-import { canJoin } from "@milkdown/kit/prose/transform";
 import type { Selection } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
 
@@ -108,19 +107,28 @@ export function shouldClearEmptyHeadingFormat(parentTypeName: string, parentCont
   return selectionEmpty && parentTypeName === "heading" && parentContentSize === 0;
 }
 
-export function shouldJoinHeadingWithPreviousBlock(
-  parentTypeName: string,
+export function shouldJoinFormattedBlockWithPrevious(
+  selectionTypePath: string[],
   parentOffset: number,
   parentContentSize: number,
   selectionEmpty: boolean,
   hasPreviousBlock: boolean,
 ) {
+  const formattedBlockTypes = new Set([
+    "heading",
+    "blockquote",
+    "bullet_list",
+    "ordered_list",
+    "list_item",
+    "code_block",
+  ]);
+
   return (
     selectionEmpty &&
-    parentTypeName === "heading" &&
     parentOffset === 0 &&
     parentContentSize > 0 &&
-    hasPreviousBlock
+    hasPreviousBlock &&
+    selectionTypePath.some((typeName) => formattedBlockTypes.has(typeName))
   );
 }
 
@@ -778,34 +786,33 @@ export const editorInteractions = $prose(
             if (
               event.key === "Backspace" &&
               selection instanceof TextSelection &&
-              shouldLiftBlockquoteFormat(selectionTypePath(selection), selection.$from.parentOffset, selection.empty) &&
-              lift(view.state, view.dispatch)
-            ) {
-              event.preventDefault();
-              return true;
-            }
-
-            if (
-              event.key === "Backspace" &&
-              selection instanceof TextSelection &&
               selection.$from.depth >= 1
             ) {
               const blockStart = selection.$from.before(1);
               const previousNode = view.state.doc.resolve(blockStart).nodeBefore;
               if (
-                shouldJoinHeadingWithPreviousBlock(
-                  selection.$from.parent.type.name,
+                shouldJoinFormattedBlockWithPrevious(
+                  selectionTypePath(selection),
                   selection.$from.parentOffset,
                   selection.$from.parent.content.size,
                   selection.empty,
                   Boolean(previousNode),
                 ) &&
-                canJoin(view.state.doc, blockStart)
+                joinTextblockBackward(view.state, view.dispatch, view)
               ) {
-                view.dispatch(view.state.tr.join(blockStart));
                 event.preventDefault();
                 return true;
               }
+            }
+
+            if (
+              event.key === "Backspace" &&
+              selection instanceof TextSelection &&
+              shouldLiftBlockquoteFormat(selectionTypePath(selection), selection.$from.parentOffset, selection.empty) &&
+              lift(view.state, view.dispatch)
+            ) {
+              event.preventDefault();
+              return true;
             }
 
             if (

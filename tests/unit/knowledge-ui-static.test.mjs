@@ -294,18 +294,15 @@ test("knowledge base UI is wired as a real prototype drawer, not a deferred plac
   );
   assert.match(
     modal,
-    /setClips\(\s*data\.length\s*\?\s*data\.slice/,
-    "real clips should replace prototype samples instead of being appended behind them",
+    /setClips\(\s*data\.slice/,
+    "the import list should be built only from real clips returned by the API",
   );
   assert.match(modal, /<polyline points="20 6 9 17 4 12"/, "import checkbox should use the prototype single polyline check");
   assert.doesNotMatch(modal, /<PrototypeIcon name="check"/, "import checkbox should not use the generic double-check icon");
-  assert.match(modal, /Figma 如何做产品决策（设计负责人访谈）/, "import modal should include exact prototype clipped video title");
-  assert.doesNotMatch(modal, /Figma 如何做产品决策（设计负责人访谈\)/, "prototype clipped video title should not use a half-width closing parenthesis");
-  assert.match(modal, /从「先发散再收敛」到用原型代替评审文档/, "import modal should preserve prototype clipped video summary copy");
-  assert.match(
+  assert.doesNotMatch(
     modal,
-    /fetch\(`\/api\/clips\/\$\{clip\.id\}`,\s*\{[\s\S]*method:\s*"PATCH"/,
-    "importing sample clips should preserve the selected prototype title after URL metadata fetches",
+    /SAMPLE_NOTES|SAMPLE_CLIPS|createSampleNote|createSampleClip/,
+    "an empty inbox should stay empty instead of offering demo records that become real user data",
   );
 
   assert.match(css, /\.mewmo-knowledge-pane/, "knowledge drawer styles should exist");

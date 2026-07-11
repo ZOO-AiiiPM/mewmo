@@ -18,7 +18,7 @@ import {
   isEmptyAddHandleTarget,
   shouldClearEmptyHeadingFormat,
   shouldBlockSelectionDrag,
-  shouldJoinHeadingWithPreviousBlock,
+  shouldJoinFormattedBlockWithPrevious,
   shouldOpenBlockStyleMenuForNode,
 } from "../../apps/web/src/components/editor/editor-interactions";
 
@@ -226,11 +226,15 @@ describe("editor interactions", () => {
     expect(shouldLiftBlockquoteFormat(["blockquote", "paragraph"], 0, false)).toBe(false);
   });
 
-  it("joins a non-empty heading with the previous block when Backspace is pressed at line start", () => {
-    expect(shouldJoinHeadingWithPreviousBlock("heading", 0, 2, true, true)).toBe(true);
-    expect(shouldJoinHeadingWithPreviousBlock("heading", 1, 2, true, true)).toBe(false);
-    expect(shouldJoinHeadingWithPreviousBlock("heading", 0, 0, true, true)).toBe(false);
-    expect(shouldJoinHeadingWithPreviousBlock("heading", 0, 2, true, false)).toBe(false);
-    expect(shouldJoinHeadingWithPreviousBlock("paragraph", 0, 2, true, true)).toBe(false);
+  it("joins any non-empty markdown block with the previous text block before removing its format", () => {
+    expect(shouldJoinFormattedBlockWithPrevious(["heading"], 0, 2, true, true)).toBe(true);
+    expect(shouldJoinFormattedBlockWithPrevious(["blockquote", "paragraph"], 0, 2, true, true)).toBe(true);
+    expect(shouldJoinFormattedBlockWithPrevious(["bullet_list", "list_item", "paragraph"], 0, 2, true, true)).toBe(true);
+    expect(shouldJoinFormattedBlockWithPrevious(["code_block"], 0, 2, true, true)).toBe(true);
+    expect(shouldJoinFormattedBlockWithPrevious(["paragraph"], 0, 2, true, true)).toBe(false);
+    expect(shouldJoinFormattedBlockWithPrevious(["heading"], 1, 2, true, true)).toBe(false);
+    expect(shouldJoinFormattedBlockWithPrevious(["heading"], 0, 0, true, true)).toBe(false);
+    expect(shouldJoinFormattedBlockWithPrevious(["heading"], 0, 2, false, true)).toBe(false);
+    expect(shouldJoinFormattedBlockWithPrevious(["heading"], 0, 2, true, false)).toBe(false);
   });
 });

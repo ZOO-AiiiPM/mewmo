@@ -23,6 +23,17 @@ import {
   pushStableSelectionUrl,
 } from "../../../lib/stable-selection-url";
 import { useWorkspaceMemory } from "../../../lib/workspace-memory";
+import {
+  getCachedWorkspaceDetail,
+  getCachedWorkspaceList,
+  getCachedWorkspaceSelection,
+  isWorkspaceDetailFresh,
+  loadWorkspaceResource,
+  removeCachedWorkspaceItem,
+  setCachedWorkspaceDetail,
+  setCachedWorkspaceList,
+  setCachedWorkspaceSelection,
+} from "../../../lib/workspace-data-cache";
 
 interface ClipListItem {
   id: string;
@@ -87,19 +98,30 @@ export default function ClipsPage() {
   const { showToast } = useToast();
   const parentRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [clips, setClips] = useState<ClipListItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const cachedClips = getCachedWorkspaceList<ClipListItem>("clips");
+  const [clips, setClips] = useState<ClipListItem[]>(cachedClips ?? []);
+  const [isLoading, setIsLoading] = useState(!cachedClips);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
   const [listCollapsed, setListCollapsed] = useState(false);
-  const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
-  const [selectedClip, setSelectedClip] = useState<ClipListItem | null>(null);
+  const cachedSelectedClipId = getCachedWorkspaceSelection("clips");
+  const initialSelectedClip = cachedSelectedClipId
+    ? getCachedWorkspaceDetail<ClipListItem>("clips", cachedSelectedClipId)
+    : null;
+  const [selectedClipId, setSelectedClipId] = useState<string | null>(cachedSelectedClipId);
+  const [selectedClip, setSelectedClip] = useState<ClipListItem | null>(initialSelectedClip);
+  const [loadingClipId, setLoadingClipId] = useState<string | null>(null);
 
   const selectClip = (clip: ClipListItem | null, mode: "push" | "replace" = "push") => {
     setSelectedClipId(clip?.id ?? null);
-    setSelectedClip(clip);
+    setCachedWorkspaceSelection("clips", clip?.id ?? null);
+    setSelectedClip(
+      clip
+        ? getCachedWorkspaceDetail<ClipListItem>("clips", clip.id) ?? clip
+        : null,
+    );
     pushStableSelectionUrl(clip ? `/clips/${clip.id}` : "/clips", mode);
   };
 
@@ -110,12 +132,15 @@ export default function ClipsPage() {
       try {
         setIsLoading(true);
         setError("");
-        const res = await fetch("/api/clips");
-        if (!res.ok) throw new Error("Failed to load clips");
-        const data = (await res.json()) as ClipListItem[];
+        const data = await loadWorkspaceResource("clips:list", async () => {
+          const res = await fetch("/api/clips");
+          if (!res.ok) throw new Error("Failed to load clips");
+          return (await res.json()) as ClipListItem[];
+        });
+        setCachedWorkspaceList("clips", data);
         if (!cancelled) setClips(data);
       } catch {
-        if (!cancelled) setError("Could not load clips.");
+        if (!cancelled && !cachedClips) setError("Could not load clips.");
       } finally {
         if (!cancelled) setIsLoading(false);
       }
@@ -142,7 +167,12 @@ export default function ClipsPage() {
       });
       if (!res.ok) throw new Error("Failed to save clip");
       const clip = (await res.json()) as ClipListItem;
-      setClips((current) => [clip, ...current]);
+      setCachedWorkspaceDetail("clips", clip);
+      setClips((current) => {
+        const next = [clip, ...current.filter((item) => item.id !== clip.id)];
+        setCachedWorkspaceList("clips", next);
+        return next;
+      });
       selectClip(clip);
     } catch {
       setError("Could not save clip.");
@@ -183,18 +213,44 @@ export default function ClipsPage() {
 
     const clipToLoad = previewClip;
     let cancelled = false;
-    setSelectedClip((current) =>
-      current?.id === clipToLoad.id ? current : clipToLoad,
+    const cachedDetail = getCachedWorkspaceDetail<ClipListItem>(
+      "clips",
+      clipToLoad.id,
     );
+    setSelectedClip(cachedDetail ?? clipToLoad);
+    if (cachedDetail && isWorkspaceDetailFresh("clips", clipToLoad)) {
+      setLoadingClipId(null);
+      return;
+    }
+    setLoadingClipId(clipToLoad.id);
 
     async function loadSelectedClip() {
       try {
-        const res = await fetch(`/api/clips/${clipToLoad.id}`);
-        if (!res.ok) throw new Error("Failed to load clip");
-        const data = (await res.json()) as ClipListItem;
+        const data = await loadWorkspaceResource(`clips:detail:${clipToLoad.id}`, async () => {
+          const res = await fetch(`/api/clips/${clipToLoad.id}`);
+          if (res.status === 404) {
+            removeCachedWorkspaceItem("clips", clipToLoad.id);
+            throw new Error("Clip not found");
+          }
+          if (!res.ok) throw new Error("Failed to load clip");
+          return (await res.json()) as ClipListItem;
+        });
+        setCachedWorkspaceDetail("clips", data);
         if (!cancelled) setSelectedClip(data);
       } catch {
-        if (!cancelled) setSelectedClip(clipToLoad);
+        if (!cancelled) {
+          const stillCached = getCachedWorkspaceDetail<ClipListItem>(
+            "clips",
+            clipToLoad.id,
+          );
+          if (stillCached) setSelectedClip(stillCached);
+          else {
+            setSelectedClipId(null);
+            setSelectedClip(null);
+          }
+        }
+      } finally {
+        if (!cancelled) setLoadingClipId(null);
       }
     }
 
@@ -227,6 +283,7 @@ export default function ClipsPage() {
       const remaining = visibleClips.filter((item) => item.id !== clip.id);
       const next = remaining[0] ?? null;
       setClips((current) => current.filter((item) => item.id !== clip.id));
+      removeCachedWorkspaceItem("clips", clip.id);
       if (clip.id === previewClip?.id) selectClip(next, "replace");
       showToast("已删除剪藏", "success");
     }
@@ -242,10 +299,15 @@ export default function ClipsPage() {
       } | null;
       if (!response.ok || !data?.clip) throw new Error("Failed to refresh clip");
       const updatedClip = data.clip;
+      setCachedWorkspaceDetail("clips", updatedClip);
 
-      setClips((current) =>
-        current.map((item) => (item.id === updatedClip.id ? updatedClip : item)),
-      );
+      setClips((current) => {
+        const next = current.map((item) =>
+          item.id === updatedClip.id ? updatedClip : item,
+        );
+        setCachedWorkspaceList("clips", next);
+        return next;
+      });
       setSelectedClip((current) =>
         current?.id === updatedClip.id ? updatedClip : current,
       );
@@ -263,6 +325,7 @@ export default function ClipsPage() {
   const scrollToTop = () => {
     scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   };
+  const isSelectedClipLoading = loadingClipId === previewClip?.id;
 
   return (
     <div
@@ -415,6 +478,7 @@ export default function ClipsPage() {
                   html={selectedClip.content ?? ""}
                   sourceUrl={selectedClip.url}
                   contentKey={selectedClip.id}
+                  loading={isSelectedClipLoading}
                 />
               </>
             ) : (

@@ -12,12 +12,14 @@ interface ClipContentRendererProps {
   html: string;
   sourceUrl: string;
   contentKey: string;
+  loading?: boolean;
 }
 
 export function ClipContentRenderer({
   html,
   sourceUrl,
   contentKey,
+  loading = false,
 }: ClipContentRendererProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const contentHtml = useMemo(() => {
@@ -74,6 +76,15 @@ export function ClipContentRenderer({
       contentObserver.disconnect();
     };
   }, [contentKey, contentHtml]);
+
+  if (loading && !contentHtml) {
+    return (
+      <div className="mewmo-empty-state" aria-live="polite">
+        <span className="mewmo-spinner" aria-hidden="true" />
+        <p>正在加载正文...</p>
+      </div>
+    );
+  }
 
   if (!contentHtml) {
     return <p className="mewmo-clip-prose__empty">暂无正文内容</p>;

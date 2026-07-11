@@ -840,8 +840,8 @@ test("workspace shell preserves prototype AI rail proportions and resizer", () =
   );
   assert.match(
     css,
-    /\.mewmo-ai-rail\s*\{[\s\S]*width:\s*calc\(var\(--ai-w\)\s*-\s*8px\)/,
-    "AI rail should be 8px narrower than its column to leave the prototype gap",
+    /\.mewmo-ai-rail\s*\{[\s\S]*width:\s*calc\(var\(--ai-w\)\s*-\s*var\(--frame\)\)/,
+    "AI rail should leave the shared shell frame gap inside its column",
   );
   assert.match(
     css,
@@ -860,8 +860,8 @@ test("workspace shell preserves prototype AI rail proportions and resizer", () =
   );
   assert.match(
     css,
-    /\.mewmo-ai-resizer\s*\{[\s\S]*right:\s*calc\(var\(--ai-w\)\s*-\s*13px\)/,
-    "AI resizer should sit in the prototype gap and track --ai-w",
+    /\.mewmo-ai-resizer\s*\{[\s\S]*right:\s*calc\(var\(--ai-w\)\s*\+\s*var\(--frame\)\s*\/\s*2\s*-\s*9px\)/,
+    "AI resizer should sit in the shared shell frame gap and track --ai-w",
   );
   assert.match(
     css,
@@ -1982,7 +1982,7 @@ test("list title menu no longer exposes sorting controls", () => {
   assert.match(notesDetail, /new Date\(b\.updatedAt\)\.getTime\(\) - new Date\(a\.updatedAt\)\.getTime\(\)/);
   assert.match(clipsPage, /new Date\(b\.createdAt\)\.getTime\(\) - new Date\(a\.createdAt\)\.getTime\(\)/);
   assert.match(clipsDetail, /new Date\(b\.createdAt\)\.getTime\(\) - new Date\(a\.createdAt\)\.getTime\(\)/);
-  assert.match(feedsPage, /new Date\(b\.createdAt\)\.getTime\(\) - new Date\(a\.createdAt\)\.getTime\(\)/);
+  assert.match(feedsPage, /feedEntryTimestamp\(right\) - feedEntryTimestamp\(left\)/);
   assert.match(knowledgePage, /sortKnowledgeItemsForList\(filtered\)/);
 });
 

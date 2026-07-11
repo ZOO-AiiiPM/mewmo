@@ -2,6 +2,24 @@ import { NextResponse } from "next/server";
 import { getPrisma } from "@mewmo/db";
 import { updateNoteSchema } from "@mewmo/shared";
 import { auth } from "../../../../lib/auth";
+import { createNoteSlug } from "../../../../lib/note-slug";
+
+async function createUniqueNoteSlug(userId: string, noteId: string, title: string) {
+  const prisma = getPrisma();
+  const baseSlug = createNoteSlug(title);
+  let slug = baseSlug;
+  let attempt = 0;
+
+  while (true) {
+    const existing = await prisma.note.findFirst({
+      where: { userId, slug, id: { not: noteId } },
+      select: { id: true },
+    });
+    if (!existing) return slug;
+    attempt += 1;
+    slug = `${baseSlug}-${attempt}`;
+  }
+}
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -46,13 +64,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   const updateData: {
+    slug?: string;
     title?: string;
     content?: string;
     summary?: string;
     pinned?: boolean;
     version: { increment: number };
   } = { version: { increment: 1 } };
-  if (parsed.data.title !== undefined) updateData.title = parsed.data.title;
+  if (parsed.data.title !== undefined) {
+    updateData.title = parsed.data.title;
+    updateData.slug = await createUniqueNoteSlug(session.user.id, id, parsed.data.title);
+  }
   if (parsed.data.content !== undefined) updateData.content = parsed.data.content;
   if (parsed.data.summary !== undefined) updateData.summary = parsed.data.summary;
   if (parsed.data.pinned !== undefined) updateData.pinned = parsed.data.pinned;

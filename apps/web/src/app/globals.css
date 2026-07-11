@@ -36,6 +36,7 @@
   --s3: #0c0c0e;
   --raised: #2e2f34;
   --hover: #27282d;
+  --selected: #2e2f34;
   --ink: #ededf1;
   --ink-soft: #9a9aa1;
   --ink-faint: #67676d;
@@ -74,7 +75,8 @@ html.light {
   --s2: #f8f4ed;
   --s3: #fffffe;
   --raised: #ffffff;
-  --hover: #ececef;
+  --hover: #f7f2e7;
+  --selected: #f5ecd9;
   --ink: #1d1d1f;
   --ink-soft: #5e5e64;
   --ink-faint: #9a9aa0;
@@ -547,6 +549,7 @@ button {
 .mewmo-shell {
   --sidebar-w: 206px;
   --ai-w: 320px;
+  --frame: 6px;
   display: grid;
   grid-template-columns: var(--sidebar-w) minmax(0, 1fr) 0px;
   grid-template-rows: 100vh;
@@ -588,9 +591,9 @@ button {
   grid-row: 1;
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 18px);
+  height: calc(100vh - 2 * var(--frame));
   min-width: 0;
-  margin: 9px;
+  margin: var(--frame);
   padding: 12px 7px 6px;
   border: 1px solid color-mix(in srgb, var(--color-line) 75%, transparent);
   border-radius: 16px;
@@ -736,7 +739,7 @@ html.light .mewmo-sidebar {
 }
 
 .mewmo-nav-row--active {
-  background: var(--raised);
+  background: var(--selected);
   color: var(--ink);
   font-weight: 600;
 }
@@ -1249,6 +1252,7 @@ html.light .mewmo-sidebar {
 
 .mewmo-workspace--list-collapsed .mewmo-list-column {
   width: 0;
+  margin: 0;
   opacity: 0;
   pointer-events: none;
 }
@@ -1258,8 +1262,14 @@ html.light .mewmo-sidebar {
   min-width: 0;
   min-height: 0;
   flex-direction: column;
-  width: 312px;
-  background: var(--canvas);
+  width: calc(312px - var(--frame));
+  margin: var(--frame) var(--frame) var(--frame) 0;
+  overflow: hidden;
+  border-radius: 16px;
+  background: var(--s3);
+  box-shadow:
+    0 1px 6px rgba(0, 0, 0, 0.06),
+    0 4px 16px rgba(0, 0, 0, 0.04);
   border-right: 0;
 }
 
@@ -1511,25 +1521,13 @@ html.light .mewmo-clip-url__field {
 .mewmo-list-card--selected {
   border-top-color: transparent;
   border-radius: 12px;
-  background: var(--raised);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.16);
+  background: var(--selected);
 }
 
 .mewmo-list-card-wrap:has(.mewmo-list-card--selected)
   + .mewmo-list-card-wrap
   .mewmo-list-card {
   border-top-color: transparent;
-}
-
-.mewmo-list-card--selected::before {
-  position: absolute;
-  left: 0;
-  top: 12px;
-  bottom: 12px;
-  width: 3px;
-  border-radius: 3px;
-  background: var(--accent);
-  content: "";
 }
 
 .mewmo-list-card--virtual {
@@ -2119,8 +2117,8 @@ html.light .mewmo-card-menu {
   min-height: 0;
   flex-direction: column;
   overflow: hidden;
-  margin-top: 9px;
-  border-radius: 22px 22px 0 0;
+  margin: var(--frame) var(--frame) var(--frame) 0;
+  border-radius: 16px;
   background: var(--s3);
   box-shadow:
     0 1px 6px rgba(0, 0, 0, 0.06),
@@ -2140,7 +2138,7 @@ html.light .mewmo-card-menu {
   min-height: 46px;
   padding: 6px 16px;
   border: none;
-  border-radius: 22px 22px 0 0;
+  border-radius: 16px 16px 0 0;
   background: var(--s3);
 }
 
@@ -3268,17 +3266,17 @@ html.light .mewmo-share-page {
 
 .mewmo-ai-rail {
   position: fixed;
-  top: 9px;
-  right: 0;
-  bottom: 0;
+  top: var(--frame);
+  right: var(--frame);
+  bottom: var(--frame);
   z-index: 35;
   display: flex;
-  width: calc(var(--ai-w) - 8px);
+  width: calc(var(--ai-w) - var(--frame));
   min-height: 0;
   flex-direction: column;
   overflow: hidden;
-  border-radius: 22px 0 0 0;
-  background: var(--s2);
+  border-radius: 16px;
+  background: var(--s3);
   opacity: 0;
   pointer-events: none;
   transform: translateX(calc(100% + 12px));
@@ -3293,14 +3291,10 @@ html.light .mewmo-share-page {
   transform: translateX(0);
 }
 
-html.light .mewmo-ai-rail {
-  background: #fdf9f1;
-}
-
 .mewmo-ai-resizer {
   position: absolute;
   top: 50%;
-  right: calc(var(--ai-w) - 13px);
+  right: calc(var(--ai-w) + var(--frame) / 2 - 9px);
   z-index: 40;
   display: none;
   width: 18px;
@@ -4921,6 +4915,7 @@ html.light .acct-submenu {
   --canvas: #232327;
   --raised: #2e2f34;
   --hover: #27282d;
+  --selected: #2e2f34;
   --ink: #ededf1;
   --ink-soft: #9a9aa1;
   --ink-faint: #67676d;

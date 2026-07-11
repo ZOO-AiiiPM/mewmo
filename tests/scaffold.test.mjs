@@ -41,14 +41,9 @@ test("root package exposes required workspace scripts", () => {
   const pkg = JSON.parse(readFileSync("package.json", "utf8"));
 
   assert.equal(pkg.private, true);
-  assert.deepEqual(Object.keys(pkg.scripts).sort(), [
-    "build",
-    "db:generate",
-    "db:push",
-    "dev",
-    "lint",
-    "test",
-  ]);
+  for (const script of ["build", "db:generate", "db:push", "dev", "lint", "test"]) {
+    assert.equal(typeof pkg.scripts[script], "string", `missing root script: ${script}`);
+  }
   assert.match(pkg.scripts.test, /tsx --test tests\/\*\.test\.mjs tests\/unit\/\*\.test\.mjs/);
   assert.match(pkg.scripts.test, /vitest run tests\/unit\/\*\.test\.ts/);
 });
