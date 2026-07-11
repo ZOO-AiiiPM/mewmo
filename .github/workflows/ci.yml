@@ -70,10 +70,6 @@ jobs:
 
       - run: pnpm build
 
-      # API integration files require a running Web server and a seeded test user.
-      # CI runs the self-contained suites until that harness is provisioned here.
-      - run: pnpm exec tsx --test $(find tests -name '*.test.mjs' ! -name 'clips-api.test.mjs' ! -name 'feeds-api.test.mjs' ! -name 'notes-api.test.mjs' ! -name 'sync-api.test.mjs')
+      - run: pnpm test:unit
 
-      - run: pnpm exec vitest run tests/unit/*.test.ts
-
-      - run: pnpm exec turbo run test
+      - run: pnpm test:theme

@@ -44,8 +44,14 @@ test("root package exposes required workspace scripts", () => {
   for (const script of ["build", "db:generate", "db:push", "dev", "lint", "test"]) {
     assert.equal(typeof pkg.scripts[script], "string", `missing root script: ${script}`);
   }
-  assert.match(pkg.scripts.test, /tsx --test tests\/\*\.test\.mjs tests\/unit\/\*\.test\.mjs/);
-  assert.match(pkg.scripts.test, /vitest run tests\/unit\/\*\.test\.ts/);
+  for (const script of ["test:unit", "test:integration", "test:theme", "verify"]) {
+    assert.equal(typeof pkg.scripts[script], "string", `missing root script: ${script}`);
+  }
+  assert.equal(pkg.scripts.test, "pnpm test:unit");
+  assert.match(pkg.scripts.verify, /pnpm lint/);
+  assert.match(pkg.scripts.verify, /pnpm test:unit/);
+  assert.match(pkg.scripts.verify, /pnpm test:theme/);
+  assert.match(pkg.scripts.verify, /pnpm build/);
 });
 
 test("all apps and packages expose @mewmo package names", () => {
