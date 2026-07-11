@@ -25,6 +25,7 @@ jobs:
       R2_PUBLIC_BASE_URL: https://cdn.mewmo.test
       RESEND_API_KEY: ci-resend-api-key
       EMAIL_FROM: Mewmo <login@mewmo.app>
+      TZ: Asia/Shanghai
 
     services:
       postgres:
