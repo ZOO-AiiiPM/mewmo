@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { rmSync } from "node:fs";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { fileURLToPath } from "node:url";
 
@@ -11,6 +11,8 @@ const postgresPort = process.env.API_TEST_POSTGRES_PORT ?? "55432";
 const redisPort = process.env.API_TEST_REDIS_PORT ?? "56379";
 const composeProject = `mewmo-integration-${process.pid}`;
 const nextDistDir = `.next-integration-${process.pid}`;
+const nextEnvPath = new URL("../apps/web/next-env.d.ts", import.meta.url);
+const originalNextEnv = readFileSync(nextEnvPath, "utf8");
 const email = `integration-${randomUUID()}@mewmo.test`;
 const password = "integration-test-password";
 const baseUrl = `http://127.0.0.1:${webPort}`;
@@ -186,6 +188,7 @@ async function main() {
     await removeNextOutput().catch((error) => {
       console.error("Failed to remove integration Next output", error);
     });
+    writeFileSync(nextEnvPath, originalNextEnv);
     await run("docker", [
       "compose",
       "-p",
