@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { rmSync } from "node:fs";
 import { createServer } from "node:http";
 import { fileURLToPath } from "node:url";
 
@@ -9,6 +10,7 @@ const fixturePort = process.env.API_TEST_FIXTURE_PORT ?? "3101";
 const postgresPort = process.env.API_TEST_POSTGRES_PORT ?? "55432";
 const redisPort = process.env.API_TEST_REDIS_PORT ?? "56379";
 const composeProject = `mewmo-integration-${process.pid}`;
+const nextDistDir = `.next-integration-${process.pid}`;
 const email = `integration-${randomUUID()}@mewmo.test`;
 const password = "integration-test-password";
 const baseUrl = `http://127.0.0.1:${webPort}`;
@@ -23,6 +25,7 @@ const env = {
   REDIS_PORT: redisPort,
   NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET ?? "integration-test-secret",
   NEXTAUTH_URL: baseUrl,
+  NEXT_DIST_DIR: nextDistDir,
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID ?? "integration-google-client",
   GOOGLE_CLIENT_SECRET:
     process.env.GOOGLE_CLIENT_SECRET ?? "integration-google-secret",
@@ -110,12 +113,30 @@ async function cleanupTestUser() {
   await getPrisma().$disconnect();
 }
 
-function stopOwnedProcess(child) {
+async function stopOwnedProcess(child) {
   if (!child?.pid || child.exitCode !== null) return;
+  const exited = new Promise((resolve) => child.once("exit", resolve));
   try {
     process.kill(-child.pid, "SIGTERM");
   } catch {
     child.kill("SIGTERM");
+  }
+  await Promise.race([
+    exited,
+    new Promise((resolve) => setTimeout(resolve, 5_000)),
+  ]);
+}
+
+async function removeNextOutput() {
+  const output = new URL(`../apps/web/${nextDistDir}`, import.meta.url);
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      rmSync(output, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      if (error?.code !== "ENOTEMPTY" || attempt === 4) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
   }
 }
 
@@ -154,8 +175,17 @@ async function main() {
         console.error("Failed to clean integration test user", error);
       });
     }
-    stopOwnedProcess(web);
-    if (fixtureServer) await new Promise((resolve) => fixtureServer.close(resolve));
+    await stopOwnedProcess(web).catch((error) => {
+      console.error("Failed to stop integration Web process", error);
+    });
+    if (fixtureServer) {
+      await new Promise((resolve) => fixtureServer.close(resolve)).catch((error) => {
+        console.error("Failed to stop integration fixture server", error);
+      });
+    }
+    await removeNextOutput().catch((error) => {
+      console.error("Failed to remove integration Next output", error);
+    });
     await run("docker", [
       "compose",
       "-p",
