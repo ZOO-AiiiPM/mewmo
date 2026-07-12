@@ -87,8 +87,8 @@ describe("processFeedFetchJob", () => {
         version: { increment: 1 },
       },
     });
-    expect(update).toHaveBeenLastCalledWith({
-      where: { id: "feed-1" },
+    expect(updateMany).toHaveBeenLastCalledWith({
+      where: { id: "feed-1", deletedAt: null, lastFetchStatus: "fetching", lastFetchStartedAt: expect.any(Date) },
       data: {
         lastFetchedAt: expect.any(Date),
         lastFetchStatus: "success",
@@ -107,8 +107,8 @@ describe("processFeedFetchJob", () => {
     );
 
     expect(upsertByFeedUrl).toHaveBeenCalledTimes(2);
-    expect(update).toHaveBeenLastCalledWith({
-      where: { id: "feed-1" },
+    expect(updateMany).toHaveBeenLastCalledWith({
+      where: { id: "feed-1", deletedAt: null, lastFetchStatus: "fetching", lastFetchStartedAt: expect.any(Date) },
       data: {
         lastFetchedAt: expect.any(Date),
         lastFetchStatus: "partial",
@@ -124,8 +124,8 @@ describe("processFeedFetchJob", () => {
       "Feed fetch failed",
     );
 
-    expect(update).toHaveBeenLastCalledWith({
-      where: { id: "feed-1" },
+    expect(updateMany).toHaveBeenLastCalledWith({
+      where: { id: "feed-1", deletedAt: null, lastFetchStatus: "fetching", lastFetchStartedAt: expect.any(Date) },
       data: {
         lastFetchStatus: "error",
         lastFetchError: expect.stringContaining("503"),
@@ -164,6 +164,44 @@ describe("processFeedFetchJob", () => {
 
     expect(result).toMatchObject({ status: "skipped", reason: "already_claimed" });
     expect(fetchFeed).not.toHaveBeenCalled();
+  });
+
+  it("does not let a stale worker overwrite a newer successful fetch", async () => {
+    updateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
+    upsertByFeedUrl.mockResolvedValue({ created: false, entry: {} });
+
+    const result = await processFeedFetchJob({ feedId: "feed-1" }, { fetchFeed: async () => new Response(feedXml) });
+
+    expect(result).toMatchObject({ status: "skipped", reason: "lease_lost" });
+    expect(updateMany).toHaveBeenNthCalledWith(2, {
+      where: {
+        id: "feed-1",
+        deletedAt: null,
+        lastFetchStatus: "fetching",
+        lastFetchStartedAt: expect.any(Date),
+      },
+      data: expect.objectContaining({ lastFetchStatus: "success" }),
+    });
+  });
+
+  it("does not let a stale worker overwrite a newer fetch with an error", async () => {
+    updateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
+
+    const result = await processFeedFetchJob(
+      { feedId: "feed-1" },
+      { fetchFeed: async () => new Response("unavailable", { status: 503 }) },
+    );
+
+    expect(result).toMatchObject({ status: "skipped", reason: "lease_lost" });
+    expect(updateMany).toHaveBeenNthCalledWith(2, {
+      where: {
+        id: "feed-1",
+        deletedAt: null,
+        lastFetchStatus: "fetching",
+        lastFetchStartedAt: expect.any(Date),
+      },
+      data: expect.objectContaining({ lastFetchStatus: "error" }),
+    });
   });
 
   it("passes an abort signal to feed requests", async () => {

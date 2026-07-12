@@ -27,11 +27,10 @@ interface FeedEmptyState {
 const FEED_FETCH_STALE_MS = 60_000;
 
 export function isFeedSyncActive(status: string | null | undefined, startedAt?: string | null, now = new Date()) {
-  if (status === "queued") return true;
-  if (status !== "fetching") return false;
-  if (!startedAt) return true;
+  if (status !== "queued" && status !== "fetching") return false;
+  if (!startedAt) return false;
   const startedTime = Date.parse(startedAt);
-  return Number.isNaN(startedTime) || now.getTime() - startedTime < FEED_FETCH_STALE_MS;
+  return !Number.isNaN(startedTime) && now.getTime() - startedTime < FEED_FETCH_STALE_MS;
 }
 
 export function getFeedAddToast(feed: FeedCreationStatus): {
@@ -64,7 +63,7 @@ export function getFeedEmptyState({ feedId, selectedFeed, feedsLoaded = true, no
     };
   }
 
-  if (feedId && selectedFeed?.lastFetchStatus === "fetching") {
+  if (feedId && (selectedFeed?.lastFetchStatus === "queued" || selectedFeed?.lastFetchStatus === "fetching")) {
     return {
       title: "订阅同步超时",
       detail: "后台抓取没有按时完成，可以重新检查更新。",

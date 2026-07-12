@@ -119,8 +119,13 @@ export async function processFeedFetchJob(payload: FeedFetchJobPayload, deps: Fe
     }
 
     const status = failures.length > 0 ? "partial" : "success";
-    await prisma.feed.update({
-      where: { id: feed.id },
+    const completion = await prisma.feed.updateMany({
+      where: {
+        id: feed.id,
+        deletedAt: null,
+        lastFetchStatus: "fetching",
+        lastFetchStartedAt: startedAt,
+      },
       data: {
         lastFetchedAt: new Date(),
         lastFetchStatus: status,
@@ -129,6 +134,9 @@ export async function processFeedFetchJob(payload: FeedFetchJobPayload, deps: Fe
         version: { increment: 1 },
       },
     });
+    if (completion.count === 0) {
+      return { status: "skipped", reason: "lease_lost", upserted: entries.length, created, failed: failures.length };
+    }
 
     if (failures.length > 0) {
       throw new PartialFeedFetchError(`${failures.length} feed entry failed: ${failures[0]}`);
@@ -138,8 +146,13 @@ export async function processFeedFetchJob(payload: FeedFetchJobPayload, deps: Fe
   } catch (error) {
     if (error instanceof PartialFeedFetchError) throw error;
     const message = error instanceof Error ? error.message : "Feed fetch failed";
-    await prisma.feed.update({
-      where: { id: feed.id },
+    const failure = await prisma.feed.updateMany({
+      where: {
+        id: feed.id,
+        deletedAt: null,
+        lastFetchStatus: "fetching",
+        lastFetchStartedAt: startedAt,
+      },
       data: {
         lastFetchStatus: "error",
         lastFetchError: message,
@@ -147,6 +160,9 @@ export async function processFeedFetchJob(payload: FeedFetchJobPayload, deps: Fe
         version: { increment: 1 },
       },
     });
+    if (failure.count === 0) {
+      return { status: "skipped", reason: "lease_lost", upserted: 0, created: 0, failed: 0 };
+    }
     throw error;
   }
 }

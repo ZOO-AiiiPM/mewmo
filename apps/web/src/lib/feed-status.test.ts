@@ -29,11 +29,15 @@ describe("feed status copy", () => {
   });
 
   it("marks only queued and fetching feeds as actively syncing", () => {
-    expect(isFeedSyncActive("queued")).toBe(true);
-    expect(isFeedSyncActive("fetching")).toBe(true);
+    const now = new Date("2026-07-12T00:00:30.000Z");
+    expect(isFeedSyncActive("queued", "2026-07-12T00:00:00.000Z", now)).toBe(true);
+    expect(isFeedSyncActive("fetching", "2026-07-12T00:00:00.000Z", now)).toBe(true);
+    expect(isFeedSyncActive("queued", null, now)).toBe(false);
+    expect(isFeedSyncActive("fetching", null, now)).toBe(false);
     expect(isFeedSyncActive("success")).toBe(false);
     expect(isFeedSyncActive("partial")).toBe(false);
     expect(isFeedSyncActive("error")).toBe(false);
+    expect(isFeedSyncActive("queued", "2026-07-12T00:00:00.000Z", new Date("2026-07-12T00:02:00.000Z"))).toBe(false);
     expect(isFeedSyncActive("fetching", "2026-07-12T00:00:00.000Z", new Date("2026-07-12T00:02:00.000Z"))).toBe(false);
   });
 
@@ -59,12 +63,30 @@ describe("feed status copy", () => {
     expect(
       getFeedEmptyState({
         feedId: "feed-1",
-        selectedFeed: { lastFetchedAt: null, lastFetchStatus: "fetching" },
+        selectedFeed: {
+          lastFetchedAt: null,
+          lastFetchStatus: "fetching",
+          lastFetchStartedAt: "2026-07-12T00:00:00.000Z",
+        },
+        now: new Date("2026-07-12T00:00:30.000Z"),
       }),
     ).toEqual({
       title: "正在同步订阅文章",
       detail: "文章会在抓取成功后逐篇出现在这里。",
       canRefresh: false,
+    });
+  });
+
+  it("turns queued feeds without a usable timestamp into a recoverable timeout state", () => {
+    expect(
+      getFeedEmptyState({
+        feedId: "feed-1",
+        selectedFeed: { lastFetchedAt: null, lastFetchStatus: "queued", lastFetchStartedAt: null },
+      }),
+    ).toEqual({
+      title: "订阅同步超时",
+      detail: "后台抓取没有按时完成，可以重新检查更新。",
+      canRefresh: true,
     });
   });
 

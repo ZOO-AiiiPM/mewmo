@@ -49,6 +49,8 @@ interface FetchAndStoreFeedDeps {
   now?: () => Date;
   limit?: number;
   allowSuccessfulRefresh?: boolean;
+  claimStatuses?: string[];
+  allowStaleTakeover?: boolean;
 }
 
 export interface FeedFetchResult {
@@ -57,12 +59,15 @@ export interface FeedFetchResult {
   created: number;
   failed?: number;
   error?: string;
-  reason?: "already_claimed";
+  reason?: "already_claimed" | "lease_lost";
 }
 
 const FEED_FETCH_TIMEOUT_MS = 15_000;
 const ENTRY_FETCH_TIMEOUT_MS = 12_000;
 const STALE_FETCH_MS = 60_000;
+type FeedClaimCondition =
+  | { lastFetchStatus: { in: string[] } }
+  | { lastFetchStatus: string; lastFetchStartedAt: { lt: Date } };
 
 export async function fetchAndStoreFeed(userId: string, feedId: string, deps: FetchAndStoreFeedDeps = {}): Promise<FeedFetchResult> {
   const prisma = deps.prisma ?? getPrisma();
@@ -72,6 +77,8 @@ export async function fetchAndStoreFeed(userId: string, feedId: string, deps: Fe
   const now = deps.now ?? (() => new Date());
   const limit = deps.limit ?? DEFAULT_FEED_FETCH_LIMIT;
   const allowSuccessfulRefresh = deps.allowSuccessfulRefresh ?? true;
+  const claimStatuses = deps.claimStatuses ?? ["idle", "queued", "error", "partial", ...(allowSuccessfulRefresh ? ["success"] : [])];
+  const allowStaleTakeover = deps.allowStaleTakeover ?? true;
 
   const feed = await prisma.feed.findFirst({
     where: { id: feedId, userId, deletedAt: null },
@@ -80,16 +87,18 @@ export async function fetchAndStoreFeed(userId: string, feedId: string, deps: Fe
   if (!feed) return { status: "skipped", fetched: 0, created: 0 };
 
   const startedAt = now();
+  const claimConditions: FeedClaimCondition[] = [{ lastFetchStatus: { in: claimStatuses } }];
+  if (allowStaleTakeover) {
+    claimConditions.push({ lastFetchStatus: "fetching", lastFetchStartedAt: { lt: new Date(startedAt.getTime() - STALE_FETCH_MS) } });
+  }
+  const claimWhere = {
+    id: feed.id,
+    userId,
+    deletedAt: null,
+    ...(claimConditions.length === 1 ? claimConditions[0] : { OR: claimConditions }),
+  };
   const claim = await prisma.feed.updateMany({
-    where: {
-      id: feed.id,
-      userId,
-      deletedAt: null,
-      OR: [
-        { lastFetchStatus: { in: allowSuccessfulRefresh ? ["idle", "queued", "error", "partial", "success"] : ["idle", "queued", "error", "partial"] } },
-        { lastFetchStatus: "fetching", lastFetchStartedAt: { lt: new Date(startedAt.getTime() - STALE_FETCH_MS) } },
-      ],
-    },
+    where: claimWhere,
     data: {
       lastFetchStartedAt: startedAt,
       lastFetchStatus: "fetching",
@@ -149,8 +158,14 @@ export async function fetchAndStoreFeed(userId: string, feedId: string, deps: Fe
     }
 
     const status = failures.length > 0 ? "partial" : "success";
-    await prisma.feed.update({
-      where: { id: feed.id },
+    const completion = await prisma.feed.updateMany({
+      where: {
+        id: feed.id,
+        userId,
+        deletedAt: null,
+        lastFetchStatus: "fetching",
+        lastFetchStartedAt: startedAt,
+      },
       data: {
         lastFetchedAt: now(),
         lastFetchStatus: status,
@@ -159,6 +174,7 @@ export async function fetchAndStoreFeed(userId: string, feedId: string, deps: Fe
         version: { increment: 1 },
       },
     });
+    if (completion.count === 0) return { status: "skipped", reason: "lease_lost", fetched: entries.length, created };
 
     return {
       status: failures.length > 0 ? "partial" : "ok",
@@ -168,8 +184,14 @@ export async function fetchAndStoreFeed(userId: string, feedId: string, deps: Fe
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Feed fetch failed";
-    await prisma.feed.update({
-      where: { id: feed.id },
+    const failure = await prisma.feed.updateMany({
+      where: {
+        id: feed.id,
+        userId,
+        deletedAt: null,
+        lastFetchStatus: "fetching",
+        lastFetchStartedAt: startedAt,
+      },
       data: {
         lastFetchStatus: "error",
         lastFetchError: message,
@@ -177,6 +199,7 @@ export async function fetchAndStoreFeed(userId: string, feedId: string, deps: Fe
         version: { increment: 1 },
       },
     });
+    if (failure.count === 0) return { status: "skipped", reason: "lease_lost", fetched: 0, created: 0 };
     return { status: "error", fetched: 0, created: 0, error: message };
   }
 }

@@ -16,9 +16,9 @@ test("feed creation persists status and queues first fetch without synchronous a
   assert.match(route, /existing:\s*false,\s*queued/, "successful queue submission should be explicit in the response");
   assert.match(route, /existing:\s*(?:true|false)/, "callers should be able to distinguish existing feeds from new records");
   assert.match(route, /withTimeout\(addFeedFetchJob\([\s\S]*FEED_QUEUE_TIMEOUT_MS/, "queue submission must have a request-level timeout after persistence");
-  assert.match(route, /after\([\s\S]*fetchAndStoreFeed/, "feed creation should start a response-after Web fallback while the Agent has no deployment");
-  assert.match(route, /allowSuccessfulRefresh:\s*false/, "Web fallback must use the feed claim and avoid re-fetching a completed queue job");
-  assert.match(route, /lastFetchStatus:\s*queued \? "queued" : "error"/, "queue failure must remain an error for retryable UI feedback");
+  assert.match(route, /if\s*\(!queueResult\.queued\)[\s\S]*scheduleWebFeedFetch/, "feed creation should start the Web fallback only after queue submission fails");
+  assert.match(route, /claimStatuses:\s*\["error"\][\s\S]*allowStaleTakeover:\s*false/, "Web fallback must claim only the queue failure and never active work");
+  assert.match(route, /lastFetchStatus:\s*queueResult\.queued \? "queued" : "error"/, "queue failure must remain an error for retryable UI feedback");
   assert.doesNotMatch(route, /if \(!queued\)[\s\S]*lastFetchStatus:\s*"queued"/, "queue failure must not be rewritten back to queued");
   assert.match(client, /maxRetriesPerRequest:\s*\d+/, "HTTP producers must not keep retrying Redis forever when the queue is unavailable");
 });
@@ -33,7 +33,9 @@ test("feed refresh routes enqueue work instead of waiting for fetch results", ()
 test("feed page polls only while the selected source is actively syncing", () => {
   const page = read("apps/web/src/app/(app)/feeds/page.tsx");
 
-  assert.match(page, /isFeedSyncActive\(selectedFeed\?\.lastFetchStatus, selectedFeed\?\.lastFetchStartedAt\)[\s\S]*setInterval/, "active first sync should poll feed and entry state");
+  assert.match(page, /isFeedSyncActive\(status, startedAt[\s\S]*setInterval/, "active first sync should poll feed and entry state");
+  assert.match(page, /selectedFeed\?\.lastFetchStartedAt,/, "polling must restart when the lease timestamp changes");
+  assert.match(page, /setSyncNow|setSyncClock/, "polling must force a render when the lease becomes stale");
   assert.match(page, /clearInterval/, "polling must stop when the source leaves an active state or the page unmounts");
 });
 
@@ -45,7 +47,7 @@ test("single-source add waits for the first article before closing and times out
   assert.match(page, /onAdded\(\[feed\],\s*false\)/, "a persisted feed should be surfaced before the modal closes");
   assert.match(
     page,
-    /waitForFirstFeedEntry[\s\S]*try\s*\{[\s\S]*catch/,
+    /waitForFirstFeedEntry[\s\S]*FEED_ENTRY_REQUEST_TIMEOUT_MS/,
     "polling transport failures must settle through the bounded timeout instead of escaping",
   );
   assert.match(page, /首篇文章[\s\S]*重试|同步超时[\s\S]*重试/, "first-article timeout must leave a recoverable retry message");

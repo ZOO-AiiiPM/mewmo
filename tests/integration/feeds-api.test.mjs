@@ -78,7 +78,7 @@ test("Feeds API", async (t) => {
   await t.test("response-after first fetch stores the first entry promptly", async () => {
     const entries = await waitForFeedEntries(createdFeedId);
     assert.ok(entries.length > 0, "the first feed entry should appear without waiting for the 60-second scheduler");
-    assert.equal(entries[0].title, "Example Article");
+    assert.equal(entries[0].title, "Fixture Entry");
     createdEntryId = entries[0]?.id ?? "";
   });
 

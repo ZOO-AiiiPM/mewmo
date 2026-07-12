@@ -95,6 +95,111 @@ describe("fetchAndStoreFeed", () => {
     expect(fetchFeed).not.toHaveBeenCalled();
   });
 
+  it("claims only an error state for the queue-failure Web fallback", async () => {
+    const startedAt = new Date("2026-07-13T00:00:00.000Z");
+    const updateMany = vi.fn().mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 1 });
+
+    await fetchAndStoreFeed("user-1", "feed-1", {
+      prisma: {
+        feed: {
+          findFirst: vi.fn().mockResolvedValue({
+            id: "feed-1",
+            userId: "user-1",
+            url: "https://example.com/feed.xml",
+            title: "Example Feed",
+          }),
+          update: vi.fn(),
+          updateMany,
+        },
+      },
+      claimStatuses: ["error"],
+      allowStaleTakeover: false,
+      now: () => startedAt,
+      fetchFeed: async () => new Response("<rss><channel></channel></rss>"),
+    });
+
+    expect(updateMany).toHaveBeenNthCalledWith(1, {
+      where: {
+        id: "feed-1",
+        userId: "user-1",
+        deletedAt: null,
+        lastFetchStatus: { in: ["error"] },
+      },
+      data: expect.objectContaining({
+        lastFetchStartedAt: startedAt,
+        lastFetchStatus: "fetching",
+      }),
+    });
+  });
+
+  it("does not let a stale owner overwrite a newer successful fetch", async () => {
+    const startedAt = new Date("2026-07-13T00:00:00.000Z");
+    const updateMany = vi.fn().mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
+
+    const result = await fetchAndStoreFeed("user-1", "feed-1", {
+      prisma: {
+        feed: {
+          findFirst: vi.fn().mockResolvedValue({
+            id: "feed-1",
+            userId: "user-1",
+            url: "https://example.com/feed.xml",
+            title: "Example Feed",
+          }),
+          update: vi.fn(),
+          updateMany,
+        },
+      },
+      now: () => startedAt,
+      fetchFeed: async () => new Response("<rss><channel></channel></rss>"),
+    });
+
+    expect(result).toMatchObject({ status: "skipped", reason: "lease_lost" });
+    expect(updateMany).toHaveBeenNthCalledWith(2, {
+      where: {
+        id: "feed-1",
+        userId: "user-1",
+        deletedAt: null,
+        lastFetchStatus: "fetching",
+        lastFetchStartedAt: startedAt,
+      },
+      data: expect.objectContaining({ lastFetchStatus: "success" }),
+    });
+  });
+
+  it("does not let a stale owner overwrite a newer fetch with an error", async () => {
+    const startedAt = new Date("2026-07-13T00:00:00.000Z");
+    const updateMany = vi.fn().mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
+
+    const result = await fetchAndStoreFeed("user-1", "feed-1", {
+      prisma: {
+        feed: {
+          findFirst: vi.fn().mockResolvedValue({
+            id: "feed-1",
+            userId: "user-1",
+            url: "https://example.com/feed.xml",
+            title: "Example Feed",
+          }),
+          update: vi.fn(),
+          updateMany,
+        },
+      },
+      now: () => startedAt,
+      fetchFeed: async () => new Response("unavailable", { status: 503 }),
+    });
+
+    expect(result).toMatchObject({ status: "skipped", reason: "lease_lost" });
+    expect(updateMany).toHaveBeenNthCalledWith(2, {
+      where: {
+        id: "feed-1",
+        userId: "user-1",
+        deletedAt: null,
+        lastFetchStatus: "fetching",
+        lastFetchStartedAt: startedAt,
+      },
+      data: expect.objectContaining({ lastFetchStatus: "error" }),
+    });
+  });
+
   it("continues storing later entries when one entry fails", async () => {
     const feed = {
       id: "feed-1",
@@ -104,6 +209,7 @@ describe("fetchAndStoreFeed", () => {
       favicon: null,
     };
     const feedUpdate = vi.fn().mockResolvedValue({});
+    const feedUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
     const upsertByFeedUrl = vi
       .fn()
       .mockRejectedValueOnce(new Error("first entry failed"))
@@ -114,7 +220,7 @@ describe("fetchAndStoreFeed", () => {
         feed: {
           findFirst: vi.fn().mockResolvedValue(feed),
           update: feedUpdate,
-          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+          updateMany: feedUpdateMany,
         },
       },
       entryRepository: { upsertByFeedUrl },
@@ -135,8 +241,8 @@ describe("fetchAndStoreFeed", () => {
       created: 1,
       failed: 1,
     });
-    expect(feedUpdate).toHaveBeenLastCalledWith({
-      where: { id: "feed-1" },
+    expect(feedUpdateMany).toHaveBeenLastCalledWith({
+      where: { id: "feed-1", userId: "user-1", deletedAt: null, lastFetchStatus: "fetching", lastFetchStartedAt: expect.any(Date) },
       data: {
         lastFetchedAt: expect.any(Date),
         lastFetchStatus: "partial",

@@ -16,6 +16,7 @@ import { useToast } from "../../../components/ui/ToastProvider";
 import { clipPreviewText, formatClipListTime } from "../../../lib/clip-card";
 import { failedFeedUrls, feedAddOutcome, selectAllFeedUrls, toggleFeedUrl, type FeedAddOutcomeStatus } from "../../../lib/feed-add-selection";
 import { buildFeedCardMeta, buildFeedReaderMeta } from "../../../lib/feed-display";
+import { FEED_ENTRY_REQUEST_TIMEOUT_MS, waitForFirstFeedEntry } from "../../../lib/feed-first-entry";
 import { getFeedAddToast, getFeedEmptyState, isFeedSyncActive } from "../../../lib/feed-status";
 import { proxiedImageUrl } from "../../../lib/image-proxy";
 import { buildHtmlToc } from "../../../lib/note-toc";
@@ -125,6 +126,7 @@ export default function FeedsPage() {
   const [loading, setLoading] = useState(() => initialEntries === null);
   const [feedsLoaded, setFeedsLoaded] = useState(() => initialFeeds !== null);
   const [error, setError] = useState("");
+  const [syncNow, setSyncNow] = useState(() => Date.now());
   const [swapKey, setSwapKey] = useState(`${type}:${feedId ?? "all"}`);
   const feedsRequestRef = useRef(0);
   const entriesRequestRef = useRef(0);
@@ -154,7 +156,10 @@ export default function FeedsPage() {
   });
   const selectedEntryToc = useMemo(() => buildHtmlToc(selectedEntry?.content ?? ""), [selectedEntry?.content]);
   const { setContentContext } = useAISidebarContext();
-  const emptyState = useMemo(() => getFeedEmptyState({ feedId: effectiveFeedId, selectedFeed, feedsLoaded }), [effectiveFeedId, feedsLoaded, selectedFeed]);
+  const emptyState = useMemo(
+    () => getFeedEmptyState({ feedId: effectiveFeedId, selectedFeed, feedsLoaded, now: new Date(syncNow) }),
+    [effectiveFeedId, feedsLoaded, selectedFeed, syncNow],
+  );
 
   const updateParams = useCallback(
     (updates: Record<string, string | null>) => {
@@ -268,14 +273,26 @@ export default function FeedsPage() {
   }, [effectiveFeedId, loadEntries, type]);
 
   useEffect(() => {
-    if (!isFeedSyncActive(selectedFeed?.lastFetchStatus, selectedFeed?.lastFetchStartedAt)) return;
+    const status = selectedFeed?.lastFetchStatus;
+    const startedAt = selectedFeed?.lastFetchStartedAt;
+    const isActive = () => isFeedSyncActive(status, startedAt, new Date());
+    if (!isActive()) {
+      setSyncNow(Date.now());
+      return;
+    }
 
     const timer = window.setInterval(() => {
+      const now = Date.now();
+      setSyncNow(now);
+      if (!isFeedSyncActive(status, startedAt, new Date(now))) {
+        window.clearInterval(timer);
+        return;
+      }
       void Promise.all([loadFeeds(), loadEntries()]);
     }, 1000);
 
     return () => window.clearInterval(timer);
-  }, [loadEntries, loadFeeds, selectedFeed?.lastFetchStatus]);
+  }, [loadEntries, loadFeeds, selectedFeed?.lastFetchStartedAt, selectedFeed?.lastFetchStatus]);
 
   useEffect(() => {
     const refreshAfterSourceUpdate = (event: Event) => {
@@ -580,32 +597,6 @@ function feedEntryTimestamp(entry: FeedEntry) {
   return Number.isNaN(timestamp) ? 0 : timestamp;
 }
 
-async function waitForFirstFeedEntry(feed: Pick<FeedSource, "id" | "type">, timeoutMs = 15_000) {
-  const startedAt = Date.now();
-  while (Date.now() - startedAt < timeoutMs) {
-    const params = new URLSearchParams({ type: feed.type, feedId: feed.id });
-    try {
-      const [entriesResponse, feedResponse] = await Promise.all([fetch(`/api/feed-entries?${params.toString()}`), fetch(`/api/feeds/${feed.id}`)]);
-      if (entriesResponse.ok) {
-        const entries = (await entriesResponse.json()) as unknown[];
-        if (entries.length > 0) return true;
-      }
-      if (feedResponse.ok) {
-        const status = (await feedResponse.json()) as {
-          lastFetchStatus?: string;
-        };
-        if (status.lastFetchStatus === "error" || status.lastFetchStatus === "partial") {
-          return false;
-        }
-      }
-    } catch {
-      // A transient polling failure is handled by the same bounded timeout.
-    }
-    await new Promise((resolve) => window.setTimeout(resolve, 500));
-  }
-  return false;
-}
-
 function AddFeedModal({
   open,
   initialType,
@@ -750,7 +741,10 @@ function AddFeedModal({
     if (candidates.length === 1 && persistedFeeds.length === 1 && failed.length === 0) {
       const feed = persistedFeeds[0]!;
       onAdded([feed], false);
-      const firstArticleReady = feed.existing && !feed.backgroundStarted ? true : await waitForFirstFeedEntry(feed, 15_000);
+      const firstArticleReady =
+        feed.existing && !feed.backgroundStarted
+          ? true
+          : await waitForFirstFeedEntry(feed, 15_000, { requestTimeoutMs: FEED_ENTRY_REQUEST_TIMEOUT_MS });
       setSaving(false);
       if (!firstArticleReady) {
         setAddOutcomes({ [feed.url]: "failed" });

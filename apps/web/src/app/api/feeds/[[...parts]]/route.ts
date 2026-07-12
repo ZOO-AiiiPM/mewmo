@@ -35,23 +35,33 @@ const FEED_QUEUE_TIMEOUT_MS = 5_000;
 
 function scheduleWebFeedFetch(userId: string, feedId: string) {
   after(async () => {
-    await fetchAndStoreFeed(userId, feedId, { allowSuccessfulRefresh: false });
+    await fetchAndStoreFeed(userId, feedId, {
+      claimStatuses: ["error"],
+      allowStaleTakeover: false,
+    });
   });
 }
 
-async function enqueueFeedFetch(feedId: string) {
+interface EnqueueFeedFetchResult {
+  queued: boolean;
+  startedAt: Date;
+}
+
+async function enqueueFeedFetch(feedId: string): Promise<EnqueueFeedFetchResult> {
+  const startedAt = new Date();
   await getPrisma().feed.update({
     where: { id: feedId },
     data: {
       lastFetchStatus: "queued",
       lastFetchError: null,
+      lastFetchStartedAt: startedAt,
       version: { increment: 1 },
     },
   });
 
   try {
     await withTimeout(addFeedFetchJob({ feedId }), FEED_QUEUE_TIMEOUT_MS, "Feed queue submission timed out");
-    return true;
+    return { queued: true, startedAt };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to queue feed fetch";
     await getPrisma().feed.update({
@@ -62,7 +72,7 @@ async function enqueueFeedFetch(feedId: string) {
         version: { increment: 1 },
       },
     });
-    return false;
+    return { queued: false, startedAt };
   }
 }
 
@@ -120,7 +130,7 @@ export async function POST(request: Request, { params }: { params: Promise<FeedR
     const dueFeeds = (await createFeedsRepository().findDueForRefresh()) as Array<{
       id: string;
     }>;
-    const queued = (await Promise.all(dueFeeds.map((feed) => enqueueFeedFetch(feed.id)))).filter(Boolean).length;
+    const queued = (await Promise.all(dueFeeds.map((feed) => enqueueFeedFetch(feed.id)))).filter((result) => result.queued).length;
     return NextResponse.json({ checked: dueFeeds.length, queued });
   }
 
@@ -149,14 +159,15 @@ export async function POST(request: Request, { params }: { params: Promise<FeedR
         }),
       });
       const feedRecord = feed as Record<string, unknown> & { id: string };
-      const queued = await enqueueFeedFetch(feedRecord.id);
-      scheduleWebFeedFetch(session.user.id, feedRecord.id);
+      const queueResult = await enqueueFeedFetch(feedRecord.id);
+      if (!queueResult.queued) scheduleWebFeedFetch(session.user.id, feedRecord.id);
       return NextResponse.json(
         {
           ...feedRecord,
-          lastFetchStatus: queued ? "queued" : "error",
+          lastFetchStartedAt: queueResult.startedAt,
+          lastFetchStatus: queueResult.queued ? "queued" : "error",
           existing: false,
-          queued,
+          queued: queueResult.queued,
           backgroundStarted: true,
         },
         { status: 201 },
@@ -171,12 +182,18 @@ export async function POST(request: Request, { params }: { params: Promise<FeedR
         }
         const active = existing.lastFetchStatus === "queued" || existing.lastFetchStatus === "fetching";
         const shouldRetry = existing.lastFetchStatus === "error" || existing.lastFetchStatus === "partial";
-        const queued = active || (shouldRetry ? await enqueueFeedFetch(existing.id) : false);
+        const queueResult = active
+          ? { queued: true, startedAt: existing.lastFetchStartedAt ?? new Date() }
+          : shouldRetry
+            ? await enqueueFeedFetch(existing.id)
+            : { queued: false, startedAt: existing.lastFetchStartedAt ?? new Date() };
+        const queued = queueResult.queued;
         const backgroundStarted = active || shouldRetry;
-        if (backgroundStarted) scheduleWebFeedFetch(session.user.id, existing.id);
+        if (shouldRetry && !queued) scheduleWebFeedFetch(session.user.id, existing.id);
         return NextResponse.json(
           {
             ...existing,
+            lastFetchStartedAt: queueResult.startedAt,
             lastFetchStatus: shouldRetry ? (queued ? "queued" : "error") : existing.lastFetchStatus,
             existing: true,
             queued,
@@ -224,7 +241,7 @@ export async function POST(request: Request, { params }: { params: Promise<FeedR
       select: { id: true },
     });
 
-    const queued = (await Promise.all(feeds.map((feed) => enqueueFeedFetch(feed.id)))).filter(Boolean).length;
+    const queued = (await Promise.all(feeds.map((feed) => enqueueFeedFetch(feed.id)))).filter((result) => result.queued).length;
     return NextResponse.json({ checked: feeds.length, queued });
   }
 
@@ -234,8 +251,8 @@ export async function POST(request: Request, { params }: { params: Promise<FeedR
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    const queued = await enqueueFeedFetch(feed.id);
-    return NextResponse.json({ queued }, { status: queued ? 202 : 503 });
+    const queueResult = await enqueueFeedFetch(feed.id);
+    return NextResponse.json({ queued: queueResult.queued }, { status: queueResult.queued ? 202 : 503 });
   }
 
   return NextResponse.json({ error: "Not found" }, { status: 404 });
