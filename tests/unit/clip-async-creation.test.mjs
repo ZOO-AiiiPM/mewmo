@@ -41,3 +41,21 @@ test("Agent starts the clip fetch worker", () => {
   const index = read("apps/agent/src/index.ts");
   assert.match(index, /createClipWorker\(\)/);
 });
+
+test("shared clip URL input awaits persistence and prevents duplicate submission", () => {
+  const listColumn = read("apps/web/src/components/shell/ListColumn.tsx");
+  assert.match(listColumn, /onSubmitClipUrl\?:\s*\(url:\s*string\)\s*=>\s*Promise/);
+  assert.match(listColumn, /clipSubmitting/);
+  assert.match(listColumn, /await onSubmitClipUrl\?\.\(url\)/);
+  assert.doesNotMatch(listColumn, /showToast\("已加入剪藏/,
+    "the shared input must not claim success before the owner receives persistence result");
+  assert.match(listColumn, /disabled=\{clipSubmitting\}/);
+});
+
+test("clip pages insert durable responses immediately and reopen existing clips", () => {
+  const page = read("apps/web/src/app/(app)/clips/page.tsx");
+  assert.match(page, /clip\.existing[\s\S]*之前已剪藏/);
+  assert.match(page, /setClips[\s\S]*clip[\s\S]*setCachedWorkspaceList/);
+  assert.match(page, /fetchStatus !== "queued"[\s\S]*fetchStatus !== "fetching"[\s\S]*setInterval/,
+    "queued clips should refresh without requiring a tab switch");
+});

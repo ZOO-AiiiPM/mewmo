@@ -5602,3 +5602,12 @@ html.light .acct-submenu {
   accent-color: var(--accent);
   flex: 0 0 auto;
 }
+
+.mewmo-sync-status {
+  flex: 0 0 auto;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.mewmo-sync-status--error { color: var(--coral); }
