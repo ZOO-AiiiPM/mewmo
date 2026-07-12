@@ -34,7 +34,7 @@ import {
   buildFeedCardMeta,
   buildFeedReaderMeta,
 } from "../../../lib/feed-display";
-import { getFeedAddToast, getFeedEmptyState } from "../../../lib/feed-status";
+import { getFeedAddToast, getFeedEmptyState, isFeedSyncActive } from "../../../lib/feed-status";
 import { proxiedImageUrl } from "../../../lib/image-proxy";
 import { buildHtmlToc } from "../../../lib/note-toc";
 import {
@@ -316,6 +316,16 @@ export default function FeedsPage() {
   }, [effectiveFeedId, loadEntries, type]);
 
   useEffect(() => {
+    if (!isFeedSyncActive(selectedFeed?.lastFetchStatus)) return;
+
+    const timer = window.setInterval(() => {
+      void Promise.all([loadFeeds(), loadEntries()]);
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [loadEntries, loadFeeds, selectedFeed?.lastFetchStatus]);
+
+  useEffect(() => {
     const refreshAfterSourceUpdate = (event: Event) => {
       const detail = (event as CustomEvent<{ feedId?: string; type?: FeedType }>).detail;
       if (detail?.type !== type) return;
@@ -389,16 +399,10 @@ export default function FeedsPage() {
         },
       );
       const data = (await response.json().catch(() => null)) as
-        | FeedFetchResult
-        | { checked?: number; created?: number }
+        | { queued?: boolean; checked?: number }
         | null;
-      if (!response.ok) throw new Error("refresh");
-      const created = data?.created ?? 0;
-      if (created > 0) {
-        showToast(`已抓取 ${created} 篇新文章`, "success");
-      } else {
-        showToast("已检查订阅，暂无新文章", "success");
-      }
+      if (!response.ok || (effectiveFeedId && !data?.queued)) throw new Error("refresh");
+      showToast("已开始后台同步", "success");
       await Promise.all([loadFeeds(), loadEntries()]);
     } catch {
       showToast("检查订阅更新失败", "error");

@@ -27,3 +27,13 @@ test("feed refresh routes enqueue work instead of waiting for fetch results", ()
   assert.match(route, /parts\[1\] === "refresh"[\s\S]*enqueueFeedFetch/,
     "single-feed retry should enqueue the selected feed");
 });
+
+
+test("feed page polls only while the selected source is actively syncing", () => {
+  const page = read("apps/web/src/app/(app)/feeds/page.tsx");
+
+  assert.match(page, /isFeedSyncActive\(selectedFeed\?\.lastFetchStatus\)[\s\S]*setInterval/,
+    "active first sync should poll feed and entry state");
+  assert.match(page, /clearInterval/,
+    "polling must stop when the source leaves an active state or the page unmounts");
+});

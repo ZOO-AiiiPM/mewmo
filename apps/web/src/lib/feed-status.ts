@@ -1,11 +1,8 @@
 type ToastType = "success" | "loading" | "error";
 
 interface FeedCreationStatus {
-  initialFetch?: {
-    status: "ok" | "skipped" | "error";
-    fetched: number;
-    created: number;
-  };
+  existing?: boolean;
+  queued?: boolean;
 }
 
 interface FeedEmptyStateInput {
@@ -24,15 +21,18 @@ interface FeedEmptyState {
   canRefresh: boolean;
 }
 
+export function isFeedSyncActive(status: string | null | undefined) {
+  return status === "queued" || status === "fetching";
+}
+
 export function getFeedAddToast(feed: FeedCreationStatus): { text: string; type: ToastType } {
-  if (feed.initialFetch?.status === "error") {
-    return { text: "已添加订阅，首次抓取失败", type: "error" };
+  if (feed.existing && !feed.queued) {
+    return { text: "该订阅已经添加过", type: "success" };
   }
-  const created = feed.initialFetch?.created ?? 0;
-  if (created > 0) {
-    return { text: `已添加订阅，抓取 ${created} 篇新文章`, type: "success" };
+  if (!feed.queued) {
+    return { text: "已添加订阅，后台同步启动失败", type: "error" };
   }
-  return { text: "已添加订阅，暂无新文章", type: "success" };
+  return { text: "已添加订阅，正在后台同步", type: "success" };
 }
 
 export function getFeedEmptyState({ feedId, selectedFeed, feedsLoaded = true }: FeedEmptyStateInput): FeedEmptyState {
@@ -41,6 +41,22 @@ export function getFeedEmptyState({ feedId, selectedFeed, feedsLoaded = true }: 
       title: "这个订阅源不存在或已删除",
       detail: "请从侧栏重新选择订阅源。",
       canRefresh: false,
+    };
+  }
+
+  if (feedId && isFeedSyncActive(selectedFeed?.lastFetchStatus)) {
+    return {
+      title: "正在同步订阅文章",
+      detail: "文章会在抓取成功后逐篇出现在这里。",
+      canRefresh: false,
+    };
+  }
+
+  if (feedId && selectedFeed?.lastFetchStatus === "partial") {
+    return {
+      title: "部分文章同步失败",
+      detail: selectedFeed.lastFetchError || "已保存成功的文章，可以重试其余内容。",
+      canRefresh: true,
     };
   }
 
