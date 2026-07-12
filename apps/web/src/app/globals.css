@@ -5577,3 +5577,28 @@ html.light .acct-submenu {
     transition-duration: 0.001ms !important;
   }
 }
+
+.addfeed__selectbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.addfeed__selectbar span { margin-right: auto; }
+.addfeed__selectbar button {
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+}
+
+.afr-card > input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent);
+  flex: 0 0 auto;
+}

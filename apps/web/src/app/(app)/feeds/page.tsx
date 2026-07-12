@@ -31,6 +31,12 @@ import {
 import { useToast } from "../../../components/ui/ToastProvider";
 import { clipPreviewText, formatClipListTime } from "../../../lib/clip-card";
 import {
+  failedFeedUrls,
+  selectAllFeedUrls,
+  toggleFeedUrl,
+  type FeedAddOutcomeStatus,
+} from "../../../lib/feed-add-selection";
+import {
   buildFeedCardMeta,
   buildFeedReaderMeta,
 } from "../../../lib/feed-display";
@@ -79,14 +85,8 @@ interface FeedSource {
   lastFetchStatus?: string;
   lastFetchError?: string | null;
   lastFetchCount?: number;
-  initialFetch?: FeedFetchResult;
-}
-
-interface FeedFetchResult {
-  status: "ok" | "skipped" | "error";
-  fetched: number;
-  created: number;
-  error?: string;
+  existing?: boolean;
+  queued?: boolean;
 }
 
 interface FeedEntry {
@@ -609,19 +609,21 @@ export default function FeedsPage() {
         initialType={isDeferredType ? "article" : type}
         autoDetectType={addOpen && !parsedType}
         onClose={closeAddModal}
-        onAdded={(feed) => {
-          closeAddModal();
-          const toast = getFeedAddToast(feed);
-          showToast(toast.text, toast.type);
-          const cachedSources = getCachedFeedSources<FeedSource>(feed.type) ?? [];
-          setCachedFeedSources(feed.type, [
-            feed,
-            ...cachedSources.filter((source) => source.id !== feed.id),
-          ]);
-          clearCachedFeedEntries(feed.id);
-          router.push(`/feeds?type=${feed.type}&feedId=${feed.id}`, { scroll: false });
+        onAdded={(addedFeeds, close) => {
+          for (const feed of addedFeeds) {
+            const cachedSources = getCachedFeedSources<FeedSource>(feed.type) ?? [];
+            setCachedFeedSources(feed.type, [
+              feed,
+              ...cachedSources.filter((source) => source.id !== feed.id),
+            ]);
+            clearCachedFeedEntries(feed.id);
+          }
           void loadFeeds();
           void loadEntries();
+          if (!close || addedFeeds.length === 0) return;
+          closeAddModal();
+          const first = addedFeeds[0]!;
+          router.push(`/feeds?type=${first.type}&feedId=${first.id}`, { scroll: false });
         }}
       />
     </div>
@@ -693,14 +695,15 @@ function AddFeedModal({
   initialType: FeedType;
   autoDetectType: boolean;
   onClose: () => void;
-  onAdded: (feed: FeedSource) => void;
+  onAdded: (feeds: FeedSource[], close: boolean) => void;
 }) {
   const { showToast } = useToast();
   const [mounted, setMounted] = useState(open);
   const [query, setQuery] = useState("");
   const [type, setType] = useState<FeedType>(initialType);
   const [results, setResults] = useState<DiscoverCandidate[]>([]);
-  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [selectedUrls, setSelectedUrls] = useState<string[]>([]);
+  const [addOutcomes, setAddOutcomes] = useState<Record<string, FeedAddOutcomeStatus>>({});
   const [searching, setSearching] = useState(false);
   const [saving, setSaving] = useState(false);
   const [searched, setSearched] = useState(false);
@@ -733,7 +736,8 @@ function AddFeedModal({
     if (!open) return;
     setQuery("");
     setResults([]);
-    setSelectedIndex(0);
+    setSelectedUrls([]);
+    setAddOutcomes({});
     setType(initialType);
     setAutoType(autoDetectType);
     setSearched(false);
@@ -742,7 +746,6 @@ function AddFeedModal({
 
   if (!mounted) return null;
 
-  const selected = results[selectedIndex] ?? null;
   const selectedType = feedTypes.find((item) => item.type === type) ?? feedTypes[0]!;
 
   const search = async () => {
@@ -769,7 +772,8 @@ function AddFeedModal({
       const data = (await response.json()) as { results?: DiscoverCandidate[] };
       const nextResults = data.results ?? [];
       setResults(nextResults);
-      setSelectedIndex(0);
+        setSelectedUrls(nextResults[0] ? [nextResults[0].url] : []);
+      setAddOutcomes({});
       if (
         autoType &&
         nextResults[0]?.type &&
@@ -788,28 +792,54 @@ function AddFeedModal({
   };
 
   const add = async () => {
-    const candidate = selected;
-    if (!candidate) return;
+    const candidates = results.filter((candidate) => selectedUrls.includes(candidate.url));
+    if (candidates.length === 0 || saving) return;
     setSaving(true);
-    showToast("首次抓取中...", "loading");
-    try {
-      const response = await fetch("/api/feeds", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          url: candidate.url,
-          type,
-          title: candidate.title,
-          description: candidate.description,
-          favicon: candidate.favicon,
-        }),
-      });
-      if (!response.ok) throw new Error("add");
-      onAdded(await response.json());
-    } catch {
-      showToast("添加订阅失败，请检查地址", "error");
-    } finally {
-      setSaving(false);
+    showToast(`正在添加 ${candidates.length} 个订阅...`, "loading");
+
+    const settled = await Promise.allSettled(
+      candidates.map(async (candidate) => {
+        const response = await fetch("/api/feeds", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            url: candidate.url,
+            type,
+            title: candidate.title,
+            description: candidate.description,
+            favicon: candidate.favicon,
+          }),
+        });
+        if (!response.ok) throw new Error("add");
+        return (await response.json()) as FeedSource;
+      }),
+    );
+
+    const outcomes: Record<string, FeedAddOutcomeStatus> = {};
+    const savedFeeds: FeedSource[] = [];
+    settled.forEach((result, index) => {
+      const candidate = candidates[index]!;
+      if (result.status === "fulfilled") {
+        savedFeeds.push(result.value);
+        outcomes[candidate.url] = result.value.existing ? "existing" : "added";
+      } else {
+        outcomes[candidate.url] = "failed";
+      }
+    });
+
+    setAddOutcomes(outcomes);
+    const failed = failedFeedUrls(outcomes);
+    setSelectedUrls(failed);
+    setSaving(false);
+    onAdded(savedFeeds, failed.length === 0);
+
+    if (failed.length > 0) {
+      showToast(`已保存 ${savedFeeds.length} 个，${failed.length} 个添加失败，可重试`, "error");
+    } else if (savedFeeds.length === 1) {
+      const toast = getFeedAddToast(savedFeeds[0]!);
+      showToast(toast.text, toast.type);
+    } else {
+      showToast(`已处理 ${savedFeeds.length} 个订阅，正在后台同步`, "success");
     }
   };
 
@@ -849,6 +879,12 @@ function AddFeedModal({
             autoFocus
             value={query}
             onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                event.preventDefault();
+                event.currentTarget.form?.requestSubmit();
+              }
+            }}
             placeholder="粘贴 RSS / 网站 / 自部署地址，或输入关键词搜索"
           />
           <button
@@ -868,46 +904,63 @@ function AddFeedModal({
           支持 RSS 地址 · 网站自动发现 · 自部署实例 · 关键词搜索
         </p>
 
+        {results.length > 0 && !searching && (
+          <div className="addfeed__selectbar">
+            <span>已选 {selectedUrls.length} / {results.length}</span>
+            <button
+              type="button"
+              onClick={() => setSelectedUrls(
+                selectedUrls.length === results.length ? [] : selectAllFeedUrls(results),
+              )}
+            >
+              {selectedUrls.length === results.length ? "取消全选" : "全选"}
+            </button>
+            {selectedUrls.length > 0 && selectedUrls.length !== results.length && (
+              <button type="button" onClick={() => setSelectedUrls([])}>取消全选</button>
+            )}
+          </div>
+        )}
         <div className="addfeed__results">
           {searching ? (
             <div className="addfeed__empty">正在发现订阅源...</div>
           ) : results.length > 0 ? (
-            results.map((result, index) => (
-              <button
-                key={`${result.url}-${index}`}
-                type="button"
-                className={`afr-card ${selectedIndex === index ? "afr-card--selected" : ""}`}
-                onClick={() => {
-                  setSelectedIndex(index);
-                  setCategoryMenuOpen(false);
-                  if (
-                    autoType &&
-                    result.type &&
-                    !feedTypes.find((item) => item.type === result.type)
-                      ?.deferred
-                  ) {
-                    setType(result.type);
-                  }
-                }}
-              >
-                <span className="mewmo-favicon">
-                  {result.favicon ? (
-                    <img src={result.favicon} alt="" />
-                  ) : (
-                    result.title.charAt(0)
-                  )}
-                </span>
-                <span className="afr-card__copy">
-                  <strong>{result.title}</strong>
-                  <small>
-                    {result.description || result.siteUrl || result.url}
-                  </small>
-                </span>
-                <span className="mewmo-tag-pill">
-                  {result.sourceKind === "search" ? "搜索" : "RSS"}
-                </span>
-              </button>
-            ))
+            results.map((result, index) => {
+              const checked = selectedUrls.includes(result.url);
+              const outcome = addOutcomes[result.url];
+              return (
+                <label
+                  key={`${result.url}-${index}`}
+                  className={`afr-card ${checked ? "afr-card--selected" : ""}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    disabled={saving || outcome === "added" || outcome === "existing"}
+                    onChange={() => {
+                      setSelectedUrls((current) => toggleFeedUrl(current, result.url));
+                      setCategoryMenuOpen(false);
+                      if (
+                        autoType &&
+                        result.type &&
+                        !feedTypes.find((item) => item.type === result.type)?.deferred
+                      ) {
+                        setType(result.type);
+                      }
+                    }}
+                  />
+                  <span className="mewmo-favicon">
+                    {result.favicon ? <img src={result.favicon} alt="" /> : result.title.charAt(0)}
+                  </span>
+                  <span className="afr-card__copy">
+                    <strong>{result.title}</strong>
+                    <small>{result.description || result.siteUrl || result.url}</small>
+                  </span>
+                  <span className="mewmo-tag-pill">
+                    {outcome === "added" ? "已添加" : outcome === "existing" ? "已订阅" : outcome === "failed" ? "失败" : result.sourceKind === "search" ? "搜索" : "RSS"}
+                  </span>
+                </label>
+              );
+            })
           ) : searched ? (
             <div className="addfeed__empty">没有发现可添加的订阅源</div>
           ) : (
@@ -915,7 +968,7 @@ function AddFeedModal({
           )}
         </div>
 
-        {selected && (
+        {selectedUrls.length > 0 && (
           <div className="addfeed__catrow">
             <span className="addfeed__catlabel">订阅至</span>
             <div
@@ -977,9 +1030,9 @@ function AddFeedModal({
             type="button"
             className="mewmo-button mewmo-button--primary"
             onClick={() => void add()}
-            disabled={!selected || saving}
+            disabled={selectedUrls.length === 0 || saving}
           >
-            {saving ? "抓取中..." : "添加"}
+            {saving ? "添加中..." : `添加所选订阅${selectedUrls.length > 1 ? ` (${selectedUrls.length})` : ""}`}
           </button>
         </div>
       </div>

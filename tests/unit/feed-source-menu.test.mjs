@@ -244,3 +244,18 @@ test("add-feed search row aligns the input and search button to one baseline", (
     "add-feed modal search button should match the input height",
   );
 });
+
+test("add-feed discovery supports explicit Enter submission and batch selection", () => {
+  const page = read("apps/web/src/app/(app)/feeds/page.tsx");
+
+  assert.match(
+    page,
+    /event\.key === "Enter"[\s\S]*!event\.nativeEvent\.isComposing[\s\S]*event\.preventDefault\(\)[\s\S]*requestSubmit\(\)/,
+    "Enter should explicitly submit through the same form while ignoring IME composition",
+  );
+  assert.match(page, /type="checkbox"/, "discovery cards should expose checkbox selection");
+  assert.match(page, /全选[\s\S]*取消全选/, "batch selection should offer select-all and clear-all actions");
+  assert.match(page, /添加所选订阅/, "the primary action should describe batch creation");
+  assert.match(page, /Promise\.allSettled/, "each selected source should settle independently");
+  assert.match(page, /failedFeedUrls/, "partial failures should remain selected for retry");
+});
