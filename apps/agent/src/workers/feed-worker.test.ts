@@ -4,13 +4,14 @@ import { processFeedFetchJob } from "./feed-worker";
 
 const findFirst = vi.fn();
 const update = vi.fn();
+const updateMany = vi.fn();
 const upsertByFeedUrl = vi.fn();
 const addSummaryJob = vi.fn();
 const addTagJob = vi.fn();
 
 vi.mock("@mewmo/db", () => ({
   getPrisma: () => ({
-    feed: { findFirst, update },
+    feed: { findFirst, update, updateMany },
   }),
   createFeedEntriesRepository: () => ({
     upsertByFeedUrl,
@@ -22,6 +23,19 @@ vi.mock("@mewmo/queue", () => ({
   createQueueHelpers: () => ({ addSummaryJob, addTagJob }),
   createRedisConnection: () => ({}),
   queueNames: { feedFetch: "feed-fetch-queue" },
+  withTimeout: async (operation: Promise<unknown>, timeoutMs: number, message: string) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        operation,
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+        }),
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  },
 }));
 
 const feedXml = `
@@ -38,8 +52,10 @@ describe("processFeedFetchJob", () => {
       id: "feed-1",
       userId: "user-1",
       url: "https://example.com/feed.xml",
+      lastFetchStatus: "queued",
     });
     update.mockResolvedValue({});
+    updateMany.mockResolvedValue({ count: 1 });
   });
 
   it("records fetching and success status while upserting entries incrementally", async () => {
@@ -62,8 +78,8 @@ describe("processFeedFetchJob", () => {
     expect(upsertByFeedUrl).toHaveBeenCalledTimes(2);
     expect(addSummaryJob).toHaveBeenCalledTimes(1);
     expect(addTagJob).toHaveBeenCalledTimes(1);
-    expect(update).toHaveBeenNthCalledWith(1, {
-      where: { id: "feed-1" },
+    expect(updateMany).toHaveBeenCalledWith({
+      where: expect.objectContaining({ id: "feed-1" }),
       data: {
         lastFetchStartedAt: expect.any(Date),
         lastFetchStatus: "fetching",
@@ -120,7 +136,10 @@ describe("processFeedFetchJob", () => {
   });
 
   it("stores at most the latest ten entries from one fetch", async () => {
-    const items = Array.from({ length: 11 }, (_, index) => `<item><title>Entry ${index}</title><link>https://example.com/${index}</link></item>`).join("");
+    const items = Array.from({ length: 11 }, (_, index) => {
+      const day = index + 1;
+      return `<item><title>Entry ${day}</title><link>https://example.com/${day}</link><pubDate>2026-07-${String(day).padStart(2, "0")}T00:00:00Z</pubDate></item>`;
+    }).join("");
     upsertByFeedUrl.mockResolvedValue({ created: false, entry: {} });
 
     const result = await processFeedFetchJob(
@@ -132,5 +151,85 @@ describe("processFeedFetchJob", () => {
 
     expect(result).toMatchObject({ status: "success", upserted: 10 });
     expect(upsertByFeedUrl).toHaveBeenCalledTimes(10);
+    expect(upsertByFeedUrl.mock.calls.map((call) => call[1].url)).toEqual(
+      Array.from({ length: 10 }, (_, index) => `https://example.com/${11 - index}`),
+    );
+  });
+
+  it("skips work when another fetcher already claimed the feed", async () => {
+    updateMany.mockResolvedValueOnce({ count: 0 });
+    const fetchFeed = vi.fn();
+
+    const result = await processFeedFetchJob({ feedId: "feed-1" }, { fetchFeed });
+
+    expect(result).toMatchObject({ status: "skipped", reason: "already_claimed" });
+    expect(fetchFeed).not.toHaveBeenCalled();
+  });
+
+  it("passes an abort signal to feed requests", async () => {
+    const fetchFeed = vi.fn(async () => new Response(feedXml));
+    upsertByFeedUrl.mockResolvedValue({ created: false, entry: {} });
+
+    await processFeedFetchJob({ feedId: "feed-1" }, { fetchFeed });
+
+    expect(fetchFeed).toHaveBeenCalledWith(
+      "https://example.com/feed.xml",
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+  });
+
+  it("bounds a feed request that never settles", async () => {
+    vi.useFakeTimers();
+    const fetchFeed = vi.fn(() => new Promise<Response>(() => {}));
+    const observed = processFeedFetchJob({ feedId: "feed-1" }, { fetchFeed }).then(
+      () => "resolved",
+      () => "rejected",
+    );
+
+    await vi.advanceTimersByTimeAsync(15_000);
+
+    expect(await Promise.race([observed, Promise.resolve("pending")])).toBe("rejected");
+    vi.useRealTimers();
+  });
+
+  it("bounds post-processing queue calls and continues to later entries", async () => {
+    vi.useFakeTimers();
+    upsertByFeedUrl
+      .mockResolvedValueOnce({ created: true, entry: { id: "entry-1" } })
+      .mockResolvedValueOnce({ created: true, entry: { id: "entry-2" } });
+    addSummaryJob.mockImplementationOnce(() => new Promise(() => {}));
+    const observed = processFeedFetchJob(
+      { feedId: "feed-1" },
+      { connection: {}, fetchFeed: async () => new Response(feedXml) },
+    ).then(
+      () => "resolved",
+      () => "rejected",
+    );
+
+    await vi.advanceTimersByTimeAsync(3_000);
+    await vi.runAllTimersAsync();
+
+    expect(await Promise.race([observed, Promise.resolve("pending")])).toBe("rejected");
+    expect(upsertByFeedUrl).toHaveBeenCalledTimes(2);
+    expect(addTagJob).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
+  });
+
+  it("requeues post-processing on a partial retry even when the entry already exists", async () => {
+    findFirst.mockResolvedValueOnce({
+      id: "feed-1",
+      userId: "user-1",
+      url: "https://example.com/feed.xml",
+      lastFetchStatus: "partial",
+    });
+    upsertByFeedUrl.mockResolvedValue({ created: false, entry: { id: "entry-existing" } });
+
+    await processFeedFetchJob(
+      { feedId: "feed-1" },
+      { connection: {}, fetchFeed: async () => new Response(feedXml) },
+    );
+
+    expect(addSummaryJob).toHaveBeenCalled();
+    expect(addTagJob).toHaveBeenCalled();
   });
 });

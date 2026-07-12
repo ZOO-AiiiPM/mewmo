@@ -24,7 +24,7 @@ describe("fetchAndStoreFeed", () => {
 
     const result = await fetchAndStoreFeed("user-1", "feed-1", {
       prisma: {
-        feed: { findFirst: feedFindFirst, update: feedUpdate },
+        feed: { findFirst: feedFindFirst, update: feedUpdate, updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
       },
       entryRepository: { upsertByFeedUrl },
       fetchFeed: async () => new Response(`<rss><channel>${items}</channel></rss>`),
@@ -38,6 +38,61 @@ describe("fetchAndStoreFeed", () => {
     expect(result).toMatchObject({ status: "ok", fetched: 10, created: 10 });
     expect(upsertByFeedUrl).toHaveBeenCalledTimes(10);
     expect(upsertByFeedUrl).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ title: "Post 11" }));
+  });
+
+  it("sorts an unordered feed by published time before taking ten entries", async () => {
+    const feed = {
+      id: "feed-1",
+      userId: "user-1",
+      url: "https://example.com/feed.xml",
+      title: "Example Feed",
+      favicon: null,
+    };
+    const items = Array.from({ length: 11 }, (_, index) => {
+      const day = index + 1;
+      return `<item><title>Post ${day}</title><link>https://example.com/${day}</link><pubDate>2026-07-${String(day).padStart(2, "0")}T00:00:00Z</pubDate></item>`;
+    }).join("");
+    const upsertByFeedUrl = vi.fn().mockResolvedValue({ created: false, entry: {} });
+
+    await fetchAndStoreFeed("user-1", "feed-1", {
+      prisma: {
+        feed: {
+          findFirst: vi.fn().mockResolvedValue(feed),
+          update: vi.fn().mockResolvedValue({}),
+          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        },
+      },
+      entryRepository: { upsertByFeedUrl },
+      fetchFeed: async () => new Response(`<rss><channel>${items}</channel></rss>`),
+      fetchEntryPage: async (url) => ({ title: url, content: "<p>body</p>" }),
+    });
+
+    expect(upsertByFeedUrl.mock.calls.map((call) => call[1].url)).toEqual(
+      Array.from({ length: 10 }, (_, index) => `https://example.com/${11 - index}`),
+    );
+  });
+
+  it("skips the fetch when another runtime already claimed the feed", async () => {
+    const fetchFeed = vi.fn();
+
+    const result = await fetchAndStoreFeed("user-1", "feed-1", {
+      prisma: {
+        feed: {
+          findFirst: vi.fn().mockResolvedValue({
+            id: "feed-1",
+            userId: "user-1",
+            url: "https://example.com/feed.xml",
+            title: "Example Feed",
+          }),
+          update: vi.fn(),
+          updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+        },
+      },
+      fetchFeed,
+    });
+
+    expect(result).toMatchObject({ status: "skipped", reason: "already_claimed" });
+    expect(fetchFeed).not.toHaveBeenCalled();
   });
 
   it("continues storing later entries when one entry fails", async () => {
@@ -59,6 +114,7 @@ describe("fetchAndStoreFeed", () => {
         feed: {
           findFirst: vi.fn().mockResolvedValue(feed),
           update: feedUpdate,
+          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
         },
       },
       entryRepository: { upsertByFeedUrl },
@@ -105,7 +161,7 @@ describe("fetchAndStoreFeed", () => {
 
     await fetchAndStoreFeed("user-1", "feed-1", {
       prisma: {
-        feed: { findFirst: feedFindFirst, update: feedUpdate },
+        feed: { findFirst: feedFindFirst, update: feedUpdate, updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
       },
       entryRepository: { upsertByFeedUrl },
       fetchFeed: async () =>
@@ -155,7 +211,7 @@ describe("fetchAndStoreFeed", () => {
 
     await fetchAndStoreFeed("user-1", "feed-1", {
       prisma: {
-        feed: { findFirst: feedFindFirst, update: feedUpdate },
+        feed: { findFirst: feedFindFirst, update: feedUpdate, updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
       },
       entryRepository: { upsertByFeedUrl },
       fetchFeed: async () =>
@@ -196,7 +252,7 @@ describe("fetchAndStoreFeed", () => {
 
     await fetchAndStoreFeed("user-1", "feed-1", {
       prisma: {
-        feed: { findFirst: feedFindFirst, update: feedUpdate },
+        feed: { findFirst: feedFindFirst, update: feedUpdate, updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
       },
       entryRepository: { upsertByFeedUrl },
       fetchFeed: async () =>

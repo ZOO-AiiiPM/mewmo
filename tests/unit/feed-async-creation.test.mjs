@@ -15,8 +15,11 @@ test("feed creation persists status and queues first fetch without synchronous a
   assert.match(route, /lastFetchStatus:\s*"queued"/, "newly persisted feeds should expose queued status before returning");
   assert.match(route, /existing:\s*false,\s*queued/, "successful queue submission should be explicit in the response");
   assert.match(route, /existing:\s*(?:true|false)/, "callers should be able to distinguish existing feeds from new records");
-  assert.match(route, /Promise\.race\([\s\S]*addFeedFetchJob[\s\S]*setTimeout/, "queue submission must have a request-level timeout after persistence");
+  assert.match(route, /withTimeout\(addFeedFetchJob\([\s\S]*FEED_QUEUE_TIMEOUT_MS/, "queue submission must have a request-level timeout after persistence");
   assert.match(route, /after\([\s\S]*fetchAndStoreFeed/, "feed creation should start a response-after Web fallback while the Agent has no deployment");
+  assert.match(route, /allowSuccessfulRefresh:\s*false/, "Web fallback must use the feed claim and avoid re-fetching a completed queue job");
+  assert.match(route, /lastFetchStatus:\s*queued \? "queued" : "error"/, "queue failure must remain an error for retryable UI feedback");
+  assert.doesNotMatch(route, /if \(!queued\)[\s\S]*lastFetchStatus:\s*"queued"/, "queue failure must not be rewritten back to queued");
   assert.match(client, /maxRetriesPerRequest:\s*\d+/, "HTTP producers must not keep retrying Redis forever when the queue is unavailable");
 });
 
@@ -30,7 +33,7 @@ test("feed refresh routes enqueue work instead of waiting for fetch results", ()
 test("feed page polls only while the selected source is actively syncing", () => {
   const page = read("apps/web/src/app/(app)/feeds/page.tsx");
 
-  assert.match(page, /isFeedSyncActive\(selectedFeed\?\.lastFetchStatus\)[\s\S]*setInterval/, "active first sync should poll feed and entry state");
+  assert.match(page, /isFeedSyncActive\(selectedFeed\?\.lastFetchStatus, selectedFeed\?\.lastFetchStartedAt\)[\s\S]*setInterval/, "active first sync should poll feed and entry state");
   assert.match(page, /clearInterval/, "polling must stop when the source leaves an active state or the page unmounts");
 });
 

@@ -1,4 +1,5 @@
 import { createFeedEntriesRepository, getPrisma } from "@mewmo/db";
+import { withTimeout } from "@mewmo/queue";
 
 import { fetchClipFromUrl } from "./clip-fetch";
 import { normalizeFeedEntryContent } from "./feed-content";
@@ -18,6 +19,7 @@ interface FeedFetchPrisma {
   feed: {
     findFirst(args: unknown): Promise<FeedRecord | null>;
     update(args: unknown): Promise<unknown>;
+    updateMany(args: unknown): Promise<{ count: number }>;
   };
 }
 
@@ -46,6 +48,7 @@ interface FetchAndStoreFeedDeps {
   fetchEntryPage?: typeof fetchClipFromUrl;
   now?: () => Date;
   limit?: number;
+  allowSuccessfulRefresh?: boolean;
 }
 
 export interface FeedFetchResult {
@@ -54,7 +57,12 @@ export interface FeedFetchResult {
   created: number;
   failed?: number;
   error?: string;
+  reason?: "already_claimed";
 }
+
+const FEED_FETCH_TIMEOUT_MS = 15_000;
+const ENTRY_FETCH_TIMEOUT_MS = 12_000;
+const STALE_FETCH_MS = 60_000;
 
 export async function fetchAndStoreFeed(userId: string, feedId: string, deps: FetchAndStoreFeedDeps = {}): Promise<FeedFetchResult> {
   const prisma = deps.prisma ?? getPrisma();
@@ -63,6 +71,7 @@ export async function fetchAndStoreFeed(userId: string, feedId: string, deps: Fe
   const fetchEntryPage = deps.fetchEntryPage ?? fetchClipFromUrl;
   const now = deps.now ?? (() => new Date());
   const limit = deps.limit ?? DEFAULT_FEED_FETCH_LIMIT;
+  const allowSuccessfulRefresh = deps.allowSuccessfulRefresh ?? true;
 
   const feed = await prisma.feed.findFirst({
     where: { id: feedId, userId, deletedAt: null },
@@ -70,35 +79,51 @@ export async function fetchAndStoreFeed(userId: string, feedId: string, deps: Fe
 
   if (!feed) return { status: "skipped", fetched: 0, created: 0 };
 
-  await prisma.feed.update({
-    where: { id: feed.id },
+  const startedAt = now();
+  const claim = await prisma.feed.updateMany({
+    where: {
+      id: feed.id,
+      userId,
+      deletedAt: null,
+      OR: [
+        { lastFetchStatus: { in: allowSuccessfulRefresh ? ["idle", "queued", "error", "partial", "success"] : ["idle", "queued", "error", "partial"] } },
+        { lastFetchStatus: "fetching", lastFetchStartedAt: { lt: new Date(startedAt.getTime() - STALE_FETCH_MS) } },
+      ],
+    },
     data: {
-      lastFetchStartedAt: now(),
+      lastFetchStartedAt: startedAt,
       lastFetchStatus: "fetching",
       lastFetchError: null,
       version: { increment: 1 },
     },
   });
+  if (claim.count === 0) {
+    return { status: "skipped", reason: "already_claimed", fetched: 0, created: 0 };
+  }
 
   try {
-    const response = await fetchFeed(feed.url, {
-      redirect: "follow",
-      signal: AbortSignal.timeout(15_000),
-      headers: {
-        accept: "application/rss+xml,application/atom+xml,application/xml,text/xml,*/*;q=0.8",
-        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36",
-      },
-    });
+    const response = await withTimeout(
+      fetchFeed(feed.url, {
+        redirect: "follow",
+        signal: AbortSignal.timeout(FEED_FETCH_TIMEOUT_MS),
+        headers: {
+          accept: "application/rss+xml,application/atom+xml,application/xml,text/xml,*/*;q=0.8",
+          "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36",
+        },
+      }),
+      FEED_FETCH_TIMEOUT_MS,
+      "Feed fetch timed out",
+    );
     if (!response.ok) {
       throw new Error(`Feed fetch failed: ${response.status} ${response.statusText}`);
     }
 
-    const entries = parseFeedXml(await response.text(), limit);
+    const entries = parseFeedXml(await response.text()).sort(compareFeedEntryPublishedAt).slice(0, limit);
     let created = 0;
     const failures: string[] = [];
     for (const entry of entries) {
       try {
-        const page = await fetchEntryPage(entry.url).catch(() => null);
+        const page = await withTimeout(fetchEntryPage(entry.url), ENTRY_FETCH_TIMEOUT_MS, "Feed entry fetch timed out").catch(() => null);
         const title = chooseEntryTitle(entry.title, page?.title);
         const normalized = normalizeFeedEntryContent({
           title,
@@ -154,6 +179,10 @@ export async function fetchAndStoreFeed(userId: string, feedId: string, deps: Fe
     });
     return { status: "error", fetched: 0, created: 0, error: message };
   }
+}
+
+function compareFeedEntryPublishedAt(left: { publishedAt?: Date }, right: { publishedAt?: Date }) {
+  return (right.publishedAt?.getTime() ?? Number.NEGATIVE_INFINITY) - (left.publishedAt?.getTime() ?? Number.NEGATIVE_INFINITY);
 }
 
 function chooseEntryTitle(feedTitle: string, pageTitle: string | null | undefined): string {

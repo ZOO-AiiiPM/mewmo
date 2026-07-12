@@ -12,8 +12,10 @@ interface FeedEmptyStateInput {
     lastFetchedAt: string | null;
     lastFetchStatus?: string;
     lastFetchError?: string | null;
+    lastFetchStartedAt?: string | null;
   } | null;
   feedsLoaded?: boolean;
+  now?: Date;
 }
 
 interface FeedEmptyState {
@@ -22,8 +24,14 @@ interface FeedEmptyState {
   canRefresh: boolean;
 }
 
-export function isFeedSyncActive(status: string | null | undefined) {
-  return status === "queued" || status === "fetching";
+const FEED_FETCH_STALE_MS = 60_000;
+
+export function isFeedSyncActive(status: string | null | undefined, startedAt?: string | null, now = new Date()) {
+  if (status === "queued") return true;
+  if (status !== "fetching") return false;
+  if (!startedAt) return true;
+  const startedTime = Date.parse(startedAt);
+  return Number.isNaN(startedTime) || now.getTime() - startedTime < FEED_FETCH_STALE_MS;
 }
 
 export function getFeedAddToast(feed: FeedCreationStatus): {
@@ -39,7 +47,7 @@ export function getFeedAddToast(feed: FeedCreationStatus): {
   return { text: "已添加订阅，正在后台同步", type: "success" };
 }
 
-export function getFeedEmptyState({ feedId, selectedFeed, feedsLoaded = true }: FeedEmptyStateInput): FeedEmptyState {
+export function getFeedEmptyState({ feedId, selectedFeed, feedsLoaded = true, now = new Date() }: FeedEmptyStateInput): FeedEmptyState {
   if (feedId && !selectedFeed && feedsLoaded) {
     return {
       title: "这个订阅源不存在或已删除",
@@ -48,11 +56,19 @@ export function getFeedEmptyState({ feedId, selectedFeed, feedsLoaded = true }: 
     };
   }
 
-  if (feedId && isFeedSyncActive(selectedFeed?.lastFetchStatus)) {
+  if (feedId && isFeedSyncActive(selectedFeed?.lastFetchStatus, selectedFeed?.lastFetchStartedAt, now)) {
     return {
       title: "正在同步订阅文章",
       detail: "文章会在抓取成功后逐篇出现在这里。",
       canRefresh: false,
+    };
+  }
+
+  if (feedId && selectedFeed?.lastFetchStatus === "fetching") {
+    return {
+      title: "订阅同步超时",
+      detail: "后台抓取没有按时完成，可以重新检查更新。",
+      canRefresh: true,
     };
   }
 

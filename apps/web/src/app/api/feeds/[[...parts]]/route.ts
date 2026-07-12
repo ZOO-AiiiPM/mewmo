@@ -1,7 +1,7 @@
 import { after, NextResponse } from "next/server";
 import { createFeedSchema, discoverFeedSchema, feedTypeSchema, updateFeedSchema } from "@mewmo/shared";
 import { createFeedEntriesRepository, createFeedsRepository, getPrisma } from "@mewmo/db";
-import { addFeedFetchJob } from "@mewmo/queue";
+import { addFeedFetchJob, withTimeout } from "@mewmo/queue";
 
 import { auth } from "../../../../lib/auth";
 import { discoverFeeds, FeedSearchProviderNotConfiguredError } from "../../../../lib/feed-discovery";
@@ -35,11 +35,7 @@ const FEED_QUEUE_TIMEOUT_MS = 5_000;
 
 function scheduleWebFeedFetch(userId: string, feedId: string) {
   after(async () => {
-    const feed = await requireFeed(userId, feedId);
-    if (!feed || feed.lastFetchStatus === "fetching" || feed.lastFetchStatus === "success") {
-      return;
-    }
-    await fetchAndStoreFeed(userId, feedId);
+    await fetchAndStoreFeed(userId, feedId, { allowSuccessfulRefresh: false });
   });
 }
 
@@ -53,14 +49,8 @@ async function enqueueFeedFetch(feedId: string) {
     },
   });
 
-  let timeout: ReturnType<typeof setTimeout> | undefined;
   try {
-    await Promise.race([
-      addFeedFetchJob({ feedId }),
-      new Promise<never>((_, reject) => {
-        timeout = setTimeout(() => reject(new Error("Feed queue submission timed out")), FEED_QUEUE_TIMEOUT_MS);
-      }),
-    ]);
+    await withTimeout(addFeedFetchJob({ feedId }), FEED_QUEUE_TIMEOUT_MS, "Feed queue submission timed out");
     return true;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to queue feed fetch";
@@ -73,8 +63,6 @@ async function enqueueFeedFetch(feedId: string) {
       },
     });
     return false;
-  } finally {
-    if (timeout) clearTimeout(timeout);
   }
 }
 
@@ -161,22 +149,12 @@ export async function POST(request: Request, { params }: { params: Promise<FeedR
         }),
       });
       const feedRecord = feed as Record<string, unknown> & { id: string };
-      scheduleWebFeedFetch(session.user.id, feedRecord.id);
       const queued = await enqueueFeedFetch(feedRecord.id);
-      if (!queued) {
-        await getPrisma().feed.update({
-          where: { id: feedRecord.id },
-          data: {
-            lastFetchStatus: "queued",
-            lastFetchError: null,
-            version: { increment: 1 },
-          },
-        });
-      }
+      scheduleWebFeedFetch(session.user.id, feedRecord.id);
       return NextResponse.json(
         {
           ...feedRecord,
-          lastFetchStatus: "queued",
+          lastFetchStatus: queued ? "queued" : "error",
           existing: false,
           queued,
           backgroundStarted: true,
@@ -196,7 +174,16 @@ export async function POST(request: Request, { params }: { params: Promise<FeedR
         const queued = active || (shouldRetry ? await enqueueFeedFetch(existing.id) : false);
         const backgroundStarted = active || shouldRetry;
         if (backgroundStarted) scheduleWebFeedFetch(session.user.id, existing.id);
-        return NextResponse.json({ ...existing, existing: true, queued, backgroundStarted }, { status: 200 });
+        return NextResponse.json(
+          {
+            ...existing,
+            lastFetchStatus: shouldRetry ? (queued ? "queued" : "error") : existing.lastFetchStatus,
+            existing: true,
+            queued,
+            backgroundStarted,
+          },
+          { status: 200 },
+        );
       }
       throw error;
     }

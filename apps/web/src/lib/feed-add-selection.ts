@@ -1,5 +1,16 @@
 export type FeedAddOutcomeStatus = "added" | "existing" | "failed";
 
+interface FeedAddResult {
+  existing?: boolean;
+  queued?: boolean;
+  backgroundStarted?: boolean;
+}
+
+export function feedAddOutcome(feed: FeedAddResult): FeedAddOutcomeStatus {
+  if (feed.queued === false && feed.backgroundStarted) return "failed";
+  return feed.existing ? "existing" : "added";
+}
+
 export function toggleFeedUrl(selected: string[], url: string) {
   return selected.includes(url)
     ? selected.filter((item) => item !== url)

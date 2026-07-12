@@ -14,7 +14,7 @@ import { useReaderToolbarTitleVisibility } from "../../../components/shell/useRe
 import { FloatingMenuButton, FloatingMenuLink, PopoverMenu } from "../../../components/ui/FloatingMenu";
 import { useToast } from "../../../components/ui/ToastProvider";
 import { clipPreviewText, formatClipListTime } from "../../../lib/clip-card";
-import { failedFeedUrls, selectAllFeedUrls, toggleFeedUrl, type FeedAddOutcomeStatus } from "../../../lib/feed-add-selection";
+import { failedFeedUrls, feedAddOutcome, selectAllFeedUrls, toggleFeedUrl, type FeedAddOutcomeStatus } from "../../../lib/feed-add-selection";
 import { buildFeedCardMeta, buildFeedReaderMeta } from "../../../lib/feed-display";
 import { getFeedAddToast, getFeedEmptyState, isFeedSyncActive } from "../../../lib/feed-status";
 import { proxiedImageUrl } from "../../../lib/image-proxy";
@@ -58,6 +58,7 @@ interface FeedSource {
   lastFetchStatus?: string;
   lastFetchError?: string | null;
   lastFetchCount?: number;
+  lastFetchStartedAt?: string | null;
   existing?: boolean;
   queued?: boolean;
   backgroundStarted?: boolean;
@@ -267,7 +268,7 @@ export default function FeedsPage() {
   }, [effectiveFeedId, loadEntries, type]);
 
   useEffect(() => {
-    if (!isFeedSyncActive(selectedFeed?.lastFetchStatus)) return;
+    if (!isFeedSyncActive(selectedFeed?.lastFetchStatus, selectedFeed?.lastFetchStartedAt)) return;
 
     const timer = window.setInterval(() => {
       void Promise.all([loadFeeds(), loadEntries()]);
@@ -732,12 +733,10 @@ function AddFeedModal({
       const candidate = candidates[index]!;
       if (result.status === "fulfilled") {
         persistedFeeds.push(result.value);
-        const queueFailed = result.value.queued === false && !result.value.existing && !result.value.backgroundStarted;
-        if (queueFailed) {
-          outcomes[candidate.url] = "failed";
-        } else {
+        const outcome = feedAddOutcome(result.value);
+        outcomes[candidate.url] = outcome;
+        if (outcome !== "failed") {
           savedFeeds.push(result.value);
-          outcomes[candidate.url] = result.value.existing ? "existing" : "added";
         }
       } else {
         outcomes[candidate.url] = "failed";

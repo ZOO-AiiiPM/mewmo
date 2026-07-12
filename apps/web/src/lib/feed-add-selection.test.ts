@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { failedFeedUrls, selectAllFeedUrls, toggleFeedUrl } from "./feed-add-selection";
+import { failedFeedUrls, feedAddOutcome, selectAllFeedUrls, toggleFeedUrl } from "./feed-add-selection";
 
 describe("feed add selection", () => {
   it("toggles one URL without disturbing other selections", () => {
@@ -20,5 +20,12 @@ describe("feed add selection", () => {
         c: "failed",
       }),
     ).toEqual(["c"]);
+  });
+
+  it("keeps queue failures retryable even when the Web fallback starts", () => {
+    expect(feedAddOutcome({ existing: false, queued: false, backgroundStarted: true })).toBe("failed");
+    expect(feedAddOutcome({ existing: true, queued: false, backgroundStarted: true })).toBe("failed");
+    expect(feedAddOutcome({ existing: true, queued: false, backgroundStarted: false })).toBe("existing");
+    expect(feedAddOutcome({ existing: false, queued: true, backgroundStarted: true })).toBe("added");
   });
 });

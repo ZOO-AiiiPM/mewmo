@@ -34,6 +34,25 @@ describe("feed status copy", () => {
     expect(isFeedSyncActive("success")).toBe(false);
     expect(isFeedSyncActive("partial")).toBe(false);
     expect(isFeedSyncActive("error")).toBe(false);
+    expect(isFeedSyncActive("fetching", "2026-07-12T00:00:00.000Z", new Date("2026-07-12T00:02:00.000Z"))).toBe(false);
+  });
+
+  it("turns stale fetching into a recoverable timeout state", () => {
+    expect(
+      getFeedEmptyState({
+        feedId: "feed-1",
+        selectedFeed: {
+          lastFetchedAt: null,
+          lastFetchStatus: "fetching",
+          lastFetchStartedAt: "2026-07-12T00:00:00.000Z",
+        },
+        now: new Date("2026-07-12T00:02:00.000Z"),
+      }),
+    ).toEqual({
+      title: "订阅同步超时",
+      detail: "后台抓取没有按时完成，可以重新检查更新。",
+      canRefresh: true,
+    });
   });
 
   it("shows active first fetch without offering a duplicate retry", () => {
