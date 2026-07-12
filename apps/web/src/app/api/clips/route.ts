@@ -22,6 +22,25 @@ const clipListSelect = {
   updatedAt: true,
 } satisfies Prisma.ClipSelect;
 
+const CLIP_QUEUE_TIMEOUT_MS = 5_000;
+
+async function withQueueTimeout<T>(operation: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error("Clip background fetch queue timed out")),
+          CLIP_QUEUE_TIMEOUT_MS,
+        );
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 function isUniqueConstraintError(error: unknown): error is { code: "P2002" } {
   return typeof error === "object" && error !== null && "code" in error && error.code === "P2002";
 }
@@ -33,7 +52,7 @@ async function enqueueClipFetch(clipId: string) {
     data: { fetchStatus: "queued", fetchError: null, version: { increment: 1 } },
   });
   try {
-    await addClipFetchJob({ clipId });
+    await withQueueTimeout(addClipFetchJob({ clipId }));
     return true;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to queue clip fetch";

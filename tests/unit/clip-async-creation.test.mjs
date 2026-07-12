@@ -18,6 +18,8 @@ test("clip creation persists normalized identity before queueing extraction", ()
   const route = read("apps/web/src/app/api/clips/route.ts");
   assert.match(route, /normalizeClipUrlIdentity/);
   assert.match(route, /addClipFetchJob/);
+  assert.match(route, /withQueueTimeout\(\s*addClipFetchJob/,
+    "queue submission must have a request-level timeout so Redis outages cannot leave creation pending");
   assert.doesNotMatch(route, /fetchClipFromUrl/,
     "remote extraction must not block clip creation");
   assert.match(route, /normalizedUrl/);
