@@ -6,6 +6,7 @@ export const queueNames = {
   tag: "tag-queue",
   summary: "summary-queue",
   feedFetch: "feed-fetch-queue",
+  clipFetch: "clip-fetch-queue",
   embedding: "embedding-queue",
 } as const;
 
@@ -25,6 +26,10 @@ export interface FeedFetchJobPayload {
   feedId: string;
 }
 
+export interface ClipFetchJobPayload {
+  clipId: string;
+}
+
 export interface EmbeddingJobPayload {
   userId: string;
   targetId: string;
@@ -39,6 +44,7 @@ export interface QueueSet {
   tagQueue: AddableQueue<TagJobPayload>;
   summaryQueue: AddableQueue<SummaryJobPayload>;
   feedFetchQueue: AddableQueue<FeedFetchJobPayload>;
+  clipFetchQueue: AddableQueue<ClipFetchJobPayload>;
   embeddingQueue: AddableQueue<EmbeddingJobPayload>;
 }
 
@@ -47,6 +53,7 @@ export function createMewmoQueues(connection: unknown = createRedisConnection())
     tagQueue: new Queue(queueNames.tag, { connection } as never) as AddableQueue<TagJobPayload>,
     summaryQueue: new Queue(queueNames.summary, { connection } as never) as AddableQueue<SummaryJobPayload>,
     feedFetchQueue: new Queue(queueNames.feedFetch, { connection } as never) as AddableQueue<FeedFetchJobPayload>,
+    clipFetchQueue: new Queue(queueNames.clipFetch, { connection } as never) as AddableQueue<ClipFetchJobPayload>,
     embeddingQueue: new Queue(queueNames.embedding, { connection } as never) as AddableQueue<EmbeddingJobPayload>,
   };
 }
@@ -64,6 +71,17 @@ export function createQueueHelpers(queues: QueueSet = createMewmoQueues()) {
     addFeedFetchJob(payload: FeedFetchJobPayload, options?: JobsOptions) {
       return queues.feedFetchQueue.add("feed-fetch", payload, {
         jobId: `feed-fetch-${payload.feedId}`,
+        attempts: 3,
+        backoff: { type: "exponential", delay: 1000 },
+        removeOnComplete: true,
+        removeOnFail: true,
+        ...options,
+      });
+    },
+
+    addClipFetchJob(payload: ClipFetchJobPayload, options?: JobsOptions) {
+      return queues.clipFetchQueue.add("clip-fetch", payload, {
+        jobId: `clip-fetch-${payload.clipId}`,
         attempts: 3,
         backoff: { type: "exponential", delay: 1000 },
         removeOnComplete: true,

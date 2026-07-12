@@ -12,3 +12,17 @@ test("Clip schema enforces nullable per-user normalized URL identity", () => {
   assert.match(schema, /fetchedAt\s+DateTime\?/);
   assert.match(schema, /@@unique\(\[userId,\s*normalizedUrl\]\)/);
 });
+
+
+test("clip creation persists normalized identity before queueing extraction", () => {
+  const route = read("apps/web/src/app/api/clips/route.ts");
+  assert.match(route, /normalizeClipUrlIdentity/);
+  assert.match(route, /addClipFetchJob/);
+  assert.doesNotMatch(route, /fetchClipFromUrl/,
+    "remote extraction must not block clip creation");
+  assert.match(route, /normalizedUrl/);
+  assert.match(route, /fetchStatus:\s*"queued"/);
+  assert.match(route, /existing:\s*false/);
+  assert.match(route, /P2002[\s\S]*existing:\s*true/,
+    "database uniqueness races should return the existing Clip");
+});
