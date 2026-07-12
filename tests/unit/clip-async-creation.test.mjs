@@ -26,3 +26,18 @@ test("clip creation persists normalized identity before queueing extraction", ()
   assert.match(route, /P2002[\s\S]*existing:\s*true/,
     "database uniqueness races should return the existing Clip");
 });
+
+
+test("clip background refresh is authenticated and records extraction state", () => {
+  const route = read("apps/web/src/app/api/clips/[id]/route.ts");
+  assert.match(route, /background[\s\S]*cronAuthorized/);
+  assert.match(route, /fetchStatus:\s*"fetching"/);
+  assert.match(route, /fetchStatus:\s*"success"/);
+  assert.match(route, /fetchStatus:\s*"error"/);
+  assert.match(route, /addSummaryJob/);
+});
+
+test("Agent starts the clip fetch worker", () => {
+  const index = read("apps/agent/src/index.ts");
+  assert.match(index, /createClipWorker\(\)/);
+});

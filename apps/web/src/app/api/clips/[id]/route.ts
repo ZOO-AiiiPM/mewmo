@@ -1,8 +1,15 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@mewmo/db";
+import { addClipFetchJob, addSummaryJob } from "@mewmo/queue";
 import { updateClipSchema } from "@mewmo/shared";
 import { auth } from "../../../../lib/auth";
 import { fetchClipFromUrl } from "../../../../lib/clip-fetch";
+
+function cronAuthorized(request: Request) {
+  const secret = process.env.FEED_CRON_SECRET;
+  if (!secret) return process.env.NODE_ENV !== "production";
+  return request.headers.get("authorization") === `Bearer ${secret}`;
+}
 
 interface RefreshClipData {
   title: string;
@@ -126,40 +133,74 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const background = new URL(request.url).searchParams.get("background") === "1";
+  const session = background ? null : await auth();
+  if (background ? !cronAuthorized(request) : !session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { id } = await params;
   const prisma = getPrisma();
   const clip = await prisma.clip.findFirst({
-    where: { id, userId: session.user.id, deletedAt: null },
+    where: background
+      ? { id, deletedAt: null }
+      : { id, userId: session!.user!.id!, deletedAt: null },
   });
 
   if (!clip) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const fetched = await fetchClipFromUrl(clip.url).catch(() => null);
-  if (!fetched) {
-    return NextResponse.json({ error: "Could not refresh clip" }, { status: 502 });
+  if (!background) {
+    const queuedClip = await prisma.clip.update({
+      where: { id },
+      data: { fetchStatus: "queued", fetchError: null, version: { increment: 1 } },
+    });
+    try {
+      await addClipFetchJob({ clipId: id });
+      return NextResponse.json({ clip: queuedClip, changed: false, queued: true }, { status: 202 });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to queue clip fetch";
+      const failedClip = await prisma.clip.update({
+        where: { id },
+        data: { fetchStatus: "error", fetchError: message, version: { increment: 1 } },
+      });
+      return NextResponse.json({ clip: failedClip, changed: false, queued: false }, { status: 503 });
+    }
   }
 
-  const data = normalizeRefreshData(fetched);
-  if (!hasClipChanged(clip, data)) {
-    return NextResponse.json({ clip, changed: false });
-  }
-
-  const updated = await prisma.clip.update({
+  await prisma.clip.update({
     where: { id },
-    data: {
-      ...data,
-      version: { increment: 1 },
-    },
+    data: { fetchStatus: "fetching", fetchError: null, version: { increment: 1 } },
   });
 
-  return NextResponse.json({ clip: updated, changed: true });
+  try {
+    const fetched = await fetchClipFromUrl(clip.url);
+    const data = normalizeRefreshData(fetched);
+    const updated = await prisma.clip.update({
+      where: { id },
+      data: {
+        ...data,
+        fetchStatus: "success",
+        fetchError: null,
+        fetchedAt: new Date(),
+        version: { increment: 1 },
+      },
+    });
+    try {
+      await addSummaryJob({ userId: clip.userId, targetId: clip.id, targetType: "clip" });
+    } catch (error) {
+      console.error("Failed to enqueue clip summary job", error);
+    }
+    return NextResponse.json({ status: "success", clip: updated, changed: hasClipChanged(clip, data) });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Could not refresh clip";
+    await prisma.clip.update({
+      where: { id },
+      data: { fetchStatus: "error", fetchError: message, version: { increment: 1 } },
+    });
+    return NextResponse.json({ error: message }, { status: 502 });
+  }
 }
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
