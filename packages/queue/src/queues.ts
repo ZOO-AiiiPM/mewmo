@@ -62,7 +62,14 @@ export function createQueueHelpers(queues: QueueSet = createMewmoQueues()) {
     },
 
     addFeedFetchJob(payload: FeedFetchJobPayload, options?: JobsOptions) {
-      return queues.feedFetchQueue.add("feed-fetch", payload, options);
+      return queues.feedFetchQueue.add("feed-fetch", payload, {
+        jobId: `feed-fetch-${payload.feedId}`,
+        attempts: 3,
+        backoff: { type: "exponential", delay: 1000 },
+        removeOnComplete: true,
+        removeOnFail: true,
+        ...options,
+      });
     },
 
     addEmbeddingJob(payload: EmbeddingJobPayload, options?: JobsOptions) {

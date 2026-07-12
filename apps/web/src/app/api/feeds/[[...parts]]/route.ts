@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
 import { createFeedSchema, discoverFeedSchema, feedTypeSchema, updateFeedSchema } from "@mewmo/shared";
 import { createFeedEntriesRepository, createFeedsRepository, getPrisma } from "@mewmo/db";
+import { addFeedFetchJob } from "@mewmo/queue";
 
 import { auth } from "../../../../lib/auth";
 import { discoverFeeds, FeedSearchProviderNotConfiguredError } from "../../../../lib/feed-discovery";
-import { fetchAndStoreFeed } from "../../../../lib/feed-fetch-service";
-import { refreshDueFeeds } from "../../../../lib/feed-refresh-service";
 
 interface FeedRouteParams {
   parts?: string[];
@@ -29,6 +28,33 @@ function cronAuthorized(request: Request) {
   const secret = process.env.FEED_CRON_SECRET;
   if (!secret) return process.env.NODE_ENV !== "production";
   return request.headers.get("authorization") === `Bearer ${secret}`;
+}
+
+async function enqueueFeedFetch(feedId: string) {
+  await getPrisma().feed.update({
+    where: { id: feedId },
+    data: {
+      lastFetchStatus: "queued",
+      lastFetchError: null,
+      version: { increment: 1 },
+    },
+  });
+
+  try {
+    await addFeedFetchJob({ feedId });
+    return true;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to queue feed fetch";
+    await getPrisma().feed.update({
+      where: { id: feedId },
+      data: {
+        lastFetchStatus: "error",
+        lastFetchError: message,
+        version: { increment: 1 },
+      },
+    });
+    return false;
+  }
 }
 
 export async function GET(request: Request, { params }: { params: Promise<FeedRouteParams> }) {
@@ -82,7 +108,9 @@ export async function POST(request: Request, { params }: { params: Promise<FeedR
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    return NextResponse.json(await refreshDueFeeds());
+    const dueFeeds = (await createFeedsRepository().findDueForRefresh()) as Array<{ id: string }>;
+    const queued = (await Promise.all(dueFeeds.map((feed) => enqueueFeedFetch(feed.id)))).filter(Boolean).length;
+    return NextResponse.json({ checked: dueFeeds.length, queued });
   }
 
   const session = await auth();
@@ -106,8 +134,8 @@ export async function POST(request: Request, { params }: { params: Promise<FeedR
         ...(parsed.data.favicon !== undefined && { favicon: parsed.data.favicon }),
       });
       const feedRecord = feed as Record<string, unknown> & { id: string };
-      const initialFetch = await fetchAndStoreFeed(session.user.id, feedRecord.id);
-      return NextResponse.json({ ...feedRecord, initialFetch }, { status: 201 });
+      const queued = await enqueueFeedFetch(feedRecord.id);
+      return NextResponse.json({ ...feedRecord, lastFetchStatus: queued ? "queued" : "error", existing: false, queued }, { status: 201 });
     } catch (error) {
       if (isUniqueConstraintError(error)) {
         const existing = await getPrisma().feed.findFirst({
@@ -116,8 +144,10 @@ export async function POST(request: Request, { params }: { params: Promise<FeedR
         if (!existing) {
           return NextResponse.json({ error: "Feed already exists" }, { status: 409 });
         }
-        const initialFetch = await fetchAndStoreFeed(session.user.id, existing.id);
-        return NextResponse.json({ ...existing, initialFetch }, { status: 200 });
+        const active = existing.lastFetchStatus === "queued" || existing.lastFetchStatus === "fetching";
+        const shouldRetry = existing.lastFetchStatus === "error" || existing.lastFetchStatus === "partial";
+        const queued = active || (shouldRetry ? await enqueueFeedFetch(existing.id) : false);
+        return NextResponse.json({ ...existing, existing: true, queued }, { status: 200 });
       }
       throw error;
     }
@@ -152,14 +182,8 @@ export async function POST(request: Request, { params }: { params: Promise<FeedR
       select: { id: true },
     });
 
-    let fetched = 0;
-    let created = 0;
-    for (const feed of feeds) {
-      const result = await fetchAndStoreFeed(session.user.id, feed.id);
-      fetched += result.fetched;
-      created += result.created;
-    }
-    return NextResponse.json({ checked: feeds.length, fetched, created });
+    const queued = (await Promise.all(feeds.map((feed) => enqueueFeedFetch(feed.id)))).filter(Boolean).length;
+    return NextResponse.json({ checked: feeds.length, queued });
   }
 
   if (parts.length === 2 && parts[1] === "refresh") {
@@ -168,7 +192,8 @@ export async function POST(request: Request, { params }: { params: Promise<FeedR
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    return NextResponse.json(await fetchAndStoreFeed(session.user.id, feed.id));
+    const queued = await enqueueFeedFetch(feed.id);
+    return NextResponse.json({ queued }, { status: queued ? 202 : 503 });
   }
 
   return NextResponse.json({ error: "Not found" }, { status: 404 });
