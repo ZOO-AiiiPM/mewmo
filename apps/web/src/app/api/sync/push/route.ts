@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getPrisma } from "@mewmo/db";
 import {
   createClipSchema,
+  normalizeClipUrlIdentity,
   createNoteSchema,
   syncPushSchema,
   updateClipSchema,
@@ -133,24 +134,37 @@ async function applyClipMutation(userId: string, mutation: SyncMutation) {
 
     const { tags, ...clipData } = parsed.data;
     void tags;
+    const normalizedUrl = normalizeClipUrlIdentity(clipData.url);
+    const existing = await prisma.clip.findFirst({
+      where: { userId, normalizedUrl, deletedAt: null },
+    });
+    if (existing) return { record: existing };
 
-    return {
-      record: await prisma.clip.create({
-        data: {
-          url: clipData.url,
-          title: clipData.title,
-          content: clipData.content,
-          ...(clipData.summary !== undefined ? { summary: clipData.summary } : {}),
-          ...(clipData.favicon !== undefined ? { favicon: clipData.favicon } : {}),
-          ...(clipData.coverImage !== undefined ? { coverImage: clipData.coverImage } : {}),
-          ...(clipData.excerpt !== undefined ? { excerpt: clipData.excerpt } : {}),
-          ...(clipData.sourceName !== undefined ? { sourceName: clipData.sourceName } : {}),
-          ...(clipData.author !== undefined ? { author: clipData.author } : {}),
-          ...(clipData.publishedAt !== undefined ? { publishedAt: clipData.publishedAt } : {}),
-          userId,
-        },
-      }),
-    };
+    try {
+      return {
+        record: await prisma.clip.create({
+          data: {
+            url: clipData.url,
+            normalizedUrl,
+            title: clipData.title,
+            content: clipData.content,
+            ...(clipData.summary !== undefined ? { summary: clipData.summary } : {}),
+            ...(clipData.favicon !== undefined ? { favicon: clipData.favicon } : {}),
+            ...(clipData.coverImage !== undefined ? { coverImage: clipData.coverImage } : {}),
+            ...(clipData.excerpt !== undefined ? { excerpt: clipData.excerpt } : {}),
+            ...(clipData.sourceName !== undefined ? { sourceName: clipData.sourceName } : {}),
+            ...(clipData.author !== undefined ? { author: clipData.author } : {}),
+            ...(clipData.publishedAt !== undefined ? { publishedAt: clipData.publishedAt } : {}),
+            userId,
+          },
+        }),
+      };
+    } catch (error) {
+      if (typeof error !== "object" || error === null || !("code" in error) || error.code !== "P2002") throw error;
+      return {
+        record: await prisma.clip.findFirst({ where: { userId, normalizedUrl, deletedAt: null } }),
+      };
+    }
   }
 
   if (!mutation.id) return { error: "missing_id" };
@@ -161,11 +175,20 @@ async function applyClipMutation(userId: string, mutation: SyncMutation) {
 
     const { tags, ...clipData } = parsed.data;
     void tags;
+    if (clipData.url !== undefined) {
+      const normalizedUrl = normalizeClipUrlIdentity(clipData.url);
+      const duplicate = await prisma.clip.findFirst({
+        where: { userId, normalizedUrl, deletedAt: null, NOT: { id: mutation.id } },
+      });
+      if (duplicate) return { error: "duplicate_clip", record: duplicate };
+    }
 
     const updateResult = await prisma.clip.updateMany({
       where: { id: mutation.id, userId, deletedAt: null },
       data: {
-        ...(clipData.url !== undefined ? { url: clipData.url } : {}),
+        ...(clipData.url !== undefined
+          ? { url: clipData.url, normalizedUrl: normalizeClipUrlIdentity(clipData.url) }
+          : {}),
         ...(clipData.title !== undefined ? { title: clipData.title } : {}),
         ...(clipData.content !== undefined ? { content: clipData.content } : {}),
         ...(clipData.summary !== undefined ? { summary: clipData.summary } : {}),

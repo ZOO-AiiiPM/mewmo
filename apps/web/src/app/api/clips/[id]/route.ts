@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@mewmo/db";
 import { addClipFetchJob, addSummaryJob } from "@mewmo/queue";
-import { updateClipSchema } from "@mewmo/shared";
+import { normalizeClipUrlIdentity, updateClipSchema } from "@mewmo/shared";
 import { auth } from "../../../../lib/auth";
 import { fetchClipFromUrl } from "../../../../lib/clip-fetch";
 
@@ -109,7 +109,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   const data = {
-    ...(parsed.data.url !== undefined ? { url: parsed.data.url } : {}),
+    ...(parsed.data.url !== undefined
+      ? { url: parsed.data.url, normalizedUrl: normalizeClipUrlIdentity(parsed.data.url) }
+      : {}),
     ...(parsed.data.title !== undefined ? { title: parsed.data.title } : {}),
     ...(parsed.data.content !== undefined ? { content: parsed.data.content } : {}),
     ...(parsed.data.summary !== undefined ? { summary: parsed.data.summary } : {}),

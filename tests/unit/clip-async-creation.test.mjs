@@ -59,3 +59,15 @@ test("clip pages insert durable responses immediately and reopen existing clips"
   assert.match(page, /fetchStatus !== "queued"[\s\S]*fetchStatus !== "fetching"[\s\S]*setInterval/,
     "queued clips should refresh without requiring a tab switch");
 });
+
+test("every clip URL write path maintains normalized identity", () => {
+  const detailRoute = read("apps/web/src/app/api/clips/[id]/route.ts");
+  const syncPush = read("apps/web/src/app/api/sync/push/route.ts");
+  assert.match(detailRoute, /parsed\.data\.url[\s\S]*normalizedUrl:\s*normalizeClipUrlIdentity\(parsed\.data\.url\)/,
+    "PATCH should update URL and normalized identity together");
+  assert.match(syncPush, /normalizeClipUrlIdentity/);
+  assert.match(syncPush, /normalizedUrl[\s\S]*prisma\.clip\.create/,
+    "sync-created clips should use the same per-user identity");
+  assert.match(syncPush, /clipData\.url[\s\S]*normalizedUrl:\s*normalizeClipUrlIdentity\(clipData\.url\)/,
+    "sync URL updates should maintain normalized identity");
+});
