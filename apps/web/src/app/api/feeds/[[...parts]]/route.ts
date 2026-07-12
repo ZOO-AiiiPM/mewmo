@@ -1,10 +1,11 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { createFeedSchema, discoverFeedSchema, feedTypeSchema, updateFeedSchema } from "@mewmo/shared";
 import { createFeedEntriesRepository, createFeedsRepository, getPrisma } from "@mewmo/db";
 import { addFeedFetchJob } from "@mewmo/queue";
 
 import { auth } from "../../../../lib/auth";
 import { discoverFeeds, FeedSearchProviderNotConfiguredError } from "../../../../lib/feed-discovery";
+import { fetchAndStoreFeed } from "../../../../lib/feed-fetch-service";
 
 interface FeedRouteParams {
   parts?: string[];
@@ -30,6 +31,18 @@ function cronAuthorized(request: Request) {
   return request.headers.get("authorization") === `Bearer ${secret}`;
 }
 
+const FEED_QUEUE_TIMEOUT_MS = 5_000;
+
+function scheduleWebFeedFetch(userId: string, feedId: string) {
+  after(async () => {
+    const feed = await requireFeed(userId, feedId);
+    if (!feed || feed.lastFetchStatus === "fetching" || feed.lastFetchStatus === "success") {
+      return;
+    }
+    await fetchAndStoreFeed(userId, feedId);
+  });
+}
+
 async function enqueueFeedFetch(feedId: string) {
   await getPrisma().feed.update({
     where: { id: feedId },
@@ -40,8 +53,14 @@ async function enqueueFeedFetch(feedId: string) {
     },
   });
 
+  let timeout: ReturnType<typeof setTimeout> | undefined;
   try {
-    await addFeedFetchJob({ feedId });
+    await Promise.race([
+      addFeedFetchJob({ feedId }),
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error("Feed queue submission timed out")), FEED_QUEUE_TIMEOUT_MS);
+      }),
+    ]);
     return true;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to queue feed fetch";
@@ -54,6 +73,8 @@ async function enqueueFeedFetch(feedId: string) {
       },
     });
     return false;
+  } finally {
+    if (timeout) clearTimeout(timeout);
   }
 }
 
@@ -108,7 +129,9 @@ export async function POST(request: Request, { params }: { params: Promise<FeedR
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const dueFeeds = (await createFeedsRepository().findDueForRefresh()) as Array<{ id: string }>;
+    const dueFeeds = (await createFeedsRepository().findDueForRefresh()) as Array<{
+      id: string;
+    }>;
     const queued = (await Promise.all(dueFeeds.map((feed) => enqueueFeedFetch(feed.id)))).filter(Boolean).length;
     return NextResponse.json({ checked: dueFeeds.length, queued });
   }
@@ -130,12 +153,36 @@ export async function POST(request: Request, { params }: { params: Promise<FeedR
         type: parsed.data.type,
         title: parsed.data.title,
         refreshInterval: parsed.data.refreshInterval,
-        ...(parsed.data.description !== undefined && { description: parsed.data.description }),
-        ...(parsed.data.favicon !== undefined && { favicon: parsed.data.favicon }),
+        ...(parsed.data.description !== undefined && {
+          description: parsed.data.description,
+        }),
+        ...(parsed.data.favicon !== undefined && {
+          favicon: parsed.data.favicon,
+        }),
       });
       const feedRecord = feed as Record<string, unknown> & { id: string };
+      scheduleWebFeedFetch(session.user.id, feedRecord.id);
       const queued = await enqueueFeedFetch(feedRecord.id);
-      return NextResponse.json({ ...feedRecord, lastFetchStatus: queued ? "queued" : "error", existing: false, queued }, { status: 201 });
+      if (!queued) {
+        await getPrisma().feed.update({
+          where: { id: feedRecord.id },
+          data: {
+            lastFetchStatus: "queued",
+            lastFetchError: null,
+            version: { increment: 1 },
+          },
+        });
+      }
+      return NextResponse.json(
+        {
+          ...feedRecord,
+          lastFetchStatus: "queued",
+          existing: false,
+          queued,
+          backgroundStarted: true,
+        },
+        { status: 201 },
+      );
     } catch (error) {
       if (isUniqueConstraintError(error)) {
         const existing = await getPrisma().feed.findFirst({
@@ -147,7 +194,9 @@ export async function POST(request: Request, { params }: { params: Promise<FeedR
         const active = existing.lastFetchStatus === "queued" || existing.lastFetchStatus === "fetching";
         const shouldRetry = existing.lastFetchStatus === "error" || existing.lastFetchStatus === "partial";
         const queued = active || (shouldRetry ? await enqueueFeedFetch(existing.id) : false);
-        return NextResponse.json({ ...existing, existing: true, queued }, { status: 200 });
+        const backgroundStarted = active || shouldRetry;
+        if (backgroundStarted) scheduleWebFeedFetch(session.user.id, existing.id);
+        return NextResponse.json({ ...existing, existing: true, queued, backgroundStarted }, { status: 200 });
       }
       throw error;
     }
@@ -160,7 +209,9 @@ export async function POST(request: Request, { params }: { params: Promise<FeedR
     }
 
     try {
-      return NextResponse.json({ results: await discoverFeeds(parsed.data.query) });
+      return NextResponse.json({
+        results: await discoverFeeds(parsed.data.query),
+      });
     } catch (error) {
       if (error instanceof FeedSearchProviderNotConfiguredError) {
         return NextResponse.json({ error: "Feed search provider is not configured" }, { status: 503 });
@@ -178,7 +229,11 @@ export async function POST(request: Request, { params }: { params: Promise<FeedR
     }
 
     const feeds = await getPrisma().feed.findMany({
-      where: { userId: session.user.id, deletedAt: null, ...(parsedType?.data ? { type: parsedType.data } : {}) },
+      where: {
+        userId: session.user.id,
+        deletedAt: null,
+        ...(parsedType?.data ? { type: parsedType.data } : {}),
+      },
       select: { id: true },
     });
 
@@ -226,9 +281,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<Feed
       ...(parsed.data.url !== undefined && { url: parsed.data.url }),
       ...(parsed.data.type !== undefined && { type: parsed.data.type }),
       ...(parsed.data.title !== undefined && { title: parsed.data.title }),
-      ...(parsed.data.description !== undefined && { description: parsed.data.description }),
-      ...(parsed.data.favicon !== undefined && { favicon: parsed.data.favicon }),
-      ...(parsed.data.refreshInterval !== undefined && { refreshInterval: parsed.data.refreshInterval }),
+      ...(parsed.data.description !== undefined && {
+        description: parsed.data.description,
+      }),
+      ...(parsed.data.favicon !== undefined && {
+        favicon: parsed.data.favicon,
+      }),
+      ...(parsed.data.refreshInterval !== undefined && {
+        refreshInterval: parsed.data.refreshInterval,
+      }),
       version: { increment: 1 },
     },
   });

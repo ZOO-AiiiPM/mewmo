@@ -43,9 +43,7 @@ describe("processFeedFetchJob", () => {
   });
 
   it("records fetching and success status while upserting entries incrementally", async () => {
-    upsertByFeedUrl
-      .mockResolvedValueOnce({ created: true, entry: { id: "entry-1" } })
-      .mockResolvedValueOnce({ created: false, entry: { id: "entry-2" } });
+    upsertByFeedUrl.mockResolvedValueOnce({ created: true, entry: { id: "entry-1" } }).mockResolvedValueOnce({ created: false, entry: { id: "entry-2" } });
 
     const result = await processFeedFetchJob(
       { feedId: "feed-1" },
@@ -55,7 +53,12 @@ describe("processFeedFetchJob", () => {
       },
     );
 
-    expect(result).toMatchObject({ status: "success", upserted: 2, created: 1, failed: 0 });
+    expect(result).toMatchObject({
+      status: "success",
+      upserted: 2,
+      created: 1,
+      failed: 0,
+    });
     expect(upsertByFeedUrl).toHaveBeenCalledTimes(2);
     expect(addSummaryJob).toHaveBeenCalledTimes(1);
     expect(addTagJob).toHaveBeenCalledTimes(1);
@@ -81,16 +84,11 @@ describe("processFeedFetchJob", () => {
   });
 
   it("continues after one entry fails, records partial status, and rejects for BullMQ retry", async () => {
-    upsertByFeedUrl
-      .mockRejectedValueOnce(new Error("entry write failed"))
-      .mockResolvedValueOnce({ created: true, entry: { id: "entry-2" } });
+    upsertByFeedUrl.mockRejectedValueOnce(new Error("entry write failed")).mockResolvedValueOnce({ created: true, entry: { id: "entry-2" } });
 
-    await expect(
-      processFeedFetchJob(
-        { feedId: "feed-1" },
-        { connection: {}, fetchFeed: async () => new Response(feedXml) },
-      ),
-    ).rejects.toThrow("1 feed entry failed");
+    await expect(processFeedFetchJob({ feedId: "feed-1" }, { connection: {}, fetchFeed: async () => new Response(feedXml) })).rejects.toThrow(
+      "1 feed entry failed",
+    );
 
     expect(upsertByFeedUrl).toHaveBeenCalledTimes(2);
     expect(update).toHaveBeenLastCalledWith({
@@ -106,12 +104,9 @@ describe("processFeedFetchJob", () => {
   });
 
   it("records feed-level errors before rejecting for retry", async () => {
-    await expect(
-      processFeedFetchJob(
-        { feedId: "feed-1" },
-        { fetchFeed: async () => new Response("unavailable", { status: 503 }) },
-      ),
-    ).rejects.toThrow("Feed fetch failed");
+    await expect(processFeedFetchJob({ feedId: "feed-1" }, { fetchFeed: async () => new Response("unavailable", { status: 503 }) })).rejects.toThrow(
+      "Feed fetch failed",
+    );
 
     expect(update).toHaveBeenLastCalledWith({
       where: { id: "feed-1" },
@@ -122,5 +117,20 @@ describe("processFeedFetchJob", () => {
         version: { increment: 1 },
       },
     });
+  });
+
+  it("stores at most the latest ten entries from one fetch", async () => {
+    const items = Array.from({ length: 11 }, (_, index) => `<item><title>Entry ${index}</title><link>https://example.com/${index}</link></item>`).join("");
+    upsertByFeedUrl.mockResolvedValue({ created: false, entry: {} });
+
+    const result = await processFeedFetchJob(
+      { feedId: "feed-1" },
+      {
+        fetchFeed: async () => new Response(`<rss><channel>${items}</channel></rss>`),
+      },
+    );
+
+    expect(result).toMatchObject({ status: "success", upserted: 10 });
+    expect(upsertByFeedUrl).toHaveBeenCalledTimes(10);
   });
 });

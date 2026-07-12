@@ -1,6 +1,6 @@
 import { Queue, type JobsOptions } from "bullmq";
 
-import { createRedisConnection } from "./client";
+import { createProducerRedisConnection } from "./client";
 
 export const queueNames = {
   tag: "tag-queue",
@@ -48,13 +48,23 @@ export interface QueueSet {
   embeddingQueue: AddableQueue<EmbeddingJobPayload>;
 }
 
-export function createMewmoQueues(connection: unknown = createRedisConnection()): QueueSet {
+export function createMewmoQueues(connection: unknown = createProducerRedisConnection()): QueueSet {
   return {
-    tagQueue: new Queue(queueNames.tag, { connection } as never) as AddableQueue<TagJobPayload>,
-    summaryQueue: new Queue(queueNames.summary, { connection } as never) as AddableQueue<SummaryJobPayload>,
-    feedFetchQueue: new Queue(queueNames.feedFetch, { connection } as never) as AddableQueue<FeedFetchJobPayload>,
-    clipFetchQueue: new Queue(queueNames.clipFetch, { connection } as never) as AddableQueue<ClipFetchJobPayload>,
-    embeddingQueue: new Queue(queueNames.embedding, { connection } as never) as AddableQueue<EmbeddingJobPayload>,
+    tagQueue: new Queue(queueNames.tag, {
+      connection,
+    } as never) as AddableQueue<TagJobPayload>,
+    summaryQueue: new Queue(queueNames.summary, {
+      connection,
+    } as never) as AddableQueue<SummaryJobPayload>,
+    feedFetchQueue: new Queue(queueNames.feedFetch, {
+      connection,
+    } as never) as AddableQueue<FeedFetchJobPayload>,
+    clipFetchQueue: new Queue(queueNames.clipFetch, {
+      connection,
+    } as never) as AddableQueue<ClipFetchJobPayload>,
+    embeddingQueue: new Queue(queueNames.embedding, {
+      connection,
+    } as never) as AddableQueue<EmbeddingJobPayload>,
   };
 }
 

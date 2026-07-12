@@ -12,6 +12,16 @@ describe("feed status copy", () => {
       text: "已添加订阅，后台同步启动失败",
       type: "error",
     });
+    expect(
+      getFeedAddToast({
+        existing: false,
+        queued: false,
+        backgroundStarted: true,
+      }),
+    ).toEqual({
+      text: "已添加订阅，正在后台同步",
+      type: "success",
+    });
     expect(getFeedAddToast({ existing: true, queued: false })).toEqual({
       text: "该订阅已经添加过",
       type: "success",

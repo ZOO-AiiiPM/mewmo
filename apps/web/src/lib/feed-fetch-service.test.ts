@@ -37,10 +37,58 @@ describe("fetchAndStoreFeed", () => {
     expect(DEFAULT_FEED_FETCH_LIMIT).toBe(10);
     expect(result).toMatchObject({ status: "ok", fetched: 10, created: 10 });
     expect(upsertByFeedUrl).toHaveBeenCalledTimes(10);
-    expect(upsertByFeedUrl).not.toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ title: "Post 11" }),
-    );
+    expect(upsertByFeedUrl).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ title: "Post 11" }));
+  });
+
+  it("continues storing later entries when one entry fails", async () => {
+    const feed = {
+      id: "feed-1",
+      userId: "user-1",
+      url: "https://example.com/feed.xml",
+      title: "Example Feed",
+      favicon: null,
+    };
+    const feedUpdate = vi.fn().mockResolvedValue({});
+    const upsertByFeedUrl = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("first entry failed"))
+      .mockResolvedValueOnce({ created: true, entry: { id: "entry-2" } });
+
+    const result = await fetchAndStoreFeed("user-1", "feed-1", {
+      prisma: {
+        feed: {
+          findFirst: vi.fn().mockResolvedValue(feed),
+          update: feedUpdate,
+        },
+      },
+      entryRepository: { upsertByFeedUrl },
+      fetchFeed: async () =>
+        new Response(`
+        <rss><channel>
+          <item><title>One</title><link>https://example.com/one</link></item>
+          <item><title>Two</title><link>https://example.com/two</link></item>
+        </channel></rss>
+      `),
+      fetchEntryPage: async () => ({ title: "Article", content: "<p>body</p>" }),
+    });
+
+    expect(upsertByFeedUrl).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({
+      status: "partial",
+      fetched: 2,
+      created: 1,
+      failed: 1,
+    });
+    expect(feedUpdate).toHaveBeenLastCalledWith({
+      where: { id: "feed-1" },
+      data: {
+        lastFetchedAt: expect.any(Date),
+        lastFetchStatus: "partial",
+        lastFetchError: "first entry failed",
+        lastFetchCount: 1,
+        version: { increment: 1 },
+      },
+    });
   });
 
   it("uses the original article page content instead of RSS summary when available", async () => {

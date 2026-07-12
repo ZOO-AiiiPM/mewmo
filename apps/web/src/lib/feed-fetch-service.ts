@@ -22,18 +22,21 @@ interface FeedFetchPrisma {
 }
 
 interface FeedEntryRepository {
-  upsertByFeedUrl(userId: string, input: {
-    feedId: string;
-    title: string;
-    url: string;
-    content: string;
-    summary?: string | undefined;
-    coverImage?: string | undefined;
-    excerpt?: string | undefined;
-    sourceName?: string | undefined;
-    author?: string | undefined;
-    publishedAt?: Date | undefined;
-  }): Promise<{ created: boolean; entry: unknown }>;
+  upsertByFeedUrl(
+    userId: string,
+    input: {
+      feedId: string;
+      title: string;
+      url: string;
+      content: string;
+      summary?: string | undefined;
+      coverImage?: string | undefined;
+      excerpt?: string | undefined;
+      sourceName?: string | undefined;
+      author?: string | undefined;
+      publishedAt?: Date | undefined;
+    },
+  ): Promise<{ created: boolean; entry: unknown }>;
 }
 
 interface FetchAndStoreFeedDeps {
@@ -46,17 +49,14 @@ interface FetchAndStoreFeedDeps {
 }
 
 export interface FeedFetchResult {
-  status: "ok" | "skipped" | "error";
+  status: "ok" | "skipped" | "partial" | "error";
   fetched: number;
   created: number;
+  failed?: number;
   error?: string;
 }
 
-export async function fetchAndStoreFeed(
-  userId: string,
-  feedId: string,
-  deps: FetchAndStoreFeedDeps = {},
-): Promise<FeedFetchResult> {
+export async function fetchAndStoreFeed(userId: string, feedId: string, deps: FetchAndStoreFeedDeps = {}): Promise<FeedFetchResult> {
   const prisma = deps.prisma ?? getPrisma();
   const entryRepository = deps.entryRepository ?? createFeedEntriesRepository();
   const fetchFeed = deps.fetchFeed ?? fetch;
@@ -86,8 +86,7 @@ export async function fetchAndStoreFeed(
       signal: AbortSignal.timeout(15_000),
       headers: {
         accept: "application/rss+xml,application/atom+xml,application/xml,text/xml,*/*;q=0.8",
-        "user-agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36",
       },
     });
     if (!response.ok) {
@@ -96,41 +95,52 @@ export async function fetchAndStoreFeed(
 
     const entries = parseFeedXml(await response.text(), limit);
     let created = 0;
+    const failures: string[] = [];
     for (const entry of entries) {
-      const page = await fetchEntryPage(entry.url).catch(() => null);
-      const title = chooseEntryTitle(entry.title, page?.title);
-      const normalized = normalizeFeedEntryContent({
-        title,
-        url: entry.url,
-        content: page?.content ?? entry.content,
-      });
-      const result = await entryRepository.upsertByFeedUrl(userId, {
-        feedId: feed.id,
-        title,
-        url: entry.url,
-        content: normalized.content,
-        ...(page?.summary ?? normalized.excerpt ? { summary: page?.summary ?? normalized.excerpt } : {}),
-        ...(page?.coverImage ?? normalized.coverImage ? { coverImage: page?.coverImage ?? normalized.coverImage } : {}),
-        ...(normalized.excerpt ? { excerpt: normalized.excerpt } : {}),
-        sourceName: page?.sourceName ?? feed.title,
-        ...(page?.author ?? entry.author ? { author: page?.author ?? entry.author } : {}),
-        ...(page?.publishedAt ?? entry.publishedAt ? { publishedAt: page?.publishedAt ?? entry.publishedAt } : {}),
-      });
-      if (result.created) created += 1;
+      try {
+        const page = await fetchEntryPage(entry.url).catch(() => null);
+        const title = chooseEntryTitle(entry.title, page?.title);
+        const normalized = normalizeFeedEntryContent({
+          title,
+          url: entry.url,
+          content: page?.content ?? entry.content,
+        });
+        const result = await entryRepository.upsertByFeedUrl(userId, {
+          feedId: feed.id,
+          title,
+          url: entry.url,
+          content: normalized.content,
+          ...((page?.summary ?? normalized.excerpt) ? { summary: page?.summary ?? normalized.excerpt } : {}),
+          ...((page?.coverImage ?? normalized.coverImage) ? { coverImage: page?.coverImage ?? normalized.coverImage } : {}),
+          ...(normalized.excerpt ? { excerpt: normalized.excerpt } : {}),
+          sourceName: page?.sourceName ?? feed.title,
+          ...((page?.author ?? entry.author) ? { author: page?.author ?? entry.author } : {}),
+          ...((page?.publishedAt ?? entry.publishedAt) ? { publishedAt: page?.publishedAt ?? entry.publishedAt } : {}),
+        });
+        if (result.created) created += 1;
+      } catch (error) {
+        failures.push(error instanceof Error ? error.message : "Feed entry processing failed");
+      }
     }
 
+    const status = failures.length > 0 ? "partial" : "success";
     await prisma.feed.update({
       where: { id: feed.id },
       data: {
         lastFetchedAt: now(),
-        lastFetchStatus: "success",
-        lastFetchError: null,
+        lastFetchStatus: status,
+        lastFetchError: failures[0] ?? null,
         lastFetchCount: created,
         version: { increment: 1 },
       },
     });
 
-    return { status: "ok", fetched: entries.length, created };
+    return {
+      status: failures.length > 0 ? "partial" : "ok",
+      fetched: entries.length,
+      created,
+      failed: failures.length,
+    };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Feed fetch failed";
     await prisma.feed.update({
@@ -153,10 +163,7 @@ function chooseEntryTitle(feedTitle: string, pageTitle: string | null | undefine
   if (!cleanFeedTitle) return cleanPageTitle;
 
   const suffix = cleanPageTitle.slice(cleanFeedTitle.length).trim();
-  if (
-    cleanPageTitle.startsWith(cleanFeedTitle) &&
-    /^[-|｜_·•—–:：]\s*\S+/.test(suffix)
-  ) {
+  if (cleanPageTitle.startsWith(cleanFeedTitle) && /^[-|｜_·•—–:：]\s*\S+/.test(suffix)) {
     return cleanFeedTitle;
   }
 

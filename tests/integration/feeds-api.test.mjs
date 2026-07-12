@@ -36,6 +36,18 @@ function authedFetch(path, opts = {}) {
   });
 }
 
+async function waitForFeedEntries(feedId, timeoutMs = 15_000) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    const res = await authedFetch(`/api/feeds/${feedId}/entries`);
+    assert.equal(res.status, 200);
+    const entries = await res.json();
+    if (entries.length > 0) return entries;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  return [];
+}
+
 test("Feeds API", async (t) => {
   await login();
 
@@ -63,11 +75,10 @@ test("Feeds API", async (t) => {
     assert.ok(feeds.some((feed) => feed.id === createdFeedId), "created feed should be listed");
   });
 
-  await t.test("GET /api/feeds/[id]/entries returns an array", async () => {
-    const res = await authedFetch(`/api/feeds/${createdFeedId}/entries`);
-    assert.equal(res.status, 200);
-    const entries = await res.json();
-    assert.ok(Array.isArray(entries), "response should be an array");
+  await t.test("response-after first fetch stores the first entry promptly", async () => {
+    const entries = await waitForFeedEntries(createdFeedId);
+    assert.ok(entries.length > 0, "the first feed entry should appear without waiting for the 60-second scheduler");
+    assert.equal(entries[0].title, "Example Article");
     createdEntryId = entries[0]?.id ?? "";
   });
 
