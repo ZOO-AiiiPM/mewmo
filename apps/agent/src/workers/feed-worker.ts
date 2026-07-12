@@ -15,6 +15,8 @@ interface FeedWorkerDeps {
   fetchFeed?: (url: string) => Promise<Response>;
 }
 
+class PartialFeedFetchError extends Error {}
+
 export async function processFeedFetchJob(payload: FeedFetchJobPayload, deps: FeedWorkerDeps = {}) {
   const prisma = getPrisma();
   const feed = await prisma.feed.findFirst({
@@ -22,48 +24,89 @@ export async function processFeedFetchJob(payload: FeedFetchJobPayload, deps: Fe
   });
 
   if (!feed) {
-    return { status: "skipped", reason: "feed_not_found", upserted: 0, created: 0 };
-  }
-
-  const fetchFeed = deps.fetchFeed ?? fetch;
-  const response = await fetchFeed(feed.url);
-  if (!response.ok) {
-    throw new Error(`Feed fetch failed for ${feed.id}: ${response.status} ${response.statusText}`);
-  }
-
-  const entries = parseFeedXml(await response.text());
-  const entryRepo = createFeedEntriesRepository();
-  const connection = deps.connection;
-  const queueHelpers = connection ? createQueueHelpers(createMewmoQueues(connection)) : null;
-
-  let created = 0;
-  for (const entry of entries) {
-    const result = await entryRepo.upsertByFeedUrl(feed.userId, {
-      feedId: feed.id,
-      title: entry.title,
-      url: entry.url,
-      content: entry.content,
-      ...(entry.summary !== undefined && { summary: entry.summary }),
-      ...(entry.author !== undefined && { author: entry.author }),
-      ...(entry.publishedAt !== undefined && { publishedAt: entry.publishedAt }),
-    });
-
-    if (result.created) {
-      created += 1;
-      const savedEntry = result.entry as { id?: string };
-      if (queueHelpers && savedEntry.id) {
-        await queueHelpers.addSummaryJob({ userId: feed.userId, targetId: savedEntry.id, targetType: "feed_entry" });
-        await queueHelpers.addTagJob({ userId: feed.userId, taggableId: savedEntry.id, taggableType: "feed_entry" });
-      }
-    }
+    return { status: "skipped", reason: "feed_not_found", upserted: 0, created: 0, failed: 0 };
   }
 
   await prisma.feed.update({
     where: { id: feed.id },
-    data: { lastFetchedAt: new Date(), version: { increment: 1 } },
+    data: {
+      lastFetchStartedAt: new Date(),
+      lastFetchStatus: "fetching",
+      lastFetchError: null,
+      version: { increment: 1 },
+    },
   });
 
-  return { status: "ok", upserted: entries.length, created };
+  try {
+    const fetchFeed = deps.fetchFeed ?? fetch;
+    const response = await fetchFeed(feed.url);
+    if (!response.ok) {
+      throw new Error(`Feed fetch failed for ${feed.id}: ${response.status} ${response.statusText}`);
+    }
+
+    const entries = parseFeedXml(await response.text());
+    const entryRepo = createFeedEntriesRepository();
+    const connection = deps.connection;
+    const queueHelpers = connection ? createQueueHelpers(createMewmoQueues(connection)) : null;
+
+    let created = 0;
+    const failures: string[] = [];
+    for (const entry of entries) {
+      try {
+        const result = await entryRepo.upsertByFeedUrl(feed.userId, {
+          feedId: feed.id,
+          title: entry.title,
+          url: entry.url,
+          content: entry.content,
+          ...(entry.summary !== undefined && { summary: entry.summary }),
+          ...(entry.author !== undefined && { author: entry.author }),
+          ...(entry.publishedAt !== undefined && { publishedAt: entry.publishedAt }),
+        });
+
+        if (result.created) {
+          created += 1;
+          const savedEntry = result.entry as { id?: string };
+          if (queueHelpers && savedEntry.id) {
+            await queueHelpers.addSummaryJob({ userId: feed.userId, targetId: savedEntry.id, targetType: "feed_entry" });
+            await queueHelpers.addTagJob({ userId: feed.userId, taggableId: savedEntry.id, taggableType: "feed_entry" });
+          }
+        }
+      } catch (error) {
+        failures.push(error instanceof Error ? error.message : "Feed entry processing failed");
+      }
+    }
+
+    const status = failures.length > 0 ? "partial" : "success";
+    await prisma.feed.update({
+      where: { id: feed.id },
+      data: {
+        lastFetchedAt: new Date(),
+        lastFetchStatus: status,
+        lastFetchError: failures[0] ?? null,
+        lastFetchCount: created,
+        version: { increment: 1 },
+      },
+    });
+
+    if (failures.length > 0) {
+      throw new PartialFeedFetchError(`${failures.length} feed entry failed: ${failures[0]}`);
+    }
+
+    return { status, upserted: entries.length, created, failed: 0 };
+  } catch (error) {
+    if (error instanceof PartialFeedFetchError) throw error;
+    const message = error instanceof Error ? error.message : "Feed fetch failed";
+    await prisma.feed.update({
+      where: { id: feed.id },
+      data: {
+        lastFetchStatus: "error",
+        lastFetchError: message,
+        lastFetchCount: 0,
+        version: { increment: 1 },
+      },
+    });
+    throw error;
+  }
 }
 
 export function createFeedWorker(connection: unknown = createRedisConnection()) {
