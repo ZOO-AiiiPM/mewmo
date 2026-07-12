@@ -136,8 +136,9 @@ model NoteShare {
 
 model Clip {
   id          String    @id @default(cuid())
-  url         String
-  title       String
+  url           String
+  normalizedUrl String?   @map("normalized_url")
+  title         String
   content     String    @default("")
   summary     String?
   favicon     String?
@@ -146,6 +147,9 @@ model Clip {
   sourceName  String?   @map("source_name")
   author      String?
   publishedAt DateTime? @map("published_at")
+  fetchStatus String    @default("idle") @map("fetch_status")
+  fetchError  String?   @map("fetch_error")
+  fetchedAt   DateTime? @map("fetched_at")
   version     Int       @default(1)
   userId      String    @map("user_id")
   createdAt   DateTime  @default(now()) @map("created_at")
@@ -155,6 +159,7 @@ model Clip {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   knowledgeItems KnowledgeItem[]
 
+  @@unique([userId, normalizedUrl])
   @@index([userId, deletedAt, updatedAt])
   @@map("clips")
 }
