@@ -2027,43 +2027,21 @@ test("note metadata tags open the prototype tag picker popover", () => {
   );
 });
 
-test("clip creation data normalizes optional fetched metadata for Prisma", () => {
+test("clip creation persists optional metadata safely before background extraction", () => {
   const clipRoute = read("apps/web/src/app/api/clips/route.ts");
+  const refreshRoute = read("apps/web/src/app/api/clips/[id]/route.ts");
 
+  for (const field of ["summary", "favicon", "coverImage", "excerpt", "sourceName", "author", "publishedAt"]) {
+    assert.match(
+      clipRoute,
+      new RegExp(`${field}:\\s*parsed\\.data\\.${field}\\s*\\?\\?\\s*null`),
+      `${field} should be a concrete value or null before background extraction`,
+    );
+  }
   assert.match(
-    clipRoute,
-    /summary:\s*fetched\?\.summary\s*\?\?\s*parsed\.data\.summary\s*\?\?\s*null/,
-    "clip create data should pass string or null for summary, never undefined",
-  );
-  assert.match(
-    clipRoute,
-    /favicon:\s*fetched\?\.favicon\s*\?\?\s*parsed\.data\.favicon\s*\?\?\s*null/,
-    "clip create data should pass string or null for favicon, never undefined",
-  );
-  assert.match(
-    clipRoute,
-    /coverImage:\s*fetched\?\.coverImage\s*\?\?\s*parsed\.data\.coverImage\s*\?\?\s*null/,
-    "clip create data should store the extracted article cover image separately",
-  );
-  assert.match(
-    clipRoute,
-    /excerpt:\s*fetched\?\.excerpt\s*\?\?\s*parsed\.data\.excerpt\s*\?\?\s*null/,
-    "clip create data should store a useful body excerpt for list previews",
-  );
-  assert.match(
-    clipRoute,
-    /sourceName:\s*fetched\?\.sourceName\s*\?\?\s*parsed\.data\.sourceName\s*\?\?\s*null/,
-    "clip create data should store the extracted or supplied article source separately",
-  );
-  assert.match(
-    clipRoute,
-    /author:\s*fetched\?\.author\s*\?\?\s*parsed\.data\.author\s*\?\?\s*null/,
-    "clip create data should store the extracted or supplied article author separately",
-  );
-  assert.match(
-    clipRoute,
-    /publishedAt:\s*fetched\?\.publishedAt\s*\?\?\s*parsed\.data\.publishedAt\s*\?\?\s*null/,
-    "clip create data should store article publication time separately from creation time",
+    refreshRoute,
+    /const data = normalizeRefreshData\(fetched\)/,
+    "background extraction should normalize fetched metadata before the Prisma update",
   );
 });
 
@@ -2347,50 +2325,24 @@ test("clip add button pre-fills copied links from the clipboard", () => {
   );
 });
 
-test("clip refresh pulls the source again and reports changed versus unchanged toast states", () => {
+test("clip refresh queues background work and reports queued versus changed states", () => {
   const clipRoute = read("apps/web/src/app/api/clips/[id]/route.ts");
   const clipsIndex = read("apps/web/src/app/(app)/clips/page.tsx");
-  const clipDetail = read(
-    "apps/web/src/app/(app)/clips/[id]/ClipDetailClient.tsx",
-  );
+  const clipDetail = read("apps/web/src/app/(app)/clips/[id]/ClipDetailClient.tsx");
 
-  assert.match(
-    clipRoute,
-    /export async function POST/,
-    "clip detail route should expose a refresh action without overloading ordinary metadata PATCH",
-  );
-  assert.match(
-    clipRoute,
-    /fetchClipFromUrl\(clip\.url\)/,
-    "refresh should re-fetch the saved clip URL on the server",
-  );
-  assert.match(
-    clipRoute,
-    /changed:\s*false/,
-    "refresh response should explicitly report unchanged clips",
-  );
-  assert.match(
-    clipRoute,
-    /changed:\s*true/,
-    "refresh response should explicitly report changed clips",
-  );
+  assert.match(clipRoute, /export async function POST/);
+  assert.match(clipRoute, /!background[\s\S]*addClipFetchJob/,
+    "user refresh should enqueue background extraction");
+  assert.match(clipRoute, /background[\s\S]*fetchClipFromUrl\(clip\.url\)/,
+    "the authenticated background path should fetch the source");
+  assert.match(clipRoute, /changed:\s*hasClipChanged\(clip, data\)/,
+    "completed extraction should report whether stored content changed");
 
   for (const source of [clipsIndex, clipDetail]) {
-    assert.match(
-      source,
-      /showToast\("正在检查更新\.\.\.",\s*"loading"\)/,
-      "refresh should show a loading toast while fetching the source",
-    );
-    assert.match(
-      source,
-      /showToast\(data\.changed \? "已拉取最新内容" : "已是最新"/,
-      "refresh should finish with a clear changed-or-unchanged toast",
-    );
-    assert.match(
-      source,
-      /fetch\(`\/api\/clips\/\$\{[^}]+\.id\}`,\s*\{\s*method:\s*"POST"/,
-      "clip refresh actions should call the per-clip refresh endpoint",
-    );
+    assert.match(source, /showToast\("正在检查更新\.\.\.",\s*"loading"\)/);
+    assert.match(source, /data\.queued \? "已开始后台抓取"/,
+      "refresh UI should acknowledge queued work instead of claiming content is already current");
+    assert.match(source, /fetch\(`\/api\/clips\/\$\{[^}]+\.id\}`,\s*\{\s*method:\s*"POST"/);
   }
 });
 

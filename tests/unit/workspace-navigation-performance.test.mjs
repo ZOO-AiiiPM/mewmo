@@ -58,7 +58,7 @@ test("clip readers distinguish a pending body from a confirmed empty body", () =
   const renderer = read("apps/web/src/components/clips/ClipContentRenderer.tsx");
 
   assert.match(page, /isSelectedClipLoading/);
-  assert.match(page, /loading=\{isSelectedClipLoading\}/);
+  assert.match(page, /loading=\{isSelectedClipLoading[^}]*\}/);
   assert.match(renderer, /loading\?: boolean/);
   assert.match(renderer, /正在加载正文/);
 });
