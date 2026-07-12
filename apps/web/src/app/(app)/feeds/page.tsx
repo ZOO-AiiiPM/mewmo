@@ -11,6 +11,7 @@ import {
 } from "react";
 
 import { ClipContentRenderer } from "../../../components/clips/ClipContentRenderer";
+import { VideoWorkspace } from "../../../components/video/VideoWorkspace";
 import { ListColumn } from "../../../components/shell/ListColumn";
 import {
   PrototypeIcon,
@@ -61,7 +62,7 @@ const feedTypes: Array<{
 }> = [
   { type: "article", label: "文章", icon: "doc" },
   { type: "media", label: "媒体", icon: "media" },
-  { type: "video", label: "视频", icon: "video", deferred: true },
+  { type: "video", label: "视频", icon: "video" },
   { type: "podcast", label: "播客", icon: "mic", deferred: true },
 ];
 
@@ -124,6 +125,14 @@ interface DiscoverCandidate {
 }
 
 export default function FeedsPage() {
+  const searchParams = useSearchParams();
+  const type = parseFeedType(searchParams.get("type")) ?? "article";
+
+  if (type === "video") return <VideoWorkspace />;
+  return <ArticleMediaFeedsPage />;
+}
+
+function ArticleMediaFeedsPage() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
