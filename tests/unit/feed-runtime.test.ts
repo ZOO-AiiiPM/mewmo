@@ -103,7 +103,10 @@ describe("feed queue runtime", () => {
     const result = await enqueueFeedFetch(state.id, { prisma, addJob, now: () => now });
 
     expect(result).toMatchObject({ queued: true, status: "queued", fallbackRequired: false });
-    expect(addJob).toHaveBeenCalledTimes(1);
+    expect(addJob).toHaveBeenCalledWith(
+      { feedId: state.id },
+      { jobId: `feed-fetch-${state.id}-${now.getTime()}` },
+    );
     expect(state.lastFetchStartedAt).toBe(now);
   });
 

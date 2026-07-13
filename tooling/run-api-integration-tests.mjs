@@ -172,7 +172,7 @@ async function main() {
     await waitForHttp(`${baseUrl}/login`);
     await registerTestUser();
     accountCreated = true;
-    await run("node", ["--test", "tests/integration/*.test.mjs"]);
+    await run("pnpm", ["exec", "tsx", "--test", "tests/integration/*.test.mjs"]);
   } finally {
     if (accountCreated) {
       await cleanupTestUser().catch((error) => {

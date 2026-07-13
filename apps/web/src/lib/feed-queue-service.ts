@@ -67,7 +67,10 @@ export async function enqueueFeedFetch(feedId: string, deps: EnqueueFeedFetchDep
   if (claim.count === 0) return currentFeedQueueState(feedId, prisma);
 
   try {
-    await timeout(addJob({ feedId }), FEED_QUEUE_TIMEOUT_MS, "Feed queue submission timed out");
+    await timeout(addJob(
+      { feedId },
+      { jobId: `feed-fetch-${feedId}-${startedAt.getTime()}` },
+    ), FEED_QUEUE_TIMEOUT_MS, "Feed queue submission timed out");
     return { queued: true, status: "queued", startedAt, fallbackRequired: false };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to queue feed fetch";
