@@ -27,17 +27,11 @@ export async function waitForFirstFeedEntry(feed: FeedFirstEntry, timeoutMs = 15
     const requestLimitMs = Math.min(requestTimeoutMs, remainingMs);
     try {
       const [entriesResponse, feedResponse] = await Promise.all([
-        fetchWithTimeout(`/api/feed-entries?${params.toString()}`, requestLimitMs, fetcher),
-        fetchWithTimeout(`/api/feeds/${feed.id}`, requestLimitMs, fetcher),
+        fetchJsonWithTimeout<unknown[]>(`/api/feed-entries?${params.toString()}`, requestLimitMs, fetcher),
+        fetchJsonWithTimeout<{ lastFetchStatus?: string }>(`/api/feeds/${feed.id}`, requestLimitMs, fetcher),
       ]);
-      if (entriesResponse.ok) {
-        const entries = (await entriesResponse.json()) as unknown[];
-        if (entries.length > 0) return true;
-      }
-      if (feedResponse.ok) {
-        const status = (await feedResponse.json()) as { lastFetchStatus?: string };
-        if (status.lastFetchStatus === "error" || status.lastFetchStatus === "partial") return false;
-      }
+      if (entriesResponse.ok && Array.isArray(entriesResponse.value) && entriesResponse.value.length > 0) return true;
+      if (feedResponse.ok && (feedResponse.value?.lastFetchStatus === "error" || feedResponse.value?.lastFetchStatus === "partial")) return false;
     } catch {
       // A transient polling failure is handled by the same bounded timeout.
     }
@@ -50,12 +44,15 @@ export async function waitForFirstFeedEntry(feed: FeedFirstEntry, timeoutMs = 15
   return false;
 }
 
-async function fetchWithTimeout(url: string, timeoutMs: number, fetcher: typeof fetch) {
+async function fetchJsonWithTimeout<T>(url: string, timeoutMs: number, fetcher: typeof fetch) {
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     return await Promise.race([
-      fetcher(url, { signal: controller.signal }),
+      fetcher(url, { signal: controller.signal }).then(async (response) => ({
+        ok: response.ok,
+        value: response.ok ? ((await response.json()) as T) : null,
+      })),
       new Promise<never>((_, reject) => {
         timer = setTimeout(() => {
           controller.abort();

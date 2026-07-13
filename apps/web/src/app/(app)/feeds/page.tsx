@@ -14,7 +14,8 @@ import { useReaderToolbarTitleVisibility } from "../../../components/shell/useRe
 import { FloatingMenuButton, FloatingMenuLink, PopoverMenu } from "../../../components/ui/FloatingMenu";
 import { useToast } from "../../../components/ui/ToastProvider";
 import { clipPreviewText, formatClipListTime } from "../../../lib/clip-card";
-import { failedFeedUrls, feedAddOutcome, selectAllFeedUrls, toggleFeedUrl, type FeedAddOutcomeStatus } from "../../../lib/feed-add-selection";
+import { submitFeedAddBatch } from "../../../lib/feed-add-batch";
+import { selectAllFeedUrls, toggleFeedUrl, type FeedAddOutcomeStatus } from "../../../lib/feed-add-selection";
 import { buildFeedCardMeta, buildFeedReaderMeta } from "../../../lib/feed-display";
 import { FEED_ENTRY_REQUEST_TIMEOUT_MS, waitForFirstFeedEntry } from "../../../lib/feed-first-entry";
 import { getFeedAddToast, getFeedEmptyState, isFeedSyncActive } from "../../../lib/feed-status";
@@ -699,8 +700,7 @@ function AddFeedModal({
     setSaving(true);
     showToast(`正在添加 ${candidates.length} 个订阅...`, "loading");
 
-    const settled = await Promise.allSettled(
-      candidates.map(async (candidate) => {
+    const batch = await submitFeedAddBatch(candidates, async (candidate) => {
         const response = await fetch("/api/feeds", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -714,28 +714,10 @@ function AddFeedModal({
         });
         if (!response.ok) throw new Error("add");
         return (await response.json()) as FeedSource;
-      }),
-    );
-
-    const outcomes: Record<string, FeedAddOutcomeStatus> = {};
-    const persistedFeeds: FeedSource[] = [];
-    const savedFeeds: FeedSource[] = [];
-    settled.forEach((result, index) => {
-      const candidate = candidates[index]!;
-      if (result.status === "fulfilled") {
-        persistedFeeds.push(result.value);
-        const outcome = feedAddOutcome(result.value);
-        outcomes[candidate.url] = outcome;
-        if (outcome !== "failed") {
-          savedFeeds.push(result.value);
-        }
-      } else {
-        outcomes[candidate.url] = "failed";
-      }
     });
+    const { outcomes, persistedFeeds, savedFeeds, failedUrls: failed } = batch;
 
     setAddOutcomes(outcomes);
-    const failed = failedFeedUrls(outcomes);
     setSelectedUrls(failed);
 
     if (candidates.length === 1 && persistedFeeds.length === 1 && failed.length === 0) {

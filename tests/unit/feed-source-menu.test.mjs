@@ -247,6 +247,7 @@ test("add-feed search row aligns the input and search button to one baseline", (
 
 test("add-feed discovery supports explicit Enter submission and batch selection", () => {
   const page = read("apps/web/src/app/(app)/feeds/page.tsx");
+  const batch = read("apps/web/src/lib/feed-add-batch.ts");
 
   assert.match(
     page,
@@ -256,6 +257,6 @@ test("add-feed discovery supports explicit Enter submission and batch selection"
   assert.match(page, /type="checkbox"/, "discovery cards should expose checkbox selection");
   assert.match(page, /全选[\s\S]*取消全选/, "batch selection should offer select-all and clear-all actions");
   assert.match(page, /添加所选订阅/, "the primary action should describe batch creation");
-  assert.match(page, /Promise\.allSettled/, "each selected source should settle independently");
-  assert.match(page, /failedFeedUrls/, "partial failures should remain selected for retry");
+  assert.match(batch, /Promise\.allSettled/, "each selected source should settle independently");
+  assert.match(batch, /failedFeedUrls/, "partial failures should remain selected for retry");
 });

@@ -1,6 +1,6 @@
 export type FeedAddOutcomeStatus = "added" | "existing" | "failed";
 
-interface FeedAddResult {
+export interface FeedAddResult {
   existing?: boolean;
   queued?: boolean;
   backgroundStarted?: boolean;

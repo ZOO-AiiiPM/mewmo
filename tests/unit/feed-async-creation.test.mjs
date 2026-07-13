@@ -6,19 +6,22 @@ const read = (path) => readFileSync(path, "utf8");
 
 test("feed creation persists status and queues first fetch without synchronous article work", () => {
   const route = read("apps/web/src/app/api/feeds/[[...parts]]/route.ts");
+  const queueService = read("apps/web/src/lib/feed-queue-service.ts");
   const client = read("packages/queue/src/client.ts");
 
-  assert.match(route, /addFeedFetchJob/, "feed routes should enqueue through the shared queue contract");
+  assert.match(queueService, /addFeedFetchJob/, "feed routes should enqueue through the shared queue contract");
   const afterStart = route.indexOf("after(async () =>");
   const fetchStart = route.indexOf("await fetchAndStoreFeed");
   assert.ok(afterStart >= 0 && fetchStart > afterStart, "article collection must run inside the response-after callback, not the request path");
-  assert.match(route, /lastFetchStatus:\s*"queued"/, "newly persisted feeds should expose queued status before returning");
+  assert.match(queueService, /lastFetchStatus:\s*"queued"/, "newly persisted feeds should expose queued status before returning");
   assert.match(route, /existing:\s*false,\s*queued/, "successful queue submission should be explicit in the response");
   assert.match(route, /existing:\s*(?:true|false)/, "callers should be able to distinguish existing feeds from new records");
-  assert.match(route, /withTimeout\(addFeedFetchJob\([\s\S]*FEED_QUEUE_TIMEOUT_MS/, "queue submission must have a request-level timeout after persistence");
-  assert.match(route, /if\s*\(!queueResult\.queued\)[\s\S]*scheduleWebFeedFetch/, "feed creation should start the Web fallback only after queue submission fails");
+  assert.match(queueService, /timeout\(addJob\([\s\S]*FEED_QUEUE_TIMEOUT_MS/, "queue submission must have a request-level timeout after persistence");
+  assert.match(route, /if\s*\(queueResult\.fallbackRequired\)[\s\S]*scheduleWebFeedFetch/, "feed creation should start the Web fallback only after queue submission fails");
   assert.match(route, /claimStatuses:\s*\["error"\][\s\S]*allowStaleTakeover:\s*false/, "Web fallback must claim only the queue failure and never active work");
-  assert.match(route, /lastFetchStatus:\s*queueResult\.queued \? "queued" : "error"/, "queue failure must remain an error for retryable UI feedback");
+  assert.match(route, /lastFetchStatus:\s*queueResult\.status/, "queue response must preserve the actual claimed owner state");
+  assert.match(queueService, /lastFetchStatus:\s*\{ notIn:\s*\["queued", "fetching"\]\s*\}/, "active work must not be reset before queue submission");
+  assert.match(queueService, /lastFetchStatus:\s*"queued",[\s\S]*lastFetchStartedAt:\s*startedAt/, "queue failure writes must be guarded by the attempt lease");
   assert.doesNotMatch(route, /if \(!queued\)[\s\S]*lastFetchStatus:\s*"queued"/, "queue failure must not be rewritten back to queued");
   assert.match(client, /maxRetriesPerRequest:\s*\d+/, "HTTP producers must not keep retrying Redis forever when the queue is unavailable");
 });
