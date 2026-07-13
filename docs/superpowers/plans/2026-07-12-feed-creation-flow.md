@@ -26,8 +26,8 @@
 ### Task 2: Worker progress and entry isolation
 
 **Files:**
-- Modify: `apps/agent/src/workers/feed-worker.test.ts`
-- Modify: `apps/agent/src/workers/feed-worker.ts`
+- Modify: `apps/worker/src/workers/feed-worker.test.ts`
+- Modify: `apps/worker/src/workers/feed-worker.ts`
 
 - [x] Add failing tests for fetching status, success status, partial entry failure, and terminal feed failure.
 - [x] Run Agent worker tests and confirm expected failures.

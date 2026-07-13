@@ -15,8 +15,8 @@
 - `pnpm build`: PASS with one-time dummy env values for required production env vars. Next.js still warns that `middleware` should migrate to `proxy`.
 - `pnpm --filter @mewmo/web build`: PASS with the same dummy env values.
 - `pnpm --filter @mewmo/sync test -- --run`: PASS, 2 tests.
-- `pnpm --filter @mewmo/agent test -- --run`: PASS, 2 parser tests.
-- `pnpm --filter @mewmo/agent build`: PASS.
+- `pnpm --filter @mewmo/worker test -- --run`: PASS, 2 parser tests.
+- `pnpm --filter @mewmo/worker build`: PASS.
 - API smoke: Notes, Clips, Feeds, and Sync smoke tests passed against the local dev server and `zoo@mewmo.app` test user.
 - Browser smoke: Local login reached `/notes`; `/notes`, `/clips`, and `/feeds` rendered the new shell without horizontal overflow. Deferred toast, list search input, and clip URL input were exercised.
 - Worker smoke: Parser tests and agent build passed. A live queue-backed RSS fetch against an external feed was not completed in this verification pass.

@@ -25,7 +25,7 @@
 
 2. **创建所有 apps 和 packages 空壳**（各含 `package.json` + `tsconfig.json` + `src/index.ts` 占位）：
    - `apps/web` — Next.js 16 App Router（`create-next-app` 初始化）
-   - `apps/agent` — Node.js worker（纯 TS，`src/index.ts` 打印 "worker ready"）
+   - `apps/worker` — Node.js worker（纯 TS，`src/index.ts` 打印 "worker ready"）
    - `apps/admin` — Next.js（占位，`src/app/page.tsx` 显示 "Admin"）
    - `apps/extension` — 占位目录
    - `packages/db` — Prisma 初始化（空 schema）
@@ -62,7 +62,7 @@
 ### 验收标准
 
 - [ ] `pnpm install` 零报错
-- [ ] `pnpm dev` 同时启动 web（localhost:3000）+ agent
+- [ ] `pnpm dev` 同时启动 web（localhost:3000）+ worker
 - [ ] `pnpm lint && pnpm build` 通过
 - [ ] Docker Compose Postgres + Redis 能连接
 - [ ] 所有 package 之间 `@mewmo/xxx` 引用能 resolve
@@ -209,7 +209,7 @@
 
 **前置依赖**：Agent 2 完成（需要队列和数据库）
 **分支**：`2.0`
-**文件边界**：`packages/ai/`、`apps/agent/`
+**文件边界**：`packages/ai/`、`apps/worker/`
 
 ### 目标
 
@@ -228,12 +228,12 @@
    - `auto-tag.ts` — 输入内容 + 用户标签池 → 输出 1-3 个标签 ID（用小模型）
    - `chat.ts` — 对话 chain（带上下文注入：当前内容、历史消息）
 
-3. **`apps/agent/src/workers/`**：
+3. **`apps/worker/src/workers/`**：
    - `tag-worker.ts` — 消费 tag-queue，调 auto-tag chain，结果写入 taggables 表
    - `summary-worker.ts` — 消费 summary-queue，调 summarize chain，结果写入对应记录的 summary 字段
    - `feed-worker.ts` — 消费 feed-fetch-queue，HTTP 拉取 feed XML/JSON，解析后写入 feed_entries，然后给新条目入 summary-queue + tag-queue
 
-4. **`apps/agent/src/jobs/`**：
+4. **`apps/worker/src/jobs/`**：
    - `feed-fetch.ts` — cron 每 1 小时，查所有 feeds 表中 `lastFetchedAt < now - refreshInterval` 的源，入 feed-fetch-queue
 
 5. **`apps/web/src/app/api/chat/route.ts`**：
@@ -249,7 +249,7 @@
 
 ### 验收标准
 
-- [ ] `pnpm --filter @mewmo/agent dev` 启动后打印 "workers ready"
+- [ ] `pnpm --filter @mewmo/worker dev` 启动后打印 "workers ready"
 - [ ] 手动往 tag-queue 塞任务 → worker 消费 → 正确打标签
 - [ ] 手动往 feed-fetch-queue 塞任务 → worker 拉取真实 RSS 源 → 写入 feed_entries
 - [ ] `POST /api/chat` 流式返回 AI 回复
@@ -273,7 +273,7 @@ Week 4:  验收 + 修 bug + 部署上线
 | 服务 | 平台 | 配置 |
 |------|------|------|
 | Web | Vercel | 连接 GitHub repo，root = `apps/web` |
-| Agent worker | Railway | Docker，root = `apps/agent` |
+| Worker | Railway | Docker，root = `apps/worker` |
 | PostgreSQL | Neon | 创建 project，拿 connection string |
 | Redis | Upstash | 创建 database，拿 REDIS_URL |
 | 文件存储 | Cloudflare R2 | 创建 bucket `mewmo-files` |

@@ -41,9 +41,9 @@
 ### Task 3: Background extraction worker
 
 **Files:**
-- Create: `apps/agent/src/workers/clip-worker.ts`
-- Create: `apps/agent/src/workers/clip-worker.test.ts`
-- Modify: `apps/agent/src/index.ts`
+- Create: `apps/worker/src/workers/clip-worker.ts`
+- Create: `apps/worker/src/workers/clip-worker.test.ts`
+- Modify: `apps/worker/src/index.ts`
 - Modify: `apps/web/src/app/api/clips/[id]/route.ts`
 
 - [x] Write failing worker and route contract tests for authorization, status transitions, extraction update, summary enqueue, and retry errors.

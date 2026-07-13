@@ -405,7 +405,7 @@ May edit:
 - `packages/db/src/repositories/feeds.ts`
 - `packages/db/src/repositories/feed-entries.ts`
 - `packages/queue/**`
-- `apps/agent/**`
+- `apps/worker/**`
 
 Must coordinate before editing:
 

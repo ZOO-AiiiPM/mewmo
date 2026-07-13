@@ -163,7 +163,7 @@ async function main() {
     await run("pnpm", ["db:generate"]);
     await run("pnpm", ["db:push"]); // pnpm db:push
     fixtureServer = await startFixtureServer();
-    agent = spawnCommand("pnpm", ["--filter", "@mewmo/agent", "dev"], { detached: true });
+    agent = spawnCommand("pnpm", ["--filter", "@mewmo/worker", "dev"], { detached: true });
     web = spawnCommand(
       "pnpm",
       ["--filter", "@mewmo/web", "dev", "--hostname", "127.0.0.1", "--port", webPort],

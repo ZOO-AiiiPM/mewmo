@@ -39,8 +39,8 @@ test("clip background refresh is authenticated and records extraction state", ()
   assert.match(route, /addSummaryJob/);
 });
 
-test("Agent starts the clip fetch worker", () => {
-  const index = read("apps/agent/src/index.ts");
+test("Worker starts the clip fetch worker", () => {
+  const index = read("apps/worker/src/index.ts");
   assert.match(index, /createClipWorker\(\)/);
 });
 
