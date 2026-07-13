@@ -2,6 +2,7 @@ import { getPrisma } from "@mewmo/db";
 import { addFeedFetchJob, withTimeout } from "@mewmo/queue";
 
 const FEED_QUEUE_TIMEOUT_MS = 5_000;
+const STALE_FETCH_MS = 60_000;
 
 interface FeedQueuePrisma {
   feed: {
@@ -43,11 +44,18 @@ export async function enqueueFeedFetch(feedId: string, deps: EnqueueFeedFetchDep
   const addJob = deps.addJob ?? addFeedFetchJob;
   const timeout = deps.timeout ?? withTimeout;
   const startedAt = (deps.now ?? (() => new Date()))();
+  const staleBefore = new Date(startedAt.getTime() - STALE_FETCH_MS);
   const claim = await prisma.feed.updateMany({
     where: {
       id: feedId,
       deletedAt: null,
-      lastFetchStatus: { notIn: ["queued", "fetching"] },
+      OR: [
+        { lastFetchStatus: { notIn: ["queued", "fetching"] } },
+        {
+          lastFetchStatus: { in: ["queued", "fetching"] },
+          OR: [{ lastFetchStartedAt: null }, { lastFetchStartedAt: { lt: staleBefore } }],
+        },
+      ],
     },
     data: {
       lastFetchStatus: "queued",

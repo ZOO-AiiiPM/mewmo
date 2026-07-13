@@ -15,13 +15,16 @@ interface FeedState {
 }
 
 function matchesWhere(state: FeedState, where: Record<string, unknown>): boolean {
+  if (where.OR) return (where.OR as Array<Record<string, unknown>>).some((condition) => matchesWhere(state, condition));
   if (where.id && where.id !== state.id) return false;
   const status = where.lastFetchStatus;
   if (typeof status === "string" && status !== state.lastFetchStatus) return false;
   if (status && typeof status === "object") {
-    const filter = status as { notIn?: string[] };
+    const filter = status as { in?: string[]; notIn?: string[] };
+    if (filter.in && !filter.in.includes(state.lastFetchStatus)) return false;
     if (filter.notIn?.includes(state.lastFetchStatus)) return false;
   }
+  if (where.lastFetchStartedAt === null && state.lastFetchStartedAt !== null) return false;
   const startedAt = where.lastFetchStartedAt as { lt?: Date } | Date | undefined;
   if (startedAt instanceof Date && state.lastFetchStartedAt?.getTime() !== startedAt.getTime()) return false;
   if (startedAt && !(startedAt instanceof Date) && startedAt.lt && !(state.lastFetchStartedAt && state.lastFetchStartedAt < startedAt.lt)) return false;
@@ -71,14 +74,59 @@ describe("feed queue runtime", () => {
     const { prisma, updateMany } = createPrisma(state, []);
     const addJob = vi.fn(async () => ({ id: "job-1" }));
 
-    const first = await enqueueFeedFetch(state.id, { prisma, addJob });
-    const second = await enqueueFeedFetch(state.id, { prisma, addJob });
+    const now = new Date("2026-07-13T00:00:30.000Z");
+    const first = await enqueueFeedFetch(state.id, { prisma, addJob, now: () => now });
+    const second = await enqueueFeedFetch(state.id, { prisma, addJob, now: () => now });
 
     expect(first).toMatchObject({ queued: true, status: "fetching", fallbackRequired: false });
     expect(second).toMatchObject({ queued: true, status: "fetching", fallbackRequired: false });
     expect(addJob).not.toHaveBeenCalled();
     expect(updateMany).toHaveBeenCalledTimes(2);
     expect(state.lastFetchStartedAt).toEqual(new Date("2026-07-13T00:00:00.000Z"));
+  });
+
+  it("reclaims a stale fetching lease and submits a new job", async () => {
+    const state: FeedState = {
+      id: "feed-1",
+      userId: "user-1",
+      url: "https://example.com/feed.xml",
+      lastFetchStatus: "fetching",
+      lastFetchStartedAt: new Date("2026-07-13T00:00:00.000Z"),
+      lastFetchError: null,
+      lastFetchedAt: null,
+      lastFetchCount: 0,
+    };
+    const { prisma } = createPrisma(state, []);
+    const addJob = vi.fn(async () => ({ id: "job-2" }));
+    const now = new Date("2026-07-13T00:02:00.000Z");
+
+    const result = await enqueueFeedFetch(state.id, { prisma, addJob, now: () => now });
+
+    expect(result).toMatchObject({ queued: true, status: "queued", fallbackRequired: false });
+    expect(addJob).toHaveBeenCalledTimes(1);
+    expect(state.lastFetchStartedAt).toBe(now);
+  });
+
+  it("claims a queued feed with no lease timestamp and submits a new job", async () => {
+    const state: FeedState = {
+      id: "feed-1",
+      userId: "user-1",
+      url: "https://example.com/feed.xml",
+      lastFetchStatus: "queued",
+      lastFetchStartedAt: null,
+      lastFetchError: null,
+      lastFetchedAt: null,
+      lastFetchCount: 0,
+    };
+    const { prisma } = createPrisma(state, []);
+    const addJob = vi.fn(async () => ({ id: "job-3" }));
+    const now = new Date("2026-07-13T00:02:00.000Z");
+
+    const result = await enqueueFeedFetch(state.id, { prisma, addJob, now: () => now });
+
+    expect(result).toMatchObject({ queued: true, status: "queued", fallbackRequired: false });
+    expect(addJob).toHaveBeenCalledTimes(1);
+    expect(state.lastFetchStartedAt).toBe(now);
   });
 
   it("persists a Web fallback after a queue rejection", async () => {
