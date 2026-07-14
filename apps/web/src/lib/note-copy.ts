@@ -9,6 +9,11 @@ export interface NoteCopyPayload {
   html: string;
 }
 
+export interface NoteClipboard {
+  write?: (items: ClipboardItem[]) => Promise<void>;
+  writeText: (text: string) => Promise<void>;
+}
+
 export function buildNoteCopyPayload({
   title,
   markdown,
@@ -27,6 +32,25 @@ export function buildNoteCopyPayload({
     plainText,
     html: `<article><h1>${escapeHtml(normalizedTitle)}</h1>${body}</article>`,
   };
+}
+
+export async function copyNoteToClipboard(
+  payload: NoteCopyPayload,
+  clipboard: NoteClipboard | undefined,
+  ClipboardItemConstructor: typeof ClipboardItem | undefined,
+) {
+  if (!clipboard) throw new Error("Clipboard is unavailable");
+
+  if (clipboard.write && ClipboardItemConstructor) {
+    const item = new ClipboardItemConstructor({
+      "text/plain": new Blob([payload.plainText], { type: "text/plain" }),
+      "text/html": new Blob([payload.html], { type: "text/html" }),
+    });
+    await clipboard.write([item]);
+    return;
+  }
+
+  await clipboard.writeText(payload.plainText);
 }
 
 function renderBlock(block: SharedNoteMarkdownBlock): string {

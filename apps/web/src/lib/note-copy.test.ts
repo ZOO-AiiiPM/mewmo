@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { buildNoteCopyPayload } from "./note-copy";
+import { buildNoteCopyPayload, copyNoteToClipboard } from "./note-copy";
 
 describe("note copy payload", () => {
   it("copies the title as a heading and normalizes html break tags", () => {
@@ -60,5 +60,55 @@ const value = 1;
     expect(unsafe.html).toContain("<h1>&lt;标题&gt;</h1>");
     expect(unsafe.html).toContain("&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;");
     expect(unsafe.html).not.toContain("<script>");
+  });
+});
+
+describe("note clipboard writer", () => {
+  it("writes plain text and html in one clipboard item", async () => {
+    let formats: Record<string, Blob> | undefined;
+    class FakeClipboardItem {
+      constructor(items: Record<string, Blob>) {
+        formats = items;
+      }
+    }
+    const write = vi.fn(async () => undefined);
+    const writeText = vi.fn(async () => undefined);
+
+    await copyNoteToClipboard(
+      { plainText: "# 标题", html: "<h1>标题</h1>" },
+      { write, writeText },
+      FakeClipboardItem as unknown as typeof ClipboardItem,
+    );
+
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(writeText).not.toHaveBeenCalled();
+    expect(await formats?.["text/plain"]?.text()).toBe("# 标题");
+    expect(await formats?.["text/html"]?.text()).toBe("<h1>标题</h1>");
+  });
+
+  it("falls back to writeText when multi-format clipboard is unavailable", async () => {
+    const writeText = vi.fn(async () => undefined);
+
+    await copyNoteToClipboard(
+      { plainText: "# 标题", html: "<h1>标题</h1>" },
+      { writeText },
+      undefined,
+    );
+
+    expect(writeText).toHaveBeenCalledWith("# 标题");
+  });
+
+  it("rejects clipboard failures", async () => {
+    await expect(
+      copyNoteToClipboard(
+        { plainText: "# 标题", html: "<h1>标题</h1>" },
+        {
+          writeText: async () => {
+            throw new Error("denied");
+          },
+        },
+        undefined,
+      ),
+    ).rejects.toThrow("denied");
   });
 });
