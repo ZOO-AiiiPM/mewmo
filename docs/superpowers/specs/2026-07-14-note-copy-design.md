@@ -31,9 +31,9 @@ The plain-text representation is:
 
 The title is a Markdown level-one heading, and the body keeps Markdown syntax so Markdown editors can render headings, emphasis, lists, links, code, and tables. HTML break tags written as `<br>`, `<br/>`, or `<br />` are normalized to real newline characters before the text is copied. Leading and trailing blank space is trimmed without changing internal Markdown structure.
 
-The HTML representation contains an escaped `<h1>` title followed by HTML serialized from the existing safe shared-note Markdown block model. The serializer supports the structures already represented by `parseSharedNoteMarkdown`: headings, paragraphs, blockquotes, ordered and unordered lists, fenced code, safe images, tables, strong text, emphasis, inline code, safe links, and inline images.
+The HTML representation contains an escaped `<h1>` title followed by HTML serialized from the existing safe shared-note Markdown block model. The serializer supports the structures already represented by `parseSharedNoteMarkdown`: headings, paragraphs, blockquotes, ordered and unordered lists, fenced code, safe images, tables, strong text, emphasis, inline code, safe links, and inline images. Recognized `<br>` variants are the sole raw-HTML exception: they become normalized `<br>` elements so rich-text destinations keep the intended hard line breaks.
 
-Raw HTML in note Markdown remains text. It is escaped rather than inserted as executable markup. Safe URL checks continue to live in the existing parser, so the clipboard serializer does not create a second, weaker URL policy.
+All other raw HTML in note Markdown remains text. It is escaped rather than inserted as executable markup. Safe URL checks continue to live in the existing parser, so the clipboard serializer does not create a second, weaker URL policy.
 
 ## Components
 
