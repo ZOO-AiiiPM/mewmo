@@ -32,6 +32,10 @@ import {
   noteTagPalette,
 } from "../../../../lib/note-list-preview";
 import {
+  buildNoteCopyPayload,
+  copyNoteToClipboard,
+} from "../../../../lib/note-copy";
+import {
   buildNoteToc,
 } from "../../../../lib/note-toc";
 import {
@@ -416,6 +420,27 @@ export function NoteEditorPage({
     }
   };
 
+  const copyCurrentNote = async () => {
+    if (!selectedNote) return;
+
+    try {
+      const payload = buildNoteCopyPayload({
+        title: selectedNote.title,
+        markdown: editorContent,
+      });
+      const ClipboardItemConstructor =
+        typeof ClipboardItem === "undefined" ? undefined : ClipboardItem;
+      await copyNoteToClipboard(
+        payload,
+        navigator.clipboard,
+        ClipboardItemConstructor,
+      );
+      showToast("已复制全文", "success");
+    } catch {
+      showToast("复制全文失败", "error");
+    }
+  };
+
   const updateSelectedNoteContent = useCallback(
     (content: string) => {
       if (!selectedNote) return;
@@ -584,6 +609,7 @@ export function NoteEditorPage({
           onDelete={selectedNote ? () => void deleteNote(currentToolbarNote) : undefined}
           onTogglePin={selectedNote ? () => void togglePin(currentToolbarNote) : undefined}
           onShare={selectedNote ? () => void shareNote(currentToolbarNote) : undefined}
+          onCopyContent={selectedNote ? () => void copyCurrentNote() : undefined}
           onExport={selectedNote ? () => showToast("已导出 Markdown 文件", "success") : undefined}
         />
         <ReaderToc
