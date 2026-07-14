@@ -41,7 +41,9 @@ test("clip background refresh is authenticated and records extraction state", ()
 
 test("Worker starts the clip fetch worker", () => {
   const index = read("apps/worker/src/index.ts");
-  assert.match(index, /createClipWorker\(\)/);
+  const runtime = read("apps/worker/src/runtime.ts");
+  assert.match(index, /startWorkerRuntime\(\)/);
+  assert.match(runtime, /createClipWorker\(\)/);
 });
 
 test("shared clip URL input awaits persistence and prevents duplicate submission", () => {

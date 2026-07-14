@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { loadEnv } from "./env";
+import { loadEnv, loadRedisEnv, loadWorkerEnv } from "./env";
 
 const validEnv = {
   DATABASE_URL: "postgresql://mewmo:mewmo@localhost:5432/mewmo_dev",
@@ -84,5 +84,63 @@ describe("loadEnv", () => {
 
   it("throws when required env values are missing", () => {
     expect(() => loadEnv({})).toThrow("Invalid environment");
+  });
+});
+
+describe("scoped environment loaders", () => {
+  it("loads Redis config without requiring Web-only secrets", () => {
+    expect(loadRedisEnv({ REDIS_URL: "rediss://default:secret@example.upstash.io:6379" })).toEqual({
+      REDIS_URL: "rediss://default:secret@example.upstash.io:6379",
+    });
+  });
+
+  it("loads Worker config from the feed refresh base URL", () => {
+    const env = loadWorkerEnv({
+      DATABASE_URL: "postgresql://db.example/mewmo",
+      REDIS_URL: "rediss://default:secret@example.upstash.io:6379",
+      FEED_REFRESH_BASE_URL: "https://mewmo.vercel.app",
+      FEED_CRON_SECRET: "cron-secret",
+      OPENAI_API_KEY: "openai-key",
+      AI_SUMMARY_MODEL: "summary-model",
+    });
+
+    expect(env.FEED_REFRESH_BASE_URL).toBe("https://mewmo.vercel.app");
+  });
+
+  it("falls back to NEXTAUTH_URL for local Worker execution", () => {
+    const env = loadWorkerEnv({
+      DATABASE_URL: "postgresql://db.example/mewmo",
+      REDIS_URL: "redis://localhost:6379",
+      NEXTAUTH_URL: "http://localhost:3000",
+      OPENAI_API_KEY: "openai-key",
+      AI_SUMMARY_MODEL: "summary-model",
+    });
+
+    expect(env.FEED_REFRESH_BASE_URL).toBe("http://localhost:3000");
+  });
+
+  it("rejects production Worker config without the cron secret", () => {
+    expect(() =>
+      loadWorkerEnv({
+        NODE_ENV: "production",
+        DATABASE_URL: "postgresql://db.example/mewmo",
+        REDIS_URL: "rediss://default:secret@example.upstash.io:6379",
+        FEED_REFRESH_BASE_URL: "https://mewmo.vercel.app",
+        OPENAI_API_KEY: "openai-key",
+        AI_SUMMARY_MODEL: "summary-model",
+      }),
+    ).toThrow("FEED_CRON_SECRET");
+  });
+
+  it("does not require Web-only auth, storage, or email variables", () => {
+    expect(() =>
+      loadWorkerEnv({
+        DATABASE_URL: "postgresql://db.example/mewmo",
+        REDIS_URL: "rediss://default:secret@example.upstash.io:6379",
+        FEED_REFRESH_BASE_URL: "https://mewmo.vercel.app",
+        OPENAI_API_KEY: "openai-key",
+        AI_SUMMARY_MODEL: "summary-model",
+      }),
+    ).not.toThrow();
   });
 });
