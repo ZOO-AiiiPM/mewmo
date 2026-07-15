@@ -20,4 +20,10 @@ describe("note markdown break normalization", () => {
       normalizeNoteMarkdownBreaks("```html\n<br />\n```\n\n正文<br />下一行"),
     ).toBe("```html\n<br />\n```\n\n正文  \n下一行");
   });
+
+  it("keeps shorter fence-like lines and breaks inside a longer fence literal", () => {
+    expect(
+      normalizeNoteMarkdownBreaks("````html\n```\n<br />\n````\n\n正文"),
+    ).toBe("````html\n```\n<br />\n````\n\n正文");
+  });
 });

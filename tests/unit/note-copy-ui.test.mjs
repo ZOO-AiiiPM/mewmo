@@ -18,12 +18,13 @@ test("note page copies the current title and unsaved editor content", () => {
   const page = read("apps/web/src/app/(app)/notes/[slug]/NoteEditorPage.tsx");
   assert.match(
     page,
-    /buildNoteCopyMarkdown\(\{[\s\S]*title: selectedNote\.title[\s\S]*markdown: editorContent/,
+    /buildNoteCopyMarkdown\(\{[\s\S]*title: selectedNote\.title[\s\S]*markdown: selectedNote\.content/,
   );
+  assert.doesNotMatch(page, /const \[editorContent, setEditorContent\]/);
   assert.match(page, /copyNoteMarkdownToClipboard\(/);
   assert.match(page, /showToast\("已复制全文", "success"\)/);
   assert.match(page, /showToast\("复制全文失败", "error"\)/);
-  assert.match(page, /onCopyContent=\{selectedNote/);
+  assert.match(page, /onCopyContent=\{[\s\S]*selectedNote\?\.content !== undefined/);
 });
 
 test("all note reader surfaces copy current local markdown", () => {
