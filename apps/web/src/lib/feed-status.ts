@@ -2,8 +2,9 @@ type ToastType = "success" | "loading" | "error";
 
 interface FeedCreationStatus {
   existing?: boolean;
-  queued?: boolean;
-  backgroundStarted?: boolean;
+  initialFetch?: {
+    status: "queued" | "error";
+  };
 }
 
 interface FeedEmptyStateInput {
@@ -37,13 +38,13 @@ export function getFeedAddToast(feed: FeedCreationStatus): {
   text: string;
   type: ToastType;
 } {
-  if (feed.existing && !feed.queued) {
+  if (feed.existing) {
     return { text: "该订阅已经添加过", type: "success" };
   }
-  if (!feed.queued && !feed.backgroundStarted) {
-    return { text: "已添加订阅，后台同步启动失败", type: "error" };
+  if (feed.initialFetch?.status === "error") {
+    return { text: "订阅已保存，后台会自动重试", type: "error" };
   }
-  return { text: "已添加订阅，正在后台同步", type: "success" };
+  return { text: "已添加订阅，后台会继续补全", type: "success" };
 }
 
 export function getFeedEmptyState({ feedId, selectedFeed, feedsLoaded = true, now = new Date() }: FeedEmptyStateInput): FeedEmptyState {

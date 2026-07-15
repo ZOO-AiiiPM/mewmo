@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { parseFeedXml } from "./feed";
+import { fetchFeedDocument, parseFeedXml } from "./feed";
 
 describe("parseFeedXml", () => {
   it("maps RSS descriptions to excerpt without creating an AI summary", () => {
@@ -62,5 +62,27 @@ describe("parseFeedXml", () => {
     `);
 
     expect(entry?.content).toContain('<a href="https://example.com/one">');
+  });
+
+  it("fetches a feed with a bounded request and parses the response", async () => {
+    const fetchFeed = vi.fn().mockResolvedValue(new Response(`
+      <rss><channel><item>
+        <title>One</title>
+        <link>https://example.com/one</link>
+        <description>Publisher description</description>
+      </item></channel></rss>
+    `));
+
+    const entries = await fetchFeedDocument("https://example.com/feed.xml", { fetchFeed });
+
+    expect(fetchFeed).toHaveBeenCalledWith(
+      "https://example.com/feed.xml",
+      expect.objectContaining({
+        redirect: "follow",
+        signal: expect.any(AbortSignal),
+        headers: expect.objectContaining({ accept: expect.stringContaining("application/rss+xml") }),
+      }),
+    );
+    expect(entries[0]).toMatchObject({ title: "One", excerpt: "Publisher description" });
   });
 });

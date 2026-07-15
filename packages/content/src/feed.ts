@@ -18,6 +18,34 @@ const parser = new XMLParser({
   trimValues: true,
 });
 
+const DEFAULT_FEED_FETCH_TIMEOUT_MS = 15_000;
+
+interface FetchFeedDocumentOptions {
+  fetchFeed?: typeof fetch;
+  timeoutMs?: number;
+}
+
+export async function fetchFeedDocument(
+  url: string,
+  options: FetchFeedDocumentOptions = {},
+): Promise<ParsedFeedEntry[]> {
+  const response = await (options.fetchFeed ?? fetch)(url, {
+    redirect: "follow",
+    signal: AbortSignal.timeout(options.timeoutMs ?? DEFAULT_FEED_FETCH_TIMEOUT_MS),
+    headers: {
+      accept: "application/rss+xml,application/atom+xml,application/xml,text/xml,*/*;q=0.8",
+      "user-agent":
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Feed fetch failed: ${response.status} ${response.statusText}`);
+  }
+
+  return parseFeedXml(await response.text());
+}
+
 function asArray<T>(value: T | T[] | undefined): T[] {
   if (value === undefined) return [];
   return Array.isArray(value) ? value : [value];

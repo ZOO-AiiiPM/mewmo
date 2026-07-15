@@ -18,8 +18,7 @@ import { clipPreviewText, formatClipListTime } from "../../../lib/clip-card";
 import { submitFeedAddBatch } from "../../../lib/feed-add-batch";
 import { selectAllFeedUrls, toggleFeedUrl, type FeedAddOutcomeStatus } from "../../../lib/feed-add-selection";
 import { buildFeedCardMeta, buildFeedReaderMeta } from "../../../lib/feed-display";
-import { FEED_ENTRY_REQUEST_TIMEOUT_MS, waitForFirstFeedEntry } from "../../../lib/feed-first-entry";
-import { getFeedAddToast, getFeedEmptyState, isFeedSyncActive } from "../../../lib/feed-status";
+import { getFeedAddToast, getFeedEmptyState } from "../../../lib/feed-status";
 import { proxiedImageUrl } from "../../../lib/image-proxy";
 import { buildHtmlToc } from "../../../lib/note-toc";
 import {
@@ -63,8 +62,12 @@ interface FeedSource {
   lastFetchCount?: number;
   lastFetchStartedAt?: string | null;
   existing?: boolean;
-  queued?: boolean;
-  backgroundStarted?: boolean;
+  initialFetch?: {
+    status: "queued" | "error";
+    fetched: number;
+    created: number;
+    error?: string;
+  };
 }
 
 interface FeedEntry {
@@ -128,7 +131,6 @@ export default function FeedsPage() {
   const [loading, setLoading] = useState(() => initialEntries === null);
   const [feedsLoaded, setFeedsLoaded] = useState(() => initialFeeds !== null);
   const [error, setError] = useState("");
-  const [syncNow, setSyncNow] = useState(() => Date.now());
   const [swapKey, setSwapKey] = useState(`${type}:${feedId ?? "all"}`);
   const feedsRequestRef = useRef(0);
   const entriesRequestRef = useRef(0);
@@ -159,8 +161,8 @@ export default function FeedsPage() {
   const selectedEntryToc = useMemo(() => buildHtmlToc(selectedEntry?.content ?? ""), [selectedEntry?.content]);
   const { setContentContext } = useAISidebarContext();
   const emptyState = useMemo(
-    () => getFeedEmptyState({ feedId: effectiveFeedId, selectedFeed, feedsLoaded, now: new Date(syncNow) }),
-    [effectiveFeedId, feedsLoaded, selectedFeed, syncNow],
+    () => getFeedEmptyState({ feedId: effectiveFeedId, selectedFeed, feedsLoaded }),
+    [effectiveFeedId, feedsLoaded, selectedFeed],
   );
 
   const updateParams = useCallback(
@@ -275,28 +277,6 @@ export default function FeedsPage() {
   }, [effectiveFeedId, loadEntries, type]);
 
   useEffect(() => {
-    const status = selectedFeed?.lastFetchStatus;
-    const startedAt = selectedFeed?.lastFetchStartedAt;
-    const isActive = () => isFeedSyncActive(status, startedAt, new Date());
-    if (!isActive()) {
-      setSyncNow(Date.now());
-      return;
-    }
-
-    const timer = window.setInterval(() => {
-      const now = Date.now();
-      setSyncNow(now);
-      if (!isFeedSyncActive(status, startedAt, new Date(now))) {
-        window.clearInterval(timer);
-        return;
-      }
-      void Promise.all([loadFeeds(), loadEntries()]);
-    }, 1000);
-
-    return () => window.clearInterval(timer);
-  }, [loadEntries, loadFeeds, selectedFeed?.lastFetchStartedAt, selectedFeed?.lastFetchStatus]);
-
-  useEffect(() => {
     const refreshAfterSourceUpdate = (event: Event) => {
       const detail = (event as CustomEvent<{ feedId?: string; type?: FeedType }>).detail;
       if (detail?.type !== type) return;
@@ -363,7 +343,7 @@ export default function FeedsPage() {
         checked?: number;
       } | null;
       if (!response.ok || (effectiveFeedId && !data?.queued)) throw new Error("refresh");
-      showToast("已开始后台同步", "success");
+      showToast("已安排更新，后台定时任务会处理", "success");
       await Promise.all([loadFeeds(), loadEntries()]);
     } catch {
       showToast("检查订阅更新失败", "error");
@@ -733,19 +713,7 @@ function AddFeedModal({
 
     if (candidates.length === 1 && persistedFeeds.length === 1 && failed.length === 0) {
       const feed = persistedFeeds[0]!;
-      onAdded([feed], false);
-      const firstArticleReady =
-        feed.existing && !feed.backgroundStarted
-          ? true
-          : await waitForFirstFeedEntry(feed, 15_000, { requestTimeoutMs: FEED_ENTRY_REQUEST_TIMEOUT_MS });
       setSaving(false);
-      if (!firstArticleReady) {
-        setAddOutcomes({ [feed.url]: "failed" });
-        setSelectedUrls([feed.url]);
-        onAdded([feed], false);
-        showToast("订阅已保存，但首篇文章同步超时，可重试", "error");
-        return;
-      }
       setSelectedUrls([]);
       onAdded([feed], true);
       const toast = getFeedAddToast(feed);
@@ -762,7 +730,13 @@ function AddFeedModal({
       const toast = getFeedAddToast(savedFeeds[0]!);
       showToast(toast.text, toast.type);
     } else {
-      showToast(`已处理 ${savedFeeds.length} 个订阅，正在后台同步`, "success");
+      const initialFailures = savedFeeds.filter((feed) => feed.initialFetch?.status === "error").length;
+      showToast(
+        initialFailures > 0
+          ? `已保存 ${savedFeeds.length} 个订阅，${initialFailures} 个会在后台自动重试`
+          : `已处理 ${savedFeeds.length} 个订阅，后台会继续补全`,
+        initialFailures > 0 ? "error" : "success",
+      );
     }
   };
 
