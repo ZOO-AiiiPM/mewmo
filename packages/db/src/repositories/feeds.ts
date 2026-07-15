@@ -69,16 +69,35 @@ export function createFeedsRepository(client: unknown = getPrisma()) {
       });
     },
 
-    findDueForRefresh(now = new Date()) {
+    findDueForRefresh(now = new Date(), limit = 50) {
+      const retryBefore = new Date(now.getTime() - 5 * 60_000);
       return db.$queryRaw(Prisma.sql`
         SELECT *
         FROM feeds
         WHERE deleted_at IS NULL
           AND (
-            last_fetched_at IS NULL
-            OR last_fetched_at <= ${now}::timestamp - (refresh_interval * interval '1 second')
+            last_fetch_status = 'queued'
+            OR (
+              last_fetch_status IN ('idle', 'success')
+              AND (
+                last_fetched_at IS NULL
+                OR last_fetched_at <= ${now}::timestamp - (refresh_interval * interval '1 second')
+              )
+            )
+            OR (
+              last_fetch_status IN ('error', 'partial')
+              AND (
+                last_fetch_started_at IS NULL
+                OR last_fetch_started_at <= ${retryBefore}
+              )
+            )
+            OR (
+              last_fetch_status = 'fetching'
+              AND last_fetch_started_at <= ${retryBefore}
+            )
           )
-        ORDER BY COALESCE(last_fetched_at, created_at) ASC
+        ORDER BY COALESCE(last_fetch_started_at, last_fetched_at, created_at) ASC
+        LIMIT ${limit}
       `);
     },
 

@@ -36,13 +36,21 @@ describe("repositories", () => {
     });
   });
 
-  it("finds feeds due for refresh through a user-safe query", async () => {
+  it("finds queued, due, retryable, and stale feeds in a bounded batch", async () => {
     const queryRaw = vi.fn().mockResolvedValue([]);
     const repo = createFeedsRepository({ $queryRaw: queryRaw });
 
-    await repo.findDueForRefresh(new Date("2026-06-25T08:00:00.000Z"));
+    await repo.findDueForRefresh(new Date("2026-06-25T08:00:00.000Z"), 50);
 
     expect(queryRaw).toHaveBeenCalledTimes(1);
+    const query = queryRaw.mock.calls[0]?.[0] as { strings?: string[]; values?: unknown[] };
+    const sql = query.strings?.join(" ") ?? "";
+    expect(sql).toContain("last_fetch_status = 'queued'");
+    expect(sql).toContain("last_fetch_status IN ('idle', 'success')");
+    expect(sql).toContain("last_fetch_status IN ('error', 'partial')");
+    expect(sql).toContain("last_fetch_status = 'fetching'");
+    expect(sql).toContain("LIMIT");
+    expect(query.values).toContain(50);
   });
 
   it("lists feeds by type with unread counts", async () => {
@@ -75,6 +83,28 @@ describe("repositories", () => {
       where: { id: "entry-1", userId: "user-1", deletedAt: null },
       data: { readAt, version: { increment: 1 } },
     });
+  });
+
+  it("does not write summary while refreshing feed source fields", async () => {
+    const upsert = vi.fn().mockResolvedValue({ id: "entry-1", summary: "AI result" });
+    const repo = createFeedEntriesRepository({
+      feedEntry: {
+        findFirst: vi.fn().mockResolvedValue({ id: "entry-1" }),
+        upsert,
+      },
+    });
+
+    await repo.upsertSourceByFeedUrl("user-1", {
+      feedId: "feed-1",
+      title: "Updated title",
+      url: "https://example.com/one",
+      content: "Updated body",
+      excerpt: "Publisher description",
+    });
+
+    const args = upsert.mock.calls[0]?.[0] as { create: Record<string, unknown>; update: Record<string, unknown> };
+    expect(args.create.summary).toBeNull();
+    expect(args.update).not.toHaveProperty("summary");
   });
 
   it("lists feed entries across a typed feed collection", async () => {
