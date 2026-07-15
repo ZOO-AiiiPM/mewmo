@@ -19,6 +19,14 @@ export interface TrashItem {
   url?: string | null;
   icon?: string | null;
   feedType?: string | null;
+  content?: string;
+  description?: string | null;
+  excerpt?: string | null;
+  favicon?: string | null;
+  coverImage?: string | null;
+  sourceName?: string | null;
+  author?: string | null;
+  publishedAt?: Date | null;
 }
 
 interface DeletedRecord {
@@ -26,10 +34,16 @@ interface DeletedRecord {
   title: string | null;
   summary?: string | null;
   description?: string | null;
+  content?: string;
   url?: string | null;
   icon?: string | null;
+  favicon?: string | null;
+  coverImage?: string | null;
+  excerpt?: string | null;
   type?: string | null;
   sourceName?: string | null;
+  author?: string | null;
+  publishedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date | null;
@@ -37,6 +51,7 @@ interface DeletedRecord {
 
 interface TrashModelClient {
   findMany?(args: unknown): Promise<DeletedRecord[]>;
+  findFirst?(args: unknown): Promise<DeletedRecord | null>;
   updateMany?(args: unknown): Promise<{ count: number }>;
   deleteMany?(args: unknown): Promise<{ count: number }>;
 }
@@ -62,6 +77,9 @@ const clipSelect = {
   url: true,
   title: true,
   summary: true,
+  excerpt: true,
+  favicon: true,
+  coverImage: true,
   sourceName: true,
   createdAt: true,
   updatedAt: true,
@@ -88,6 +106,25 @@ const knowledgeBaseSelect = {
   updatedAt: true,
   deletedAt: true,
 };
+
+const noteDetailSelect = {
+  ...noteSelect,
+  content: true,
+};
+
+const clipDetailSelect = {
+  ...clipSelect,
+  content: true,
+  author: true,
+  publishedAt: true,
+};
+
+function detailSelectFor(kind: TrashKind) {
+  if (kind === "note") return noteDetailSelect;
+  if (kind === "clip") return clipDetailSelect;
+  if (kind === "feed") return feedSelect;
+  return knowledgeBaseSelect;
+}
 
 function retentionCutoff(now: Date) {
   return new Date(now.getTime() - TRASH_RETENTION_DAYS * DAY_MS);
@@ -125,6 +162,14 @@ function toTrashItem(kind: TrashKind, record: DeletedRecord): TrashItem | null {
     ...(record.url !== undefined ? { url: record.url } : {}),
     ...(record.icon !== undefined ? { icon: record.icon } : {}),
     ...(record.type !== undefined ? { feedType: record.type } : {}),
+    ...(record.content !== undefined ? { content: record.content } : {}),
+    ...(record.description !== undefined ? { description: record.description } : {}),
+    ...(record.excerpt !== undefined ? { excerpt: record.excerpt } : {}),
+    ...(record.favicon !== undefined ? { favicon: record.favicon } : {}),
+    ...(record.coverImage !== undefined ? { coverImage: record.coverImage } : {}),
+    ...(record.sourceName !== undefined ? { sourceName: record.sourceName } : {}),
+    ...(record.author !== undefined ? { author: record.author } : {}),
+    ...(record.publishedAt !== undefined ? { publishedAt: record.publishedAt } : {}),
   };
 }
 
@@ -182,6 +227,14 @@ export function createTrashRepository(client: unknown = getPrisma()) {
         ...feeds.map((item) => toTrashItem("feed", item)),
         ...knowledgeBases.map((item) => toTrashItem("knowledge_base", item)),
       ].filter((item): item is TrashItem => Boolean(item)).sort(sortByDeletedAtDesc);
+    },
+
+    async get(userId: string, kind: TrashKind, id: string) {
+      const record = await delegateFor(db, kind)?.findFirst?.({
+        where: { id, userId, deletedAt: { not: null } },
+        select: detailSelectFor(kind),
+      });
+      return record ? toTrashItem(kind, record) : null;
     },
 
     async restore(userId: string, kind: TrashKind, id: string) {

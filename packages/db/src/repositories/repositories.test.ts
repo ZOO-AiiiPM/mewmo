@@ -390,6 +390,71 @@ describe("repositories", () => {
     ]);
   });
 
+  it("keeps lightweight clip preview metadata out of the full detail payload", async () => {
+    const deletedAt = new Date("2026-07-06T08:00:00.000Z");
+    const clipFindMany = vi.fn().mockResolvedValue([
+      {
+        id: "clip-1",
+        url: "https://example.com/article",
+        title: "Saved article",
+        summary: "Short summary",
+        excerpt: "Readable preview",
+        favicon: "https://example.com/favicon.ico",
+        coverImage: "https://example.com/cover.jpg",
+        sourceName: "Example",
+        createdAt: deletedAt,
+        updatedAt: deletedAt,
+        deletedAt,
+      },
+    ]);
+    const repo = createTrashRepository({ clip: { findMany: clipFindMany } });
+
+    const items = await repo.list("user-1", new Date("2026-07-07T08:00:00.000Z"));
+
+    expect(items).toEqual([
+      expect.objectContaining({
+        type: "clip",
+        id: "clip-1",
+        excerpt: "Readable preview",
+        favicon: "https://example.com/favicon.ico",
+        coverImage: "https://example.com/cover.jpg",
+        sourceName: "Example",
+      }),
+    ]);
+    expect(items[0]).not.toHaveProperty("content");
+    expect(clipFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      select: expect.objectContaining({
+        excerpt: true,
+        favicon: true,
+        coverImage: true,
+        sourceName: true,
+      }),
+    }));
+  });
+
+  it("loads one trashed item with ownership and deleted guards", async () => {
+    const findFirst = vi.fn().mockResolvedValue({
+      id: "note-1",
+      title: "Deleted note",
+      summary: "Summary",
+      content: "# Body",
+      createdAt: new Date("2026-07-01T00:00:00.000Z"),
+      updatedAt: new Date("2026-07-02T00:00:00.000Z"),
+      deletedAt: new Date("2026-07-03T00:00:00.000Z"),
+    });
+    const repo = createTrashRepository({ note: { findFirst } });
+
+    await expect(repo.get("user-1", "note", "note-1")).resolves.toMatchObject({
+      type: "note",
+      id: "note-1",
+      content: "# Body",
+    });
+    expect(findFirst).toHaveBeenCalledWith({
+      where: { id: "note-1", userId: "user-1", deletedAt: { not: null } },
+      select: expect.objectContaining({ content: true, deletedAt: true }),
+    });
+  });
+
   it("restores trashed items with user ownership, deleted guards, and version bumps", async () => {
     const updateMany = vi.fn().mockResolvedValue({ count: 1 });
     const repo = createTrashRepository({ clip: { updateMany } });
