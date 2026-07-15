@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { Crepe } from "@milkdown/crepe";
+import { editorViewOptionsCtx } from "@milkdown/kit/core";
 import { Milkdown, MilkdownProvider, useEditor } from "@milkdown/react";
 import { $prose } from "@milkdown/kit/utils";
 import { Plugin } from "@milkdown/kit/prose/state";
@@ -27,6 +28,7 @@ import {
 } from "./note-draft-sync";
 import { uploadNoteImage } from "./note-image-client";
 import { normalizePastedImageSlice } from "./note-image-paste";
+import { serializeNoteSelectionText } from "./note-selection-copy";
 import {
   getInitialTitleSelectionMode,
   normalizeTitleText,
@@ -101,6 +103,12 @@ function CrepeContent({
     });
     crepe.editor.use(highlight);
     crepe.editor.use(editorInteractions);
+    crepe.editor.config((ctx) => {
+      ctx.update(editorViewOptionsCtx, (options) => ({
+        ...options,
+        clipboardTextSerializer: serializeNoteSelectionText,
+      }));
+    });
     crepe.editor.use(
       $prose(
         () =>
