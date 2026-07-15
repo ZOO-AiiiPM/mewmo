@@ -209,6 +209,6 @@ Compare the final diff against the design spec, then run a code-quality review f
 
 Use path-limited staging/commit so existing user-staged and unrelated working-tree changes remain intact.
 
-- [ ] **Step 5: Update Linear and merge**
+- [x] **Step 5: Update Linear and merge**
 
 Add a Chinese completion comment with implementation and verification evidence, leave ZOO-20 in progress for user acceptance unless acceptance is explicitly given, then merge `codex/linear-todo-batches` into `main` and rerun the verification gate on the merged result.
