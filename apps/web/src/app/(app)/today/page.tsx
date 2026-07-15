@@ -8,8 +8,13 @@ import { ReaderBackToTopButton } from "../../../components/shell/ReaderBackToTop
 import { ReaderToolbar } from "../../../components/shell/ReaderToolbar";
 import { useReaderToolbarTitleVisibility } from "../../../components/shell/useReaderToolbarTitleVisibility";
 import { FloatingMenuButton } from "../../../components/ui/FloatingMenu";
+import { useToast } from "../../../components/ui/ToastProvider";
 import { clipPreviewText, formatClipListTime } from "../../../lib/clip-card";
 import { preferredFeedCardSource, preferredFeedReaderSource } from "../../../lib/feed-display";
+import {
+  buildNoteCopyMarkdown,
+  copyNoteMarkdownToClipboard,
+} from "../../../lib/note-copy";
 import { extractNoteImages, notePreviewText } from "../../../lib/note-list-preview";
 import {
   getRememberedWorkspaceSelection,
@@ -132,6 +137,7 @@ function metaTime(item: TodayItem) {
 }
 
 export default function TodayPage() {
+  const { showToast } = useToast();
   const listRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [items, setItems] = useState<TodayItem[]>([]);
@@ -266,6 +272,21 @@ export default function TodayPage() {
     );
   }, [selected]);
 
+  const copySelectedNote = async () => {
+    if (selected?.type !== "note") return;
+
+    try {
+      const markdown = buildNoteCopyMarkdown({
+        title: selected.title,
+        markdown: selected.content ?? "",
+      });
+      await copyNoteMarkdownToClipboard(markdown, navigator.clipboard);
+      showToast("已复制全文", "success");
+    } catch {
+      showToast("复制全文失败", "error");
+    }
+  };
+
   const scrollToTop = () => {
     scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -361,6 +382,9 @@ export default function TodayPage() {
           onToggleList={() => setListCollapsed((value) => !value)}
           listCollapsed={listCollapsed}
           menuKind="notes"
+          onCopyContent={
+            selected?.type === "note" ? () => void copySelectedNote() : undefined
+          }
         />
         <div
           ref={scrollRef}

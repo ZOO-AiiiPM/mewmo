@@ -18,10 +18,27 @@ test("note page copies the current title and unsaved editor content", () => {
   const page = read("apps/web/src/app/(app)/notes/[slug]/NoteEditorPage.tsx");
   assert.match(
     page,
-    /buildNoteCopyPayload\(\{[\s\S]*title: selectedNote\.title[\s\S]*markdown: editorContent/,
+    /buildNoteCopyMarkdown\(\{[\s\S]*title: selectedNote\.title[\s\S]*markdown: editorContent/,
   );
-  assert.match(page, /copyNoteToClipboard\(/);
+  assert.match(page, /copyNoteMarkdownToClipboard\(/);
   assert.match(page, /showToast\("已复制全文", "success"\)/);
   assert.match(page, /showToast\("复制全文失败", "error"\)/);
   assert.match(page, /onCopyContent=\{selectedNote/);
+});
+
+test("all note reader surfaces copy current local markdown", () => {
+  const notes = read("apps/web/src/app/(app)/notes/[slug]/NoteEditorPage.tsx");
+  const today = read("apps/web/src/app/(app)/today/page.tsx");
+  const knowledge = read("apps/web/src/app/(app)/knowledge-bases/page.tsx");
+
+  for (const source of [notes, today, knowledge]) {
+    assert.match(source, /buildNoteCopyMarkdown\(/);
+    assert.match(source, /copyNoteMarkdownToClipboard\(/);
+    assert.match(source, /showToast\("已复制全文", "success"\)/);
+    assert.match(source, /showToast\("复制全文失败", "error"\)/);
+    assert.match(source, /onCopyContent=/);
+  }
+
+  assert.match(today, /selected\?\.type === "note"/);
+  assert.match(knowledge, /selectedItem\?\.kind === "note"/);
 });

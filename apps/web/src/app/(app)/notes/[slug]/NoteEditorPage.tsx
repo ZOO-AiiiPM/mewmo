@@ -32,8 +32,8 @@ import {
   noteTagPalette,
 } from "../../../../lib/note-list-preview";
 import {
-  buildNoteCopyPayload,
-  copyNoteToClipboard,
+  buildNoteCopyMarkdown,
+  copyNoteMarkdownToClipboard,
 } from "../../../../lib/note-copy";
 import {
   buildNoteToc,
@@ -424,17 +424,11 @@ export function NoteEditorPage({
     if (!selectedNote) return;
 
     try {
-      const payload = buildNoteCopyPayload({
+      const markdown = buildNoteCopyMarkdown({
         title: selectedNote.title,
         markdown: editorContent,
       });
-      const ClipboardItemConstructor =
-        typeof ClipboardItem === "undefined" ? undefined : ClipboardItem;
-      await copyNoteToClipboard(
-        payload,
-        navigator.clipboard,
-        ClipboardItemConstructor,
-      );
+      await copyNoteMarkdownToClipboard(markdown, navigator.clipboard);
       showToast("已复制全文", "success");
     } catch {
       showToast("复制全文失败", "error");
