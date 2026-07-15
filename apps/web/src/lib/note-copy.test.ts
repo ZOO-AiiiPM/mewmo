@@ -1,164 +1,55 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { buildNoteCopyPayload, copyNoteToClipboard } from "./note-copy";
+import {
+  buildNoteCopyMarkdown,
+  copyNoteMarkdownToClipboard,
+} from "./note-copy";
 
-describe("note copy payload", () => {
-  it("copies the title as a heading and normalizes html break tags", () => {
-    const payload = buildNoteCopyPayload({
-      title: "产品定位",
-      markdown: "第一行<br />第二行<br>第三行<br/>第四行",
-    });
-
-    expect(payload.plainText).toBe("# 产品定位\n\n第一行\n第二行\n第三行\n第四行");
-    expect(payload.plainText).not.toMatch(/<br\s*\/?\s*>/i);
-    expect(payload.html).toContain("<p>第一行<br>第二行<br>第三行<br>第四行</p>");
+describe("note copy markdown", () => {
+  it("copies one title and stable paragraph spacing", () => {
+    expect(
+      buildNoteCopyMarkdown({
+        title: "你好",
+        markdown: "测试\n\n<br />\n\n\n测试中",
+      }),
+    ).toBe("# 你好\n\n测试\n\n测试中");
   });
 
-  it("keeps supported markdown structure in safe rich html", () => {
-    const payload = buildNoteCopyPayload({
-      title: "格式测试",
-      markdown: `## 小节
-
-正文含 **重点**、*斜体*、[链接](https://example.com) 和 \`代码\`。
-
-- 第一项
-- 第二项
-
-> 引用
-
-\`\`\`ts
-const value = 1;
-\`\`\`
-
-| 名称 | 值 |
-| --- | --- |
-| A | B |`,
-    });
-
-    expect(payload.html).toContain("<article>");
-    expect(payload.html).toContain("<h1>格式测试</h1>");
-    expect(payload.html).toContain("<h2>小节</h2>");
-    expect(payload.html).toContain("<strong>重点</strong>");
-    expect(payload.html).toContain("<em>斜体</em>");
-    expect(payload.html).toContain('<a href="https://example.com">链接</a>');
-    expect(payload.html).toContain("<ul><li>第一项</li><li>第二项</li></ul>");
-    expect(payload.html).toContain("<blockquote><p>引用</p></blockquote>");
-    expect(payload.html).toContain('<code class="language-ts">const value = 1;</code>');
-    expect(payload.html).toContain("<table>");
+  it("keeps markdown syntax and converts inline breaks to hard breaks", () => {
+    expect(
+      buildNoteCopyMarkdown({
+        title: "格式测试",
+        markdown: "正文含 **重点**<br>下一行",
+      }),
+    ).toBe("# 格式测试\n\n正文含 **重点**  \n下一行");
   });
 
-  it("escapes raw html and still copies an empty note title", () => {
-    expect(buildNoteCopyPayload({ title: "空笔记", markdown: "" })).toEqual({
-      plainText: "# 空笔记",
-      html: "<article><h1>空笔记</h1></article>",
-    });
-
-    const unsafe = buildNoteCopyPayload({
-      title: "<标题>",
-      markdown: '<script>alert("x")</script>',
-    });
-    expect(unsafe.html).toContain("<h1>&lt;标题&gt;</h1>");
-    expect(unsafe.html).toContain("&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;");
-    expect(unsafe.html).not.toContain("<script>");
-  });
-
-  it("escapes unsafe image markdown without blocking the copy operation", () => {
-    const payload = buildNoteCopyPayload({
-      title: "安全测试",
-      markdown: "![x](javascript:evil)",
-    });
-
-    expect(payload.plainText).toBe("# 安全测试\n\n![x](javascript:evil)");
-    expect(payload.html).toContain("<p>![x](javascript:evil)</p>");
-    expect(payload.html).not.toContain("<img");
+  it("copies an empty note title", () => {
+    expect(buildNoteCopyMarkdown({ title: "空笔记", markdown: "" })).toBe(
+      "# 空笔记",
+    );
   });
 });
 
-describe("note clipboard writer", () => {
-  it("writes plain text and html in one clipboard item", async () => {
-    let formats: Record<string, Blob> | undefined;
-    class FakeClipboardItem {
-      constructor(items: Record<string, Blob>) {
-        formats = items;
-      }
-    }
+describe("note markdown clipboard writer", () => {
+  it("uses writeText only", async () => {
     const write = vi.fn(async () => undefined);
     const writeText = vi.fn(async () => undefined);
+    const clipboard = { write, writeText };
 
-    await copyNoteToClipboard(
-      { plainText: "# 标题", html: "<h1>标题</h1>" },
-      { write, writeText },
-      FakeClipboardItem as unknown as typeof ClipboardItem,
-    );
-
-    expect(write).toHaveBeenCalledTimes(1);
-    expect(writeText).not.toHaveBeenCalled();
-    expect(await formats?.["text/plain"]?.text()).toBe("# 标题");
-    expect(await formats?.["text/html"]?.text()).toBe("<h1>标题</h1>");
-  });
-
-  it("falls back to writeText when multi-format clipboard is unavailable", async () => {
-    const writeText = vi.fn(async () => undefined);
-
-    await copyNoteToClipboard(
-      { plainText: "# 标题", html: "<h1>标题</h1>" },
-      { writeText },
-      undefined,
-    );
+    await copyNoteMarkdownToClipboard("# 标题", clipboard);
 
     expect(writeText).toHaveBeenCalledWith("# 标题");
-  });
-
-  it("falls back when the clipboard item does not support rich html", async () => {
-    class PlainTextOnlyClipboardItem {
-      static supports(type: string) {
-        return type === "text/plain";
-      }
-    }
-    const write = vi.fn(async () => undefined);
-    const writeText = vi.fn(async () => undefined);
-
-    await copyNoteToClipboard(
-      { plainText: "# 标题", html: "<h1>标题</h1>" },
-      { write, writeText },
-      PlainTextOnlyClipboardItem as unknown as typeof ClipboardItem,
-    );
-
     expect(write).not.toHaveBeenCalled();
-    expect(writeText).toHaveBeenCalledWith("# 标题");
-  });
-
-  it("falls back when multi-format writing reports an unsupported format", async () => {
-    class FakeClipboardItem {}
-    const unsupported = Object.assign(new Error("unsupported"), {
-      name: "NotSupportedError",
-    });
-    const write = vi.fn(async () => {
-      throw unsupported;
-    });
-    const writeText = vi.fn(async () => undefined);
-
-    await copyNoteToClipboard(
-      { plainText: "# 标题", html: "<h1>标题</h1>" },
-      { write, writeText },
-      FakeClipboardItem as unknown as typeof ClipboardItem,
-    );
-
-    expect(write).toHaveBeenCalledTimes(1);
-    expect(writeText).toHaveBeenCalledWith("# 标题");
   });
 
   it("rejects clipboard failures", async () => {
     await expect(
-      copyNoteToClipboard(
-        { plainText: "# 标题", html: "<h1>标题</h1>" },
-        {
-          writeText: async () => {
-            throw new Error("denied");
-          },
+      copyNoteMarkdownToClipboard("# 标题", {
+        writeText: async () => {
+          throw new Error("denied");
         },
-        undefined,
-      ),
+      }),
     ).rejects.toThrow("denied");
   });
 });
