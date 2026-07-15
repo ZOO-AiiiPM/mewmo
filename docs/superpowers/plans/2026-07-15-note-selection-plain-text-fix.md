@@ -16,7 +16,7 @@
 - Create: `apps/web/src/components/editor/note-selection-copy.ts`
 - Create: `apps/web/src/components/editor/note-selection-copy.test.ts`
 
-- [ ] **Step 1: Write failing serializer tests**
+- [x] **Step 1: Write failing serializer tests**
 
 Create `apps/web/src/components/editor/note-selection-copy.test.ts` with a real ProseMirror schema and slices:
 
@@ -86,7 +86,7 @@ describe("note selection plain-text serializer", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test and verify RED**
+- [x] **Step 2: Run the test and verify RED**
 
 Run:
 
@@ -96,7 +96,7 @@ pnpm vitest run apps/web/src/components/editor/note-selection-copy.test.ts
 
 Expected: FAIL because `./note-selection-copy` does not exist.
 
-- [ ] **Step 3: Implement the visible-text serializer**
+- [x] **Step 3: Implement the visible-text serializer**
 
 Create `apps/web/src/components/editor/note-selection-copy.ts`:
 
@@ -104,6 +104,7 @@ Create `apps/web/src/components/editor/note-selection-copy.ts`:
 import type { Node as ProseMirrorNode, Slice } from "@milkdown/kit/prose/model";
 
 const HTML_BREAK_RE = /^\s*<br\s*\/?>\s*$/i;
+const EMPTY_VISIBLE_TEXT = "\u200B";
 
 function visibleLeafText(node: ProseMirrorNode) {
   if (node.type.name === "html") {
@@ -114,16 +115,18 @@ function visibleLeafText(node: ProseMirrorNode) {
 }
 
 export function serializeNoteSelectionText(slice: Slice) {
-  return slice.content.textBetween(
+  const text = slice.content.textBetween(
     0,
     slice.content.size,
     "\n\n",
     visibleLeafText,
   );
+
+  return text || (slice.content.size > 0 ? EMPTY_VISIBLE_TEXT : "");
 }
 ```
 
-- [ ] **Step 4: Run the tests and verify GREEN**
+- [x] **Step 4: Run the tests and verify GREEN**
 
 Run:
 
@@ -133,7 +136,7 @@ pnpm vitest run apps/web/src/components/editor/note-selection-copy.test.ts apps/
 
 Expected: both test files pass and the legacy-break normalizer remains covered.
 
-- [ ] **Step 5: Stage and commit Task 1**
+- [x] **Step 5: Stage and commit Task 1**
 
 ```bash
 git add apps/web/src/components/editor/note-selection-copy.ts apps/web/src/components/editor/note-selection-copy.test.ts
@@ -146,7 +149,7 @@ git commit -m "fix(editor): serialize note selection as visible text"
 - Modify: `apps/web/src/components/editor/NoteEditor.tsx`
 - Modify: `tests/unit/note-editor-native-copy.test.mjs`
 
-- [ ] **Step 1: Write a failing editor integration contract test**
+- [x] **Step 1: Write a failing editor integration contract test**
 
 Extend `tests/unit/note-editor-native-copy.test.mjs`:
 
@@ -159,7 +162,7 @@ test("note editor overrides only Milkdown plain-text copy serialization", () => 
 });
 ```
 
-- [ ] **Step 2: Run the contract test and verify RED**
+- [x] **Step 2: Run the contract test and verify RED**
 
 Run:
 
@@ -169,7 +172,7 @@ node --test tests/unit/note-editor-native-copy.test.mjs
 
 Expected: FAIL because `NoteEditor` does not yet configure `editorViewOptionsCtx` or `serializeNoteSelectionText`.
 
-- [ ] **Step 3: Configure the direct editor view option**
+- [x] **Step 3: Configure the direct editor view option**
 
 In `NoteEditor.tsx`, add:
 
@@ -191,7 +194,7 @@ crepe.editor.config((ctx) => {
 
 Do not add `onCopy`, `handleDOMEvents.copy`, `clipboardSerializer`, `ClipboardItem`, or clipboard writes. Those would take ownership away from ProseMirror or change the rich HTML channel.
 
-- [ ] **Step 4: Run integration and focused regression tests**
+- [x] **Step 4: Run integration and focused regression tests**
 
 Run:
 
@@ -202,7 +205,7 @@ pnpm vitest run apps/web/src/components/editor/note-selection-copy.test.ts apps/
 
 Expected: all selected Node and Vitest tests pass.
 
-- [ ] **Step 5: Stage and commit Task 2**
+- [x] **Step 5: Stage and commit Task 2**
 
 ```bash
 git add apps/web/src/components/editor/NoteEditor.tsx tests/unit/note-editor-native-copy.test.mjs
@@ -214,7 +217,7 @@ git commit -m "fix(editor): keep selected-note plain text rendered"
 **Files:**
 - Modify: `docs/superpowers/plans/2026-07-15-note-selection-plain-text-fix.md`
 
-- [ ] **Step 1: Run automated verification**
+- [x] **Step 1: Run automated verification**
 
 Run:
 
@@ -228,7 +231,7 @@ git diff --check
 
 Expected: every command exits 0.
 
-- [ ] **Step 2: Run browser clipboard verification**
+- [x] **Step 2: Run browser clipboard verification**
 
 On `http://localhost:3017`, select a rendered note containing a heading, strong text, paragraphs, a hard break, and legacy `<br />` source. Verify:
 
@@ -237,7 +240,7 @@ On `http://localhost:3017`, select a rendered note containing a heading, strong 
 3. `text/html` retains rendered heading, strong, paragraph, and break elements without displaying raw tags as text.
 4. `复制全文` still writes one Markdown-only `text/plain` entry.
 
-- [ ] **Step 3: Request review and resolve findings**
+- [x] **Step 3: Request review and resolve findings**
 
 Use `requesting-code-review` with base `b1cb010` and final implementation SHA. Resolve every Critical or Important finding, rerun affected evidence, and record any unavailable browser destination without claiming it passed.
 
@@ -245,7 +248,7 @@ Use `requesting-code-review` with base `b1cb010` and final implementation SHA. R
 
 Add one Chinese completion comment to ZOO-27 referencing the revised contract and new commits. Do not edit or delete prior comments, and keep the issue `In Progress` pending explicit user acceptance. If the Linear tool is still unavailable, record the connection blocker instead of claiming the comment exists.
 
-- [ ] **Step 5: Commit verification bookkeeping**
+- [x] **Step 5: Commit verification bookkeeping**
 
 Check only completed items, then:
 
@@ -253,3 +256,14 @@ Check only completed items, then:
 git add docs/superpowers/plans/2026-07-15-note-selection-plain-text-fix.md
 git commit -m "docs: record visible selection copy verification"
 ```
+
+### Verification record
+
+- TDD: the original serializer and editor contract tests failed before implementation. The review regression also failed with `expected '' not to be ''` before the fallback guard was added.
+- Focused checks: 16 Vitest assertions and 6 Node editor/copy contracts passed after the review fix.
+- Browser at `http://localhost:3017/notes`: ordinary select-all copy produced `text/html` plus `text/plain`; plain text had no Markdown heading markers or literal `<br>`; HTML retained heading and paragraph elements. `复制全文` produced only Markdown `text/plain`.
+- The seeded browser note did not contain legacy raw HTML or a hard break. Those cases were verified with real ProseMirror `Slice` tests, including `<br />`, native `hardbreak`, raw HTML, image, and horizontal-rule nodes.
+- Full local gate: `pnpm verify` passed after commit `1a82fd9`, including lint, 140 Node tests, 113 Vitest tests, workspace package tests, theme policy, TypeScript, and production builds.
+- Independent review: one Important fallback issue was fixed in `1a82fd9`; re-review reported no remaining Critical or Important findings.
+- Residual behavior: a selection containing only non-text atoms receives one zero-width character in `text/plain` so ProseMirror cannot fall through to Milkdown Markdown. It is invisible but remains a clipboard character.
+- Linear: this session exposed no Linear MCP tools or resources, so no comment was added and ZOO-27 remains untouched. Step 4 stays open.
