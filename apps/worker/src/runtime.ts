@@ -1,4 +1,3 @@
-import { createClipWorker } from "./workers/clip-worker";
 import { createSummaryWorker } from "./workers/summary-worker";
 
 export interface WorkerHandle {
@@ -14,7 +13,7 @@ export interface WorkerRuntime {
 }
 
 function createDefaultWorkers(): WorkerHandle[] {
-  return [createClipWorker(), createSummaryWorker()];
+  return [createSummaryWorker()];
 }
 
 export function startWorkerRuntime(dependencies: WorkerRuntimeDependencies = {}): WorkerRuntime {

@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { getPrisma, Prisma } from "@mewmo/db";
-import { addClipFetchJob } from "@mewmo/queue";
+import { addSummaryJob, withTimeout } from "@mewmo/queue";
 import { createClipSchema, normalizeClipUrlIdentity } from "@mewmo/shared";
+
 import { auth } from "../../../lib/auth";
+import { fetchClipFromUrl } from "../../../lib/clip-fetch";
 
 const clipListSelect = {
   id: true,
@@ -22,45 +24,52 @@ const clipListSelect = {
   updatedAt: true,
 } satisfies Prisma.ClipSelect;
 
-const CLIP_QUEUE_TIMEOUT_MS = 5_000;
-
-async function withQueueTimeout<T>(operation: Promise<T>): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    return await Promise.race([
-      operation,
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(
-          () => reject(new Error("Clip background fetch queue timed out")),
-          CLIP_QUEUE_TIMEOUT_MS,
-        );
-      }),
-    ]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
-}
+const SUMMARY_QUEUE_TIMEOUT_MS = 3_000;
 
 function isUniqueConstraintError(error: unknown): error is { code: "P2002" } {
   return typeof error === "object" && error !== null && "code" in error && error.code === "P2002";
 }
 
-async function enqueueClipFetch(clipId: string) {
-  const prisma = getPrisma();
-  await prisma.clip.update({
-    where: { id: clipId },
-    data: { fetchStatus: "queued", fetchError: null, version: { increment: 1 } },
-  });
+function isTimeoutError(error: unknown) {
+  return error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
+}
+
+function clipFetchError(error: unknown) {
+  return {
+    message: error instanceof Error ? error.message : "Could not fetch clip",
+    status: isTimeoutError(error) ? 504 : 502,
+  };
+}
+
+function sourceData(fetched: Awaited<ReturnType<typeof fetchClipFromUrl>>) {
+  return {
+    title: fetched.title,
+    content: fetched.content,
+    favicon: fetched.favicon ?? null,
+    coverImage: fetched.coverImage ?? null,
+    excerpt: fetched.excerpt ?? null,
+    sourceName: fetched.sourceName ?? null,
+    author: fetched.author ?? null,
+    publishedAt: fetched.publishedAt ?? null,
+  };
+}
+
+async function enqueueSummary(userId: string, clipId: string) {
   try {
-    await withQueueTimeout(addClipFetchJob({ clipId }));
-    return true;
+    await withTimeout(
+      addSummaryJob(
+        { userId, targetId: clipId, targetType: "clip" },
+        {
+          jobId: `summary-clip-${clipId}`,
+          removeOnComplete: true,
+          removeOnFail: true,
+        },
+      ),
+      SUMMARY_QUEUE_TIMEOUT_MS,
+      `Summary queue timed out for ${clipId}`,
+    );
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to queue clip fetch";
-    await prisma.clip.update({
-      where: { id: clipId },
-      data: { fetchStatus: "error", fetchError: message, version: { increment: 1 } },
-    });
-    return false;
+    console.error("Failed to enqueue clip summary job", error);
   }
 }
 
@@ -86,6 +95,7 @@ export async function POST(request: Request) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const userId = session.user.id;
 
   const parsed = createClipSchema.safeParse(await request.json());
   if (!parsed.success) {
@@ -95,55 +105,56 @@ export async function POST(request: Request) {
   const prisma = getPrisma();
   const normalizedUrl = normalizeClipUrlIdentity(parsed.data.url);
   const existing = await prisma.clip.findFirst({
-    where: { userId: session.user.id, normalizedUrl, deletedAt: null },
+    where: { userId, normalizedUrl, deletedAt: null },
   });
   if (existing) {
-    const active = existing.fetchStatus === "queued" || existing.fetchStatus === "fetching";
-    const queued = active || (existing.fetchStatus === "error" ? await enqueueClipFetch(existing.id) : false);
-    return NextResponse.json({ ...existing, existing: true, queued });
+    return NextResponse.json({ ...existing, existing: true });
+  }
+
+  let fetched: Awaited<ReturnType<typeof fetchClipFromUrl>>;
+  try {
+    fetched = await fetchClipFromUrl(parsed.data.url);
+  } catch (error) {
+    const failure = clipFetchError(error);
+    return NextResponse.json({ error: failure.message }, { status: failure.status });
   }
 
   try {
     const clip = await prisma.clip.create({
       data: {
-        userId: session.user.id,
+        userId,
         url: parsed.data.url,
         normalizedUrl,
-        title: parsed.data.title,
-        content: parsed.data.content,
-        summary: parsed.data.summary ?? null,
-        favicon: parsed.data.favicon ?? null,
-        coverImage: parsed.data.coverImage ?? null,
-        excerpt: parsed.data.excerpt ?? null,
-        sourceName: parsed.data.sourceName ?? null,
-        author: parsed.data.author ?? null,
-        publishedAt: parsed.data.publishedAt ?? null,
-        fetchStatus: "queued",
+        ...sourceData(fetched),
+        summary: null,
+        fetchStatus: "success",
+        fetchError: null,
+        fetchedAt: new Date(),
       },
     });
-    const queued = await enqueueClipFetch(clip.id);
-    return NextResponse.json({ ...clip, fetchStatus: queued ? "queued" : "error", existing: false, queued }, { status: 201 });
+    await enqueueSummary(userId, clip.id);
+    return NextResponse.json({ ...clip, existing: false }, { status: 201 });
   } catch (error) {
     if (!isUniqueConstraintError(error)) throw error;
     const duplicate = await prisma.clip.findFirst({
-      where: { userId: session.user.id, normalizedUrl },
+      where: { userId, normalizedUrl },
     });
     if (!duplicate) return NextResponse.json({ error: "Clip already exists" }, { status: 409 });
-    const restored = duplicate.deletedAt
-      ? await prisma.clip.update({
-          where: { id: duplicate.id },
-          data: {
-            deletedAt: null,
-            url: parsed.data.url,
-            title: parsed.data.title,
-            fetchStatus: "queued",
-            fetchError: null,
-            version: { increment: 1 },
-          },
-        })
-      : duplicate;
-    const active = restored.fetchStatus === "queued" || restored.fetchStatus === "fetching";
-    const queued = active || await enqueueClipFetch(restored.id);
-    return NextResponse.json({ ...restored, existing: true, queued });
+    if (!duplicate.deletedAt) return NextResponse.json({ ...duplicate, existing: true });
+
+    const restored = await prisma.clip.update({
+      where: { id: duplicate.id },
+      data: {
+        deletedAt: null,
+        url: parsed.data.url,
+        ...sourceData(fetched),
+        fetchStatus: "success",
+        fetchError: null,
+        fetchedAt: new Date(),
+        version: { increment: 1 },
+      },
+    });
+    await enqueueSummary(userId, restored.id);
+    return NextResponse.json({ ...restored, existing: true });
   }
 }

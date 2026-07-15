@@ -14,36 +14,35 @@ test("Clip schema enforces nullable per-user normalized URL identity", () => {
 });
 
 
-test("clip creation persists normalized identity before queueing extraction", () => {
+test("clip creation fetches content before persistence without a Clip queue", () => {
   const route = read("apps/web/src/app/api/clips/route.ts");
   assert.match(route, /normalizeClipUrlIdentity/);
-  assert.match(route, /addClipFetchJob/);
-  assert.match(route, /withQueueTimeout\(\s*addClipFetchJob/,
-    "queue submission must have a request-level timeout so Redis outages cannot leave creation pending");
-  assert.doesNotMatch(route, /fetchClipFromUrl/,
-    "remote extraction must not block clip creation");
+  assert.match(route, /await fetchClipFromUrl\(parsed\.data\.url\)/);
+  assert.ok(route.indexOf("await fetchClipFromUrl") < route.indexOf("prisma.clip.create"));
+  assert.doesNotMatch(route, /addClipFetchJob|withQueueTimeout/);
   assert.match(route, /normalizedUrl/);
-  assert.match(route, /fetchStatus:\s*"queued"/);
+  assert.match(route, /summary:\s*null/);
+  assert.match(route, /fetchStatus:\s*"success"/);
+  assert.match(route, /addSummaryJob/);
   assert.match(route, /existing:\s*false/);
   assert.match(route, /P2002[\s\S]*existing:\s*true/,
     "database uniqueness races should return the existing Clip");
 });
 
 
-test("clip background refresh is authenticated and records extraction state", () => {
+test("clip refresh is synchronous, authenticated, and preserves the AI summary", () => {
   const route = read("apps/web/src/app/api/clips/[id]/route.ts");
-  assert.match(route, /background[\s\S]*cronAuthorized/);
+  assert.doesNotMatch(route, /background|cronAuthorized|addClipFetchJob/);
   assert.match(route, /fetchStatus:\s*"fetching"/);
   assert.match(route, /fetchStatus:\s*"success"/);
   assert.match(route, /fetchStatus:\s*"error"/);
   assert.match(route, /addSummaryJob/);
+  assert.doesNotMatch(route, /summary:\s*fetched\.summary/, "source refresh must preserve the existing AI summary");
 });
 
-test("Worker starts the clip fetch worker", () => {
-  const index = read("apps/worker/src/index.ts");
+test("Worker does not start a clip fetch worker", () => {
   const runtime = read("apps/worker/src/runtime.ts");
-  assert.match(index, /startWorkerRuntime\(\)/);
-  assert.match(runtime, /createClipWorker\(\)/);
+  assert.doesNotMatch(runtime, /createClipWorker/);
 });
 
 test("shared clip URL input awaits persistence and prevents duplicate submission", () => {
@@ -56,12 +55,11 @@ test("shared clip URL input awaits persistence and prevents duplicate submission
   assert.match(listColumn, /disabled=\{clipSubmitting\}/);
 });
 
-test("clip pages insert durable responses immediately and reopen existing clips", () => {
+test("clip pages use synchronous responses without polling", () => {
   const page = read("apps/web/src/app/(app)/clips/page.tsx");
   assert.match(page, /clip\.existing[\s\S]*之前已剪藏/);
   assert.match(page, /setClips[\s\S]*clip[\s\S]*setCachedWorkspaceList/);
-  assert.match(page, /fetchStatus !== "queued"[\s\S]*fetchStatus !== "fetching"[\s\S]*setInterval/,
-    "queued clips should refresh without requiring a tab switch");
+  assert.doesNotMatch(page, /setInterval|clip\.queued/);
 });
 
 test("every clip URL write path maintains normalized identity", () => {

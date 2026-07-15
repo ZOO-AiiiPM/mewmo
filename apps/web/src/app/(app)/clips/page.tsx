@@ -178,8 +178,7 @@ export default function ClipsPage() {
       });
       selectClip(clip);
       if (clip.existing) showToast("该内容之前已剪藏，已打开已有记录", "success");
-      else if (clip.queued) showToast("已保存剪藏，正在后台抓取内容", "success");
-      else showToast("已保存剪藏，但后台抓取启动失败，可重试", "error");
+      else showToast("已保存剪藏", "success");
     } catch (error) {
       showToast("保存剪藏失败，请重试", "error");
       throw error;
@@ -276,29 +275,6 @@ export default function ClipsPage() {
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
-  useEffect(() => {
-    const fetchStatus = previewClip?.fetchStatus;
-    if (fetchStatus !== "queued" && fetchStatus !== "fetching") return;
-
-    const timer = window.setInterval(() => {
-      if (!previewClip) return;
-      void fetch(`/api/clips/${previewClip.id}`)
-        .then((response) => response.ok ? response.json() as Promise<ClipListItem> : null)
-        .then((updated) => {
-          if (!updated) return;
-          setCachedWorkspaceDetail("clips", updated);
-          setClips((current) => {
-            const next = current.map((item) => item.id === updated.id ? updated : item);
-            setCachedWorkspaceList("clips", next);
-            return next;
-          });
-          setSelectedClip((current) => current?.id === updated.id ? updated : current);
-        });
-    }, 1000);
-
-    return () => window.clearInterval(timer);
-  }, [previewClip?.fetchStatus, previewClip?.id]);
-
   const virtualizer = useVirtualizer({
     count: visibleClips.length,
     getScrollElement: () => parentRef.current,
@@ -326,7 +302,6 @@ export default function ClipsPage() {
       const data = (await response.json().catch(() => null)) as {
         clip?: ClipListItem;
         changed?: boolean;
-        queued?: boolean;
       } | null;
       if (!response.ok || !data?.clip) throw new Error("Failed to refresh clip");
       const updatedClip = data.clip;
@@ -342,7 +317,7 @@ export default function ClipsPage() {
       setSelectedClip((current) =>
         current?.id === updatedClip.id ? updatedClip : current,
       );
-      showToast(data.queued ? "已开始后台抓取" : data.changed ? "已拉取最新内容" : "已是最新", "success");
+      showToast(data.changed ? "已拉取最新内容" : "已是最新", "success");
     } catch {
       showToast("检查更新失败", "error");
     }

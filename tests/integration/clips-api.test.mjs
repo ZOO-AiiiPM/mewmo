@@ -38,8 +38,6 @@ function authedFetch(path, opts = {}) {
 const clipPayload = {
   url: API_TEST_ARTICLE_URL,
   title: "Example Article",
-  content: "<p>Readable body</p>",
-  summary: "Readable body",
 };
 
 test("Clips API", async (t) => {
@@ -57,14 +55,16 @@ test("Clips API", async (t) => {
       body: JSON.stringify(clipPayload),
     });
     assert.equal(res.status, 201);
-    assert.ok(Date.now() - startedAt < 2000, "clip persistence should not wait for remote extraction");
+    assert.ok(Date.now() - startedAt < 15_000, "clip extraction should stay inside the request boundary");
     const clip = await res.json();
     assert.ok(clip.id, "should have an id");
     createdClipId = clip.id;
     assert.equal(clip.url, clipPayload.url);
-    assert.equal(clip.title, clipPayload.title);
+    assert.equal(clip.title, "Example Article");
     assert.match(clip.content, /Readable body/);
-    assert.equal(clip.summary, clipPayload.summary);
+    assert.equal(clip.summary, null);
+    assert.match(clip.excerpt, /Readable body/);
+    assert.equal(clip.fetchStatus, "success");
     assert.equal(clip.version, 1);
   });
 
