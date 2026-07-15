@@ -715,7 +715,6 @@ git add deploy/worker/compose.yml deploy/worker/README.md deploy/worker/.env.wor
 git commit -m "chore: deploy feed refresh as cron"
 ```
 
-- [ ] **Step 8: 在 ZOO-35 留中文实现评论并等待用户验收**
+- [x] **Step 8: 在 ZOO-35 留中文实现评论并等待用户验收**
 
 评论包含：Feed/Clip 抓取已退出 BullMQ；Redis 和 Summary Worker仍保留；首次订阅、五分钟 stale recovery、同步剪藏、`excerpt`/`summary` 边界；实际运行的测试及未运行项；分支与提交。Issue 保持 In Progress，用户明确验收通过前不设 Done。
-
