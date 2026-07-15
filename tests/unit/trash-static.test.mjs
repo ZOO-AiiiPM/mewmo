@@ -28,6 +28,7 @@ test("trash page exposes restore, manual permanent delete, and 14-day retention"
   const pagePath = "apps/web/src/app/(app)/trash/page.tsx";
   const sidebar = read("apps/web/src/components/shell/Sidebar.tsx");
   const toolbar = read("apps/web/src/components/shell/ReaderToolbar.tsx");
+  const styles = read("apps/web/src/app/globals.css");
 
   assert.ok(existsSync(pagePath), "trash page should exist");
 
@@ -45,7 +46,21 @@ test("trash page exposes restore, manual permanent delete, and 14-day retention"
   assert.match(page, /SharedNoteMarkdown/, "deleted notes should render through the read-only markdown renderer");
   assert.match(page, /ClipContentRenderer/, "deleted clips should use the sanitized clip renderer");
   assert.match(page, /<ReaderToolbar[\s\S]*actions=/, "trash mutations should live in the reader toolbar");
+  assert.match(page, /mewmo-reader-surface--trash/, "trash reader should expose a focused responsive surface");
   assert.doesNotMatch(page, /mewmo-trash-card__actions/, "trash list cards should not contain management buttons");
   assert.match(toolbar, /showMenu\?: boolean/, "reader toolbar should allow custom-action pages to hide its default menu");
   assert.match(toolbar, /hidden=\{!showMenu\}/, "hidden trash menu should not remain interactive");
+  assert.match(styles, /\.mewmo-trash-reader-actions/, "trash reader actions should have focused toolbar layout");
+  assert.match(
+    styles,
+    /\.mewmo-trash-reader-actions \.mewmo-button\s*\{[^}]*white-space:\s*nowrap/,
+    "trash reader actions should remain readable in a narrow reader toolbar",
+  );
+  assert.match(styles, /\.mewmo-document--trash-detail/, "trash details should use a reader document layout");
+  assert.match(
+    styles,
+    /@media \(max-width:\s*900px\)[\s\S]*?\.mewmo-reader-surface--trash \.mewmo-reader-toolbar__nav\s*\{[^}]*display:\s*none/,
+    "narrow trash readers should reserve toolbar space for restore and delete",
+  );
+  assert.doesNotMatch(styles, /\.mewmo-trash-card__actions/, "obsolete card action styles should be removed");
 });

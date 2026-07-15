@@ -341,7 +341,7 @@ export default function TrashPage() {
         )}
       </ListColumn>
 
-      <section className="mewmo-reader-surface">
+      <section className="mewmo-reader-surface mewmo-reader-surface--trash">
         <ReaderToolbar
           title={selectedListItem?.title ?? "废纸篓"}
           titleVisible={toolbarTitleVisible}
