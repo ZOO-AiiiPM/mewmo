@@ -1,3 +1,5 @@
+import { decodeHTMLStrict } from "entities";
+
 export type FeedType = "article" | "media" | "video" | "podcast";
 
 export interface DiscoveredFeed {
@@ -268,14 +270,7 @@ function cleanText(value: string | undefined) {
 function decodeEntities(value: string) {
   return value
     .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&amp;/gi, "&")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;|&apos;/gi, "'")
-    .replace(/&ndash;/gi, "–")
-    .replace(/&mdash;/gi, "—")
+    .replace(/&[a-z][a-z0-9]+;/gi, (entity) => decodeHTMLStrict(entity))
     .replace(/&#(\d+);/g, (entity, code) => decodeNumericEntity(entity, code, 10))
     .replace(/&#x([0-9a-f]+);/gi, (entity, code) => decodeNumericEntity(entity, code, 16));
 }
