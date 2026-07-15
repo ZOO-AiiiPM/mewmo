@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { getLocalizedLoginMethods } from "../../apps/web/src/app/(app)/settings/page.tsx";
 
 function readSource(path) {
   try {
@@ -15,6 +15,12 @@ function readSource(path) {
 const pageSource = readSource(
   "apps/web/src/app/(app)/settings/page.tsx",
   "utf8",
+);
+const helperSource = readSource(
+  "apps/web/src/app/(app)/settings/login-methods.ts",
+);
+const loadingSource = readSource(
+  "apps/web/src/app/(app)/settings/loading.tsx",
 );
 const clientSource = readSource(
   "apps/web/src/app/(app)/settings/AccountSettingsClient.tsx",
@@ -49,31 +55,53 @@ test("settings server page authenticates and queries only the current user's acc
 });
 
 test("settings server page localizes only real login methods without passing provider ids", () => {
-  assert.match(pageSource, /provider === "google"[\s\S]*"Google 登录"/);
-  assert.match(pageSource, /provider === "password"[\s\S]*"邮箱密码"/);
-  assert.match(pageSource, /provider === "email" \|\| provider === "resend"[\s\S]*"邮箱登录"/);
+  assert.match(helperSource, /provider === "google"[\s\S]*"Google 登录"/);
+  assert.match(helperSource, /provider === "password"[\s\S]*"邮箱密码"/);
+  assert.match(helperSource, /provider === "email" \|\| provider === "resend"[\s\S]*"邮箱登录"/);
   assert.match(pageSource, /hasPassword:\s*Boolean\(user\.password\)/);
   assert.doesNotMatch(pageSource, /loginMethods=\{user\.accounts/);
   assert.doesNotMatch(clientSource, /provider(AccountId)?/);
 });
 
 test("login method derivation preserves real providers and handles Resend without an Account row", () => {
+  const script = `
+    import { getLocalizedLoginMethods } from "./apps/web/src/app/(app)/settings/login-methods.ts";
+    const cases = [
+      { hasPassword: false, email: "reader@example.com", providers: ["google"] },
+      { hasPassword: false, email: "reader@example.com", providers: [] },
+      { hasPassword: false, email: "reader@example.com", providers: ["resend"] },
+      { hasPassword: true, email: "reader@example.com", providers: ["google"] },
+    ];
+    console.log(JSON.stringify(cases.map(getLocalizedLoginMethods)));
+  `;
+  const result = spawnSync("pnpm", ["exec", "tsx", "--eval", script], {
+    encoding: "utf8",
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const methods = JSON.parse(result.stdout.trim().split("\\n").at(-1));
   assert.deepEqual(
-    getLocalizedLoginMethods({ hasPassword: false, email: "reader@example.com", providers: ["google"] }),
+    methods[0],
     ["Google 登录"],
   );
   assert.deepEqual(
-    getLocalizedLoginMethods({ hasPassword: false, email: "reader@example.com", providers: [] }),
+    methods[1],
     ["邮箱登录"],
   );
   assert.deepEqual(
-    getLocalizedLoginMethods({ hasPassword: false, email: "reader@example.com", providers: ["resend"] }),
+    methods[2],
     ["邮箱登录"],
   );
   assert.deepEqual(
-    getLocalizedLoginMethods({ hasPassword: true, email: "reader@example.com", providers: ["google"] }),
+    methods[3],
     ["邮箱密码", "Google 登录"],
   );
+});
+
+test("settings route exposes an accessible themed loading state", () => {
+  assert.match(loadingSource, /mewmo-account-settings-loading/);
+  assert.match(loadingSource, /aria-busy="true"/);
+  assert.match(loadingSource, /账户管理/);
+  assert.match(cssSource, /\.mewmo-account-settings-loading[\s\S]*var\(--(?:canvas|s1|raised|ink|ink-soft|line)\)/);
 });
 
 test("account settings client renders identity, method chips, and both password modes", () => {
