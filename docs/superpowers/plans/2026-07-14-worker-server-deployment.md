@@ -4,7 +4,7 @@
 
 **Goal:** 将现有 `apps/worker` 变成可由 Docker Compose 在用户自有服务器长期运行的后台服务。
 
-**Architecture:** Web 继续运行在 Vercel，Worker 通过 Upstash Redis 消费任务并访问 Neon、Vercel 和 AI API。Worker 使用专用环境校验和 `tsx src/index.ts` 生产启动，Compose 不暴露端口并负责自动重启；未来独立 Agent 与本次部署隔离。
+**Architecture:** Web 继续运行在 Vercel，Worker 通过 Upstash Redis 消费任务并访问 Neon、Vercel 和 AI API。镜像在 Mac 使用 Docker Buildx 构建为 `linux/amd64` 后传到服务器；服务器只导入并运行镜像。Worker 使用专用环境校验和 `tsx src/index.ts` 生产启动，Compose 不暴露端口并负责资源隔离、自动重启；未来独立 Agent 与本次部署隔离。
 
 **Tech Stack:** Node.js 22, pnpm 11, TypeScript, BullMQ, ioredis, Prisma, Docker Compose。
 
@@ -177,7 +177,7 @@ Expected: Worker tests pass, TypeScript build exits 0, lint has no errors.
 
 - [ ] **Step 1: Write failing deployment contract tests**
 
-静态测试读取这些文件并断言：Docker 基于 `node:22`、启用 pnpm、执行 `pnpm install --frozen-lockfile` 和 Prisma generate；Compose 使用仓库根目录构建上下文、无 `ports`、含 `restart: unless-stopped` 与 `init: true`，并引用 `.env.worker`；示例 env 不包含真实密钥；Worker package 有 `start` 脚本。
+静态测试读取这些文件并断言：Docker 基于 `node:22`、启用 pnpm、执行 `pnpm install --frozen-lockfile` 和 Prisma generate；Compose 引用已导入镜像、设置资源上限、无 `ports`、含 `restart: unless-stopped` 与 `init: true`，并引用 `.env.worker`；示例 env 不包含真实密钥；Worker package 有 `start` 脚本。
 
 - [ ] **Step 2: Run the contract test and verify it fails**
 
@@ -191,13 +191,13 @@ Expected: FAIL because the deployment files do not exist.
 
 - [ ] **Step 3: Add the minimal Docker and Compose files**
 
-`deploy/worker/Dockerfile` 使用 `node:22-bookworm-slim`，启用 Corepack，复制整个 monorepo（`.dockerignore` 排除 Git、node_modules、dist、`.env*`），执行 `pnpm install --frozen-lockfile`、`pnpm --filter @mewmo/db db:generate`，设置 `NODE_ENV=production`，最后执行 `pnpm --filter @mewmo/worker start`。
+`deploy/worker/Dockerfile` 使用 `node:22-bookworm-slim`，安装 Prisma 需要的 OpenSSL 3，将 Corepack 缓存放到运行用户可读目录，并用 BuildKit pnpm store 缓存安装结果。构建可通过 `PNPM_REGISTRY` build arg 选择依赖源，但运行镜像不保留该值。随后复制整个 monorepo（`.dockerignore` 排除 Git、node_modules、dist、`.env*` 和 Next 构建缓存），执行 `pnpm install --frozen-lockfile`、`pnpm --filter @mewmo/db db:generate`，设置 `NODE_ENV=production`，最后执行 `pnpm --filter @mewmo/worker start`。该构建只在 Mac 运行，目标平台为 `linux/amd64`。
 
-`deploy/worker/compose.yml` 定义一个 `worker` 服务，构建上下文为仓库根目录，通过 `${WORKER_ENV_FILE:-.env.worker}` 加载环境文件，设置 `restart: unless-stopped`、`init: true`、`stop_grace_period: 30s` 和 10MB/3 文件的 JSON 日志轮转，不映射任何端口。
+`deploy/worker/compose.yml` 定义一个 `worker` 服务，通过 `${WORKER_IMAGE:-mewmo-worker:local}` 引用已导入镜像，通过 `${WORKER_ENV_FILE:-.env.worker}` 加载环境文件，设置 512MB 内存上限、128MB 内存预留、0.5 CPU、128 PIDs、`restart: unless-stopped`、`init: true`、`stop_grace_period: 30s` 和 10MB/3 文件的 JSON 日志轮转，不映射任何端口。
 
 `.env.worker.example` 只列出变量名和说明：`NODE_ENV`、`DATABASE_URL`、`REDIS_URL`、`FEED_REFRESH_BASE_URL`、`FEED_CRON_SECRET`、`AI_PROVIDER`、AI Provider key/base URL 和 `AI_SUMMARY_MODEL`。
 
-`.gitignore` 放行 `/deploy/`，并增加 `deploy/worker/.env.worker` 排除规则；README 写明宝塔 Docker 管理器或 SSH 下的 `docker compose up -d --build`、`ps`、`logs`、`pull`、回滚和密钥保护步骤。
+`.gitignore` 放行 `/deploy/`，并增加 `deploy/worker/.env.worker` 排除规则；README 写明 Mac 使用 Buildx 构建 `linux/amd64` 镜像、通过 SSH 导入服务器、用 `docker compose up -d` 运行、查看 `ps`/`logs`、更新、回滚和密钥保护步骤。
 
 - [ ] **Step 4: Run contract tests and Compose syntax verification**
 
@@ -205,8 +205,7 @@ Run:
 
 ```bash
 node --test tests/unit/worker-deployment-static.test.mjs
-cp deploy/worker/.env.worker.example /tmp/mewmo-worker.env
-WORKER_ENV_FILE=/tmp/mewmo-worker.env docker compose -f deploy/worker/compose.yml config
+WORKER_ENV_FILE=.env.worker.example docker compose -f deploy/worker/compose.yml config --quiet
 ```
 
 Expected: static tests pass and Compose prints a valid configuration. The temporary env file is not committed.
@@ -247,7 +246,7 @@ pnpm --filter @mewmo/worker test -- --run
 node --test tests/unit/worker-deployment-static.test.mjs
 pnpm --filter @mewmo/worker build
 pnpm --filter @mewmo/worker lint
-WORKER_ENV_FILE=/tmp/mewmo-worker.env docker compose -f deploy/worker/compose.yml config
+WORKER_ENV_FILE=.env.worker.example docker compose -f deploy/worker/compose.yml config --quiet
 ```
 
 - [ ] **Step 2: Run the repository gates relevant to changed boundaries**
