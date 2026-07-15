@@ -1,4 +1,4 @@
-import { summarizeContent } from "@mewmo/ai";
+import { summarizeArticle } from "@mewmo/ai";
 import { getPrisma } from "@mewmo/db";
 import { z } from "zod";
 import { NextResponse } from "next/server";
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Not found" }, { status: 404 });
       }
 
-      const summary = await summarizeContent({
+      const summary = await summarizeArticle({
         type: "clip",
         title: clip.title,
         source: clip.sourceName ?? domainFromUrl(clip.url),
@@ -74,7 +74,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    const summary = await summarizeContent({
+    const summary = await summarizeArticle({
       type: "feed_entry",
       title: entry.title,
       source: entry.feed?.title ?? entry.sourceName ?? domainFromUrl(entry.url),

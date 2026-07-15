@@ -193,14 +193,7 @@ importers:
         specifier: 4.22.4
         version: 4.22.4
 
-  packages/ai:
-    dependencies:
-      '@mewmo/db':
-        specifier: workspace:*
-        version: link:../db
-      '@mewmo/shared':
-        specifier: workspace:*
-        version: link:../shared
+  packages/ai: {}
 
   packages/auth:
     dependencies:

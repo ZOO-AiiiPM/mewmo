@@ -13,7 +13,8 @@ test("AI summary API only summarizes saved clips and feed entries", () => {
   assert.ok(existsSync(routePath), "summary route should exist");
   const route = read(routePath);
 
-  assert.match(route, /summarizeContent/, "route should call the shared AI summarizer");
+  assert.match(route, /summarizeArticle/, "route should call the product article summarizer");
+  assert.doesNotMatch(route, /summarizeContent/, "route should not use the legacy summary alias");
   assert.match(route, /targetType:\s*z\.enum\(\["clip",\s*"feed_entry"\]\)/, "route should reject notes");
   assert.match(route, /auth\(\)/, "route should require the current user session");
   assert.match(route, /deletedAt:\s*null/, "route should scope reads and writes to active rows");

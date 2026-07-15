@@ -1,8 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
+import { readFile } from "node:fs/promises";
 
 import { processSummaryJob } from "./summary-worker";
 
 describe("summary worker", () => {
+  it("uses the product article summary API", async () => {
+    const source = await readFile(new URL("./summary-worker.ts", import.meta.url), "utf8");
+
+    expect(source).toContain("summarizeArticle");
+    expect(source).toContain("ArticleSummaryInput");
+    expect(source).not.toContain("summarizeContent");
+    expect(source).not.toContain("SummaryContentInput");
+  });
+
   it("summarizes clips and writes the result back to the scoped row", async () => {
     const findFirst = vi.fn().mockResolvedValue({
       id: "clip-1",
