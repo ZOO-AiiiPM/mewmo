@@ -5,7 +5,7 @@
 This design supersedes the earlier dual-format adaptive clipboard contract for Linear issue ZOO-27. User acceptance showed that two different interactions need two explicit behaviors:
 
 - The overflow action `复制全文` copies Markdown source only.
-- Ordinary editor selection copy remains native browser copy, so destination applications choose the browser-provided rich or plain representation.
+- Ordinary editor selection copy keeps the ProseMirror/browser copy flow, but its plain-text representation must be visible text rather than Milkdown's default Markdown serialization.
 
 The revision also extends `复制全文` to every surface that edits a note: the main notes workspace, Today, and knowledge bases.
 
@@ -15,7 +15,7 @@ The revision also extends `复制全文` to every surface that edits a note: the
 
 The action copies the current title and latest Markdown held in browser state. It does not wait for autosave or reload persisted content. It writes only Markdown-flavoured `text/plain`; it does not write `text/html` and does not inspect the eventual paste destination.
 
-Ordinary `Cmd/Ctrl+C`, including select-all copy inside Crepe, is not intercepted. Instead, legacy `<br>` source is parsed into real editor break nodes so the browser's native selection clipboard contains rendered content rather than literal `<br />` text.
+Ordinary `Cmd/Ctrl+C`, including select-all copy inside Crepe, is not intercepted with a DOM `copy` event handler. Legacy `<br>` source is parsed into real editor break nodes, and Crepe's editor view overrides only `clipboardTextSerializer`: `text/plain` comes from the selected ProseMirror nodes' visible text instead of Milkdown's Markdown serializer. ProseMirror continues to generate `text/html` from the rendered document so rich destinations retain headings, emphasis, lists, and paragraph structure.
 
 This change does not add a format picker, add a second copy action, modify clips or feeds, or change Worker, Queue, database schema, sharing, or export behavior.
 
@@ -54,10 +54,10 @@ the clipboard result is exactly:
 1. The user selects part or all of the rendered editor content.
 2. The user invokes ordinary `Cmd/Ctrl+C`.
 3. Crepe's document contains real paragraph or hard-break nodes, not literal legacy break text.
-4. The browser performs its normal copy behavior and supplies its native rich-text and plain-text representations.
-5. Word, Markdown editors, WeChat, and other destinations choose the format they support; raw `<p>` or `<br />` source is not shown as text.
+4. ProseMirror writes rendered HTML for rich destinations and visible selected text for plain destinations.
+5. Word and similar rich destinations retain formatting; WeChat and plain destinations do not receive Markdown markers or raw `<p>` / `<br />` source as visible text.
 
-The application does not install an `onCopy` override or manually serialize the selection.
+The application does not install an `onCopy` override, construct a `ClipboardItem`, or replace ProseMirror's rendered HTML serializer. It only corrects Milkdown's plain-text serializer, which otherwise emits Markdown whenever a selection contains structural nodes or marks.
 
 ## Break Normalization Contract
 
@@ -87,7 +87,9 @@ Because Notes, Today, and knowledge bases all render notes through `NoteEditor`,
 - The full-copy builder returns `# <title>` plus normalized current Markdown.
 - The clipboard writer calls `writeText` only and propagates failures.
 
-`apps/web/src/components/editor/NoteEditor.tsx` applies the same break normalization before Crepe constructs its document. It does not attach an editor copy handler.
+`apps/web/src/components/editor/NoteEditor.tsx` applies the same break normalization before Crepe constructs its document. It configures Crepe's `editorViewOptionsCtx.clipboardTextSerializer` to serialize selected ProseMirror content as visible text, and does not attach an editor copy handler.
+
+`apps/web/src/components/editor/note-selection-copy.ts` owns the pure visible-text serializer used by that editor option. It joins block nodes with paragraph breaks and relies on ProseMirror node `leafText` behavior for real hard breaks, without running the Markdown serializer.
 
 `apps/web/src/components/shell/ReaderToolbar.tsx` continues to render `复制全文` only when `onCopyContent` is provided.
 
@@ -112,6 +114,8 @@ Unit tests prove:
 
 UI contract tests prove all three note surfaces provide current local note state to `onCopyContent`, while non-note readers do not expose the action. Editor tests prove break normalization is applied before Crepe initialization and no `onCopy` interception is introduced.
 
+Selection serializer tests prove headings and strong marks produce plain visible text without `#` or `**`, paragraph boundaries remain readable, normalized hard breaks become newlines, and raw HTML source is not serialized back into the plain-text channel.
+
 Browser verification covers:
 
 - `复制全文` in Notes, Today, and knowledge bases;
@@ -125,7 +129,7 @@ Browser verification covers:
 - Notes, Today notes, and knowledge-base notes each expose one `复制全文` action.
 - `复制全文` writes only Markdown `text/plain` from current local state.
 - Its output has one title heading, stable paragraph spacing, and no literal legacy break tags outside code.
-- Ordinary editor copy remains browser-native and does not reveal literal `<br />` text.
+- Ordinary editor copy keeps the ProseMirror/browser flow: `text/plain` is visible text without Markdown markers or literal `<br />`, while `text/html` remains rendered rich content.
 - Browser-native rich copy does not expose raw HTML tags as visible text in rich destinations.
 - Clip and feed readers remain unchanged.
 - Success and failure feedback is truthful.
