@@ -61,6 +61,17 @@ const value = 1;
     expect(unsafe.html).toContain("&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;");
     expect(unsafe.html).not.toContain("<script>");
   });
+
+  it("escapes unsafe image markdown without blocking the copy operation", () => {
+    const payload = buildNoteCopyPayload({
+      title: "安全测试",
+      markdown: "![x](javascript:evil)",
+    });
+
+    expect(payload.plainText).toBe("# 安全测试\n\n![x](javascript:evil)");
+    expect(payload.html).toContain("<p>![x](javascript:evil)</p>");
+    expect(payload.html).not.toContain("<img");
+  });
 });
 
 describe("note clipboard writer", () => {
@@ -95,6 +106,45 @@ describe("note clipboard writer", () => {
       undefined,
     );
 
+    expect(writeText).toHaveBeenCalledWith("# 标题");
+  });
+
+  it("falls back when the clipboard item does not support rich html", async () => {
+    class PlainTextOnlyClipboardItem {
+      static supports(type: string) {
+        return type === "text/plain";
+      }
+    }
+    const write = vi.fn(async () => undefined);
+    const writeText = vi.fn(async () => undefined);
+
+    await copyNoteToClipboard(
+      { plainText: "# 标题", html: "<h1>标题</h1>" },
+      { write, writeText },
+      PlainTextOnlyClipboardItem as unknown as typeof ClipboardItem,
+    );
+
+    expect(write).not.toHaveBeenCalled();
+    expect(writeText).toHaveBeenCalledWith("# 标题");
+  });
+
+  it("falls back when multi-format writing reports an unsupported format", async () => {
+    class FakeClipboardItem {}
+    const unsupported = Object.assign(new Error("unsupported"), {
+      name: "NotSupportedError",
+    });
+    const write = vi.fn(async () => {
+      throw unsupported;
+    });
+    const writeText = vi.fn(async () => undefined);
+
+    await copyNoteToClipboard(
+      { plainText: "# 标题", html: "<h1>标题</h1>" },
+      { write, writeText },
+      FakeClipboardItem as unknown as typeof ClipboardItem,
+    );
+
+    expect(write).toHaveBeenCalledTimes(1);
     expect(writeText).toHaveBeenCalledWith("# 标题");
   });
 

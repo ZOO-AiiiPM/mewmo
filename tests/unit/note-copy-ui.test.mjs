@@ -8,7 +8,10 @@ test("note overflow menu exposes one copy-full action", () => {
   const toolbar = read("apps/web/src/components/shell/ReaderToolbar.tsx");
   assert.match(toolbar, /onCopyContent\?:/);
   assert.equal((toolbar.match(/复制全文/g) ?? []).length, 1);
-  assert.match(toolbar, /menuKind === "notes"[\s\S]*runMenuAction\(onCopyContent\)/);
+  assert.match(
+    toolbar,
+    /menuKind === "notes"[\s\S]*\{onCopyContent && \([\s\S]*runMenuAction\(onCopyContent\)/,
+  );
 });
 
 test("note page copies the current title and unsaved editor content", () => {

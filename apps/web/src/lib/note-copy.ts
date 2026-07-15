@@ -41,16 +41,34 @@ export async function copyNoteToClipboard(
 ) {
   if (!clipboard) throw new Error("Clipboard is unavailable");
 
-  if (clipboard.write && ClipboardItemConstructor) {
-    const item = new ClipboardItemConstructor({
-      "text/plain": new Blob([payload.plainText], { type: "text/plain" }),
-      "text/html": new Blob([payload.html], { type: "text/html" }),
-    });
-    await clipboard.write([item]);
-    return;
+  const supportsRichHtml =
+    ClipboardItemConstructor &&
+    (typeof ClipboardItemConstructor.supports !== "function" ||
+      ClipboardItemConstructor.supports("text/html"));
+
+  if (clipboard.write && ClipboardItemConstructor && supportsRichHtml) {
+    try {
+      const item = new ClipboardItemConstructor({
+        "text/plain": new Blob([payload.plainText], { type: "text/plain" }),
+        "text/html": new Blob([payload.html], { type: "text/html" }),
+      });
+      await clipboard.write([item]);
+      return;
+    } catch (error) {
+      if (!isNotSupportedError(error)) throw error;
+    }
   }
 
   await clipboard.writeText(payload.plainText);
+}
+
+function isNotSupportedError(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "name" in error &&
+    error.name === "NotSupportedError"
+  );
 }
 
 function renderBlock(block: SharedNoteMarkdownBlock): string {
