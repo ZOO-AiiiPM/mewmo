@@ -2055,60 +2055,62 @@ html.light .mewmo-card-menu {
   flex-direction: column;
 }
 
-.mewmo-trash-card {
-  cursor: default;
-}
-
-.mewmo-trash-card .mewmo-list-card__title > .mewmo-prototype-icon {
-  flex: none;
-  color: var(--accent);
-}
-
 .mewmo-trash-card__meta {
   flex-wrap: wrap;
   padding-right: 0;
 }
 
+.mewmo-trash-card__meta > .mewmo-prototype-icon,
 .mewmo-trash-card__meta > span {
   flex: none;
   color: var(--ink-faint);
 }
 
-.mewmo-trash-card__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 12px;
+.mewmo-trash-card__meta > span:nth-child(2) {
+  flex: 0 1 auto;
 }
 
-.mewmo-trash-card__actions .mewmo-button {
-  padding: 6px 10px;
-  font-size: 12px;
-}
-
-.mewmo-document--trash .mewmo-trash-summary {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
-  gap: 10px;
-  margin-top: 20px;
-}
-
-.mewmo-trash-summary__item {
+.mewmo-trash-reader-actions {
   display: flex;
   align-items: center;
   gap: 8px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--s2);
-  padding: 10px 12px;
-  color: var(--ink-soft);
-  font-size: 13px;
 }
 
-.mewmo-trash-summary__item b {
-  margin-left: auto;
-  color: var(--ink);
-  font-size: 15px;
+.mewmo-trash-reader-actions .mewmo-button {
+  min-height: 30px;
+  padding: 6px 10px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.mewmo-document--trash-detail {
+  min-height: 100%;
+}
+
+.mewmo-trash-detail__cover {
+  width: 100%;
+  aspect-ratio: 16 / 7;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--s2);
+  margin-bottom: 24px;
+}
+
+.mewmo-trash-detail__cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mewmo-trash-detail__summary {
+  max-width: 58ch;
+}
+
+.mewmo-trash-detail__source,
+.mewmo-trash-detail__empty {
+  color: var(--ink-faint);
 }
 
 .mewmo-spinner {
@@ -5505,6 +5507,10 @@ html.light .acct-submenu {
   .mewmo-reader-scroll {
     padding-left: 28px;
     padding-right: 28px;
+  }
+
+  .mewmo-reader-surface--trash .mewmo-reader-toolbar__nav {
+    display: none;
   }
 }
 
