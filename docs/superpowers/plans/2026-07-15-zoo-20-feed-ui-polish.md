@@ -202,7 +202,7 @@ On port 3018, discover `https://www.woshipm.com/category/pd/feed` and confirm th
 
 Compare the final diff against the design spec, then run a code-quality review for regressions, accessibility, stale selected-entry state, and unrelated changes.
 
-- [ ] **Step 4: Commit only ZOO-20 implementation files**
+- [x] **Step 4: Commit only ZOO-20 implementation files**
 
 Use path-limited staging/commit so existing user-staged and unrelated working-tree changes remain intact.
 
