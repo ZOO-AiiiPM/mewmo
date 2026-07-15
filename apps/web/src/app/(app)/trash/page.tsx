@@ -164,7 +164,6 @@ export default function TrashPage() {
   const [selectedDetail, setSelectedDetail] = useState<TrashItem | null>(null);
   const [loadingDetailKey, setLoadingDetailKey] = useState<string | null>(null);
   const [detailError, setDetailError] = useState("");
-  const [listCollapsed, setListCollapsed] = useState(false);
   const [confirmDeleteItem, setConfirmDeleteItem] = useState<TrashItem | null>(null);
 
   useEffect(() => {
@@ -283,7 +282,7 @@ export default function TrashPage() {
   );
 
   return (
-    <div className={`mewmo-workspace ${listCollapsed ? "mewmo-workspace--list-collapsed" : ""}`}>
+    <div className="mewmo-workspace">
       <ListColumn title="废纸篓" searchPlaceholder="搜索废纸篓..." onSearchChange={setQuery}>
         {isLoading ? (
           <div className="mewmo-list-empty">
@@ -346,8 +345,6 @@ export default function TrashPage() {
           title={selectedListItem?.title ?? "废纸篓"}
           titleVisible={toolbarTitleVisible}
           onTitleClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" })}
-          onToggleList={() => setListCollapsed((value) => !value)}
-          listCollapsed={listCollapsed}
           showMenu={false}
           actions={
             selectedListItem ? (

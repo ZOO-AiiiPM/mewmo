@@ -46,6 +46,11 @@ test("trash page exposes restore, manual permanent delete, and 14-day retention"
   assert.match(page, /SharedNoteMarkdown/, "deleted notes should render through the read-only markdown renderer");
   assert.match(page, /ClipContentRenderer/, "deleted clips should use the sanitized clip renderer");
   assert.match(page, /<ReaderToolbar[\s\S]*actions=/, "trash mutations should live in the reader toolbar");
+  assert.doesNotMatch(
+    page,
+    /onToggleList=/,
+    "trash reader should not expose the fullscreen list toggle",
+  );
   assert.match(page, /mewmo-reader-surface--trash/, "trash reader should expose a focused responsive surface");
   assert.doesNotMatch(page, /mewmo-trash-card__actions/, "trash list cards should not contain management buttons");
   assert.match(toolbar, /showMenu\?: boolean/, "reader toolbar should allow custom-action pages to hide its default menu");
