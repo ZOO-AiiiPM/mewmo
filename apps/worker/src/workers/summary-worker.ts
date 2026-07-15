@@ -1,11 +1,11 @@
 import { Worker, type Job } from "bullmq";
 import { getPrisma } from "@mewmo/db";
-import { summarizeContent, type SummaryContentInput } from "@mewmo/ai";
+import { summarizeArticle, type ArticleSummaryInput } from "@mewmo/ai";
 import { createRedisConnection, queueNames, type SummaryJobPayload } from "@mewmo/queue";
 
 interface SummaryWorkerDeps {
   prisma?: unknown;
-  summarize?: (input: SummaryContentInput) => Promise<string>;
+  summarize?: (input: ArticleSummaryInput) => Promise<string>;
 }
 
 interface SummaryPrismaClient {
@@ -42,7 +42,7 @@ export async function processSummaryJob(payload: SummaryJobPayload, deps: Summar
   }
 
   const prisma = (deps.prisma ?? getPrisma()) as SummaryPrismaClient;
-  const summarize = deps.summarize ?? summarizeContent;
+  const summarize = deps.summarize ?? summarizeArticle;
 
   if (payload.targetType === "clip") {
     const clip = (await prisma.clip?.findFirst({

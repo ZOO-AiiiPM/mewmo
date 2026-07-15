@@ -12,9 +12,5 @@
     "build": "tsc -p tsconfig.json",
     "lint": "eslint .",
     "test": "vitest src"
-  },
-  "dependencies": {
-    "@mewmo/db": "workspace:*",
-    "@mewmo/shared": "workspace:*"
   }
 }
