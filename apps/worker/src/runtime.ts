@@ -5,25 +5,25 @@ export interface WorkerHandle {
 }
 
 interface WorkerRuntimeDependencies {
-  createWorkers?: () => WorkerHandle[];
+  createWorker?: () => WorkerHandle;
 }
 
 export interface WorkerRuntime {
   stop(): Promise<void>;
 }
 
-function createDefaultWorkers(): WorkerHandle[] {
-  return [createSummaryWorker()];
+function createDefaultWorker(): WorkerHandle {
+  return createSummaryWorker();
 }
 
 export function startWorkerRuntime(dependencies: WorkerRuntimeDependencies = {}): WorkerRuntime {
-  const workers = (dependencies.createWorkers ?? createDefaultWorkers)();
+  const worker = (dependencies.createWorker ?? createDefaultWorker)();
   let stopPromise: Promise<void> | undefined;
 
   return {
     stop() {
       stopPromise ??= (async () => {
-        await Promise.all(workers.map((worker) => worker.close()));
+        await worker.close();
       })();
       return stopPromise;
     },

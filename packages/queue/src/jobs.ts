@@ -8,14 +8,6 @@ export function addSummaryJob(...args: Parameters<ReturnType<typeof createQueueH
   return createQueueHelpers().addSummaryJob(...args);
 }
 
-export function addFeedFetchJob(...args: Parameters<ReturnType<typeof createQueueHelpers>["addFeedFetchJob"]>) {
-  return createQueueHelpers().addFeedFetchJob(...args);
-}
-
-export function addClipFetchJob(...args: Parameters<ReturnType<typeof createQueueHelpers>["addClipFetchJob"]>) {
-  return createQueueHelpers().addClipFetchJob(...args);
-}
-
 export function addEmbeddingJob(...args: Parameters<ReturnType<typeof createQueueHelpers>["addEmbeddingJob"]>) {
   return createQueueHelpers().addEmbeddingJob(...args);
 }
