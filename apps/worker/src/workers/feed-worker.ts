@@ -1,8 +1,7 @@
 import { Worker, type Job } from "bullmq";
+import { parseFeedXml } from "@mewmo/content";
 import { createFeedEntriesRepository, getPrisma } from "@mewmo/db";
 import { createQueueHelpers, createRedisConnection, queueNames, withTimeout, type FeedFetchJobPayload } from "@mewmo/queue";
-
-import { parseFeedXml } from "../lib/feed-parser";
 
 interface FeedWorkerDeps {
   connection?: unknown;
@@ -82,7 +81,7 @@ export async function processFeedFetchJob(payload: FeedFetchJobPayload, deps: Fe
           title: entry.title,
           url: entry.url,
           content: entry.content,
-          ...(entry.summary !== undefined && { summary: entry.summary }),
+          ...(entry.excerpt !== undefined && { excerpt: entry.excerpt }),
           ...(entry.author !== undefined && { author: entry.author }),
           ...(entry.publishedAt !== undefined && {
             publishedAt: entry.publishedAt,

@@ -4,7 +4,7 @@ export interface ParsedFeedEntry {
   title: string;
   url: string;
   content: string;
-  summary?: string;
+  excerpt?: string;
   author?: string;
   publishedAt?: Date;
 }
@@ -34,9 +34,9 @@ function textValue(value: unknown): string {
 
 function decodeXmlText(value: string) {
   return value
-    .replace(/&#34;/g, "\"")
+    .replace(/&#34;/g, '"')
     .replace(/&#39;/g, "'")
-    .replace(/&quot;/g, "\"")
+    .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'")
     .replace(/&amp;/g, "&");
 }
@@ -49,7 +49,7 @@ function dateValue(value: unknown): Date | undefined {
 }
 
 function optionalFields(fields: {
-  summary?: string | undefined;
+  excerpt?: string | undefined;
   author?: string | undefined;
   publishedAt?: Date | undefined;
 }) {
@@ -80,14 +80,14 @@ export function parseFeedXml(xml: string, limit = Number.POSITIVE_INFINITY): Par
       .slice(0, limit)
       .map((item) => {
         const rssItem = item as Record<string, unknown>;
-        const summary = textValue(rssItem.description) || undefined;
+        const excerpt = textValue(rssItem.description) || undefined;
         const author = textValue(rssItem.author) || textValue(rssItem["dc:creator"]) || undefined;
         const publishedAt = dateValue(rssItem.pubDate);
         return {
           title: textValue(rssItem.title),
           url: textValue(rssItem.link),
           content: textValue(rssItem["content:encoded"]) || textValue(rssItem.description),
-          ...optionalFields({ summary, author, publishedAt }),
+          ...optionalFields({ excerpt, author, publishedAt }),
         };
       })
       .filter((entry) => entry.title && entry.url);
@@ -98,14 +98,14 @@ export function parseFeedXml(xml: string, limit = Number.POSITIVE_INFINITY): Par
       .slice(0, limit)
       .map((item) => {
         const atomEntry = item as Record<string, unknown>;
-        const summary = textValue(atomEntry.summary) || undefined;
+        const excerpt = textValue(atomEntry.summary) || undefined;
         const author = textValue((atomEntry.author as { name?: unknown } | undefined)?.name) || undefined;
         const publishedAt = dateValue(atomEntry.published) ?? dateValue(atomEntry.updated);
         return {
           title: textValue(atomEntry.title),
           url: atomLinkValue(atomEntry.link),
           content: textValue(atomEntry.content) || textValue(atomEntry.summary),
-          ...optionalFields({ summary, author, publishedAt }),
+          ...optionalFields({ excerpt, author, publishedAt }),
         };
       })
       .filter((entry) => entry.title && entry.url);

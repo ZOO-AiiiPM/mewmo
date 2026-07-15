@@ -253,7 +253,7 @@ describe("fetchAndStoreFeed", () => {
     });
   });
 
-  it("uses the original article page content instead of RSS summary when available", async () => {
+  it("uses original article content and keeps publisher text in excerpt", async () => {
     const feed = {
       id: "feed-1",
       userId: "user-1",
@@ -283,7 +283,7 @@ describe("fetchAndStoreFeed", () => {
       fetchEntryPage: async () => ({
         title: "Original title",
         content: "<article><p>Original full body.</p></article>",
-        summary: "Original summary",
+        excerpt: "Original publisher description",
         coverImage: "https://example.com/cover.jpg",
         sourceName: "Original Site",
         author: "Author",
@@ -295,12 +295,13 @@ describe("fetchAndStoreFeed", () => {
       expect.objectContaining({
         title: "Original title",
         content: "<article><p>Original full body.</p></article>",
-        summary: "Original summary",
+        excerpt: "Original publisher description",
         coverImage: "https://example.com/cover.jpg",
         sourceName: "Original Site",
         author: "Author",
       }),
     );
+    expect(upsertByFeedUrl.mock.calls[0]?.[1]).not.toHaveProperty("summary");
   });
 
   it("keeps the feed title when the article page title only adds a site suffix", async () => {

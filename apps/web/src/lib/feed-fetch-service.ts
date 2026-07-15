@@ -1,9 +1,9 @@
 import { createFeedEntriesRepository, getPrisma } from "@mewmo/db";
+import { parseFeedXml } from "@mewmo/content";
 import { withTimeout } from "@mewmo/queue";
 
 import { fetchClipFromUrl } from "./clip-fetch";
 import { normalizeFeedEntryContent } from "./feed-content";
-import { parseFeedXml } from "./feed-parser";
 
 export const DEFAULT_FEED_FETCH_LIMIT = 10;
 
@@ -144,9 +144,8 @@ export async function fetchAndStoreFeed(userId: string, feedId: string, deps: Fe
           title,
           url: entry.url,
           content: normalized.content,
-          ...((page?.summary ?? normalized.excerpt) ? { summary: page?.summary ?? normalized.excerpt } : {}),
           ...((page?.coverImage ?? normalized.coverImage) ? { coverImage: page?.coverImage ?? normalized.coverImage } : {}),
-          ...(normalized.excerpt ? { excerpt: normalized.excerpt } : {}),
+          ...((page?.excerpt ?? entry.excerpt ?? normalized.excerpt) ? { excerpt: page?.excerpt ?? entry.excerpt ?? normalized.excerpt } : {}),
           sourceName: page?.sourceName ?? feed.title,
           ...((page?.author ?? entry.author) ? { author: page?.author ?? entry.author } : {}),
           ...((page?.publishedAt ?? entry.publishedAt) ? { publishedAt: page?.publishedAt ?? entry.publishedAt } : {}),

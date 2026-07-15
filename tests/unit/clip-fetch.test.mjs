@@ -21,10 +21,10 @@ test("extracts clip metadata and readable body from page html", () => {
 
   const clip = extractClipFromHtml(page, "https://example.com/articles/a");
   assert.equal(clip.title, "OG Article Title");
-  assert.equal(clip.summary, "Readable summary");
+  assert.equal(clip.excerpt, "Readable summary");
+  assert.equal("summary" in clip, false);
   assert.equal(clip.favicon, "https://example.com/favicon.ico");
   assert.equal(clip.coverImage, "https://example.com/cover.jpg");
-  assert.match(clip.excerpt, /Readable body content/);
   assert.match(clip.content, /Readable body content/);
 });
 
@@ -90,5 +90,5 @@ test("extracts WeChat metadata from profile cards and ignores generic descriptio
   const clip = extractClipFromHtml(page, "https://mp.weixin.qq.com/s/demo");
   assert.equal(clip.sourceName, "腾讯技术工程");
   assert.equal(clip.author, "腾讯技术工程");
-  assert.equal(clip.summary, undefined);
+  assert.equal("summary" in clip, false);
 });
