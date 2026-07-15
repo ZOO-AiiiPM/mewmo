@@ -16,7 +16,7 @@
 - Create: `apps/web/src/lib/note-markdown-breaks.ts`
 - Create: `apps/web/src/lib/note-markdown-breaks.test.ts`
 
-- [ ] **Step 1: Write failing break-normalization tests**
+- [x] **Step 1: Write failing break-normalization tests**
 
 Create `apps/web/src/lib/note-markdown-breaks.test.ts`:
 
@@ -46,7 +46,7 @@ describe("note markdown break normalization", () => {
 });
 ```
 
-- [ ] **Step 2: Run the tests and verify RED**
+- [x] **Step 2: Run the tests and verify RED**
 
 Run:
 
@@ -56,7 +56,7 @@ pnpm vitest run apps/web/src/lib/note-markdown-breaks.test.ts
 
 Expected: FAIL because `./note-markdown-breaks` does not exist.
 
-- [ ] **Step 3: Implement the pure normalizer**
+- [x] **Step 3: Implement the pure normalizer**
 
 Create `apps/web/src/lib/note-markdown-breaks.ts`:
 
@@ -103,7 +103,7 @@ export function normalizeNoteMarkdownBreaks(markdown: string) {
 }
 ```
 
-- [ ] **Step 4: Run the tests and verify GREEN**
+- [x] **Step 4: Run the tests and verify GREEN**
 
 Run:
 
@@ -113,7 +113,7 @@ pnpm vitest run apps/web/src/lib/note-markdown-breaks.test.ts
 
 Expected: 3 tests pass.
 
-- [ ] **Step 5: Stage and commit Task 1**
+- [x] **Step 5: Stage and commit Task 1**
 
 ```bash
 git add apps/web/src/lib/note-markdown-breaks.ts apps/web/src/lib/note-markdown-breaks.test.ts
@@ -127,7 +127,7 @@ git commit -m "fix(notes): normalize legacy markdown breaks"
 - Modify: `apps/web/src/lib/note-copy.test.ts`
 - Reuse: `apps/web/src/lib/note-markdown-breaks.ts`
 
-- [ ] **Step 1: Replace the old dual-format tests with the revised contract**
+- [x] **Step 1: Replace the old dual-format tests with the revised contract**
 
 Rewrite `apps/web/src/lib/note-copy.test.ts` around these public functions:
 
@@ -189,7 +189,7 @@ describe("note markdown clipboard writer", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test and verify RED**
+- [x] **Step 2: Run the test and verify RED**
 
 Run:
 
@@ -199,7 +199,7 @@ pnpm vitest run apps/web/src/lib/note-copy.test.ts
 
 Expected: FAIL because the revised public functions are not exported and the current writer still writes HTML.
 
-- [ ] **Step 3: Replace dual-format serialization with Markdown-only copying**
+- [x] **Step 3: Replace dual-format serialization with Markdown-only copying**
 
 Replace `apps/web/src/lib/note-copy.ts` with:
 
@@ -233,7 +233,7 @@ export async function copyNoteMarkdownToClipboard(
 
 Remove the old HTML block/inline serializer, `ClipboardItem`, `Blob`, and multi-format fallback code.
 
-- [ ] **Step 4: Run the revised test and verify GREEN**
+- [x] **Step 4: Run the revised test and verify GREEN**
 
 Run:
 
@@ -243,7 +243,7 @@ pnpm vitest run apps/web/src/lib/note-copy.test.ts apps/web/src/lib/note-markdow
 
 Expected: 8 tests pass.
 
-- [ ] **Step 5: Stage and commit Task 2**
+- [x] **Step 5: Stage and commit Task 2**
 
 ```bash
 git add apps/web/src/lib/note-copy.ts apps/web/src/lib/note-copy.test.ts
@@ -256,7 +256,7 @@ git commit -m "fix(notes): copy full notes as markdown only"
 - Modify: `apps/web/src/components/editor/NoteEditor.tsx`
 - Create: `tests/unit/note-editor-native-copy.test.mjs`
 
-- [ ] **Step 1: Write a failing editor contract test**
+- [x] **Step 1: Write a failing editor contract test**
 
 Create `tests/unit/note-editor-native-copy.test.mjs`:
 
@@ -283,7 +283,7 @@ test("note editor leaves selection copy to the browser", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test and verify RED**
+- [x] **Step 2: Run the test and verify RED**
 
 Run:
 
@@ -293,7 +293,7 @@ node --test tests/unit/note-editor-native-copy.test.mjs
 
 Expected: the normalization assertion fails because `NoteEditor` passes legacy Markdown directly to Crepe.
 
-- [ ] **Step 3: Normalize the resolved initial editor Markdown**
+- [x] **Step 3: Normalize the resolved initial editor Markdown**
 
 In `NoteEditor.tsx`, import:
 
@@ -313,7 +313,7 @@ const [editorInitialContent] = useState(() =>
 
 Do not add an `onCopy` prop or ProseMirror clipboard serializer. The existing first `markdownUpdated` guard continues to prevent opening a non-empty note from triggering an autosave.
 
-- [ ] **Step 4: Run editor and normalization tests**
+- [x] **Step 4: Run editor and normalization tests**
 
 Run:
 
@@ -324,7 +324,7 @@ pnpm vitest run apps/web/src/lib/note-markdown-breaks.test.ts tests/unit/editor-
 
 Expected: 2 Node tests and all selected Vitest tests pass.
 
-- [ ] **Step 5: Stage and commit Task 3**
+- [x] **Step 5: Stage and commit Task 3**
 
 ```bash
 git add apps/web/src/components/editor/NoteEditor.tsx tests/unit/note-editor-native-copy.test.mjs
@@ -339,7 +339,7 @@ git commit -m "fix(editor): render legacy breaks as native structure"
 - Modify: `apps/web/src/app/(app)/knowledge-bases/page.tsx`
 - Modify: `tests/unit/note-copy-ui.test.mjs`
 
-- [ ] **Step 1: Write failing UI contract assertions for all three surfaces**
+- [x] **Step 1: Write failing UI contract assertions for all three surfaces**
 
 Extend `tests/unit/note-copy-ui.test.mjs` to assert:
 
@@ -362,9 +362,9 @@ test("all note reader surfaces copy current local markdown", () => {
 });
 ```
 
-Update the existing Notes assertion to use `buildNoteCopyMarkdown` and retain the checks for current `selectedNote.title` plus `editorContent`.
+Update the existing Notes assertion to use `buildNoteCopyMarkdown` and retain the checks for current `selectedNote.title` plus the loaded `selectedNote.content`. The action must stay unavailable while `content` is still `undefined`, so a fast selection change cannot pair the new title with the previous note body.
 
-- [ ] **Step 2: Run the UI contract test and verify RED**
+- [x] **Step 2: Run the UI contract test and verify RED**
 
 Run:
 
@@ -374,17 +374,17 @@ node --test tests/unit/note-copy-ui.test.mjs
 
 Expected: FAIL because Today and knowledge bases do not provide `onCopyContent`, and Notes still calls the dual-format API.
 
-- [ ] **Step 3: Update the main Notes handler**
+- [x] **Step 3: Update the main Notes handler**
 
 In `NoteEditorPage.tsx`, import `buildNoteCopyMarkdown` and `copyNoteMarkdownToClipboard`. Replace `copyCurrentNote` with:
 
 ```ts
 const copyCurrentNote = async () => {
-  if (!selectedNote) return;
+  if (!selectedNote || selectedNote.content === undefined) return;
   try {
     const markdown = buildNoteCopyMarkdown({
       title: selectedNote.title,
-      markdown: editorContent,
+      markdown: selectedNote.content,
     });
     await copyNoteMarkdownToClipboard(markdown, navigator.clipboard);
     showToast("已复制全文", "success");
@@ -394,7 +394,9 @@ const copyCurrentNote = async () => {
 };
 ```
 
-- [ ] **Step 4: Add the Today note handler**
+Pass `onCopyContent` only when `selectedNote?.content !== undefined`. The editor callback already writes current local Markdown into the selected note record, so a second `editorContent` state would create a cross-note stale-data window.
+
+- [x] **Step 4: Add the Today note handler**
 
 In `today/page.tsx`, import `useToast`, `buildNoteCopyMarkdown`, and `copyNoteMarkdownToClipboard`. Initialize `const { showToast } = useToast();` with the other hooks. Add:
 
@@ -420,7 +422,7 @@ Pass:
 onCopyContent={selected?.type === "note" ? () => void copySelectedNote() : undefined}
 ```
 
-- [ ] **Step 5: Add the knowledge-base note handler**
+- [x] **Step 5: Add the knowledge-base note handler**
 
 In `knowledge-bases/page.tsx`, reuse its existing `showToast` and import the revised copy functions. Add:
 
@@ -450,7 +452,7 @@ onCopyContent={
 }
 ```
 
-- [ ] **Step 6: Run focused tests and verify GREEN**
+- [x] **Step 6: Run focused tests and verify GREEN**
 
 Run:
 
@@ -461,7 +463,7 @@ node --test tests/unit/note-editor-native-copy.test.mjs tests/unit/note-copy-ui.
 
 Expected: all focused Vitest and Node tests pass.
 
-- [ ] **Step 7: Stage and commit Task 4**
+- [x] **Step 7: Stage and commit Task 4**
 
 ```bash
 git add 'apps/web/src/app/(app)/notes/[slug]/NoteEditorPage.tsx' 'apps/web/src/app/(app)/today/page.tsx' 'apps/web/src/app/(app)/knowledge-bases/page.tsx' tests/unit/note-copy-ui.test.mjs
@@ -474,7 +476,7 @@ git commit -m "fix(notes): expose markdown copy across note readers"
 - Modify: `docs/superpowers/plans/2026-07-15-note-copy-acceptance-fixes.md`
 - No production files beyond Tasks 1-4
 
-- [ ] **Step 1: Run change-scoped automated verification**
+- [x] **Step 1: Run change-scoped automated verification**
 
 Run:
 
@@ -492,6 +494,15 @@ Expected: every command exits 0. Generate Prisma Client first if the isolated wo
 
 - [ ] **Step 2: Run browser verification**
 
+Partial evidence on `http://localhost:3017`:
+
+- Notes and Today each exposed exactly one `复制全文` action for a selected note.
+- `复制全文` produced one `text/plain` entry with `# Untitled\n\n测试\n\n测试中\nUNSAVED-ZOO27-0715`, including the current local editor state.
+- Native editor select-all produced `text/html` plus `text/plain`; the plain text contained no literal `<br>` variant.
+- The Clips reader exposed no `复制全文` action.
+- Dark-theme menu and toast were readable in the live browser.
+- Knowledge-base note and non-note states were unavailable because the test account had no persisted knowledge-base item; light-theme switching was not completed. Keep this step unchecked until those states are verified.
+
 On an isolated localhost port, verify:
 
 1. Notes, Today note, and knowledge-base note each show exactly one `复制全文` action.
@@ -502,15 +513,19 @@ On an isolated localhost port, verify:
 6. Clip, feed, Today non-note, and knowledge non-note readers do not show `复制全文`.
 7. Menu and toast remain readable in light and dark themes.
 
-- [ ] **Step 3: Request code review and resolve findings**
+- [x] **Step 3: Request code review and resolve findings**
+
+Review of `01ce506..597923f` found two Important issues: Notes could briefly pair a newly selected title with stale `editorContent`, and fenced-code normalization did not track opening marker length. Both were fixed in `284f0b5` with RED/GREEN regression tests. Reviewer follow-up confirmed both findings resolved with no new Critical, Important, or Minor findings.
 
 Use `requesting-code-review` with base `01ce506` and the final implementation SHA. Fix every Critical or Important finding and rerun the affected evidence. If the external reviewer is unavailable, record the failure and perform a line-by-line local spec audit without claiming independent approval.
 
 - [ ] **Step 4: Update Linear without rewriting history**
 
+Blocked in this task runtime: `linear` remains enabled with OAuth in Codex configuration, but no Linear tool was injected into the active task and the Linear webview could not attach. No existing comment was edited or deleted, and no completion comment has been added yet.
+
 Add a new Chinese completion comment to ZOO-27 referencing revision Spec comment `3ef03289-cf18-4318-b402-d197adca4766`. Do not update or delete prior comments. Include changed files, exact clipboard contracts, fresh tests/build/browser evidence, unverified native destinations, and commit SHAs. Keep the issue `In Progress` until explicit user acceptance.
 
-- [ ] **Step 5: Commit verification bookkeeping**
+- [x] **Step 5: Commit verification bookkeeping**
 
 Check only completed plan items, then:
 
