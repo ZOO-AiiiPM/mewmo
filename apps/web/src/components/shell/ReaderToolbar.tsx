@@ -12,6 +12,7 @@ interface ReaderToolbarProps {
   onToggleList?: () => void;
   listCollapsed?: boolean;
   actions?: ReactNode;
+  showMenu?: boolean;
   menuKind?: "notes" | "clips" | "feed";
   pinned?: boolean | undefined;
   onDelete?: (() => void) | undefined;
@@ -31,6 +32,7 @@ export function ReaderToolbar({
   onToggleList,
   listCollapsed = false,
   actions,
+  showMenu = true,
   menuKind = "notes",
   pinned = false,
   onDelete,
@@ -85,7 +87,7 @@ export function ReaderToolbar({
           </button>
         )}
         {actions}
-        <div className="mewmo-reader-toolbar__menu-wrap">
+        <div className="mewmo-reader-toolbar__menu-wrap" hidden={!showMenu}>
           <button
             ref={menuButtonRef}
             type="button"

@@ -27,6 +27,7 @@ test("trash routes keep recovery, retention, and permanent delete behind authent
 test("trash page exposes restore, manual permanent delete, and 14-day retention", () => {
   const pagePath = "apps/web/src/app/(app)/trash/page.tsx";
   const sidebar = read("apps/web/src/components/shell/Sidebar.tsx");
+  const toolbar = read("apps/web/src/components/shell/ReaderToolbar.tsx");
 
   assert.ok(existsSync(pagePath), "trash page should exist");
 
@@ -38,4 +39,13 @@ test("trash page exposes restore, manual permanent delete, and 14-day retention"
   assert.match(page, /ConfirmDialog/, "permanent delete should be confirmed");
   assert.match(page, /14\s*天/, "trash page should expose the 14-day retention policy");
   assert.match(page, /永久删除/, "trash page should label permanent delete explicitly");
+  assert.match(page, /mewmo-list-card--button/, "trash items should use selectable workspace cards");
+  assert.match(page, /mewmo-list-card--selected/, "trash cards should expose the selected state");
+  assert.match(page, /fetch\(itemPath\(selectedListItem\)\)/, "trash details should load only for the selected item");
+  assert.match(page, /SharedNoteMarkdown/, "deleted notes should render through the read-only markdown renderer");
+  assert.match(page, /ClipContentRenderer/, "deleted clips should use the sanitized clip renderer");
+  assert.match(page, /<ReaderToolbar[\s\S]*actions=/, "trash mutations should live in the reader toolbar");
+  assert.doesNotMatch(page, /mewmo-trash-card__actions/, "trash list cards should not contain management buttons");
+  assert.match(toolbar, /showMenu\?: boolean/, "reader toolbar should allow custom-action pages to hide its default menu");
+  assert.match(toolbar, /hidden=\{!showMenu\}/, "hidden trash menu should not remain interactive");
 });
