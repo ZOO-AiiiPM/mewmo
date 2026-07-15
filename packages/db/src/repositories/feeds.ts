@@ -24,6 +24,15 @@ export interface UpdateFeedInput {
   lastFetchCount?: number;
 }
 
+export interface DueFeedForRefresh {
+  id: string;
+  userId: string;
+  url: string;
+  title: string;
+  lastFetchStatus: string;
+  lastFetchStartedAt: Date | null;
+}
+
 interface FeedsClient {
   feed: {
     create(args: unknown): Promise<unknown>;
@@ -72,7 +81,13 @@ export function createFeedsRepository(client: unknown = getPrisma()) {
     findDueForRefresh(now = new Date(), limit = 50) {
       const retryBefore = new Date(now.getTime() - 5 * 60_000);
       return db.$queryRaw(Prisma.sql`
-        SELECT *
+        SELECT
+          id,
+          user_id AS "userId",
+          url,
+          title,
+          last_fetch_status AS "lastFetchStatus",
+          last_fetch_started_at AS "lastFetchStartedAt"
         FROM feeds
         WHERE deleted_at IS NULL
           AND (
@@ -98,7 +113,7 @@ export function createFeedsRepository(client: unknown = getPrisma()) {
           )
         ORDER BY COALESCE(last_fetch_started_at, last_fetched_at, created_at) ASC
         LIMIT ${limit}
-      `);
+      `) as Promise<DueFeedForRefresh[]>;
     },
 
     update(userId: string, id: string, input: UpdateFeedInput) {

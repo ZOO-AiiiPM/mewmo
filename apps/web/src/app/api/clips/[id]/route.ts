@@ -59,9 +59,20 @@ function hasClipChanged(
 }
 
 const SUMMARY_QUEUE_TIMEOUT_MS = 3_000;
+const CLIP_REFRESH_LEASE_MS = 5 * 60_000;
 
 function isTimeoutError(error: unknown) {
   return error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
+}
+
+function refreshConflict(reason: "already_running" | "lease_lost") {
+  return NextResponse.json(
+    {
+      error: reason === "already_running" ? "Clip refresh already in progress" : "Clip refresh lease lost",
+      reason,
+    },
+    { status: 409 },
+  );
 }
 
 async function enqueueSummary(userId: string, clipId: string) {
@@ -166,32 +177,76 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  await prisma.clip.update({
-    where: { id },
-    data: { fetchStatus: "fetching", fetchError: null, version: { increment: 1 } },
+  const startedAt = new Date();
+  if (
+    clip.fetchStatus === "fetching" &&
+    clip.fetchStartedAt &&
+    clip.fetchStartedAt.getTime() > startedAt.getTime() - CLIP_REFRESH_LEASE_MS
+  ) {
+    return refreshConflict("already_running");
+  }
+
+  const claim = await prisma.clip.updateMany({
+    where: {
+      id,
+      userId,
+      deletedAt: null,
+      fetchStatus: clip.fetchStatus,
+      fetchStartedAt: clip.fetchStartedAt,
+    },
+    data: {
+      fetchStatus: "fetching",
+      fetchError: null,
+      fetchStartedAt: startedAt,
+      version: { increment: 1 },
+    },
   });
+  if (claim.count === 0) return refreshConflict("already_running");
 
   try {
     const fetched = await fetchClipFromUrl(clip.url);
     const data = normalizeRefreshData(fetched);
-    const updated = await prisma.clip.update({
-      where: { id },
+    const completion = await prisma.clip.updateMany({
+      where: {
+        id,
+        userId,
+        deletedAt: null,
+        fetchStatus: "fetching",
+        fetchStartedAt: startedAt,
+      },
       data: {
         ...data,
         fetchStatus: "success",
         fetchError: null,
+        fetchStartedAt: null,
         fetchedAt: new Date(),
         version: { increment: 1 },
       },
     });
+    if (completion.count === 0) return refreshConflict("lease_lost");
+
+    const updated = await prisma.clip.findFirst({ where: { id, userId, deletedAt: null } });
+    if (!updated) return refreshConflict("lease_lost");
     await enqueueSummary(userId, clip.id);
     return NextResponse.json({ status: "success", clip: updated, changed: hasClipChanged(clip, data) });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not refresh clip";
-    await prisma.clip.update({
-      where: { id },
-      data: { fetchStatus: "error", fetchError: message, version: { increment: 1 } },
+    const failure = await prisma.clip.updateMany({
+      where: {
+        id,
+        userId,
+        deletedAt: null,
+        fetchStatus: "fetching",
+        fetchStartedAt: startedAt,
+      },
+      data: {
+        fetchStatus: "error",
+        fetchError: message,
+        fetchStartedAt: null,
+        version: { increment: 1 },
+      },
     });
+    if (failure.count === 0) return refreshConflict("lease_lost");
     return NextResponse.json({ error: message }, { status: isTimeoutError(error) ? 504 : 502 });
   }
 }

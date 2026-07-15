@@ -149,6 +149,7 @@ model Clip {
   publishedAt DateTime? @map("published_at")
   fetchStatus String    @default("idle") @map("fetch_status")
   fetchError  String?   @map("fetch_error")
+  fetchStartedAt DateTime? @map("fetch_started_at")
   fetchedAt   DateTime? @map("fetched_at")
   version     Int       @default(1)
   userId      String    @map("user_id")

@@ -131,9 +131,6 @@ importers:
       entities:
         specifier: 7.0.1
         version: 7.0.1
-      fast-xml-parser:
-        specifier: ^5.9.3
-        version: 5.9.3
       next:
         specifier: 16.2.9
         version: 16.2.9(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -192,9 +189,6 @@ importers:
       bullmq:
         specifier: 5.79.1
         version: 5.79.1
-      fast-xml-parser:
-        specifier: ^5.9.3
-        version: 5.9.3
       tsx:
         specifier: 4.22.4
         version: 4.22.4
@@ -231,6 +225,12 @@ importers:
       fast-xml-parser:
         specifier: ^5.9.3
         version: 5.9.3
+      ipaddr.js:
+        specifier: 2.2.0
+        version: 2.2.0
+      undici:
+        specifier: ^8.5.0
+        version: 8.5.0
 
   packages/db:
     dependencies:
@@ -2181,6 +2181,10 @@ packages:
   ioredis@5.10.1:
     resolution: {integrity: sha512-HuEDBTI70aYdx1v6U97SbNx9F1+svQKBDo30o0b9fw055LMepzpOOd0Ccg9Q6tbqmBSJaMuY0fB7yw9/vjBYCA==}
     engines: {node: '>=12.22.0'}
+
+  ipaddr.js@2.2.0:
+    resolution: {integrity: sha512-Ag3wB2o37wslZS19hZqorUnrnzSkpOVy+IiiDEiTqNubEYpYuHWIf6K4psgN2ZWKExS4xhVCrRVfb/wfW8fWJA==}
+    engines: {node: '>= 10'}
 
   is-extglob@2.1.1:
     resolution: {integrity: sha512-SbKbANkN603Vi4jEZv49LeVJMn4yGwsbzZworEoyEiutsN3nJYdbO36zfhGJ6QEDpOZIFkDtnq5JRxmvl3jsoQ==}
@@ -5415,6 +5419,8 @@ snapshots:
       standard-as-callback: 2.1.0
     transitivePeerDependencies:
       - supports-color
+
+  ipaddr.js@2.2.0: {}
 
   is-extglob@2.1.1: {}
 

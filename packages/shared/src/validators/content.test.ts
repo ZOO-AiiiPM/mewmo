@@ -31,6 +31,16 @@ describe("content validators", () => {
 
   it("requires valid feed urls", () => {
     expect(() => createFeedSchema.parse({ url: "not-a-url", title: "Bad" })).toThrow();
+    expect(() => createFeedSchema.parse({ url: "file:///etc/passwd", title: "Bad" })).toThrow();
+    expect(() => updateFeedSchema.parse({ url: "ftp://example.com/feed.xml" })).toThrow();
+  });
+
+  it("rejects clip and feed fetch URLs containing credentials", () => {
+    expect(() => createClipSchema.parse({
+      url: "https://user:password@example.com/article",
+      title: "Bad",
+    })).toThrow();
+    expect(() => updateClipSchema.parse({ url: "https://user@example.com/article" })).toThrow();
   });
 
   it("defaults feeds to article type and accepts media feeds", () => {

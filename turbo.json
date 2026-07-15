@@ -32,9 +32,7 @@
     "RESEND_API_KEY",
     "EMAIL_FROM",
     "FEED_SEARCH_ENDPOINT",
-    "FEED_SEARCH_API_KEY",
-    "FEED_REFRESH_BASE_URL",
-    "FEED_CRON_SECRET"
+    "FEED_SEARCH_API_KEY"
   ],
   "tasks": {
     "dev": {

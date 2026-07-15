@@ -4,6 +4,7 @@
  */
 import assert from "node:assert/strict";
 import test from "node:test";
+import { getPrisma } from "../../packages/db/src/client.ts";
 import {
   API_BASE as BASE,
   API_TEST_ARTICLE_URL,
@@ -46,6 +47,16 @@ test("Clips API", async (t) => {
   await t.test("unauthenticated list returns 401", async () => {
     const res = await fetch(`${BASE}/api/clips`, { redirect: "manual" });
     assert.equal(res.status, 401);
+  });
+
+  await t.test("private URLs outside the exact fixture origin are blocked", async () => {
+    const res = await authedFetch("/api/clips", {
+      method: "POST",
+      body: JSON.stringify({ url: "http://127.0.0.1:9/private", title: "Blocked" }),
+    });
+
+    assert.equal(res.status, 502);
+    assert.match((await res.json()).error, /blocked address/);
   });
 
   await t.test("POST /api/clips creates a clip", async () => {
@@ -119,6 +130,29 @@ test("Clips API", async (t) => {
       body: JSON.stringify({}),
     });
     assert.equal(res.status, 400);
+  });
+
+  await t.test("concurrent refreshes allow only one active lease", async () => {
+    const updateUrl = await authedFetch(`/api/clips/${createdClipId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ url: `${API_TEST_ARTICLE_URL}?delay=250` }),
+    });
+    assert.equal(updateUrl.status, 200);
+
+    const firstRefresh = authedFetch(`/api/clips/${createdClipId}`, { method: "POST" });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    await getPrisma().clip.update({
+      where: { id: createdClipId },
+      data: { summary: "AI completed during refresh", version: { increment: 1 } },
+    });
+    const secondRefresh = authedFetch(`/api/clips/${createdClipId}`, { method: "POST" });
+    const responses = await Promise.all([firstRefresh, secondRefresh]);
+
+    assert.deepEqual(responses.map((response) => response.status).sort(), [200, 409]);
+    const refreshed = await getPrisma().clip.findUniqueOrThrow({ where: { id: createdClipId } });
+    assert.equal(refreshed.fetchStatus, "success");
+    assert.equal(refreshed.fetchStartedAt, null);
+    assert.equal(refreshed.summary, "AI completed during refresh");
   });
 
   await t.test("DELETE /api/clips/[id] soft-deletes", async () => {

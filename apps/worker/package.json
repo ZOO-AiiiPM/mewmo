@@ -17,7 +17,6 @@
     "@mewmo/queue": "workspace:*",
     "@mewmo/shared": "workspace:*",
     "bullmq": "5.79.1",
-    "fast-xml-parser": "^5.9.3",
     "tsx": "4.22.4"
   }
 }

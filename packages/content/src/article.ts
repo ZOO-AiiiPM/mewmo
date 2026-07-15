@@ -1,4 +1,5 @@
 import { extractArticleBodyHtml, stripHtml } from "./html";
+import { fetchOutbound, type ResolvedAddress } from "./outbound";
 
 export interface ExtractedArticle {
   title: string;
@@ -11,15 +12,27 @@ export interface ExtractedArticle {
   publishedAt?: Date;
 }
 
-export async function fetchArticleFromUrl(url: string): Promise<ExtractedArticle> {
-  const response = await fetch(url, {
-    redirect: "follow",
+export interface FetchArticleOptions {
+  fetchArticle?: typeof fetch;
+  lookupHost?: (hostname: string) => Promise<ResolvedAddress[]>;
+  allowedPrivateOrigins?: string[];
+}
+
+export async function fetchArticleFromUrl(
+  url: string,
+  options: FetchArticleOptions = {},
+): Promise<ExtractedArticle> {
+  const response = await fetchOutbound(url, {
     signal: AbortSignal.timeout(12_000),
     headers: {
       accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
       "user-agent":
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36",
     },
+  }, {
+    ...(options.fetchArticle ? { fetchImpl: options.fetchArticle } : {}),
+    ...(options.lookupHost ? { lookupHost: options.lookupHost } : {}),
+    ...(options.allowedPrivateOrigins ? { allowedPrivateOrigins: options.allowedPrivateOrigins } : {}),
   });
 
   if (!response.ok) throw new Error(`Failed to fetch article: ${response.status}`);

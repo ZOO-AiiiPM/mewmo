@@ -73,16 +73,27 @@ describe("parseFeedXml", () => {
       </item></channel></rss>
     `));
 
-    const entries = await fetchFeedDocument("https://example.com/feed.xml", { fetchFeed });
+    const entries = await fetchFeedDocument("https://example.com/feed.xml", {
+      fetchFeed,
+      lookupHost: vi.fn().mockResolvedValue([{ address: "93.184.216.34", family: 4 }]),
+    });
 
     expect(fetchFeed).toHaveBeenCalledWith(
-      "https://example.com/feed.xml",
+      new URL("https://example.com/feed.xml"),
       expect.objectContaining({
-        redirect: "follow",
+        redirect: "manual",
         signal: expect.any(AbortSignal),
         headers: expect.objectContaining({ accept: expect.stringContaining("application/rss+xml") }),
       }),
     );
     expect(entries[0]).toMatchObject({ title: "One", excerpt: "Publisher description" });
+  });
+
+  it("blocks private feed URLs before issuing a request", async () => {
+    const fetchFeed = vi.fn();
+
+    await expect(fetchFeedDocument("http://127.0.0.1/feed.xml", { fetchFeed }))
+      .rejects.toThrow("blocked address");
+    expect(fetchFeed).not.toHaveBeenCalled();
   });
 });

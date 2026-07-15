@@ -1,5 +1,7 @@
 import { XMLParser } from "fast-xml-parser";
 
+import { fetchOutbound, type ResolvedAddress } from "./outbound";
+
 export interface ParsedFeedEntry {
   title: string;
   url: string;
@@ -20,23 +22,28 @@ const parser = new XMLParser({
 
 const DEFAULT_FEED_FETCH_TIMEOUT_MS = 15_000;
 
-interface FetchFeedDocumentOptions {
+export interface FetchFeedDocumentOptions {
   fetchFeed?: typeof fetch;
+  lookupHost?: (hostname: string) => Promise<ResolvedAddress[]>;
   timeoutMs?: number;
+  allowedPrivateOrigins?: string[];
 }
 
 export async function fetchFeedDocument(
   url: string,
   options: FetchFeedDocumentOptions = {},
 ): Promise<ParsedFeedEntry[]> {
-  const response = await (options.fetchFeed ?? fetch)(url, {
-    redirect: "follow",
+  const response = await fetchOutbound(url, {
     signal: AbortSignal.timeout(options.timeoutMs ?? DEFAULT_FEED_FETCH_TIMEOUT_MS),
     headers: {
       accept: "application/rss+xml,application/atom+xml,application/xml,text/xml,*/*;q=0.8",
       "user-agent":
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36",
     },
+  }, {
+    ...(options.fetchFeed ? { fetchImpl: options.fetchFeed } : {}),
+    ...(options.lookupHost ? { lookupHost: options.lookupHost } : {}),
+    ...(options.allowedPrivateOrigins ? { allowedPrivateOrigins: options.allowedPrivateOrigins } : {}),
   });
 
   if (!response.ok) {

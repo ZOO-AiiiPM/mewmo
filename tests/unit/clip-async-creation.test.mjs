@@ -9,6 +9,7 @@ test("Clip schema enforces nullable per-user normalized URL identity", () => {
   assert.match(schema, /normalizedUrl\s+String\?\s+@map\("normalized_url"\)/);
   assert.match(schema, /fetchStatus\s+String\s+@default\("idle"\)/);
   assert.match(schema, /fetchError\s+String\?/);
+  assert.match(schema, /fetchStartedAt\s+DateTime\?\s+@map\("fetch_started_at"\)/);
   assert.match(schema, /fetchedAt\s+DateTime\?/);
   assert.match(schema, /@@unique\(\[userId,\s*normalizedUrl\]\)/);
 });
@@ -36,6 +37,12 @@ test("clip refresh is synchronous, authenticated, and preserves the AI summary",
   assert.match(route, /fetchStatus:\s*"fetching"/);
   assert.match(route, /fetchStatus:\s*"success"/);
   assert.match(route, /fetchStatus:\s*"error"/);
+  assert.match(route, /const claim = await prisma\.clip\.updateMany/);
+  assert.match(route, /fetchStartedAt:\s*clip\.fetchStartedAt/);
+  assert.match(route, /fetchStatus:\s*"fetching"[\s\S]*fetchStartedAt:\s*startedAt/);
+  assert.match(route, /fetchStartedAt:\s*null/);
+  assert.doesNotMatch(route, /version:\s*claimVersion/);
+  assert.match(route, /status:\s*409/);
   assert.match(route, /addSummaryJob/);
   assert.doesNotMatch(route, /summary:\s*fetched\.summary/, "source refresh must preserve the existing AI summary");
 });

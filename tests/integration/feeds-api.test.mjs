@@ -4,6 +4,10 @@
  */
 import assert from "node:assert/strict";
 import test from "node:test";
+import { fetchArticleFromUrl, fetchFeedDocument } from "../../packages/content/src/index.ts";
+import { getPrisma } from "../../packages/db/src/client.ts";
+import { processFeed } from "../../apps/worker/src/feeds/process-feed.ts";
+import { runFeedCron } from "../../apps/worker/src/feeds/run-feed-cron.ts";
 import {
   API_BASE as BASE,
   API_TEST_ARTICLE_URL,
@@ -73,6 +77,31 @@ test("Feeds API", async (t) => {
     createdEntryId = entries[0]?.id ?? "";
   });
 
+  await t.test("one-shot Cron claims the real database row and completes", async () => {
+    const close = mockAsync();
+    const allowedPrivateOrigins = [new URL(API_TEST_ARTICLE_URL).origin];
+    const result = await runFeedCron({
+      createQueueHelpers: () => ({
+        addSummaryJob: mockAsync({ id: "summary-job" }),
+        addTagJob: mockAsync({ id: "tag-job" }),
+        close,
+      }),
+      processFeed: (feed, { queueHelpers }) => processFeed(feed, {
+        queueHelpers,
+        fetchFeed: (url) => fetchFeedDocument(url, { allowedPrivateOrigins }),
+        fetchArticle: (url) => fetchArticleFromUrl(url, { allowedPrivateOrigins }),
+      }),
+    });
+    const feed = await getPrisma().feed.findUniqueOrThrow({ where: { id: createdFeedId } });
+
+    assert.equal(result.selected, 1);
+    assert.equal(result.succeeded, 1);
+    assert.equal(feed.lastFetchStatus, "success");
+    assert.ok(feed.lastFetchStartedAt, "Cron should store a claim timestamp");
+    assert.ok(feed.lastFetchedAt, "Cron should store a completion timestamp");
+    assert.equal(close.mock.calls.length, 1);
+  });
+
   await t.test("PATCH /api/feed-entries/[id] can mark read/unread when an entry exists", async () => {
     if (!createdEntryId) {
       return;
@@ -104,3 +133,12 @@ test("Feeds API", async (t) => {
     assert.equal(res.status, 401);
   });
 });
+
+function mockAsync(value) {
+  const mock = async (...args) => {
+    mock.mock.calls.push(args);
+    return value;
+  };
+  mock.mock = { calls: [] };
+  return mock;
+}

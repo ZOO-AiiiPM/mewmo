@@ -12,6 +12,7 @@ test("API integration tests own services, fixtures, identity, and cleanup", () =
   assert.match(harness, /docker\/docker-compose\.yml/);
   assert.match(harness, /pnpm db:push/);
   assert.match(harness, /pnpm --filter @mewmo\/web dev/);
+  assert.match(harness, /AI_SUMMARY_MODEL/);
   assert.match(harness, /waitForHttp/);
   assert.match(harness, /cleanupTestUser/);
   assert.match(harness, /finally/);

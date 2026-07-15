@@ -37,7 +37,7 @@ interface FeedEntryRepository {
   ): Promise<{ created: boolean; entry: unknown }>;
 }
 
-interface QueueHelpers {
+export interface ProcessFeedQueueHelpers {
   addSummaryJob: ReturnType<typeof createQueueHelpers>["addSummaryJob"];
   addTagJob: ReturnType<typeof createQueueHelpers>["addTagJob"];
 }
@@ -45,7 +45,7 @@ interface QueueHelpers {
 interface ProcessFeedDependencies {
   prisma?: FeedCronPrisma;
   entryRepository?: FeedEntryRepository;
-  queueHelpers?: QueueHelpers;
+  queueHelpers?: ProcessFeedQueueHelpers;
   fetchFeed?: (url: string) => Promise<ParsedFeedEntry[]>;
   fetchArticle?: (url: string) => Promise<ExtractedArticle>;
   now?: () => Date;

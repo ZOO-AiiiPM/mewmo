@@ -1,6 +1,6 @@
 # RSS Cron、首次订阅即时抓取与同步剪藏 Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 让首次订阅在当前请求内出现 RSS 条目、后续订阅由 one-shot Cron 更新、剪藏在 Web 请求内完成抓取，同时确保来源简介永不写入或覆盖 AI `summary`。
 
@@ -31,7 +31,7 @@
 - Delete: `apps/worker/src/lib/feed-parser.test.ts`
 - Test: `tests/unit/clip-fetch.test.mjs`
 
-- [ ] **Step 1: 先写 RSS/Atom 解析失败测试，要求来源简介叫 `excerpt` 而不是 `summary`**
+- [x] **Step 1: 先写 RSS/Atom 解析失败测试，要求来源简介叫 `excerpt` 而不是 `summary`**
 
 ```ts
 it("maps RSS descriptions to excerpt without creating an AI summary", () => {
@@ -53,7 +53,7 @@ it("maps RSS descriptions to excerpt without creating an AI summary", () => {
 });
 ```
 
-- [ ] **Step 2: 先写网页提取失败测试，要求 meta description 只进入 `excerpt`**
+- [x] **Step 2: 先写网页提取失败测试，要求 meta description 只进入 `excerpt`**
 
 ```ts
 it("keeps page descriptions out of the AI summary field", () => {
@@ -69,7 +69,7 @@ it("keeps page descriptions out of the AI summary field", () => {
 });
 ```
 
-- [ ] **Step 3: 运行测试并确认旧实现因返回 `summary` 而失败**
+- [x] **Step 3: 运行测试并确认旧实现因返回 `summary` 而失败**
 
 Run:
 
@@ -80,7 +80,7 @@ node --test tests/unit/clip-fetch.test.mjs
 
 Expected: FAIL because `@mewmo/content` and the `excerpt`-only contract do not exist yet.
 
-- [ ] **Step 4: 实现共享包的最小公共契约**
+- [x] **Step 4: 实现共享包的最小公共契约**
 
 ```ts
 export interface ParsedFeedEntry {
@@ -112,7 +112,7 @@ export function stripHtml(html: string): string;
 
 `fetchFeedDocument()` 使用 15 秒 `AbortSignal.timeout()`；`fetchArticleFromUrl()` 使用 12 秒边界。`extractArticleFromHtml()` 优先把非通用 meta description 写入 `excerpt`，没有 meta description 时才从正文生成 180 字 excerpt，返回类型不含 `summary`。
 
-- [ ] **Step 5: 让 Web 保留现有渲染清洗器，同时复用共享正文提取**
+- [x] **Step 5: 让 Web 保留现有渲染清洗器，同时复用共享正文提取**
 
 ```ts
 import { extractArticleBodyHtml, stripHtml } from "@mewmo/content";
@@ -123,7 +123,7 @@ export { stripHtml };
 
 `sanitizeClipHtml()`、主题色处理、图片代理等浏览器展示逻辑继续留在 `apps/web/src/lib/clip-content.ts`；`apps/web/src/lib/clip-fetch.ts` 只兼容导出共享的 `fetchArticleFromUrl` / `extractArticleFromHtml`，不复制服务端抓取逻辑。
 
-- [ ] **Step 6: 运行共享包和现有正文清洗回归测试**
+- [x] **Step 6: 运行共享包和现有正文清洗回归测试**
 
 Run:
 
@@ -134,7 +134,7 @@ node --test tests/unit/clip-fetch.test.mjs tests/unit/clip-content.test.mjs
 
 Expected: PASS; clip metadata tests assert `excerpt`, never source-generated `summary`.
 
-- [ ] **Step 7: 提交共享内容边界**
+- [x] **Step 7: 提交共享内容边界**
 
 ```bash
 git add packages/content apps/web/package.json apps/worker/package.json apps/web/src/lib/clip-content.ts apps/web/src/lib/clip-fetch.ts apps/web/src/lib/feed-parser.ts apps/web/src/lib/feed-parser.test.ts apps/worker/src/lib/feed-parser.ts apps/worker/src/lib/feed-parser.test.ts tests/unit/clip-fetch.test.mjs pnpm-lock.yaml
@@ -148,7 +148,7 @@ git commit -m "refactor: share server content extraction"
 - Modify: `packages/db/src/repositories/feeds.ts`
 - Modify: `packages/db/src/repositories/repositories.test.ts`
 
-- [ ] **Step 1: 写失败测试，证明来源 upsert 不覆盖已有 AI `summary`**
+- [x] **Step 1: 写失败测试，证明来源 upsert 不覆盖已有 AI `summary`**
 
 ```ts
 it("does not write summary while refreshing feed source fields", async () => {
@@ -170,7 +170,7 @@ it("does not write summary while refreshing feed source fields", async () => {
 });
 ```
 
-- [ ] **Step 2: 写失败测试，覆盖四类 Cron 到期状态和 50 条上限**
+- [x] **Step 2: 写失败测试，覆盖四类 Cron 到期状态和 50 条上限**
 
 ```ts
 it("queries queued, due, retryable, and stale feeds with a batch limit", async () => {
@@ -184,7 +184,7 @@ it("queries queued, due, retryable, and stale feeds with a batch limit", async (
 });
 ```
 
-- [ ] **Step 3: 运行 DB 测试并确认失败原因分别是缺少 source-only upsert 和到期状态查询**
+- [x] **Step 3: 运行 DB 测试并确认失败原因分别是缺少 source-only upsert 和到期状态查询**
 
 Run:
 
@@ -194,7 +194,7 @@ pnpm --filter @mewmo/db test -- src/repositories/repositories.test.ts
 
 Expected: FAIL for missing `upsertSourceByFeedUrl()` and incomplete due-feed query contract.
 
-- [ ] **Step 4: 实现只写来源字段的 upsert**
+- [x] **Step 4: 实现只写来源字段的 upsert**
 
 ```ts
 export type UpsertFeedEntrySourceInput = Omit<CreateFeedEntryInput, "summary">;
@@ -222,11 +222,11 @@ async upsertSourceByFeedUrl(userId: string, input: UpsertFeedEntrySourceInput) {
 }
 ```
 
-- [ ] **Step 5: 实现五分钟恢复边界和 50 条批次查询**
+- [x] **Step 5: 实现五分钟恢复边界和 50 条批次查询**
 
 查询必须包含：`queued` 立即处理；`idle/success` 按 `last_fetched_at + refresh_interval`；`error/partial` 在 `last_fetch_started_at` 五分钟前；`fetching` 在五分钟前视为 stale；按最老尝试排序并 `LIMIT 50`。
 
-- [ ] **Step 6: 重跑 DB 测试并提交**
+- [x] **Step 6: 重跑 DB 测试并提交**
 
 Run:
 
@@ -261,7 +261,7 @@ git commit -m "fix: preserve AI summaries during feed refresh"
 - Delete: `tests/unit/feed-runtime.test.ts`
 - Delete: `tests/integration/feed-queue-lease.test.mjs`
 
-- [ ] **Step 1: 写失败测试，证明首次抓取不逐篇访问网页**
+- [x] **Step 1: 写失败测试，证明首次抓取不逐篇访问网页**
 
 ```ts
 it("stores ten initial RSS entries without fetching article pages", async () => {
@@ -284,7 +284,7 @@ it("stores ten initial RSS entries without fetching article pages", async () => 
 });
 ```
 
-- [ ] **Step 2: 写失败测试，证明失败保留订阅并记录 error**
+- [x] **Step 2: 写失败测试，证明失败保留订阅并记录 error**
 
 ```ts
 it("records an initial fetch error without deleting the feed", async () => {
@@ -305,7 +305,7 @@ it("records an initial fetch error without deleting the feed", async () => {
 });
 ```
 
-- [ ] **Step 3: 写 route/UI 契约测试，要求 API 直接等待首次 RSS，页面不再轮询首篇文章**
+- [x] **Step 3: 写 route/UI 契约测试，要求 API 直接等待首次 RSS，页面不再轮询首篇文章**
 
 ```js
 assert.match(route, /await fetchInitialFeed\(session\.user\.id, feedRecord/);
@@ -313,7 +313,7 @@ assert.doesNotMatch(route, /addFeedFetchJob|enqueueFeedFetch|after\(/);
 assert.doesNotMatch(page, /waitForFirstFeedEntry|setInterval/);
 ```
 
-- [ ] **Step 4: 运行聚焦测试并确认旧异步路径导致失败**
+- [x] **Step 4: 运行聚焦测试并确认旧异步路径导致失败**
 
 Run:
 
@@ -324,19 +324,19 @@ node --test tests/unit/feed-async-creation.test.mjs
 
 Expected: FAIL because creation still enqueues Feed BullMQ and the UI still polls.
 
-- [ ] **Step 5: 实现首次 RSS-only 抓取**
+- [x] **Step 5: 实现首次 RSS-only 抓取**
 
 `fetchInitialFeed()` 调 `fetchFeedDocument()`，按发布时间排序后最多保存十篇，只使用 Feed 自带 `content` / `excerpt`，不调用 `fetchArticleFromUrl()`。成功后保持 `lastFetchStatus = "queued"`、`lastFetchStartedAt = null`、`lastFetchedAt = null`；失败后保存 `error` 和错误文本。
 
-- [ ] **Step 6: 修改 Feed API 和手动刷新语义**
+- [x] **Step 6: 修改 Feed API 和手动刷新语义**
 
 新建订阅后同步 `await fetchInitialFeed()` 并返回 `{ existing: false, initialFetch }`。重复订阅不重新抓取；若已有记录是 `error/partial`，调用 `requestFeedRefresh()` 条件更新为 `queued`，让下一轮 Cron 处理。单个和批量刷新接口同样只做数据库 `queued` 标记，不创建 BullMQ job。
 
-- [ ] **Step 7: 删除新增订阅的 15 秒客户端轮询**
+- [x] **Step 7: 删除新增订阅的 15 秒客户端轮询**
 
 单个和批量添加都以 POST 响应为准：成功立即加入列表并关闭弹窗；`initialFetch.status === "error"` 时显示“订阅已保存，后台会自动重试”，不在浏览器轮询条目。
 
-- [ ] **Step 8: 更新 integration 契约并运行聚焦测试**
+- [x] **Step 8: 更新 integration 契约并运行聚焦测试**
 
 Run:
 
@@ -347,7 +347,7 @@ node --test tests/unit/feed-async-creation.test.mjs
 
 Expected: PASS.
 
-- [ ] **Step 9: 提交首次订阅路径**
+- [x] **Step 9: 提交首次订阅路径**
 
 ```bash
 git add apps/web/src/lib apps/web/src/app/api/feeds apps/web/src/app/'(app)'/feeds/page.tsx tests/unit/feed-async-creation.test.mjs tests/unit/feed-first-entry-runtime.test.ts tests/unit/feed-runtime.test.ts tests/integration/feeds-api.test.mjs tests/integration/feed-queue-lease.test.mjs
@@ -368,7 +368,7 @@ git commit -m "feat: fetch initial subscriptions synchronously"
 - Delete: `apps/worker/src/jobs/feed-refresh-scheduler.ts`
 - Delete: `apps/worker/src/jobs/feed-refresh-scheduler.test.ts`
 
-- [ ] **Step 1: 写失败测试，证明首次 Web 已创建且 `summary = null` 的条目仍会补投 AI**
+- [x] **Step 1: 写失败测试，证明首次 Web 已创建且 `summary = null` 的条目仍会补投 AI**
 
 ```ts
 it("queues post-processing for an existing entry whose AI summary is still null", async () => {
@@ -388,7 +388,7 @@ it("queues post-processing for an existing entry whose AI summary is still null"
 });
 ```
 
-- [ ] **Step 2: 写失败测试，证明深度抓取保留已有 AI summary**
+- [x] **Step 2: 写失败测试，证明深度抓取保留已有 AI summary**
 
 ```ts
 it("deep-enriches source content without passing summary into the repository", async () => {
@@ -401,7 +401,7 @@ it("deep-enriches source content without passing summary into the repository", a
 });
 ```
 
-- [ ] **Step 3: 写失败测试，覆盖 claim、lease lost、单 Feed 失败隔离与批次统计**
+- [x] **Step 3: 写失败测试，覆盖 claim、lease lost、单 Feed 失败隔离与批次统计**
 
 ```ts
 it("continues after one feed fails and reports the whole batch", async () => {
@@ -416,7 +416,7 @@ it("continues after one feed fails and reports the whole batch", async () => {
 });
 ```
 
-- [ ] **Step 4: 运行 Worker 聚焦测试并确认实现尚不存在**
+- [x] **Step 4: 运行 Worker 聚焦测试并确认实现尚不存在**
 
 Run:
 
@@ -426,15 +426,15 @@ pnpm --filter @mewmo/worker test -- src/feeds/process-feed.test.ts src/feeds/run
 
 Expected: FAIL because the one-shot processor and runner do not exist.
 
-- [ ] **Step 5: 实现单 Feed 条件领取与完成保护**
+- [x] **Step 5: 实现单 Feed 条件领取与完成保护**
 
 `processFeed()` 用本次 `startedAt` 条件更新为 `fetching`。领取条件匹配到期查询读取到的 `lastFetchStatus` 和 `lastFetchStartedAt`；完成与错误更新都要求数据库仍是相同 `startedAt`，否则返回 `lease_lost`，旧进程不能覆盖新进程。
 
-- [ ] **Step 6: 实现 Cron 深度正文补全和后处理**
+- [x] **Step 6: 实现 Cron 深度正文补全和后处理**
 
 先抓 RSS，再对最多十篇逐篇 best-effort 调 `fetchArticleFromUrl()`；网页失败时回退 Feed 自带正文。保存使用 `upsertSourceByFeedUrl()`。当 `created === true`、保存后的 `summary === null` 或 Feed 原状态是 `partial` 时，以稳定 job ID 提交 Summary/Tag；任一队列提交失败将 Feed 完成态记为 `partial`，但不回滚已保存内容。
 
-- [ ] **Step 7: 实现批次 runner 和一次性入口**
+- [x] **Step 7: 实现批次 runner 和一次性入口**
 
 ```ts
 const result = await runFeedCron();
@@ -448,7 +448,7 @@ await getPrisma().$disconnect();
 "cron:feeds": "tsx src/feed-cron.ts"
 ```
 
-- [ ] **Step 8: 运行 Worker 测试并提交**
+- [x] **Step 8: 运行 Worker 测试并提交**
 
 Run:
 
@@ -475,7 +475,7 @@ git commit -m "feat: run feed refreshes from one-shot cron"
 - Delete: `apps/worker/src/workers/clip-worker.ts`
 - Delete: `apps/worker/src/workers/clip-worker.test.ts`
 
-- [ ] **Step 1: 写失败 route 契约，要求抓取成功后才创建且不调用 Clip 队列**
+- [x] **Step 1: 写失败 route 契约，要求抓取成功后才创建且不调用 Clip 队列**
 
 ```js
 assert.match(createRoute, /await fetchClipFromUrl\(parsed\.data\.url\)/);
@@ -484,7 +484,7 @@ assert.doesNotMatch(createRoute, /addClipFetchJob|withQueueTimeout/);
 assert.match(createRoute, /summary:\s*null/);
 ```
 
-- [ ] **Step 2: 写失败 route 契约，要求刷新保留 AI summary 并 best-effort 触发 Summary**
+- [x] **Step 2: 写失败 route 契约，要求刷新保留 AI summary 并 best-effort 触发 Summary**
 
 ```js
 assert.doesNotMatch(detailRoute, /summary:\s*fetched\.summary/);
@@ -492,11 +492,11 @@ assert.match(detailRoute, /addSummaryJob/);
 assert.doesNotMatch(detailRoute, /background|cronAuthorized|addClipFetchJob/);
 ```
 
-- [ ] **Step 3: 写 integration 期望，证明同步成功、失败不留空记录、超时为 504**
+- [x] **Step 3: 写 integration 期望，证明同步成功、失败不留空记录、超时为 504**
 
 成功 fixture 应断言返回正文、`excerpt` 和 `summary === null`；不可访问 URL 返回 502 且列表不存在该 normalized URL；超时 fixture 返回 504。刷新成功后已有 AI summary 保持不变。
 
-- [ ] **Step 4: 运行聚焦测试并确认旧异步实现失败**
+- [x] **Step 4: 运行聚焦测试并确认旧异步实现失败**
 
 Run:
 
@@ -506,7 +506,7 @@ node --test tests/unit/clip-async-creation.test.mjs
 
 Expected: FAIL because Clip creation still persists queued placeholders and starts a Clip Worker.
 
-- [ ] **Step 5: 实现同步创建和软删除恢复**
+- [x] **Step 5: 实现同步创建和软删除恢复**
 
 先查 active duplicate；没有 active 记录时 `await fetchClipFromUrl()`，成功后才 create/restore。新记录写入来源字段、`summary: null`、`fetchStatus: "success"`、`fetchedAt: new Date()`。P2002 返回并发创建出的记录。抓取超时映射 504，其他抓取错误映射 502。保存成功后：
 
@@ -519,15 +519,15 @@ void addSummaryJob(
 
 队列失败不得改变已保存 Clip。
 
-- [ ] **Step 6: 实现同步刷新且不触碰 `summary`**
+- [x] **Step 6: 实现同步刷新且不触碰 `summary`**
 
 已认证请求先把该用户的 Clip 标记为 `fetching`，抓取成功后只更新 title/content/favicon/coverImage/excerpt/sourceName/author/publishedAt 和 fetch 状态；变化判断不比较 `summary`。失败写 `error`，返回 504/502。成功后 best-effort 重新提交 Summary job。
 
-- [ ] **Step 7: 删除 Clip 页面对 queued/fetching 的轮询和 queued 提示**
+- [x] **Step 7: 删除 Clip 页面对 queued/fetching 的轮询和 queued 提示**
 
 刷新按钮继续等待 POST；响应返回后直接更新列表、详情和缓存，Toast 只区分“已拉取最新内容”和“已是最新”。创建按钮等待 POST 成功后才插入返回记录。
 
-- [ ] **Step 8: 运行聚焦测试并提交**
+- [x] **Step 8: 运行聚焦测试并提交**
 
 Run:
 
@@ -556,7 +556,7 @@ git commit -m "feat: fetch clips synchronously in web requests"
 - Modify: `tests/unit/feed-refresh-runtime.test.mjs`
 - Modify: `tests/unit/clip-async-creation.test.mjs`
 
-- [ ] **Step 1: 写失败测试，要求 QueueSet 只保留 Tag/Summary/Embedding**
+- [x] **Step 1: 写失败测试，要求 QueueSet 只保留 Tag/Summary/Embedding**
 
 ```ts
 expect(queueNames).toEqual({
@@ -568,7 +568,7 @@ expect(helpers).not.toHaveProperty("addFeedFetchJob");
 expect(helpers).not.toHaveProperty("addClipFetchJob");
 ```
 
-- [ ] **Step 2: 写失败 runtime 测试，要求常驻进程只关闭 Summary Worker**
+- [x] **Step 2: 写失败 runtime 测试，要求常驻进程只关闭 Summary Worker**
 
 ```ts
 it("runs only the persistent summary worker", async () => {
@@ -579,14 +579,14 @@ it("runs only the persistent summary worker", async () => {
 });
 ```
 
-- [ ] **Step 3: 写失败静态测试，要求 Next instrumentation 不再启动 Feed interval**
+- [x] **Step 3: 写失败静态测试，要求 Next instrumentation 不再启动 Feed interval**
 
 ```js
 assert.doesNotMatch(instrumentation, /startWebFeedRefreshScheduler|setInterval/);
 assert.equal(existsSync("apps/web/src/lib/feed-refresh-runtime.ts"), false);
 ```
 
-- [ ] **Step 4: 运行 Queue、Worker 和静态测试并确认旧消费者仍存在**
+- [x] **Step 4: 运行 Queue、Worker 和静态测试并确认旧消费者仍存在**
 
 Run:
 
@@ -598,11 +598,11 @@ node --test tests/unit/feed-refresh-runtime.test.mjs tests/unit/clip-async-creat
 
 Expected: FAIL because Feed/Clip queues, workers and schedulers still exist.
 
-- [ ] **Step 5: 删除 Feed/Clip 队列名、payload、producer 和消费者**
+- [x] **Step 5: 删除 Feed/Clip 队列名、payload、producer 和消费者**
 
 `queueNames`、`QueueSet`、`createMewmoQueues()`、`createQueueHelpers()` 与 `jobs.ts` 只保留 Tag/Summary/Embedding。不要删除 Redis client、`withTimeout` 或 Summary Worker 所需契约。
 
-- [ ] **Step 6: 简化常驻 runtime 并清理 Web interval**
+- [x] **Step 6: 简化常驻 runtime 并清理 Web interval**
 
 ```ts
 function createDefaultWorker(): WorkerHandle {
@@ -618,7 +618,7 @@ export function startWorkerRuntime(dependencies: WorkerRuntimeDependencies = {})
 
 `instrumentation.ts` 只保留 Node 代理 dispatcher 初始化，不再导入 Feed refresh runtime。
 
-- [ ] **Step 7: 重跑聚焦测试并提交**
+- [x] **Step 7: 重跑聚焦测试并提交**
 
 Run:
 
@@ -644,7 +644,7 @@ git commit -m "refactor: retire feed and clip queue consumers"
 - Modify: `tests/unit/worker-deployment-static.test.mjs`
 - Modify: `docs/superpowers/plans/2026-07-16-rss-cron-first-fetch-and-sync-clip.md`
 
-- [ ] **Step 1: 写失败部署测试，要求 one-shot profile 和 flock runbook**
+- [x] **Step 1: 写失败部署测试，要求 one-shot profile 和 flock runbook**
 
 ```js
 assert.match(compose, /feed-cron:[\s\S]*profiles:\s*\["cron"\]/);
@@ -653,7 +653,7 @@ assert.match(readme, /flock[\s\S]*docker compose -f compose\.yml --profile cron 
 assert.match(readme, /先.*注释.*crontab[\s\S]*再.*旧镜像/);
 ```
 
-- [ ] **Step 2: 运行部署静态测试并确认 Cron service 尚不存在**
+- [x] **Step 2: 运行部署静态测试并确认 Cron service 尚不存在**
 
 Run:
 
@@ -663,7 +663,7 @@ node --test tests/unit/worker-deployment-static.test.mjs
 
 Expected: FAIL for missing `feed-cron` profile and flock instructions.
 
-- [ ] **Step 3: 增加 Compose one-shot service**
+- [x] **Step 3: 增加 Compose one-shot service**
 
 ```yaml
   feed-cron:
@@ -678,11 +678,11 @@ Expected: FAIL for missing `feed-cron` profile and flock instructions.
     cpus: 0.50
 ```
 
-- [ ] **Step 4: 更新部署文档和环境示例**
+- [x] **Step 4: 更新部署文档和环境示例**
 
 移除 `FEED_REFRESH_BASE_URL` / `FEED_CRON_SECRET`，因为 Cron 直接访问数据库，不再调用 Web。记录手动验收命令和每分钟 `flock -n /var/run/mewmo-feed-cron.lock ...` crontab；回滚顺序必须先停 Cron，再切旧镜像，避免新 Cron 与旧 Feed Worker 并跑。
 
-- [ ] **Step 5: 运行所有相关聚焦测试**
+- [x] **Step 5: 运行所有相关聚焦测试**
 
 Run:
 
@@ -696,7 +696,7 @@ node --test tests/unit/clip-async-creation.test.mjs tests/unit/clip-fetch.test.m
 
 Expected: all pass.
 
-- [ ] **Step 6: 运行生产最低闸门**
+- [x] **Step 6: 运行生产最低闸门**
 
 Run:
 
@@ -708,7 +708,7 @@ git diff --check
 
 Expected: exit 0. API integration tests use isolated PostgreSQL/Redis/Web fixtures; because Feed and Clip API behavior changed, also run `pnpm test:integration` if the local harness can start its services.
 
-- [ ] **Step 7: 更新计划复选框并提交部署与验证变更**
+- [x] **Step 7: 更新计划复选框并提交部署与验证变更**
 
 ```bash
 git add deploy/worker/compose.yml deploy/worker/README.md deploy/worker/.env.worker.example tests/unit/worker-deployment-static.test.mjs docs/superpowers/plans/2026-07-16-rss-cron-first-fetch-and-sync-clip.md

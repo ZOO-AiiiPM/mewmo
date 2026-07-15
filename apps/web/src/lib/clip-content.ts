@@ -1,4 +1,4 @@
-import { extractArticleBodyHtml, stripHtml } from "@mewmo/content";
+import { extractArticleBodyHtml, stripHtml } from "@mewmo/content/html";
 
 export const extractClipBodyHtml = extractArticleBodyHtml;
 export { stripHtml };

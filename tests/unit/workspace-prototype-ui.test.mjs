@@ -2027,21 +2027,23 @@ test("note metadata tags open the prototype tag picker popover", () => {
   );
 });
 
-test("clip creation persists optional metadata safely before background extraction", () => {
+test("clip creation persists fetched source metadata while reserving summary for AI", () => {
   const clipRoute = read("apps/web/src/app/api/clips/route.ts");
   const refreshRoute = read("apps/web/src/app/api/clips/[id]/route.ts");
 
-  for (const field of ["summary", "favicon", "coverImage", "excerpt", "sourceName", "author", "publishedAt"]) {
+  assert.match(clipRoute, /await fetchClipFromUrl\(parsed\.data\.url\)/);
+  assert.match(clipRoute, /summary:\s*null/);
+  for (const field of ["favicon", "coverImage", "excerpt", "sourceName", "author", "publishedAt"]) {
     assert.match(
       clipRoute,
-      new RegExp(`${field}:\\s*parsed\\.data\\.${field}\\s*\\?\\?\\s*null`),
-      `${field} should be a concrete value or null before background extraction`,
+      new RegExp(`${field}:\\s*fetched\\.${field}\\s*\\?\\?\\s*null`),
+      `${field} should be a concrete fetched value or null`,
     );
   }
   assert.match(
     refreshRoute,
     /const data = normalizeRefreshData\(fetched\)/,
-    "background extraction should normalize fetched metadata before the Prisma update",
+    "synchronous extraction should normalize fetched metadata before the Prisma update",
   );
 });
 

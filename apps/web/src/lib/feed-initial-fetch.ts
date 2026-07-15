@@ -2,6 +2,7 @@ import { fetchFeedDocument, type ParsedFeedEntry } from "@mewmo/content";
 import { createFeedEntriesRepository, getPrisma } from "@mewmo/db";
 
 import { normalizeFeedEntryContent } from "./feed-content";
+import { integrationFixtureOrigins } from "./content-fetch-runtime";
 
 export const DEFAULT_INITIAL_FEED_LIMIT = 10;
 
@@ -10,6 +11,9 @@ export interface InitialFeedRecord {
   userId: string;
   url: string;
   title: string;
+  version: number;
+  lastFetchStatus: string;
+  lastFetchStartedAt: Date | null;
 }
 
 interface InitialFeedPrisma {
@@ -48,6 +52,7 @@ export interface InitialFeedFetchResult {
   fetched: number;
   created: number;
   error?: string;
+  reason?: "already_claimed" | "lease_lost";
 }
 
 export async function fetchInitialFeed(
@@ -57,12 +62,22 @@ export async function fetchInitialFeed(
 ): Promise<InitialFeedFetchResult> {
   const prisma = dependencies.prisma ?? (getPrisma() as unknown as InitialFeedPrisma);
   const entryRepository = dependencies.entryRepository ?? createFeedEntriesRepository();
-  const fetchFeed = dependencies.fetchFeed ?? fetchFeedDocument;
+  const allowedPrivateOrigins = integrationFixtureOrigins();
+  const fetchFeed = dependencies.fetchFeed ?? ((url: string) => fetchFeedDocument(url, {
+    ...(allowedPrivateOrigins ? { allowedPrivateOrigins } : {}),
+  }));
   const now = dependencies.now ?? (() => new Date());
   const startedAt = now();
 
-  await prisma.feed.updateMany({
-    where: { id: feed.id, userId, deletedAt: null },
+  const claim = await prisma.feed.updateMany({
+    where: {
+      id: feed.id,
+      userId,
+      deletedAt: null,
+      version: feed.version,
+      lastFetchStatus: feed.lastFetchStatus,
+      lastFetchStartedAt: feed.lastFetchStartedAt,
+    },
     data: {
       lastFetchStartedAt: startedAt,
       lastFetchStatus: "fetching",
@@ -70,6 +85,9 @@ export async function fetchInitialFeed(
       version: { increment: 1 },
     },
   });
+  if (claim.count === 0) {
+    return { status: "queued", fetched: 0, created: 0, reason: "already_claimed" };
+  }
 
   try {
     const entries = (await fetchFeed(feed.url))
@@ -97,7 +115,7 @@ export async function fetchInitialFeed(
       if (result.created) created += 1;
     }
 
-    await prisma.feed.updateMany({
+    const completion = await prisma.feed.updateMany({
       where: {
         id: feed.id,
         userId,
@@ -114,11 +132,14 @@ export async function fetchInitialFeed(
         version: { increment: 1 },
       },
     });
+    if (completion.count === 0) {
+      return { status: "queued", fetched: entries.length, created, reason: "lease_lost" };
+    }
 
     return { status: "queued", fetched: entries.length, created };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Feed fetch failed";
-    await prisma.feed.updateMany({
+    const failure = await prisma.feed.updateMany({
       where: {
         id: feed.id,
         userId,
@@ -134,6 +155,9 @@ export async function fetchInitialFeed(
         version: { increment: 1 },
       },
     });
+    if (failure.count === 0) {
+      return { status: "queued", fetched: 0, created: 0, reason: "lease_lost" };
+    }
     return { status: "error", fetched: 0, created: 0, error: message };
   }
 }

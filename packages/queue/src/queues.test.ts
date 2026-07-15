@@ -17,6 +17,7 @@ describe("queues", () => {
       tagQueue: { add },
       summaryQueue: { add: vi.fn() },
       embeddingQueue: { add: vi.fn() },
+      close: vi.fn(),
     });
 
     await helpers.addTagJob({ userId: "user-1", taggableId: "note-1", taggableType: "note" });
@@ -33,9 +34,25 @@ describe("queues", () => {
       tagQueue: { add: vi.fn() },
       summaryQueue: { add: vi.fn() },
       embeddingQueue: { add: vi.fn() },
+      close: vi.fn(),
     });
 
     expect(helpers).not.toHaveProperty("addFeedFetchJob");
     expect(helpers).not.toHaveProperty("addClipFetchJob");
+  });
+
+  it("closes one shared producer queue set only once", async () => {
+    const close = vi.fn().mockResolvedValue(undefined);
+    const helpers = createQueueHelpers({
+      tagQueue: { add: vi.fn() },
+      summaryQueue: { add: vi.fn() },
+      embeddingQueue: { add: vi.fn() },
+      close,
+    });
+
+    await helpers.close();
+    await helpers.close();
+
+    expect(close).toHaveBeenCalledTimes(1);
   });
 });

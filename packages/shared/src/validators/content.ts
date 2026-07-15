@@ -7,6 +7,10 @@ const slugSchema = z
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "slug must be kebab-case");
 
 const urlSchema = z.url();
+const outboundUrlSchema = urlSchema.refine((value) => {
+  const url = new URL(value);
+  return (url.protocol === "http:" || url.protocol === "https:") && !url.username && !url.password;
+}, "fetch URLs must use HTTP(S) without credentials");
 export const feedTypeSchema = z.enum(["article", "media", "video", "podcast"]);
 export const knowledgeItemKindSchema = z.enum(["note", "clip", "feed_entry", "asset"]);
 export const knowledgeAssetTypeSchema = z.enum(["pdf", "ebook"]);
@@ -36,7 +40,7 @@ export const updateNoteSchema = z
 
 export const updateClipSchema = z
   .object({
-    url: urlSchema.optional(),
+    url: outboundUrlSchema.optional(),
     title: z.string().min(1).optional(),
     content: z.string().optional(),
     summary: z.string().nullable().optional(),
@@ -51,7 +55,7 @@ export const updateClipSchema = z
   .refine(nonEmptyUpdate, { message: "at least one field must be provided" });
 
 export const createClipSchema = z.object({
-  url: urlSchema,
+  url: outboundUrlSchema,
   title: z.string().min(1),
   content: z.string().optional().default(""),
   summary: z.string().optional(),
@@ -65,7 +69,7 @@ export const createClipSchema = z.object({
 });
 
 export const createFeedSchema = z.object({
-  url: urlSchema,
+  url: outboundUrlSchema,
   type: feedTypeSchema.optional().default("article"),
   title: z.string().min(1),
   description: z.string().optional(),
@@ -75,7 +79,7 @@ export const createFeedSchema = z.object({
 
 export const updateFeedSchema = z
   .object({
-    url: urlSchema.optional(),
+    url: outboundUrlSchema.optional(),
     type: feedTypeSchema.optional(),
     title: z.string().min(1).optional(),
     description: z.string().nullable().optional(),

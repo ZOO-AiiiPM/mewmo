@@ -94,42 +94,17 @@ describe("scoped environment loaders", () => {
     });
   });
 
-  it("loads Worker config from the feed refresh base URL", () => {
+  it("loads Worker config without Web callback secrets", () => {
     const env = loadWorkerEnv({
+      NODE_ENV: "production",
       DATABASE_URL: "postgresql://db.example/mewmo",
       REDIS_URL: "rediss://default:secret@example.upstash.io:6379",
-      FEED_REFRESH_BASE_URL: "https://mewmo.vercel.app",
-      FEED_CRON_SECRET: "cron-secret",
       OPENAI_API_KEY: "openai-key",
       AI_SUMMARY_MODEL: "summary-model",
     });
 
-    expect(env.FEED_REFRESH_BASE_URL).toBe("https://mewmo.vercel.app");
-  });
-
-  it("falls back to NEXTAUTH_URL for local Worker execution", () => {
-    const env = loadWorkerEnv({
-      DATABASE_URL: "postgresql://db.example/mewmo",
-      REDIS_URL: "redis://localhost:6379",
-      NEXTAUTH_URL: "http://localhost:3000",
-      OPENAI_API_KEY: "openai-key",
-      AI_SUMMARY_MODEL: "summary-model",
-    });
-
-    expect(env.FEED_REFRESH_BASE_URL).toBe("http://localhost:3000");
-  });
-
-  it("rejects production Worker config without the cron secret", () => {
-    expect(() =>
-      loadWorkerEnv({
-        NODE_ENV: "production",
-        DATABASE_URL: "postgresql://db.example/mewmo",
-        REDIS_URL: "rediss://default:secret@example.upstash.io:6379",
-        FEED_REFRESH_BASE_URL: "https://mewmo.vercel.app",
-        OPENAI_API_KEY: "openai-key",
-        AI_SUMMARY_MODEL: "summary-model",
-      }),
-    ).toThrow("FEED_CRON_SECRET");
+    expect(env).not.toHaveProperty("FEED_REFRESH_BASE_URL");
+    expect(env).not.toHaveProperty("FEED_CRON_SECRET");
   });
 
   it("does not require Web-only auth, storage, or email variables", () => {
@@ -137,7 +112,6 @@ describe("scoped environment loaders", () => {
       loadWorkerEnv({
         DATABASE_URL: "postgresql://db.example/mewmo",
         REDIS_URL: "rediss://default:secret@example.upstash.io:6379",
-        FEED_REFRESH_BASE_URL: "https://mewmo.vercel.app",
         OPENAI_API_KEY: "openai-key",
         AI_SUMMARY_MODEL: "summary-model",
       }),

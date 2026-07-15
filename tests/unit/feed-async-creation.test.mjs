@@ -7,7 +7,7 @@ const read = (path) => readFileSync(path, "utf8");
 test("feed creation awaits a bounded initial RSS fetch without BullMQ", () => {
   const route = read("apps/web/src/app/api/feeds/[[...parts]]/route.ts");
 
-  assert.match(route, /await fetchInitialFeed\(session\.user\.id,\s*feedRecord/);
+  assert.match(route, /await fetchInitialFeed\(userId,\s*feedRecord/);
   assert.doesNotMatch(route, /addFeedFetchJob|enqueueFeedFetch|after\(/);
   assert.match(route, /initialFetch/);
   assert.match(route, /existing:\s*false/);

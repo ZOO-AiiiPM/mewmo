@@ -32,6 +32,7 @@ const env = {
   GOOGLE_CLIENT_SECRET:
     process.env.GOOGLE_CLIENT_SECRET ?? "integration-google-secret",
   OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? "integration-openai-key",
+  AI_SUMMARY_MODEL: process.env.AI_SUMMARY_MODEL ?? "integration-summary-model",
   R2_ENDPOINT:
     process.env.R2_ENDPOINT ?? "https://integration.r2.cloudflarestorage.com",
   R2_ACCESS_KEY: process.env.R2_ACCESS_KEY ?? "integration-r2-access",
@@ -84,13 +85,18 @@ async function waitForHttp(url, timeoutMs = 60_000) {
 function startFixtureServer() {
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? "/", fixtureUrl);
-    if (url.searchParams.has("rss")) {
-      response.writeHead(200, { "content-type": "application/rss+xml; charset=utf-8" });
-      response.end(`<?xml version="1.0"?><rss version="2.0"><channel><title>Integration Feed</title><link>${fixtureUrl}</link><description>Fixture</description><item><title>Fixture Entry</title><link>${fixtureUrl}</link><guid>fixture-entry</guid><description>Fixture body</description></item></channel></rss>`);
-      return;
-    }
-    response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-    response.end("<!doctype html><html><head><title>Example Article</title></head><body><article><p>Readable body</p></article></body></html>");
+    const respond = () => {
+      if (url.searchParams.has("rss")) {
+        response.writeHead(200, { "content-type": "application/rss+xml; charset=utf-8" });
+        response.end(`<?xml version="1.0"?><rss version="2.0"><channel><title>Integration Feed</title><link>${fixtureUrl}</link><description>Fixture</description><item><title>Fixture Entry</title><link>${fixtureUrl}</link><guid>fixture-entry</guid><description>Fixture body</description></item></channel></rss>`);
+        return;
+      }
+      response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      response.end("<!doctype html><html><head><title>Example Article</title></head><body><article><p>Readable body</p></article></body></html>");
+    };
+    const delayMs = Math.min(Number.parseInt(url.searchParams.get("delay") ?? "0", 10) || 0, 1_000);
+    if (delayMs > 0) setTimeout(respond, delayMs);
+    else respond();
   });
   return new Promise((resolve, reject) => {
     server.once("error", reject);
