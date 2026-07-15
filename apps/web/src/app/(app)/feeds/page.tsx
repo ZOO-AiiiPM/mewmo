@@ -4,6 +4,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 import { ClipContentRenderer } from "../../../components/clips/ClipContentRenderer";
+import { FeedArticleMenu } from "../../../components/shell/FeedArticleMenu";
 import { ListColumn } from "../../../components/shell/ListColumn";
 import { PrototypeIcon, type PrototypeIconName } from "../../../components/shell/PrototypeIcon";
 import { useAISidebarContext } from "../../../components/shell/AISidebar";
@@ -398,6 +399,12 @@ export default function FeedsPage() {
     }
   }, [selectedEntry, showToast]);
 
+  const copySelectedEntryLink = useCallback(() => {
+    if (!selectedEntry?.url) return;
+    void navigator.clipboard?.writeText(selectedEntry.url);
+    showToast("已复制原文链接", "success");
+  }, [selectedEntry?.url, showToast]);
+
   const quickSwitch = (
     <>
       {feedTypes
@@ -439,6 +446,14 @@ export default function FeedsPage() {
           <button type="button" className="mewmo-icon-button" onClick={openAddModal} aria-label="新增订阅">
             <PrototypeIcon name="plus" size={17} />
           </button>
+        }
+        overflowAction={
+          <FeedArticleMenu
+            disabled={!selectedEntry}
+            favoriteActive={Boolean(selectedEntry?.isFavorited)}
+            onFavorite={() => void favoriteSelectedEntry()}
+            onCopyLink={copySelectedEntryLink}
+          />
         }
       >
         <div key={swapKey} className="mewmo-list-stack mewmo-feed-list-swap">
@@ -508,11 +523,7 @@ export default function FeedsPage() {
           menuKind="feed"
           favoriteActive={Boolean(selectedEntry?.isFavorited)}
           onFavorite={() => void favoriteSelectedEntry()}
-          onCopyLink={() => {
-            if (!selectedEntry?.url) return;
-            void navigator.clipboard?.writeText(selectedEntry.url);
-            showToast("已复制原文链接", "success");
-          }}
+          onCopyLink={copySelectedEntryLink}
         />
         <ReaderToc
           items={selectedEntryToc}
@@ -783,7 +794,7 @@ function AddFeedModal({
             }}
             placeholder="粘贴 RSS / 网站 / 自部署地址，或输入关键词搜索"
           />
-          <button type="submit" className="mewmo-icon-button mewmo-icon-button--primary" aria-label="搜索订阅" disabled={searching}>
+          <button type="submit" className="mewmo-icon-button" aria-label="搜索订阅" disabled={searching}>
             {searching ? <span className="mewmo-feed-modal__spinner" /> : <PrototypeIcon name="search" size={17} />}
           </button>
         </form>

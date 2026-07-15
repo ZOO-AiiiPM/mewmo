@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 const read = (path) => readFileSync(path, "utf8");
@@ -142,7 +142,7 @@ test("feed reader metadata uses clip-style dot separators", () => {
 
 test("feed reader favorite action is wired to the real favorite API", () => {
   const feedsPage = read("apps/web/src/app/(app)/feeds/page.tsx");
-  const toolbar = read("apps/web/src/components/shell/ReaderToolbar.tsx");
+  const articleMenu = read("apps/web/src/components/shell/FeedArticleMenu.tsx");
   const route = read("apps/web/src/app/api/feed-entries/[id]/favorite/route.ts");
 
   assert.doesNotMatch(
@@ -166,9 +166,9 @@ test("feed reader favorite action is wired to the real favorite API", () => {
     "reader toolbar should receive the current feed entry favorite state",
   );
   assert.match(
-    toolbar,
+    articleMenu,
     /\{favoriteActive \? "已收藏" : "收藏"\}/,
-    "feed reader menu should reflect an already favorited entry",
+    "the shared feed article menu should reflect an already favorited entry",
   );
   assert.match(
     route,
@@ -208,6 +208,65 @@ test("favorited feed entries show a clip bookmark indicator at the card corner",
   );
 });
 
+test("feed article actions are shared by the list and reader headers", () => {
+  const sharedMenuPath = "apps/web/src/components/shell/FeedArticleMenu.tsx";
+  assert.equal(
+    existsSync(sharedMenuPath),
+    true,
+    "feed article actions should live in one shared menu component",
+  );
+
+  const sharedMenu = read(sharedMenuPath);
+  const toolbar = read("apps/web/src/components/shell/ReaderToolbar.tsx");
+  const listColumn = read("apps/web/src/components/shell/ListColumn.tsx");
+  const feedsPage = read("apps/web/src/app/(app)/feeds/page.tsx");
+
+  assert.match(sharedMenu, /favoriteActive \? "已收藏" : "收藏"/);
+  assert.match(sharedMenu, />\s*复制链接\s*</);
+  assert.match(sharedMenu, /onFavorite\?: \(\(\) => void\) \| undefined/);
+  assert.match(sharedMenu, /onCopyLink\?: \(\(\) => void\) \| undefined/);
+  assert.match(toolbar, /menuKind === "feed"[\s\S]*<FeedArticleMenu/);
+  assert.match(listColumn, /overflowAction/);
+  assert.match(
+    feedsPage,
+    /overflowAction=\{[\s\S]*?<FeedArticleMenu[\s\S]*?disabled=\{!selectedEntry\}/,
+    "the left article-list header should keep a disabled menu slot until an article is selected",
+  );
+
+  const css = read("apps/web/src/app/globals.css");
+  assert.match(
+    css,
+    /\.mewmo-reader-toolbar__menu-wrap\s*>\s*\.mewmo-icon-button:disabled\s*\{[\s\S]*?cursor:\s*default[\s\S]*?opacity:/,
+    "a disabled article menu should remain visible while looking unavailable",
+  );
+});
+
+test("feed list headers keep complete titles while rendering one line", () => {
+  const listColumn = read("apps/web/src/components/shell/ListColumn.tsx");
+  const css = read("apps/web/src/app/globals.css");
+
+  assert.match(
+    listColumn,
+    /className=\{`mewmo-list-title[\s\S]*?title=\{title\}[\s\S]*?<span>\{title\}<\/span>/,
+    "the list header should retain the complete title for hover and accessibility",
+  );
+  assert.match(
+    css,
+    /\.mewmo-list-title-wrap\s*\{[\s\S]*?min-width:\s*0/,
+    "the title wrapper should be allowed to shrink around fixed actions",
+  );
+  assert.match(
+    css,
+    /\.mewmo-list-title\s*\{[\s\S]*?min-width:\s*0[\s\S]*?max-width:\s*100%/,
+    "the title button should stay within its available header width",
+  );
+  assert.match(
+    css,
+    /\.mewmo-list-title\s*>\s*span\s*\{[\s\S]*?min-width:\s*0[\s\S]*?overflow:\s*hidden[\s\S]*?text-overflow:\s*ellipsis[\s\S]*?white-space:\s*nowrap/,
+    "long feed titles should render as one ellipsized line",
+  );
+});
+
 test("feed add action uses the same quiet icon-button treatment as search", () => {
   const feedsPage = read("apps/web/src/app/(app)/feeds/page.tsx");
   const addActionStart = feedsPage.indexOf('aria-label="新增订阅"');
@@ -226,7 +285,19 @@ test("feed add action uses the same quiet icon-button treatment as search", () =
 });
 
 test("add-feed search row aligns the input and search button to one baseline", () => {
+  const feedsPage = read("apps/web/src/app/(app)/feeds/page.tsx");
   const css = read("apps/web/src/app/globals.css");
+  const searchActionStart = feedsPage.indexOf('aria-label="搜索订阅"');
+  const searchAction = feedsPage.slice(
+    Math.max(0, searchActionStart - 180),
+    searchActionStart + 80,
+  );
+
+  assert.doesNotMatch(
+    searchAction,
+    /mewmo-icon-button--primary/,
+    "add-feed search should share the input's quiet surface instead of using a contrasting primary fill",
+  );
 
   assert.match(
     css,
@@ -240,8 +311,18 @@ test("add-feed search row aligns the input and search button to one baseline", (
   );
   assert.match(
     css,
-    /\.addfeed__inputwrap\s+\.mewmo-icon-button\s*\{[\s\S]*width:\s*38px[\s\S]*height:\s*38px/,
-    "add-feed modal search button should match the input height",
+    /\.addfeed__inputwrap\s+\.mewmo-icon-button\s*\{[\s\S]*width:\s*38px[\s\S]*height:\s*38px[\s\S]*border:\s*1px solid var\(--line\)[\s\S]*background:\s*var\(--s2\)[\s\S]*color:\s*var\(--ink\)/,
+    "add-feed modal search button should match the input's size and quiet surface",
+  );
+});
+
+test("add-feed selection controls leave breathing room before result cards", () => {
+  const css = read("apps/web/src/app/globals.css");
+
+  assert.match(
+    css,
+    /\.addfeed__selectbar\s*\{[\s\S]*margin-bottom:\s*14px/,
+    "batch selection controls should not sit directly against the first result card",
   );
 });
 

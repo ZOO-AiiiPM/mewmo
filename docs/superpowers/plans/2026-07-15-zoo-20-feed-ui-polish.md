@@ -1,6 +1,6 @@
 # ZOO-20 Feed UI Polish Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Decode feed-title entities, keep the left article-list title on one line, and expose the selected article's shared favorite/copy menu in both list and reader headers.
 
@@ -16,7 +16,7 @@
 - Modify: `apps/web/src/lib/feed-discovery.test.ts`
 - Modify: `apps/web/src/lib/feed-discovery.ts`
 
-- [ ] **Step 1: Add failing discovery tests**
+- [x] **Step 1: Add failing discovery tests**
 
 Add direct-RSS and website-alternate cases whose titles include decimal and hexadecimal entities:
 
@@ -40,13 +40,13 @@ it("decodes numeric entities in website feed-link titles", async () => {
 });
 ```
 
-- [ ] **Step 2: Run the focused test and confirm RED**
+- [x] **Step 2: Run the focused test and confirm RED**
 
-Run: `pnpm --filter @mewmo/web test --run src/lib/feed-discovery.test.ts`
+Run: `pnpm exec vitest run apps/web/src/lib/feed-discovery.test.ts`
 
 Expected: both new assertions fail because the titles still contain `&#8211;` / `&#x2014;`.
 
-- [ ] **Step 3: Decode decimal and hexadecimal entities safely**
+- [x] **Step 3: Decode decimal and hexadecimal entities safely**
 
 Extend `decodeEntities` after its named-entity replacements:
 
@@ -65,9 +65,9 @@ function decodeNumericEntity(entity: string, code: string, radix: number) {
 }
 ```
 
-- [ ] **Step 4: Run the focused test and confirm GREEN**
+- [x] **Step 4: Run the focused test and confirm GREEN**
 
-Run: `pnpm --filter @mewmo/web test --run src/lib/feed-discovery.test.ts`
+Run: `pnpm exec vitest run apps/web/src/lib/feed-discovery.test.ts`
 
 Expected: all feed-discovery tests pass.
 
@@ -80,7 +80,7 @@ Expected: all feed-discovery tests pass.
 - Modify: `apps/web/src/app/(app)/feeds/page.tsx`
 - Modify: `tests/unit/feed-source-menu.test.mjs`
 
-- [ ] **Step 1: Add a failing shared-menu contract**
+- [x] **Step 1: Add a failing shared-menu contract**
 
 Extend `feed-source-menu.test.mjs` to assert:
 
@@ -96,13 +96,13 @@ assert.match(listColumn, /overflowAction/);
 assert.match(feedsPage, /overflowAction=\{[\s\S]*<FeedArticleMenu[\s\S]*disabled=\{!selectedEntry\}/);
 ```
 
-- [ ] **Step 2: Run the contract and confirm RED**
+- [x] **Step 2: Run the contract and confirm RED**
 
 Run: `node --test tests/unit/feed-source-menu.test.mjs`
 
 Expected: failure because `FeedArticleMenu.tsx` and `overflowAction` do not exist.
 
-- [ ] **Step 3: Implement the shared menu**
+- [x] **Step 3: Implement the shared menu**
 
 Create `FeedArticleMenu.tsx` with props:
 
@@ -117,7 +117,7 @@ interface FeedArticleMenuProps {
 
 Use the existing `PopoverMenu`, `PrototypeIcon`, menu button classes, and two current feed actions. The trigger uses `more-vertical`, closes after an action, and stays disabled when no article is selected.
 
-- [ ] **Step 4: Wire both headers to the component**
+- [x] **Step 4: Wire both headers to the component**
 
 In `ReaderToolbar`, render `FeedArticleMenu` for `menuKind === "feed"`; preserve the existing notes and clips menus unchanged.
 
@@ -136,7 +136,7 @@ overflowAction={
 
 Use the same `copySelectedEntryLink` callback for the left menu and `ReaderToolbar`.
 
-- [ ] **Step 5: Run the contract and focused TypeScript tests**
+- [x] **Step 5: Run the contract and focused TypeScript tests**
 
 Run: `node --test tests/unit/feed-source-menu.test.mjs`
 
@@ -149,17 +149,17 @@ Expected: all feed-source-menu contracts pass.
 - Modify: `apps/web/src/app/globals.css`
 - Modify: `tests/unit/feed-source-menu.test.mjs`
 
-- [ ] **Step 1: Add a failing layout contract**
+- [x] **Step 1: Add a failing layout contract**
 
 Assert that the title exposes the complete value through `title={title}` and that CSS applies `min-width: 0`, `overflow: hidden`, `text-overflow: ellipsis`, and `white-space: nowrap` to the title text.
 
-- [ ] **Step 2: Run the contract and confirm RED**
+- [x] **Step 2: Run the contract and confirm RED**
 
 Run: `node --test tests/unit/feed-source-menu.test.mjs`
 
 Expected: failure because the title text can still wrap.
 
-- [ ] **Step 3: Implement stable single-line layout**
+- [x] **Step 3: Implement stable single-line layout**
 
 Add `title={title}` to `.mewmo-list-title`, allow its wrapper and button to shrink with `min-width: 0`, and style the child span:
 
@@ -174,13 +174,13 @@ Add `title={title}` to `.mewmo-list-title`, allow its wrapper and button to shri
 
 Keep the action buttons fixed-size so opening menus or changing favorite state cannot resize the header.
 
-- [ ] **Step 4: Run focused tests and confirm GREEN**
+- [x] **Step 4: Run focused tests and confirm GREEN**
 
 Run:
 
 ```bash
 node --test tests/unit/feed-source-menu.test.mjs
-pnpm --filter @mewmo/web test --run src/lib/feed-discovery.test.ts
+pnpm exec vitest run apps/web/src/lib/feed-discovery.test.ts
 ```
 
 Expected: both commands pass.
@@ -190,15 +190,15 @@ Expected: both commands pass.
 **Files:**
 - Modify: `docs/superpowers/plans/2026-07-15-zoo-20-feed-ui-polish.md` only to record completed checks
 
-- [ ] **Step 1: Run repository verification**
+- [x] **Step 1: Run repository verification**
 
 Run focused tests, `pnpm test:theme`, web lint/type/build checks selected from the project testing SOP, and `git diff --check`.
 
-- [ ] **Step 2: Browser-test the Issue reproduction**
+- [x] **Step 2: Browser-test the Issue reproduction**
 
 On port 3018, discover `https://www.woshipm.com/category/pd/feed` and confirm the title shows a real dash, remains one line, and the left three-dot menu matches the right reader menu for favorite and copy.
 
-- [ ] **Step 3: Review the implementation**
+- [x] **Step 3: Review the implementation**
 
 Compare the final diff against the design spec, then run a code-quality review for regressions, accessibility, stale selected-entry state, and unrelated changes.
 

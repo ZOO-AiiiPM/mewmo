@@ -10,6 +10,7 @@ import { PrototypeIcon } from "./PrototypeIcon";
 interface ListColumnProps {
   title: string;
   action?: ReactNode;
+  overflowAction?: ReactNode;
   children: ReactNode;
   quickSwitch?: ReactNode;
   titleMenuLabel?: string;
@@ -46,6 +47,7 @@ function extractClipboardUrl(text: string) {
 export function ListColumn({
   title,
   action,
+  overflowAction,
   children,
   quickSwitch,
   titleMenuLabel = "快速切换",
@@ -146,6 +148,7 @@ export function ListColumn({
             ref={titleButtonRef}
             type="button"
             className={`mewmo-list-title ${titleMenuOpen ? "mewmo-list-title--open" : ""}`}
+            title={title}
             onClick={() => setTitleMenuOpen((value) => !value)}
             aria-haspopup="menu"
             aria-expanded={titleMenuOpen}
@@ -227,6 +230,7 @@ export function ListColumn({
         }} aria-label="搜索列表">
           <PrototypeIcon name="search" size={17} />
         </button>
+        {overflowAction}
 
         <div className="mewmo-list-search" ref={searchWrapRef}>
           <span className="mewmo-list-field">
