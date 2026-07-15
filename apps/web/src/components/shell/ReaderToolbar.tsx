@@ -18,6 +18,7 @@ interface ReaderToolbarProps {
   onDelete?: (() => void) | undefined;
   onTogglePin?: (() => void) | undefined;
   onShare?: (() => void) | undefined;
+  onCopyContent?: (() => void) | undefined;
   onExport?: (() => void) | undefined;
   onRefresh?: (() => void) | undefined;
   onCopyLink?: (() => void) | undefined;
@@ -37,6 +38,7 @@ export function ReaderToolbar({
   onDelete,
   onTogglePin,
   onShare,
+  onCopyContent,
   onExport,
   onRefresh,
   onCopyLink,
@@ -146,6 +148,18 @@ export function ReaderToolbar({
                     </span>
                     <span>分享</span>
                   </button>
+                  {onCopyContent && (
+                    <button
+                      type="button"
+                      className="mewmo-card-menu__item"
+                      onClick={() => runMenuAction(onCopyContent)}
+                    >
+                      <span className="mewmo-card-menu__icon">
+                        <PrototypeIcon name="copy-plain" size={16} />
+                      </span>
+                      <span>复制全文</span>
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="mewmo-card-menu__item"

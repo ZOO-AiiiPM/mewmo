@@ -39,6 +39,10 @@ import {
   formatNoteListTime,
   notePreviewText,
 } from "../../../lib/note-list-preview";
+import {
+  buildNoteCopyMarkdown,
+  copyNoteMarkdownToClipboard,
+} from "../../../lib/note-copy";
 import * as noteToc from "../../../lib/note-toc";
 import { useWorkspaceMemory } from "../../../lib/workspace-memory";
 import "../../../components/editor/editor-theme.css";
@@ -453,6 +457,21 @@ export default function KnowledgeBasesPage() {
     [selectedItem],
   );
 
+  const copySelectedNote = async () => {
+    if (selectedItem?.kind !== "note" || !selectedItem.note) return;
+
+    try {
+      const markdown = buildNoteCopyMarkdown({
+        title: selectedItem.note.title,
+        markdown: selectedItem.note.content ?? "",
+      });
+      await copyNoteMarkdownToClipboard(markdown, navigator.clipboard);
+      showToast("已复制全文", "success");
+    } catch {
+      showToast("复制全文失败", "error");
+    }
+  };
+
   return (
     <div className={`mewmo-workspace ${listCollapsed ? "mewmo-workspace--list-collapsed" : ""}`}>
       <input
@@ -612,6 +631,11 @@ export default function KnowledgeBasesPage() {
           listCollapsed={listCollapsed}
           menuKind={selectedItem?.kind === "note" ? "notes" : "clips"}
           onDelete={selectedItem ? () => void deleteSelectedItem() : undefined}
+          onCopyContent={
+            selectedItem?.kind === "note" && selectedItem.note
+              ? () => void copySelectedNote()
+              : undefined
+          }
           onCopyLink={
             selectedSourceUrl
               ? () => {

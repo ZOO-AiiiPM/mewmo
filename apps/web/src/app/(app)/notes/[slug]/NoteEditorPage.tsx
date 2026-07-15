@@ -32,6 +32,10 @@ import {
   noteTagPalette,
 } from "../../../../lib/note-list-preview";
 import {
+  buildNoteCopyMarkdown,
+  copyNoteMarkdownToClipboard,
+} from "../../../../lib/note-copy";
+import {
   buildNoteToc,
 } from "../../../../lib/note-toc";
 import {
@@ -133,7 +137,6 @@ export function NoteEditorPage({
     }
     return notes[0] ?? null;
   }, [notes, selectedSlug]);
-  const [editorContent, setEditorContent] = useState(selectedNote?.content ?? "");
 
   const loadNoteDetail = useCallback((item: NoteListItem) => {
     const cachedDetail = getCachedWorkspaceDetail<NoteListItem>("notes", item.id);
@@ -290,7 +293,10 @@ export function NoteEditorPage({
       });
   }, [notes, query]);
 
-  const toc = useMemo(() => buildNoteToc(editorContent), [editorContent]);
+  const toc = useMemo(
+    () => buildNoteToc(selectedNote?.content ?? ""),
+    [selectedNote?.content],
+  );
   const currentToolbarNote = useMemo<NoteListItem>(
     () =>
       selectedNote ?? {
@@ -314,10 +320,6 @@ export function NoteEditorPage({
     readerRef: scrollRef,
     restoreKey: selectedNote?.id ?? "empty",
   });
-
-  useEffect(() => {
-    setEditorContent(selectedNote?.content ?? "");
-  }, [selectedNote?.content, selectedNote?.id]);
 
   useEffect(() => {
     const previous = previousSelectedNoteRef.current;
@@ -416,10 +418,24 @@ export function NoteEditorPage({
     }
   };
 
+  const copyCurrentNote = async () => {
+    if (!selectedNote || selectedNote.content === undefined) return;
+
+    try {
+      const markdown = buildNoteCopyMarkdown({
+        title: selectedNote.title,
+        markdown: selectedNote.content,
+      });
+      await copyNoteMarkdownToClipboard(markdown, navigator.clipboard);
+      showToast("已复制全文", "success");
+    } catch {
+      showToast("复制全文失败", "error");
+    }
+  };
+
   const updateSelectedNoteContent = useCallback(
     (content: string) => {
       if (!selectedNote) return;
-      setEditorContent(content);
       updateCachedWorkspaceItem<NoteListItem>("notes", selectedNote.id, (item) => ({
         ...item,
         content,
@@ -584,6 +600,11 @@ export function NoteEditorPage({
           onDelete={selectedNote ? () => void deleteNote(currentToolbarNote) : undefined}
           onTogglePin={selectedNote ? () => void togglePin(currentToolbarNote) : undefined}
           onShare={selectedNote ? () => void shareNote(currentToolbarNote) : undefined}
+          onCopyContent={
+            selectedNote?.content !== undefined
+              ? () => void copyCurrentNote()
+              : undefined
+          }
           onExport={selectedNote ? () => showToast("已导出 Markdown 文件", "success") : undefined}
         />
         <ReaderToc

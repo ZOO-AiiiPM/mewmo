@@ -163,7 +163,10 @@ function shouldContinueParagraph(lines: string[], index: number) {
   if (/^#{1,6}\s+/.test(line)) return false;
   if (/^>\s?/.test(line)) return false;
   if (/^\s*(?:[-*+]|\d+[.)])\s+/.test(line)) return false;
-  if (/^!\[[^\]]*]\([^)]+\)\s*$/.test(line)) return false;
+  const blockImage = line.match(
+    /^!\[[^\]]*]\(([^)\s]+)(?:\s+"[^"]*")?\)\s*$/,
+  );
+  if (blockImage?.[1] && isSafeImageSrc(blockImage[1])) return false;
   if (parseTable(lines, index)) return false;
   return true;
 }
