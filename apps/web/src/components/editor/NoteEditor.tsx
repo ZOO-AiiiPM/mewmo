@@ -8,6 +8,7 @@ import { $prose } from "@milkdown/kit/utils";
 import { Plugin } from "@milkdown/kit/prose/state";
 import "@milkdown/crepe/theme/common/style.css";
 import "@milkdown/crepe/theme/frame.css";
+import { normalizeNoteMarkdownBreaks } from "../../lib/note-markdown-breaks";
 import { buildNoteMetadataItems, noteTagPalette } from "../../lib/note-list-preview";
 import { PrototypeIcon } from "../shell/PrototypeIcon";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
@@ -153,7 +154,9 @@ export function NoteEditor({
   const onContentChangeRef = useRef(onContentChange);
   onContentChangeRef.current = onContentChange;
   const [editorInitialContent] = useState(() =>
-    resolveInitialNoteContent(initialContent, readNoteContentDraft(noteId)),
+    normalizeNoteMarkdownBreaks(
+      resolveInitialNoteContent(initialContent, readNoteContentDraft(noteId)),
+    ),
   );
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [tagPickerOpen, setTagPickerOpen] = useState(false);
