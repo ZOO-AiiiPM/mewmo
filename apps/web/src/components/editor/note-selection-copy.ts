@@ -4,6 +4,7 @@ import type {
 } from "@milkdown/kit/prose/model";
 
 const HTML_BREAK_RE = /^\s*<br\s*\/?>\s*$/i;
+const EMPTY_VISIBLE_TEXT = "\u200B";
 
 function visibleLeafText(node: ProseMirrorNode) {
   if (node.type.name === "html") {
@@ -14,10 +15,13 @@ function visibleLeafText(node: ProseMirrorNode) {
 }
 
 export function serializeNoteSelectionText(slice: Slice) {
-  return slice.content.textBetween(
+  const text = slice.content.textBetween(
     0,
     slice.content.size,
     "\n\n",
     visibleLeafText,
   );
+
+  // A falsy direct result makes ProseMirror try Milkdown's Markdown serializer.
+  return text || (slice.content.size > 0 ? EMPTY_VISIBLE_TEXT : "");
 }

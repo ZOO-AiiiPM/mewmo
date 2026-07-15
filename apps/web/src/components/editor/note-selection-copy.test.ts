@@ -20,6 +20,13 @@ const schema = new Schema({
       atom: true,
       attrs: { value: { default: "" } },
     },
+    image: {
+      group: "inline",
+      inline: true,
+      atom: true,
+      attrs: { alt: { default: "" } },
+    },
+    horizontal_rule: { group: "block", atom: true },
   },
   marks: { strong: {} },
 });
@@ -59,5 +66,24 @@ describe("note selection plain-text serializer", () => {
         ),
       ),
     ).toBe("第一行\n第二行\n第三行");
+  });
+
+  it("returns a truthy blank for selections with no visible text", () => {
+    const rawHtmlOnly = serializeNoteSelectionText(
+      slice(schema.nodes.html!.create({ value: "<mark>raw</mark>" })),
+    );
+    const nonTextAtoms = serializeNoteSelectionText(
+      slice(
+        schema.nodes.paragraph!.create(null, [
+          schema.nodes.image!.create({ alt: "封面" }),
+        ]),
+        schema.nodes.horizontal_rule!.create(),
+      ),
+    );
+
+    expect(rawHtmlOnly).not.toBe("");
+    expect(nonTextAtoms).not.toBe("");
+    expect(rawHtmlOnly).not.toContain("raw");
+    expect(nonTextAtoms).not.toMatch(/!\[|---/);
   });
 });
