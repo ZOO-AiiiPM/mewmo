@@ -5644,3 +5644,286 @@ html.light .acct-submenu {
 }
 
 .mewmo-sync-status--error { color: var(--coral); }
+
+/* Account settings */
+.mewmo-account-settings-page {
+  height: 100vh;
+  overflow-y: auto;
+  background: var(--canvas);
+}
+
+.mewmo-account-settings {
+  width: calc(100% - 48px);
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 36px 0 64px;
+}
+
+.mewmo-account-settings__section-heading p {
+  margin: 6px 0 0;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.mewmo-account-settings__card {
+  display: grid;
+  gap: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--s1);
+  padding: 20px;
+  box-shadow: var(--shadow);
+}
+
+.mewmo-account-settings__card + .mewmo-account-settings__card {
+  margin-top: 16px;
+}
+
+.mewmo-account-settings__card h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 680;
+}
+
+.mewmo-account-settings__identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mewmo-account-settings__avatar {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  flex: none;
+  overflow: hidden;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent-2);
+  color: var(--accent);
+  font-size: 16px;
+  font-weight: 720;
+}
+
+.mewmo-account-settings__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mewmo-account-settings__identity-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.mewmo-account-settings__identity-copy strong,
+.mewmo-account-settings__identity-copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mewmo-account-settings__identity-copy strong {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.mewmo-account-settings__identity-copy span,
+.mewmo-account-settings__methods-label {
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.mewmo-account-settings__methods {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--line-soft);
+  padding-top: 14px;
+}
+
+.mewmo-account-settings__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mewmo-account-settings__chip {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--raised);
+  color: var(--ink);
+  padding: 4px 9px;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.mewmo-account-settings__section-heading {
+  display: grid;
+  gap: 2px;
+}
+
+.mewmo-account-settings__form {
+  display: grid;
+  max-width: 420px;
+  gap: 14px;
+}
+
+.mewmo-account-settings__field {
+  display: grid;
+  gap: 6px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.mewmo-account-settings__field input {
+  width: 100%;
+  height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  outline: none;
+  background: var(--s2);
+  color: var(--ink);
+  padding: 0 11px;
+  font: inherit;
+  font-size: 14px;
+  transition: border-color 0.14s ease, box-shadow 0.14s ease;
+}
+
+.mewmo-account-settings__field input:hover:not(:disabled) {
+  border-color: var(--ink-faint);
+}
+
+.mewmo-account-settings__field input:focus-visible,
+.mewmo-account-settings__submit:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.mewmo-account-settings__field input[aria-invalid="true"] {
+  border-color: var(--color-coral);
+}
+
+.mewmo-account-settings__field input:disabled,
+.mewmo-account-settings__submit:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+.mewmo-account-settings__field small {
+  color: var(--color-coral);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.mewmo-account-settings__submit {
+  width: fit-content;
+  min-width: 92px;
+  height: 38px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  padding: 0 15px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 680;
+  cursor: pointer;
+}
+
+.mewmo-account-settings__submit:hover:not(:disabled) {
+  box-shadow: inset 0 0 0 999px var(--hl);
+}
+
+.mewmo-account-settings__status {
+  min-height: 18px;
+  margin: -4px 0 0;
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+@media (max-width: 720px) {
+  .mewmo-account-settings {
+    width: calc(100% - 28px);
+    padding: 24px 0 44px;
+  }
+
+  .mewmo-account-settings__card {
+    padding: 16px;
+  }
+
+  .mewmo-account-settings__form,
+  .mewmo-account-settings__submit {
+    width: 100%;
+    max-width: none;
+  }
+}
+/* End account settings */
+
+.mewmo-account-settings-loading {
+  display: grid;
+  width: calc(100% - 48px);
+  max-width: 680px;
+  gap: 16px;
+  margin: 0 auto;
+  padding: 92px 0 64px;
+}
+
+.mewmo-account-settings-loading__heading {
+  width: 180px;
+  height: 30px;
+  border-radius: 6px;
+  background: var(--raised);
+}
+
+.mewmo-account-settings-loading__card {
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--s1);
+  padding: 20px;
+}
+
+.mewmo-account-settings-loading__line,
+.mewmo-account-settings-loading__identity,
+.mewmo-account-settings-loading__field,
+.mewmo-account-settings-loading__button {
+  border-radius: 6px;
+  background: var(--raised);
+}
+
+.mewmo-account-settings-loading__line {
+  width: 130px;
+  height: 16px;
+}
+
+.mewmo-account-settings-loading__line--short {
+  width: 220px;
+  height: 12px;
+}
+
+.mewmo-account-settings-loading__identity {
+  width: 100%;
+  height: 48px;
+}
+
+.mewmo-account-settings-loading__field {
+  width: min(420px, 100%);
+  height: 58px;
+}
+
+.mewmo-account-settings-loading__button {
+  width: 96px;
+  height: 38px;
+}
+
+@media (max-width: 720px) {
+  .mewmo-account-settings-loading {
+    width: calc(100% - 28px);
+    padding-top: 80px;
+  }
+}
