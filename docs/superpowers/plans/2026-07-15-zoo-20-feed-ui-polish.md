@@ -4,15 +4,17 @@
 
 **Goal:** Decode feed-title entities, keep the left article-list title on one line, and expose the selected article's shared favorite/copy menu in both list and reader headers.
 
-**Architecture:** Normalize titles at the existing feed-discovery text boundary so encoded data is corrected before display and persistence. Extract the feed-specific reader menu into a focused `FeedArticleMenu` component, then render that same component in `ReaderToolbar` and the feed page's list-header overflow slot. Keep the full title value and solve overflow only in layout CSS.
+**Architecture:** Normalize titles at the existing feed-discovery text boundary so encoded data is corrected before display and persistence. Use `entities` for the complete HTML named-entity set while retaining explicit numeric code-point validation. Extract the feed-specific reader menu into a focused `FeedArticleMenu` component, then render that same component in `ReaderToolbar` and the feed page's list-header overflow slot. Keep the full title value and solve overflow only in layout CSS.
 
-**Tech Stack:** Next.js 16, React 19, TypeScript, Vitest, Node test runner, existing `PopoverMenu` and `PrototypeIcon` primitives.
+**Tech Stack:** Next.js 16, React 19, TypeScript, `entities`, Vitest, Node test runner, existing `PopoverMenu` and `PrototypeIcon` primitives.
 
 ---
 
 ### Task 1: Decode numeric feed-title entities
 
 **Files:**
+- Modify: `apps/web/package.json`
+- Modify: `pnpm-lock.yaml`
 - Modify: `apps/web/src/lib/feed-discovery.test.ts`
 - Modify: `apps/web/src/lib/feed-discovery.ts`
 
@@ -46,11 +48,12 @@ Run: `pnpm exec vitest run apps/web/src/lib/feed-discovery.test.ts`
 
 Expected: both new assertions fail because the titles still contain `&#8211;` / `&#x2014;`.
 
-- [x] **Step 3: Decode decimal and hexadecimal entities safely**
+- [x] **Step 3: Decode named, decimal, and hexadecimal entities safely**
 
-Extend `decodeEntities` after its named-entity replacements:
+Declare `entities` as a direct Web dependency, decode strict named entities through `decodeHTMLStrict`, and retain explicit validation for numeric entities:
 
 ```ts
+.replace(/&[a-z][a-z0-9]+;/gi, (entity) => decodeHTMLStrict(entity))
 .replace(/&#(\d+);/g, (entity, code) => decodeNumericEntity(entity, code, 10))
 .replace(/&#x([0-9a-f]+);/gi, (entity, code) => decodeNumericEntity(entity, code, 16));
 

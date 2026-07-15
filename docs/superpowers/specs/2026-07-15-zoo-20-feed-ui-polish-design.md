@@ -8,7 +8,7 @@ Fix feed titles that expose encoded HTML entities, keep long subscription names 
 
 ### Feed title normalization
 
-Feed discovery must decode named, decimal, and hexadecimal HTML entities before showing or persisting a candidate title. For example, `&#8211;` becomes `–`. The fix belongs in the discovery text-cleaning boundary so new records do not store the encoded form.
+Feed discovery must decode named, decimal, and hexadecimal HTML entities before showing or persisting a candidate title. For example, `&#8211;` becomes `–` and `&hellip;` becomes `…`. The fix belongs in the discovery text-cleaning boundary so new records do not store the encoded form. Use the standard `entities` decoder for the complete HTML named-entity set and keep explicit numeric code-point validation for invalid values.
 
 Existing persisted titles are not bulk-migrated in this issue. They remain editable through existing source-management actions.
 
@@ -32,7 +32,7 @@ Both locations reuse one feed-article menu implementation so labels, icons, disa
 - Do not add rename, refresh, or delete source actions to the article-list header.
 - Do not change the existing source actions in the navigation drawer.
 - Do not alter batch subscription behavior beyond title normalization.
-- Do not migrate existing database rows or add dependencies.
+- Do not migrate existing database rows or add dependencies unrelated to entity decoding.
 
 ## Error Handling
 

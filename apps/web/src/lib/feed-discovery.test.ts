@@ -89,13 +89,13 @@ describe("discoverFeeds", () => {
   it("decodes named entities in direct feed titles", async () => {
     const fetchFeed = vi.fn().mockResolvedValue(
       xmlResponse(
-        "<rss><channel><title>产品设计&nbsp;&ndash;&nbsp;精选 &mdash; 每日更新</title></channel></rss>",
+        "<rss><channel><title>&ldquo;产品设计&rdquo;&nbsp;&ndash;&nbsp;精选&hellip; &copy; 2026</title></channel></rss>",
       ),
     );
 
     const [feed] = await discoverFeeds("https://example.com/feed.xml", { fetchFeed });
 
-    expect(feed?.title).toBe("产品设计 – 精选 — 每日更新");
+    expect(feed?.title).toBe('“产品设计” – 精选… © 2026');
   });
 
   it("decodes numeric entities in website feed-link titles", async () => {
