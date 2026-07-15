@@ -59,6 +59,8 @@ test("Worker Compose service has no public port and owns restart behavior", () =
   assert.match(compose, /max-size:\s+["']10m["']/);
   assert.match(compose, /max-file:\s+["']3["']/);
   assert.doesNotMatch(compose, /^\s*ports:/m);
+  assert.match(compose, /feed-cron:[\s\S]*profiles:\s*\["cron"\]/);
+  assert.match(compose, /command:\s*\["pnpm",\s*"--filter",\s*"@mewmo\/worker",\s*"cron:feeds"\]/);
 });
 
 test("Worker secrets stay outside Git and Docker build context", () => {
@@ -74,7 +76,8 @@ test("Worker secrets stay outside Git and Docker build context", () => {
   assert.match(gitignore, /^deploy\/worker\/\.env\.worker$/m);
   assert.match(envExample, /^DATABASE_URL=$/m);
   assert.match(envExample, /^REDIS_URL=$/m);
-  assert.match(envExample, /^FEED_CRON_SECRET=$/m);
+  assert.doesNotMatch(envExample, /^FEED_CRON_SECRET=/m);
+  assert.doesNotMatch(envExample, /^FEED_REFRESH_BASE_URL=/m);
   assert.doesNotMatch(envExample, /postgresql:\/\/[^\s]*@/);
   assert.doesNotMatch(envExample, /rediss:\/\/[^\s]*@/);
 });
@@ -94,4 +97,6 @@ test("Worker runbook documents deploy, logs, updates, and rollback", () => {
   assert.match(readme, /docker load/);
   assert.match(readme, /docker tag/);
   assert.match(readme, /不需要.*端口/);
+  assert.match(readme, /flock[\s\S]*docker compose -f compose\.yml --profile cron run --rm feed-cron/);
+  assert.match(readme, /先.*注释.*crontab[\s\S]*再.*旧镜像/);
 });
