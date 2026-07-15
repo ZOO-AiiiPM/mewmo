@@ -114,11 +114,6 @@ export function AccountSettingsClient({
     <div className="mewmo-account-settings-page">
       <TopBar title="账户管理" />
       <main className="mewmo-account-settings">
-        <header className="mewmo-account-settings__header">
-          <h2>账户管理</h2>
-          <p>管理你的登录方式与密码。</p>
-        </header>
-
         <section className="mewmo-account-settings__card" aria-labelledby="account-identity-title">
           <h2 id="account-identity-title">账户信息</h2>
           <div className="mewmo-account-settings__identity">

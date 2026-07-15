@@ -5653,19 +5653,6 @@ html.light .acct-submenu {
   padding: 36px 0 64px;
 }
 
-.mewmo-account-settings__header {
-  margin-bottom: 24px;
-}
-
-.mewmo-account-settings__header h2 {
-  margin: 0;
-  color: var(--ink);
-  font-size: 26px;
-  font-weight: 720;
-  letter-spacing: -0.02em;
-}
-
-.mewmo-account-settings__header p,
 .mewmo-account-settings__section-heading p {
   margin: 6px 0 0;
   color: var(--ink-soft);

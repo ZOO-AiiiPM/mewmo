@@ -30,13 +30,26 @@ const sidebarSource = readSource(
   "apps/web/src/components/shell/Sidebar.tsx",
   "utf8",
 );
+const iconSource = readSource(
+  "apps/web/src/components/shell/PrototypeIcon.tsx",
+  "utf8",
+);
+const topBarSource = readSource(
+  "apps/web/src/components/shell/TopBar.tsx",
+  "utf8",
+);
 const cssSource = readSource("apps/web/src/app/globals.css");
 
 test("account menu links to account management before help and closes through FloatingMenuLink", () => {
   assert.match(sidebarSource, /import \{[^}]*FloatingMenuLink[^}]*\} from "\.\.\/ui\/FloatingMenu"/s);
   assert.match(
     sidebarSource,
-    /<FloatingMenuLink\s+href="\/settings"\s+icon="info">账户管理<\/FloatingMenuLink>[\s\S]*帮助和支持/,
+    /<FloatingMenuLink\s+href="\/settings"\s+icon="user">账户管理<\/FloatingMenuLink>[\s\S]*帮助和支持/,
+  );
+  assert.match(iconSource, /\| "user"/);
+  assert.match(
+    iconSource,
+    /"user":\s*"<svg[\s\S]*<circle cx=\\"12\\" cy=\\"6\\" r=\\"4\\"[\s\S]*M4 21c0-4\.418 3\.582-7 8-7s8 2\.582 8 7/,
   );
 });
 
@@ -106,8 +119,10 @@ test("settings route exposes an accessible themed loading state", () => {
 
 test("account settings client renders identity, method chips, and both password modes", () => {
   assert.match(clientSource, /"use client"/);
-  assert.match(clientSource, /账户管理/);
-  assert.match(clientSource, /管理你的登录方式与密码/);
+  assert.match(clientSource, /<TopBar title="账户管理" \/>/);
+  assert.doesNotMatch(topBarSource, /useTheme|compact|type="search"|Search\.\.\.|cycleTheme|Theme:/);
+  assert.doesNotMatch(clientSource, /mewmo-account-settings__header/);
+  assert.doesNotMatch(clientSource, /管理你的登录方式与密码/);
   assert.match(clientSource, /user\.image[\s\S]*<img[\s\S]*initial/s);
   assert.match(clientSource, /displayedLoginMethods\.map/);
   assert.match(clientSource, /displayedLoginMethods/);

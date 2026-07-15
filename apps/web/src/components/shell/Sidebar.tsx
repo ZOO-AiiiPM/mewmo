@@ -1063,7 +1063,7 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
             </div>
           </AccountSubmenu>
           <div className="mewmo-menu-separator" />
-          <FloatingMenuLink href="/settings" icon="info">账户管理</FloatingMenuLink>
+          <FloatingMenuLink href="/settings" icon="user">账户管理</FloatingMenuLink>
           <FloatingMenuButton icon="info" onClick={defer}>帮助和支持</FloatingMenuButton>
           <AccountSubmenu label="导入导出" icon="import-export">
             <div className="acct-submenu">

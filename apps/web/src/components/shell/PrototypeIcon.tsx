@@ -55,6 +55,7 @@ export type PrototypeIconName =
   | "palette"
   | "appearance"
   | "font-size"
+  | "user"
   | "info"
   | "import-export"
   | "logout"
@@ -189,6 +190,7 @@ const PROTOTYPE_ACCOUNT_ICONS = {
   "palette": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 3a9 9 0 1 0 0 18c.97 0 1.75-.78 1.75-1.75 0-.45-.17-.86-.46-1.17a1.74 1.74 0 0 1 1.28-2.93H16a5 5 0 0 0 5-5c0-3.87-4.03-7-9-7Z\"/><circle cx=\"7.5\" cy=\"11.5\" r=\"1.05\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"12\" cy=\"8\" r=\"1.05\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"16.5\" cy=\"11.5\" r=\"1.05\" fill=\"currentColor\" stroke=\"none\"/></svg>",
   "appearance": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 3a9 9 0 0 0 0 18Z\" fill=\"currentColor\" stroke=\"none\"/></svg>",
   "font-size": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M6 5v14M18 5v14M6 12h12\"/></svg>",
+  "user": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"6\" r=\"4\"/><path d=\"M4 21c0-4.418 3.582-7 8-7s8 2.582 8 7\"/></svg>",
   "info": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M12 16v-4M12 8h.01\"/></svg>",
   "import-export": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M8 3v13M5 13l3 3 3-3\"/><path d=\"M16 21V8M13 11l3-3 3 3\"/></svg>",
   "logout": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4\"/><polyline points=\"16 17 21 12 16 7\"/><line x1=\"21\" y1=\"12\" x2=\"9\" y2=\"12\"/></svg>",
