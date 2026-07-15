@@ -51,11 +51,13 @@ test("Clips API", async (t) => {
   });
 
   await t.test("POST /api/clips creates a clip", async () => {
+    const startedAt = Date.now();
     const res = await authedFetch("/api/clips", {
       method: "POST",
       body: JSON.stringify(clipPayload),
     });
     assert.equal(res.status, 201);
+    assert.ok(Date.now() - startedAt < 2000, "clip persistence should not wait for remote extraction");
     const clip = await res.json();
     assert.ok(clip.id, "should have an id");
     createdClipId = clip.id;
@@ -64,6 +66,18 @@ test("Clips API", async (t) => {
     assert.match(clip.content, /Readable body/);
     assert.equal(clip.summary, clipPayload.summary);
     assert.equal(clip.version, 1);
+  });
+
+  await t.test("equivalent URL returns the existing clip", async () => {
+    const duplicateUrl = `${clipPayload.url.replace(/\/$/, "")}/?utm_source=integration#section`;
+    const res = await authedFetch("/api/clips", {
+      method: "POST",
+      body: JSON.stringify({ ...clipPayload, url: duplicateUrl }),
+    });
+    assert.equal(res.status, 200);
+    const clip = await res.json();
+    assert.equal(clip.id, createdClipId);
+    assert.equal(clip.existing, true);
   });
 
   await t.test("GET /api/clips returns the created clip", async () => {

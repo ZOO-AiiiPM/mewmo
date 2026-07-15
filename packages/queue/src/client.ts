@@ -1,8 +1,16 @@
-import { loadEnv } from "@mewmo/shared";
+import { loadRedisEnv, type RedisEnv } from "@mewmo/shared";
 import IORedis from "ioredis";
 
-export function createRedisConnection(env = loadEnv()): unknown {
+export interface RedisConnectionOptions {
+  maxRetriesPerRequest?: number | null;
+}
+
+export function createRedisConnection(env: RedisEnv = loadRedisEnv(), options: RedisConnectionOptions = {}): unknown {
   return new IORedis(env.REDIS_URL, {
-    maxRetriesPerRequest: null,
+    maxRetriesPerRequest: options.maxRetriesPerRequest ?? null,
   });
+}
+
+export function createProducerRedisConnection(env: RedisEnv = loadRedisEnv()): unknown {
+  return createRedisConnection(env, { maxRetriesPerRequest: 3 });
 }

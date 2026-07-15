@@ -8,8 +8,55 @@ describe("queues", () => {
       tag: "tag-queue",
       summary: "summary-queue",
       feedFetch: "feed-fetch-queue",
+      clipFetch: "clip-fetch-queue",
       embedding: "embedding-queue",
     });
+  });
+
+  it("deduplicates clip fetches while allowing later retries", async () => {
+    const add = vi.fn().mockResolvedValue({ id: "clip-fetch-clip-1" });
+    const helpers = createQueueHelpers({
+      tagQueue: { add: vi.fn() },
+      summaryQueue: { add: vi.fn() },
+      feedFetchQueue: { add: vi.fn() },
+      clipFetchQueue: { add },
+      embeddingQueue: { add: vi.fn() },
+    });
+
+    await helpers.addClipFetchJob({ clipId: "clip-1" });
+
+    expect(add).toHaveBeenCalledWith("clip-fetch", { clipId: "clip-1" }, {
+      jobId: "clip-fetch-clip-1",
+      attempts: 3,
+      backoff: { type: "exponential", delay: 1000 },
+      removeOnComplete: true,
+      removeOnFail: true,
+    });
+  });
+
+  it("deduplicates feed fetches while allowing later retries", async () => {
+    const add = vi.fn().mockResolvedValue({ id: "feed-fetch-feed-1" });
+    const helpers = createQueueHelpers({
+      tagQueue: { add: vi.fn() },
+      summaryQueue: { add: vi.fn() },
+      feedFetchQueue: { add },
+      clipFetchQueue: { add: vi.fn() },
+      embeddingQueue: { add: vi.fn() },
+    });
+
+    await helpers.addFeedFetchJob({ feedId: "feed-1" });
+
+    expect(add).toHaveBeenCalledWith(
+      "feed-fetch",
+      { feedId: "feed-1" },
+      {
+        jobId: "feed-fetch-feed-1",
+        attempts: 3,
+        backoff: { type: "exponential", delay: 1000 },
+        removeOnComplete: true,
+        removeOnFail: true,
+      },
+    );
   });
 
   it("adds typed jobs to the requested queue", async () => {
@@ -18,6 +65,7 @@ describe("queues", () => {
       tagQueue: { add },
       summaryQueue: { add: vi.fn() },
       feedFetchQueue: { add: vi.fn() },
+      clipFetchQueue: { add: vi.fn() },
       embeddingQueue: { add: vi.fn() },
     });
 

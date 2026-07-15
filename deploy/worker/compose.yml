@@ -1,0 +1,21 @@
+name: mewmo-worker
+
+services:
+  worker:
+    image: ${WORKER_IMAGE:-mewmo-worker:local}
+    env_file:
+      - ${WORKER_ENV_FILE:-.env.worker}
+    environment:
+      NODE_OPTIONS: --max-old-space-size=384
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
+    mem_limit: 512m
+    mem_reservation: 128m
+    cpus: 0.50
+    pids_limit: 128
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

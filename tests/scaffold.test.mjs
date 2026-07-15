@@ -18,7 +18,7 @@ const rootFiles = [
 const workspaces = [
   ["apps/web", "@mewmo/web"],
   ["apps/admin", "@mewmo/admin"],
-  ["apps/agent", "@mewmo/agent"],
+  ["apps/worker", "@mewmo/worker"],
   ["apps/extension", "@mewmo/extension"],
   ["packages/db", "@mewmo/db"],
   ["packages/ai", "@mewmo/ai"],

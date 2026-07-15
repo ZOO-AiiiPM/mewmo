@@ -5,19 +5,19 @@ import type { ReactNode, Ref } from "react";
 import { useEffect, useRef, useState } from "react";
 import { useRememberedWorkspaceHref } from "../../lib/workspace-memory";
 import { FloatingMenu, FloatingMenuLink } from "../ui/FloatingMenu";
-import { useToast } from "../ui/ToastProvider";
 import { PrototypeIcon } from "./PrototypeIcon";
 
 interface ListColumnProps {
   title: string;
   action?: ReactNode;
+  overflowAction?: ReactNode;
   children: ReactNode;
   quickSwitch?: ReactNode;
   titleMenuLabel?: string;
   bodyRef?: Ref<HTMLDivElement>;
   searchPlaceholder?: string;
   clipUrlInput?: boolean;
-  onSubmitClipUrl?: (url: string) => void;
+  onSubmitClipUrl?: (url: string) => Promise<void>;
   onSearchChange?: (query: string) => void;
 }
 
@@ -47,6 +47,7 @@ function extractClipboardUrl(text: string) {
 export function ListColumn({
   title,
   action,
+  overflowAction,
   children,
   quickSwitch,
   titleMenuLabel = "快速切换",
@@ -56,12 +57,12 @@ export function ListColumn({
   onSubmitClipUrl,
   onSearchChange,
 }: ListColumnProps) {
-  const { showToast } = useToast();
   const pathname = usePathname();
   const [titleMenuOpen, setTitleMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [clipInputOpen, setClipInputOpen] = useState(false);
   const [clipUrl, setClipUrl] = useState("");
+  const [clipSubmitting, setClipSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const searchWrapRef = useRef<HTMLDivElement>(null);
   const clipWrapRef = useRef<HTMLDivElement>(null);
@@ -93,16 +94,23 @@ export function ListColumn({
     onSearchChange?.("");
   };
 
-  const submitClip = () => {
+  const submitClip = async () => {
     const url = clipUrl.trim();
-    if (!url) return;
-    onSubmitClipUrl?.(url);
-    showToast("已加入剪藏。", "success");
-    setClipUrl("");
-    setClipInputOpen(false);
+    if (!url || clipSubmitting) return;
+    setClipSubmitting(true);
+    try {
+      await onSubmitClipUrl?.(url);
+      setClipUrl("");
+      setClipInputOpen(false);
+    } catch {
+      clipInputRef.current?.focus();
+    } finally {
+      setClipSubmitting(false);
+    }
   };
 
   const openClipInput = async () => {
+    if (clipSubmitting) return;
     if (clipInputOpen) {
       setClipInputOpen(false);
       return;
@@ -140,6 +148,7 @@ export function ListColumn({
             ref={titleButtonRef}
             type="button"
             className={`mewmo-list-title ${titleMenuOpen ? "mewmo-list-title--open" : ""}`}
+            title={title}
             onClick={() => setTitleMenuOpen((value) => !value)}
             aria-haspopup="menu"
             aria-expanded={titleMenuOpen}
@@ -202,14 +211,15 @@ export function ListColumn({
                   value={clipUrl}
                   placeholder="粘贴链接，回车收藏..."
                   onChange={(event) => setClipUrl(event.target.value)}
+                  disabled={clipSubmitting}
                   onKeyDown={(event) => {
                     if (event.key === "Escape") setClipInputOpen(false);
-                    if (event.key === "Enter") submitClip();
+                    if (event.key === "Enter") void submitClip();
                   }}
                 />
               </span>
-              <button type="button" className="mewmo-clip-url__submit" onClick={submitClip} aria-label="保存剪藏链接">
-                <PrototypeIcon name="chev-right" size={16} />
+              <button type="button" className="mewmo-clip-url__submit" onClick={() => void submitClip()} disabled={clipSubmitting} aria-label={clipSubmitting ? "正在保存剪藏" : "保存剪藏链接"}>
+                {clipSubmitting ? <span className="mewmo-spinner" aria-hidden="true" /> : <PrototypeIcon name="chev-right" size={16} />}
               </button>
             </div>
           </>
@@ -220,6 +230,7 @@ export function ListColumn({
         }} aria-label="搜索列表">
           <PrototypeIcon name="search" size={17} />
         </button>
+        {overflowAction}
 
         <div className="mewmo-list-search" ref={searchWrapRef}>
           <span className="mewmo-list-field">

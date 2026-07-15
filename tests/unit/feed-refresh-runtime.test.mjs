@@ -21,7 +21,7 @@ test("web runtime starts the feed refresh scheduler when only the Next server is
   assert.match(
     runtime,
     /FEED_REFRESH_SCHEDULER[\s\S]*off/,
-    "scheduler should keep an environment escape hatch for deployments that run a separate agent",
+    "scheduler should keep an environment escape hatch for deployments that run a separate worker",
   );
   assert.match(
     runtime,

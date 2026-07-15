@@ -74,6 +74,42 @@ describe("discoverFeeds", () => {
     ]);
   });
 
+  it("decodes numeric entities in direct feed titles", async () => {
+    const fetchFeed = vi.fn().mockResolvedValue(
+      xmlResponse(
+        "<rss><channel><title>产品设计 &#8211; 人人都是产品经理 &#x2014; 精选</title></channel></rss>",
+      ),
+    );
+
+    const [feed] = await discoverFeeds("https://example.com/feed.xml", { fetchFeed });
+
+    expect(feed?.title).toBe("产品设计 – 人人都是产品经理 — 精选");
+  });
+
+  it("decodes named entities in direct feed titles", async () => {
+    const fetchFeed = vi.fn().mockResolvedValue(
+      xmlResponse(
+        "<rss><channel><title>产品设计&nbsp;&ndash;&nbsp;精选 &mdash; 每日更新</title></channel></rss>",
+      ),
+    );
+
+    const [feed] = await discoverFeeds("https://example.com/feed.xml", { fetchFeed });
+
+    expect(feed?.title).toBe("产品设计 – 精选 — 每日更新");
+  });
+
+  it("decodes numeric entities in website feed-link titles", async () => {
+    const fetchFeed = vi.fn().mockResolvedValue(
+      htmlResponse(
+        '<link rel="alternate" type="application/rss+xml" title="产品运营 &#8211; 精选" href="/feed.xml">',
+      ),
+    );
+
+    const [feed] = await discoverFeeds("https://example.com", { fetchFeed });
+
+    expect(feed?.title).toBe("产品运营 – 精选");
+  });
+
   it("uses a configured search provider for keywords", async () => {
     const fetchFeed = vi
       .fn()

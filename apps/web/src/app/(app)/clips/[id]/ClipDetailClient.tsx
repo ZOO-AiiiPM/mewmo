@@ -43,6 +43,11 @@ interface ClipListItem {
   content?: string;
   createdAt: string;
   updatedAt: string;
+  fetchStatus?: string;
+  fetchError?: string | null;
+  fetchedAt?: string | null;
+  existing?: boolean;
+  queued?: boolean;
 }
 
 interface ClipDetailClientProps {
@@ -210,22 +215,47 @@ export function ClipDetailClient({
     return () => window.removeEventListener("popstate", handlePopState);
   }, [clips, visibleClips]);
 
+  useEffect(() => {
+    const fetchStatus = selectedClip?.fetchStatus;
+    if (fetchStatus !== "queued" && fetchStatus !== "fetching") return;
+    const timer = window.setInterval(() => {
+      if (!selectedClip) return;
+      void fetch(`/api/clips/${selectedClip.id}`)
+        .then((response) => response.ok ? response.json() as Promise<ClipListItem> : null)
+        .then((updated) => {
+          if (!updated) return;
+          setCachedWorkspaceDetail("clips", updated);
+          setClips((current) => current.map((entry) => entry.id === updated.id ? updated : entry));
+          setSelectedClip(updated);
+        });
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [selectedClip?.fetchStatus, selectedClip?.id]);
+
   async function createClipFromUrl(url: string) {
     const normalizedUrl = normalizeClipUrl(url);
     const domain = getDomain(normalizedUrl);
+    showToast("正在保存剪藏...", "loading");
     const res = await fetch("/api/clips", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        url: normalizedUrl,
-        title: domain,
-      }),
+      body: JSON.stringify({ url: normalizedUrl, title: domain }),
     });
-    if (res.ok) {
-      const created = (await res.json()) as ClipListItem;
-      setClips((current) => [created, ...current.filter((entry) => entry.id !== created.id)]);
-      selectClip(created);
+    if (!res.ok) {
+      showToast("保存剪藏失败，请重试", "error");
+      throw new Error("Failed to save clip");
     }
+    const created = (await res.json()) as ClipListItem;
+    setCachedWorkspaceDetail("clips", created);
+    setClips((current) => {
+      const next = [created, ...current.filter((entry) => entry.id !== created.id)];
+      setCachedWorkspaceList("clips", next);
+      return next;
+    });
+    selectClip(created);
+    if (created.existing) showToast("该内容之前已剪藏，已打开已有记录", "success");
+    else if (created.queued) showToast("已保存剪藏，正在后台抓取内容", "success");
+    else showToast("已保存剪藏，但后台抓取启动失败，可重试", "error");
   }
 
   const deleteClip = async (item: ClipListItem) => {
@@ -247,6 +277,7 @@ export function ClipDetailClient({
       const data = (await response.json().catch(() => null)) as {
         clip?: ClipListItem;
         changed?: boolean;
+        queued?: boolean;
       } | null;
       if (!response.ok || !data?.clip) throw new Error("Failed to refresh clip");
       const updatedClip = data.clip;
@@ -258,7 +289,7 @@ export function ClipDetailClient({
       setSelectedClip((current) =>
         current?.id === updatedClip.id ? updatedClip : current,
       );
-      showToast(data.changed ? "已拉取最新内容" : "已是最新", "success");
+      showToast(data.queued ? "已开始后台抓取" : data.changed ? "已拉取最新内容" : "已是最新", "success");
     } catch {
       showToast("检查更新失败", "error");
     }
@@ -283,7 +314,7 @@ export function ClipDetailClient({
         bodyRef={listRef}
         clipUrlInput
         onSearchChange={setQuery}
-        onSubmitClipUrl={(url) => void createClipFromUrl(url)}
+        onSubmitClipUrl={createClipFromUrl}
       >
         <div className="mewmo-list-stack">
           {visibleClips.map((item) => {
@@ -308,6 +339,12 @@ export function ClipDetailClient({
                 >
                   <div className="mewmo-list-card__title">
                     <span>{item.title}</span>
+                      {(item.fetchStatus === "queued" || item.fetchStatus === "fetching") && (
+                        <small className="mewmo-sync-status">抓取中</small>
+                      )}
+                      {item.fetchStatus === "error" && (
+                        <small className="mewmo-sync-status mewmo-sync-status--error">抓取失败</small>
+                      )}
                   </div>
                   <p>{clipPreviewText(item)}</p>
                   {item.coverImage && (
@@ -383,7 +420,7 @@ export function ClipDetailClient({
                 html={selectedClip.content ?? ""}
                 sourceUrl={selectedClip.url}
                 contentKey={selectedClip.id}
-                loading={isSelectedClipLoading}
+                loading={isSelectedClipLoading || selectedClip.fetchStatus === "queued" || selectedClip.fetchStatus === "fetching"}
               />
             </article>
           ) : (

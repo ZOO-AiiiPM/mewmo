@@ -25,8 +25,7 @@ interface StartFeedRefreshOptions extends RunFeedRefreshOptions {
 
 export interface FeedRefreshCronResult {
   checked: number;
-  fetched: number;
-  created: number;
+  queued: number;
 }
 
 export interface FeedRefreshScheduler {
@@ -64,10 +63,8 @@ export function startFeedRefreshScheduler(options: StartFeedRefreshOptions = {})
     running = true;
     try {
       const result = await runFeedRefreshOnce(options);
-      if (result.checked > 0 || result.created > 0) {
-        logger.log(
-          `feed refresh checked ${result.checked} source(s), fetched ${result.fetched} item(s), created ${result.created} item(s)`,
-        );
+      if (result.checked > 0 || result.queued > 0) {
+        logger.log(`feed refresh checked ${result.checked} source(s), queued ${result.queued} job(s)`);
       }
     } catch (error) {
       logger.error("feed refresh check failed", error);

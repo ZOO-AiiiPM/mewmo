@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { useRef, useState } from "react";
 import { PopoverMenu } from "../ui/FloatingMenu";
+import { FeedArticleMenu } from "./FeedArticleMenu";
 import { PrototypeIcon } from "./PrototypeIcon";
 
 interface ReaderToolbarProps {
@@ -85,7 +86,14 @@ export function ReaderToolbar({
           </button>
         )}
         {actions}
-        <div className="mewmo-reader-toolbar__menu-wrap">
+        {menuKind === "feed" ? (
+          <FeedArticleMenu
+            favoriteActive={favoriteActive}
+            onFavorite={onFavorite}
+            onCopyLink={onCopyLink}
+          />
+        ) : (
+          <div className="mewmo-reader-toolbar__menu-wrap">
           <button
             ref={menuButtonRef}
             type="button"
@@ -149,29 +157,6 @@ export function ReaderToolbar({
                     <span>导出</span>
                   </button>
                 </>
-              ) : menuKind === "feed" ? (
-                <>
-                  <button
-                    type="button"
-                    className="mewmo-card-menu__item"
-                    onClick={() => runMenuAction(onFavorite)}
-                  >
-                    <span className="mewmo-card-menu__icon">
-                      <PrototypeIcon name="bookmark" size={16} />
-                    </span>
-                    <span>{favoriteActive ? "已收藏" : "收藏"}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="mewmo-card-menu__item"
-                    onClick={() => runMenuAction(onCopyLink)}
-                  >
-                    <span className="mewmo-card-menu__icon">
-                      <PrototypeIcon name="copy" size={16} />
-                    </span>
-                    <span>复制链接</span>
-                  </button>
-                </>
               ) : (
                 <>
                   <button
@@ -207,7 +192,8 @@ export function ReaderToolbar({
                 </>
               )}
           </PopoverMenu>
-        </div>
+          </div>
+        )}
       </div>
     </header>
   );

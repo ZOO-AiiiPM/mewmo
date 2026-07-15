@@ -12,6 +12,10 @@ export function addFeedFetchJob(...args: Parameters<ReturnType<typeof createQueu
   return createQueueHelpers().addFeedFetchJob(...args);
 }
 
+export function addClipFetchJob(...args: Parameters<ReturnType<typeof createQueueHelpers>["addClipFetchJob"]>) {
+  return createQueueHelpers().addClipFetchJob(...args);
+}
+
 export function addEmbeddingJob(...args: Parameters<ReturnType<typeof createQueueHelpers>["addEmbeddingJob"]>) {
   return createQueueHelpers().addEmbeddingJob(...args);
 }

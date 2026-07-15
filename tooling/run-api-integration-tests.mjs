@@ -145,6 +145,7 @@ async function removeNextOutput() {
 async function main() {
   let fixtureServer;
   let web;
+  let agent;
   let accountCreated = false;
   try {
     await run("docker", [
@@ -162,6 +163,7 @@ async function main() {
     await run("pnpm", ["db:generate"]);
     await run("pnpm", ["db:push"]); // pnpm db:push
     fixtureServer = await startFixtureServer();
+    agent = spawnCommand("pnpm", ["--filter", "@mewmo/worker", "dev"], { detached: true });
     web = spawnCommand(
       "pnpm",
       ["--filter", "@mewmo/web", "dev", "--hostname", "127.0.0.1", "--port", webPort],
@@ -170,7 +172,7 @@ async function main() {
     await waitForHttp(`${baseUrl}/login`);
     await registerTestUser();
     accountCreated = true;
-    await run("node", ["--test", "tests/integration/*.test.mjs"]);
+    await run("pnpm", ["exec", "tsx", "--test", "tests/integration/*.test.mjs"]);
   } finally {
     if (accountCreated) {
       await cleanupTestUser().catch((error) => {
@@ -179,6 +181,9 @@ async function main() {
     }
     await stopOwnedProcess(web).catch((error) => {
       console.error("Failed to stop integration Web process", error);
+    });
+    await stopOwnedProcess(agent).catch((error) => {
+      console.error("Failed to stop integration Agent process", error);
     });
     if (fixtureServer) {
       await new Promise((resolve) => fixtureServer.close(resolve)).catch((error) => {

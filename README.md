@@ -40,14 +40,14 @@ Open http://localhost:3000 — you should see the web app.
 
 | Command | What it does |
 |---------|-------------|
-| `pnpm dev` | Start all apps (web + agent) |
+| `pnpm dev` | Start all apps (web + worker) |
 | `pnpm build` | Build all packages and apps |
 | `pnpm lint` | Lint everything |
 | `pnpm test` | Run all tests |
 | `pnpm db:push` | Push Prisma schema to local Postgres |
 | `pnpm db:generate` | Generate Prisma Client |
 | `pnpm --filter @mewmo/web dev` | Start only the web app |
-| `pnpm --filter @mewmo/agent dev` | Start only the agent worker |
+| `pnpm --filter @mewmo/worker dev` | Start only the background worker |
 
 ### Environment Variables
 
@@ -86,7 +86,7 @@ See `docs/02-architecture.md` for the full architecture doc.
 
 ```
 apps/web        → Next.js 16 (browser + API)
-apps/agent      → Node.js worker (AI jobs, RSS fetch)
+apps/worker      → Node.js worker (AI jobs, RSS fetch)
 apps/admin      → Admin dashboard
 apps/extension  → Browser extension
 packages/       → Shared code (db, ai, auth, queue, storage, etc.)

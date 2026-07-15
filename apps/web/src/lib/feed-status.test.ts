@@ -1,33 +1,110 @@
 import { describe, expect, it } from "vitest";
 
-import { getFeedAddToast, getFeedEmptyState } from "./feed-status";
+import { getFeedAddToast, getFeedEmptyState, isFeedSyncActive } from "./feed-status";
 
 describe("feed status copy", () => {
-  it("summarizes the initial fetch result after feed creation", () => {
-    expect(getFeedAddToast({ initialFetch: { status: "ok", fetched: 10, created: 7 } })).toEqual({
-      text: "已添加订阅，抓取 7 篇新文章",
+  it("explains queued creation and queue submission failures", () => {
+    expect(getFeedAddToast({ existing: false, queued: true })).toEqual({
+      text: "已添加订阅，正在后台同步",
       type: "success",
     });
-    expect(getFeedAddToast({ initialFetch: { status: "error", fetched: 0, created: 0 } })).toEqual({
-      text: "已添加订阅，首次抓取失败",
+    expect(getFeedAddToast({ existing: false, queued: false })).toEqual({
+      text: "已添加订阅，后台同步启动失败",
       type: "error",
+    });
+    expect(
+      getFeedAddToast({
+        existing: false,
+        queued: false,
+        backgroundStarted: true,
+      }),
+    ).toEqual({
+      text: "已添加订阅，正在后台同步",
+      type: "success",
+    });
+    expect(getFeedAddToast({ existing: true, queued: false })).toEqual({
+      text: "该订阅已经添加过",
+      type: "success",
     });
   });
 
-  it("explains that a new feed is waiting for its first fetch", () => {
+  it("marks only queued and fetching feeds as actively syncing", () => {
+    const now = new Date("2026-07-12T00:00:30.000Z");
+    expect(isFeedSyncActive("queued", "2026-07-12T00:00:00.000Z", now)).toBe(true);
+    expect(isFeedSyncActive("fetching", "2026-07-12T00:00:00.000Z", now)).toBe(true);
+    expect(isFeedSyncActive("queued", null, now)).toBe(false);
+    expect(isFeedSyncActive("fetching", null, now)).toBe(false);
+    expect(isFeedSyncActive("success")).toBe(false);
+    expect(isFeedSyncActive("partial")).toBe(false);
+    expect(isFeedSyncActive("error")).toBe(false);
+    expect(isFeedSyncActive("queued", "2026-07-12T00:00:00.000Z", new Date("2026-07-12T00:02:00.000Z"))).toBe(false);
+    expect(isFeedSyncActive("fetching", "2026-07-12T00:00:00.000Z", new Date("2026-07-12T00:02:00.000Z"))).toBe(false);
+  });
+
+  it("turns stale fetching into a recoverable timeout state", () => {
     expect(
       getFeedEmptyState({
         feedId: "feed-1",
-        selectedFeed: { lastFetchedAt: null },
+        selectedFeed: {
+          lastFetchedAt: null,
+          lastFetchStatus: "fetching",
+          lastFetchStartedAt: "2026-07-12T00:00:00.000Z",
+        },
+        now: new Date("2026-07-12T00:02:00.000Z"),
       }),
     ).toEqual({
-      title: "正在等待首次抓取",
-      detail: "首次抓取完成后，条目会自动出现在这里。",
+      title: "订阅同步超时",
+      detail: "后台抓取没有按时完成，可以重新检查更新。",
       canRefresh: true,
     });
   });
 
-  it("shows a failed first fetch instead of a waiting state", () => {
+  it("shows active first fetch without offering a duplicate retry", () => {
+    expect(
+      getFeedEmptyState({
+        feedId: "feed-1",
+        selectedFeed: {
+          lastFetchedAt: null,
+          lastFetchStatus: "fetching",
+          lastFetchStartedAt: "2026-07-12T00:00:00.000Z",
+        },
+        now: new Date("2026-07-12T00:00:30.000Z"),
+      }),
+    ).toEqual({
+      title: "正在同步订阅文章",
+      detail: "文章会在抓取成功后逐篇出现在这里。",
+      canRefresh: false,
+    });
+  });
+
+  it("turns queued feeds without a usable timestamp into a recoverable timeout state", () => {
+    expect(
+      getFeedEmptyState({
+        feedId: "feed-1",
+        selectedFeed: { lastFetchedAt: null, lastFetchStatus: "queued", lastFetchStartedAt: null },
+      }),
+    ).toEqual({
+      title: "订阅同步超时",
+      detail: "后台抓取没有按时完成，可以重新检查更新。",
+      canRefresh: true,
+    });
+  });
+
+  it("shows partial and failed fetch states with retry", () => {
+    expect(
+      getFeedEmptyState({
+        feedId: "feed-1",
+        selectedFeed: {
+          lastFetchedAt: "2026-07-12T00:00:00.000Z",
+          lastFetchStatus: "partial",
+          lastFetchError: "one entry timed out",
+        },
+      }),
+    ).toEqual({
+      title: "部分文章同步失败",
+      detail: "one entry timed out",
+      canRefresh: true,
+    });
     expect(
       getFeedEmptyState({
         feedId: "feed-1",

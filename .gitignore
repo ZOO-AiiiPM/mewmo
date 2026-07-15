@@ -1,6 +1,7 @@
 /*
 
 !/.gitignore
+!/.dockerignore
 !/package.json
 !/pnpm-lock.yaml
 !/pnpm-workspace.yaml
@@ -16,6 +17,7 @@
 !/packages/
 !/.github/
 !/docs/
+!/deploy/
 
 **/node_modules/
 **/.next/
@@ -29,3 +31,4 @@
 .env.local
 .env*.local
 .vercel
+deploy/worker/.env.worker

@@ -1289,6 +1289,8 @@ html.light .mewmo-sidebar {
 
 .mewmo-list-title {
   display: flex;
+  min-width: 0;
+  max-width: 100%;
   align-items: center;
   gap: 6px;
   border: 0;
@@ -1303,12 +1305,27 @@ html.light .mewmo-sidebar {
 
 .mewmo-list-title-wrap {
   position: relative;
+  min-width: 0;
+  flex: 0 1 auto;
   margin-left: -7px;
 }
 
+.mewmo-list-title > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .mewmo-list-title__caret {
+  flex: none;
   color: var(--accent);
   transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.mewmo-reader-toolbar__menu-wrap > .mewmo-icon-button:disabled {
+  cursor: default;
+  opacity: 0.45;
 }
 
 .mewmo-list-title--open .mewmo-list-title__caret {
@@ -4019,7 +4036,16 @@ html.light .mewmo-popover-card {
 .addfeed__inputwrap .mewmo-icon-button {
   width: 38px;
   height: 38px;
+  border: 1px solid var(--line);
   border-radius: 10px;
+  background: var(--s2);
+  color: var(--ink);
+}
+
+.addfeed__inputwrap .mewmo-icon-button:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 65%, var(--line));
+  background: var(--hover);
+  color: var(--ink);
 }
 
 .addfeed__hint {
@@ -5577,3 +5603,38 @@ html.light .acct-submenu {
     transition-duration: 0.001ms !important;
   }
 }
+
+.addfeed__selectbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.addfeed__selectbar span { margin-right: auto; }
+.addfeed__selectbar button {
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+}
+
+.afr-card > input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent);
+  flex: 0 0 auto;
+}
+
+.mewmo-sync-status {
+  flex: 0 0 auto;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.mewmo-sync-status--error { color: var(--coral); }

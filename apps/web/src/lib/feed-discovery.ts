@@ -268,11 +268,24 @@ function cleanText(value: string | undefined) {
 function decodeEntities(value: string) {
   return value
     .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&ndash;/gi, "–")
+    .replace(/&mdash;/gi, "—")
+    .replace(/&#(\d+);/g, (entity, code) => decodeNumericEntity(entity, code, 10))
+    .replace(/&#x([0-9a-f]+);/gi, (entity, code) => decodeNumericEntity(entity, code, 16));
+}
+
+function decodeNumericEntity(entity: string, code: string, radix: number) {
+  const point = Number.parseInt(code, radix);
+  if (!Number.isInteger(point) || point < 0 || point > 0x10ffff || (point >= 0xd800 && point <= 0xdfff)) {
+    return entity;
+  }
+  return String.fromCodePoint(point);
 }
 
 function escapeRegExp(value: string) {
