@@ -19,6 +19,25 @@ function notFound() {
   return NextResponse.json({ error: "Not found" }, { status: 404 });
 }
 
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<TrashItemRouteParams> },
+) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { kind, id } = await params;
+  const parsedKind = trashKindSchema.safeParse(kind);
+  if (!parsedKind.success) return invalidKind();
+
+  const item = await createTrashRepository().get(session.user.id, parsedKind.data, id);
+  if (!item) return notFound();
+
+  return NextResponse.json(item);
+}
+
 export async function PATCH(_request: Request, { params }: { params: Promise<TrashItemRouteParams> }) {
   const session = await auth();
   if (!session?.user?.id) {
