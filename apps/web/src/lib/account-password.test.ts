@@ -94,6 +94,27 @@ describe("updateAccountPassword", () => {
     expect(deps.updatePassword).not.toHaveBeenCalled();
   });
 
+  it("treats an empty current password as missing", async () => {
+    const deps = createDeps("hash:current-password");
+
+    await expectFailure(
+      updateAccountPassword(
+        "user-1",
+        {
+          currentPassword: "",
+          newPassword: "new-password",
+          confirmPassword: "new-password",
+        },
+        deps,
+      ),
+      "CURRENT_PASSWORD_REQUIRED",
+    );
+
+    expect(deps.verifyPassword).not.toHaveBeenCalled();
+    expect(deps.hashPassword).not.toHaveBeenCalled();
+    expect(deps.updatePassword).not.toHaveBeenCalled();
+  });
+
   it("rejects an incorrect current password", async () => {
     const deps = createDeps("hash:current-password");
 

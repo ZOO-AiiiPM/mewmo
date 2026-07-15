@@ -15,8 +15,8 @@ export class AccountPasswordError extends Error {
 
 export interface UpdateAccountPasswordInput {
   currentPassword?: string;
-  newPassword?: string;
-  confirmPassword?: string;
+  newPassword: string;
+  confirmPassword: string;
 }
 
 export interface UpdateAccountPasswordDeps {
@@ -37,7 +37,7 @@ export async function updateAccountPassword(
   input: UpdateAccountPasswordInput,
   deps: UpdateAccountPasswordDeps,
 ): Promise<UpdateAccountPasswordResult> {
-  const newPassword = input.newPassword ?? "";
+  const newPassword = input.newPassword;
   if (newPassword.length < 8) {
     throw new AccountPasswordError("PASSWORD_TOO_SHORT");
   }
@@ -51,7 +51,7 @@ export async function updateAccountPassword(
   }
 
   if (storedPassword !== null) {
-    if (input.currentPassword === undefined) {
+    if (!input.currentPassword) {
       throw new AccountPasswordError("CURRENT_PASSWORD_REQUIRED");
     }
     if (!(await deps.verifyPassword(input.currentPassword, storedPassword))) {
