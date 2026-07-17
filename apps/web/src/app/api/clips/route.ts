@@ -3,6 +3,7 @@ import { getPrisma, Prisma } from "@mewmo/db";
 import { addClipFetchJob } from "@mewmo/queue";
 import { createClipSchema, normalizeClipUrlIdentity } from "@mewmo/shared";
 import { auth } from "../../../lib/auth";
+import { attachServerTiming, createServerTiming } from "../../../lib/server-timing";
 
 const clipListSelect = {
   id: true,
@@ -65,20 +66,22 @@ async function enqueueClipFetch(clipId: string) {
 }
 
 export async function GET(request: Request) {
-  const session = await auth();
+  const timing = createServerTiming();
+  const session = await timing.measure("auth", () => auth());
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return attachServerTiming(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), timing);
   }
+  const userId = session.user.id;
 
   const includeContent = new URL(request.url).searchParams.get("includeContent") === "1";
   const prisma = getPrisma();
-  const clips = await prisma.clip.findMany({
-    where: { userId: session.user.id, deletedAt: null },
+  const clips = await timing.measure("db", () => prisma.clip.findMany({
+    where: { userId, deletedAt: null },
     orderBy: { updatedAt: "desc" },
     select: { ...clipListSelect, ...(includeContent ? { content: true } : {}) },
-  });
+  }));
 
-  return NextResponse.json(clips);
+  return attachServerTiming(NextResponse.json(clips), timing);
 }
 
 export async function POST(request: Request) {

@@ -2,33 +2,36 @@ import { NextResponse } from "next/server";
 import { getPrisma } from "@mewmo/db";
 
 import { auth } from "../../../../lib/auth";
+import { attachServerTiming, createServerTiming } from "../../../../lib/server-timing";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth();
+  const timing = createServerTiming();
+  const session = await timing.measure("auth", () => auth());
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return attachServerTiming(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), timing);
   }
+  const userId = session.user.id;
 
   const { id } = await params;
-  const entry = await getPrisma().feedEntry.findFirst({
-    where: { id, userId: session.user.id, deletedAt: null },
+  const entry = await timing.measure("db", () => getPrisma().feedEntry.findFirst({
+    where: { id, userId, deletedAt: null },
     include: { feed: { select: { id: true, title: true, url: true, favicon: true, type: true } } },
-  });
+  }));
 
   if (!entry) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return attachServerTiming(NextResponse.json({ error: "Not found" }, { status: 404 }), timing);
   }
 
-  const favorite = await getPrisma().clip.findFirst({
+  const favorite = await timing.measure("db", () => getPrisma().clip.findFirst({
     where: {
-      userId: session.user.id,
+      userId,
       deletedAt: null,
       url: entry.url,
     },
     select: { id: true },
-  });
+  }));
 
-  return NextResponse.json({ ...entry, isFavorited: Boolean(favorite) });
+  return attachServerTiming(NextResponse.json({ ...entry, isFavorited: Boolean(favorite) }), timing);
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {

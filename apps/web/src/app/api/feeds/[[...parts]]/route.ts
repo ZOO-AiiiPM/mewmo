@@ -6,6 +6,7 @@ import { auth } from "../../../../lib/auth";
 import { discoverFeeds, FeedSearchProviderNotConfiguredError } from "../../../../lib/feed-discovery";
 import { fetchAndStoreFeed } from "../../../../lib/feed-fetch-service";
 import { enqueueFeedFetch } from "../../../../lib/feed-queue-service";
+import { attachServerTiming, createServerTiming } from "../../../../lib/server-timing";
 
 interface FeedRouteParams {
   parts?: string[];
@@ -41,47 +42,50 @@ function scheduleWebFeedFetch(userId: string, feedId: string) {
 }
 
 export async function GET(request: Request, { params }: { params: Promise<FeedRouteParams> }) {
-  const session = await auth();
+  const timing = createServerTiming();
+  const session = await timing.measure("auth", () => auth());
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return attachServerTiming(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), timing);
   }
+  const userId = session.user.id;
 
   const parts = pathParts(await params);
   if (parts.length === 0) {
     const typeParam = new URL(request.url).searchParams.get("type");
     const parsedType = typeParam ? feedTypeSchema.safeParse(typeParam) : null;
     if (parsedType && !parsedType.success) {
-      return NextResponse.json({ error: "Invalid feed type" }, { status: 400 });
+      return attachServerTiming(NextResponse.json({ error: "Invalid feed type" }, { status: 400 }), timing);
     }
 
-    const feeds = (await createFeedsRepository().findByUserIdWithUnreadCount(session.user.id, parsedType?.data)) as Array<{
+    const feeds = (await timing.measure("db", () => createFeedsRepository().findByUserIdWithUnreadCount(userId, parsedType?.data))) as Array<{
       _count?: { entries?: number };
     }>;
 
-    return NextResponse.json(
+    return attachServerTiming(NextResponse.json(
       feeds.map(({ _count, ...feed }) => ({
         ...feed,
         unreadCount: _count?.entries ?? 0,
       })),
-    );
+    ), timing);
   }
 
   const [id, action] = parts;
   if (!id || parts.length > 2) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return attachServerTiming(NextResponse.json({ error: "Not found" }, { status: 404 }), timing);
   }
 
-  const feed = await requireFeed(session.user.id, id);
+  const feed = await timing.measure("db", () => requireFeed(userId, id));
   if (!feed) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return attachServerTiming(NextResponse.json({ error: "Not found" }, { status: 404 }), timing);
   }
 
-  if (!action) return NextResponse.json(feed);
+  if (!action) return attachServerTiming(NextResponse.json(feed), timing);
   if (action === "entries") {
-    return NextResponse.json(await createFeedEntriesRepository().findByFeedId(session.user.id, id));
+    const entries = await timing.measure("db", () => createFeedEntriesRepository().findByFeedId(userId, id));
+    return attachServerTiming(NextResponse.json(entries), timing);
   }
 
-  return NextResponse.json({ error: "Not found" }, { status: 404 });
+  return attachServerTiming(NextResponse.json({ error: "Not found" }, { status: 404 }), timing);
 }
 
 export async function POST(request: Request, { params }: { params: Promise<FeedRouteParams> }) {

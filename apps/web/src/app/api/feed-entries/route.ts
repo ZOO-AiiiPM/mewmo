@@ -3,6 +3,7 @@ import { createFeedEntriesRepository, getPrisma } from "@mewmo/db";
 import { feedTypeSchema } from "@mewmo/shared";
 
 import { auth } from "../../../lib/auth";
+import { attachServerTiming, createServerTiming } from "../../../lib/server-timing";
 
 interface FeedEntryWithId {
   id: string;
@@ -10,39 +11,45 @@ interface FeedEntryWithId {
 }
 
 export async function GET(request: Request) {
-  const session = await auth();
+  const timing = createServerTiming();
+  const session = await timing.measure("auth", () => auth());
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return attachServerTiming(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), timing);
   }
+  const userId = session.user.id;
 
   const params = new URL(request.url).searchParams;
   const feedId = params.get("feedId");
   const typeParam = params.get("type") ?? "article";
   const parsedType = feedTypeSchema.safeParse(typeParam);
   if (!parsedType.success) {
-    return NextResponse.json({ error: "Invalid feed type" }, { status: 400 });
+    return attachServerTiming(NextResponse.json({ error: "Invalid feed type" }, { status: 400 }), timing);
   }
 
-  if (feedId) {
-    const feed = await getPrisma().feed.findFirst({
-      where: { id: feedId, userId: session.user.id, deletedAt: null },
-      select: { id: true, type: true },
-    });
-    if (!feed || feed.type !== parsedType.data) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const response = await timing.measure("db", async () => {
+    if (feedId) {
+      const feed = await getPrisma().feed.findFirst({
+        where: { id: feedId, userId, deletedAt: null },
+        select: { id: true, type: true },
+      });
+      if (!feed || feed.type !== parsedType.data) {
+        return NextResponse.json({ error: "Not found" }, { status: 404 });
+      }
+      const entries = (await createFeedEntriesRepository().findByFeedId(
+        userId,
+        feedId,
+      )) as FeedEntryWithId[];
+      return NextResponse.json(await withFavoriteState(userId, entries));
     }
-    const entries = (await createFeedEntriesRepository().findByFeedId(
-      session.user.id,
-      feedId,
-    )) as FeedEntryWithId[];
-    return NextResponse.json(await withFavoriteState(session.user.id, entries));
-  }
 
-  const entries = (await createFeedEntriesRepository().findByUserFeedType(
-    session.user.id,
-    parsedType.data,
-  )) as FeedEntryWithId[];
-  return NextResponse.json(await withFavoriteState(session.user.id, entries));
+    const entries = (await createFeedEntriesRepository().findByUserFeedType(
+      userId,
+      parsedType.data,
+    )) as FeedEntryWithId[];
+    return NextResponse.json(await withFavoriteState(userId, entries));
+  });
+
+  return attachServerTiming(response, timing);
 }
 
 async function withFavoriteState<T extends FeedEntryWithId>(

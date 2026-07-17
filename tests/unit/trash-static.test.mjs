@@ -15,11 +15,11 @@ test("trash routes keep recovery, retention, and permanent delete behind authent
   const itemRoute = read(itemRoutePath);
 
   assert.match(listRoute, /auth\(\)/, "trash list should require the current user");
-  assert.match(listRoute, /createTrashRepository\(\)\.list\(session\.user\.id\)/, "trash list should use the scoped repository");
+  assert.match(listRoute, /const userId = session\.user\.id[\s\S]*createTrashRepository\(\)\.list\(userId\)/, "trash list should use the scoped repository");
   assert.match(itemRoute, /z\.enum\(\["note",\s*"clip",\s*"feed",\s*"knowledge_base"\]\)/, "trash item route should validate supported kinds");
   assert.match(itemRoute, /export async function GET/, "trash item route should expose deleted item details");
-  assert.match(itemRoute, /get\(session\.user\.id,\s*parsedKind\.data,\s*id\)/, "GET should read through the scoped repository");
-  assert.match(itemRoute, /if \(!item\) return notFound\(\)/, "GET should return 404 for missing trash items");
+  assert.match(itemRoute, /get\(userId,\s*parsedKind\.data,\s*id\)/, "GET should read through the scoped repository");
+  assert.match(itemRoute, /if \(!item\) return attachServerTiming\(notFound\(\), timing\)/, "GET should return 404 for missing trash items");
   assert.match(itemRoute, /restore\(session\.user\.id,\s*parsedKind\.data,\s*id\)/, "PATCH should restore through the scoped repository");
   assert.match(itemRoute, /deletePermanently\(session\.user\.id,\s*parsedKind\.data,\s*id\)/, "DELETE should permanently remove through the scoped repository");
 });

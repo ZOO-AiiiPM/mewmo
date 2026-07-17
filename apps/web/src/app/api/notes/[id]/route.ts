@@ -3,6 +3,7 @@ import { getPrisma } from "@mewmo/db";
 import { updateNoteSchema } from "@mewmo/shared";
 import { auth } from "../../../../lib/auth";
 import { createNoteSlug } from "../../../../lib/note-slug";
+import { attachServerTiming, createServerTiming } from "../../../../lib/server-timing";
 
 async function createUniqueNoteSlug(userId: string, noteId: string, title: string) {
   const prisma = getPrisma();
@@ -22,22 +23,24 @@ async function createUniqueNoteSlug(userId: string, noteId: string, title: strin
 }
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth();
+  const timing = createServerTiming();
+  const session = await timing.measure("auth", () => auth());
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return attachServerTiming(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), timing);
   }
+  const userId = session.user.id;
 
   const { id } = await params;
   const prisma = getPrisma();
-  const note = await prisma.note.findFirst({
-    where: { id, userId: session.user.id, deletedAt: null },
-  });
+  const note = await timing.measure("db", () => prisma.note.findFirst({
+    where: { id, userId, deletedAt: null },
+  }));
 
   if (!note) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return attachServerTiming(NextResponse.json({ error: "Not found" }, { status: 404 }), timing);
   }
 
-  return NextResponse.json(note);
+  return attachServerTiming(NextResponse.json(note), timing);
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {

@@ -4,6 +4,7 @@ import { addClipFetchJob, addSummaryJob } from "@mewmo/queue";
 import { normalizeClipUrlIdentity, updateClipSchema } from "@mewmo/shared";
 import { auth } from "../../../../lib/auth";
 import { fetchClipFromUrl } from "../../../../lib/clip-fetch";
+import { attachServerTiming, createServerTiming } from "../../../../lib/server-timing";
 
 function cronAuthorized(request: Request) {
   const secret = process.env.FEED_CRON_SECRET;
@@ -69,22 +70,24 @@ function hasClipChanged(
 }
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth();
+  const timing = createServerTiming();
+  const session = await timing.measure("auth", () => auth());
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return attachServerTiming(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), timing);
   }
+  const userId = session.user.id;
 
   const { id } = await params;
   const prisma = getPrisma();
-  const clip = await prisma.clip.findFirst({
-    where: { id, userId: session.user.id, deletedAt: null },
-  });
+  const clip = await timing.measure("db", () => prisma.clip.findFirst({
+    where: { id, userId, deletedAt: null },
+  }));
 
   if (!clip) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return attachServerTiming(NextResponse.json({ error: "Not found" }, { status: 404 }), timing);
   }
 
-  return NextResponse.json(clip);
+  return attachServerTiming(NextResponse.json(clip), timing);
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {

@@ -13,6 +13,7 @@ import {
 } from "@mewmo/db";
 
 import { auth } from "../../../../lib/auth";
+import { attachServerTiming, createServerTiming } from "../../../../lib/server-timing";
 
 interface KnowledgeRouteParams {
   parts?: string[];
@@ -36,34 +37,39 @@ function invalid(error: unknown, label: string) {
 }
 
 export async function GET(request: Request, { params }: { params: Promise<KnowledgeRouteParams> }) {
-  const userId = await requireUserId();
+  const timing = createServerTiming();
+  const userId = await timing.measure("auth", () => requireUserId());
   if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return attachServerTiming(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), timing);
   }
 
-  const repo = createKnowledgeBasesRepository();
-  const parts = pathParts(await params);
+  const response = await timing.measure("db", async () => {
+    const repo = createKnowledgeBasesRepository();
+    const parts = pathParts(await params);
 
-  if (parts.length === 0) {
-    return NextResponse.json(await repo.findByUserId(userId));
-  }
+    if (parts.length === 0) {
+      return NextResponse.json(await repo.findByUserId(userId));
+    }
 
-  const [id, action] = parts;
-  if (!id || parts.length > 2) return notFound();
+    const [id, action] = parts;
+    if (!id || parts.length > 2) return notFound();
 
-  const base = await repo.findById(userId, id);
-  if (!base) return notFound();
+    const base = await repo.findById(userId, id);
+    if (!base) return notFound();
 
-  if (!action) {
-    return NextResponse.json(await repo.findTree(userId, id));
-  }
+    if (!action) {
+      return NextResponse.json(await repo.findTree(userId, id));
+    }
 
-  if (action === "contents") {
-    const folderId = new URL(request.url).searchParams.get("folderId");
-    return NextResponse.json(await repo.findContents(userId, id, folderId));
-  }
+    if (action === "contents") {
+      const folderId = new URL(request.url).searchParams.get("folderId");
+      return NextResponse.json(await repo.findContents(userId, id, folderId));
+    }
 
-  return notFound();
+    return notFound();
+  });
+
+  return attachServerTiming(response, timing);
 }
 
 export async function POST(request: Request, { params }: { params: Promise<KnowledgeRouteParams> }) {

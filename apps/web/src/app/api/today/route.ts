@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@mewmo/db";
 import { auth } from "../../../lib/auth";
+import { attachServerTiming, createServerTiming } from "../../../lib/server-timing";
 
 function todayWindow() {
   const now = new Date();
@@ -15,18 +16,20 @@ function isInWindow(date: Date | null, start: Date, end: Date) {
 }
 
 export async function GET() {
-  const session = await auth();
+  const timing = createServerTiming();
+  const session = await timing.measure("auth", () => auth());
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return attachServerTiming(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), timing);
   }
+  const userId = session.user.id;
 
   const prisma = getPrisma();
   const { startOfToday, startOfTomorrow } = todayWindow();
 
-  const [notes, clips, feedEntries] = await Promise.all([
+  const [notes, clips, feedEntries] = await timing.measure("db", () => Promise.all([
     prisma.note.findMany({
       where: {
-        userId: session.user.id,
+        userId,
         deletedAt: null,
         OR: [
           { createdAt: { gte: startOfToday, lt: startOfTomorrow } },
@@ -47,7 +50,7 @@ export async function GET() {
     }),
     prisma.clip.findMany({
       where: {
-        userId: session.user.id,
+        userId,
         deletedAt: null,
         createdAt: { gte: startOfToday, lt: startOfTomorrow },
       },
@@ -71,7 +74,7 @@ export async function GET() {
     }),
     prisma.feedEntry.findMany({
       where: {
-        userId: session.user.id,
+        userId,
         deletedAt: null,
         OR: [
           { createdAt: { gte: startOfToday, lt: startOfTomorrow } },
@@ -103,7 +106,7 @@ export async function GET() {
         },
       },
     }),
-  ]);
+  ] as const));
 
   const items = [
     ...notes.map((note) => ({
@@ -162,5 +165,5 @@ export async function GET() {
     }),
   ].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
-  return NextResponse.json(items.slice(0, 40));
+  return attachServerTiming(NextResponse.json(items.slice(0, 40)), timing);
 }

@@ -8,6 +8,7 @@ import {
 } from "../../lib/ai-fab-position";
 import { WorkspaceAccountProvider } from "../../lib/workspace-account";
 import { scopeWorkspaceDataCache } from "../../lib/workspace-data-cache";
+import { WorkspaceNavigationProvider } from "../../lib/workspace-navigation";
 import { AISidebar, AISidebarProvider } from "./AISidebar";
 import { PrototypeIcon } from "./PrototypeIcon";
 import { Sidebar } from "./Sidebar";
@@ -45,6 +46,7 @@ export function AppShell({ children, user }: AppShellProps) {
   const [aiResizing, setAiResizing] = useState(false);
   const [aiFabBottom, setAiFabBottom] = useState(AI_FAB_DEFAULT_BOTTOM);
   const [aiFabDragging, setAiFabDragging] = useState(false);
+  const [navigationPending, setNavigationPending] = useState(false);
 
   const clearSidebarPeekTimer = useCallback(() => {
     if (sidebarPeekTimer.current === null) return;
@@ -163,6 +165,7 @@ export function AppShell({ children, user }: AppShellProps) {
 
   return (
     <WorkspaceAccountProvider userId={user?.id}>
+      <WorkspaceNavigationProvider onPendingChange={setNavigationPending}>
       <div
       ref={shellRef}
       className={[
@@ -171,6 +174,7 @@ export function AppShell({ children, user }: AppShellProps) {
         sidebarPeek ? "mewmo-shell--sidebar-peek" : "",
         aiOpen ? "mewmo-shell--ai-open" : "",
         aiResizing ? "mewmo-shell--ai-resizing" : "",
+        navigationPending ? "mewmo-shell--navigation-pending" : "",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -181,6 +185,7 @@ export function AppShell({ children, user }: AppShellProps) {
         } as CSSProperties
       }
     >
+      <div className="mewmo-workspace-navigation-progress" aria-hidden={!navigationPending} />
       <Sidebar
         user={user}
         collapsed={sidebarCollapsed}
@@ -214,6 +219,7 @@ export function AppShell({ children, user }: AppShellProps) {
         <PrototypeIcon name="mewmo-logo" size={22} />
       </button>
       </div>
+      </WorkspaceNavigationProvider>
     </WorkspaceAccountProvider>
   );
 }

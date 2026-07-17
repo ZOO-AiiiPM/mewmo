@@ -3,6 +3,7 @@ import { createTrashRepository } from "@mewmo/db";
 import { z } from "zod";
 
 import { auth } from "../../../../../lib/auth";
+import { attachServerTiming, createServerTiming } from "../../../../../lib/server-timing";
 
 const trashKindSchema = z.enum(["note", "clip", "feed", "knowledge_base"]);
 
@@ -23,19 +24,21 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<TrashItemRouteParams> },
 ) {
-  const session = await auth();
+  const timing = createServerTiming();
+  const session = await timing.measure("auth", () => auth());
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return attachServerTiming(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), timing);
   }
+  const userId = session.user.id;
 
   const { kind, id } = await params;
   const parsedKind = trashKindSchema.safeParse(kind);
-  if (!parsedKind.success) return invalidKind();
+  if (!parsedKind.success) return attachServerTiming(invalidKind(), timing);
 
-  const item = await createTrashRepository().get(session.user.id, parsedKind.data, id);
-  if (!item) return notFound();
+  const item = await timing.measure("db", () => createTrashRepository().get(userId, parsedKind.data, id));
+  if (!item) return attachServerTiming(notFound(), timing);
 
-  return NextResponse.json(item);
+  return attachServerTiming(NextResponse.json(item), timing);
 }
 
 export async function PATCH(_request: Request, { params }: { params: Promise<TrashItemRouteParams> }) {
