@@ -28,6 +28,7 @@ import {
   setCachedWorkspaceList,
   setCachedWorkspaceSelection,
 } from "../../../../lib/workspace-data-cache";
+import { workspaceResourceKeys } from "../../../../lib/workspace-resource-keys";
 
 interface ClipListItem {
   id: string;
@@ -170,7 +171,7 @@ export function ClipDetailClient({
     if (cachedDetail && isWorkspaceDetailFresh("clips", item)) return;
 
     setLoadingClipId(item.id);
-    void loadWorkspaceResource(`clips:detail:${item.id}`, async () => {
+    void loadWorkspaceResource(workspaceResourceKeys.clipDetail(item.id), async () => {
       const response = await fetch(`/api/clips/${item.id}`);
       if (response.status === 404) {
         removeCachedWorkspaceItem("clips", item.id);

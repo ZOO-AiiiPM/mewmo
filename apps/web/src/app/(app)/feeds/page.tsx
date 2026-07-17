@@ -31,6 +31,7 @@ import {
   setCachedFeedSources,
   updateCachedFeedEntry,
 } from "../../../lib/workspace-data-cache";
+import { workspaceResourceKeys } from "../../../lib/workspace-resource-keys";
 import { useRememberedFeedTypeHref, useWorkspaceMemory } from "../../../lib/workspace-memory";
 
 type FeedType = "article" | "media" | "video" | "podcast";
@@ -194,7 +195,7 @@ export default function FeedsPage() {
       return;
     }
     try {
-      const nextFeeds = await loadWorkspaceResource(`feeds:list:${type}`, async () => {
+      const nextFeeds = await loadWorkspaceResource(workspaceResourceKeys.feedSources(type), async () => {
         const response = await fetch(`/api/feeds?type=${type}`);
         if (!response.ok) throw new Error("feeds");
         return (await response.json()) as FeedSource[];
@@ -232,7 +233,9 @@ export default function FeedsPage() {
     const params = new URLSearchParams({ type });
     if (effectiveFeedId) params.set("feedId", effectiveFeedId);
     try {
-      const requestKey = effectiveFeedId ? `feeds:entries:${effectiveFeedId}` : `feeds:entries:all:${type}`;
+      const requestKey = effectiveFeedId
+        ? workspaceResourceKeys.feedEntries(effectiveFeedId)
+        : workspaceResourceKeys.aggregateFeedEntries(type);
       const result = await loadWorkspaceResource(requestKey, async () => {
         const response = await fetch(`/api/feed-entries?${params.toString()}`);
         if (!response.ok) {

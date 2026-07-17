@@ -55,6 +55,7 @@ import {
   setCachedWorkspaceSelection,
   updateCachedWorkspaceItem,
 } from "../../../../lib/workspace-data-cache";
+import { workspaceResourceKeys } from "../../../../lib/workspace-resource-keys";
 import "../../../../components/editor/editor-theme.css";
 
 const NoteEditor = dynamic(
@@ -162,7 +163,7 @@ export function NoteEditorPage({
       );
     }
 
-    void loadWorkspaceResource(`notes:detail:${item.id}`, () =>
+    void loadWorkspaceResource(workspaceResourceKeys.noteDetail(item.id), () =>
       fetch(`/api/notes/${item.id}`).then((response) =>
         response.ok ? response.json() : null,
       ),
@@ -192,7 +193,7 @@ export function NoteEditorPage({
     if (initialNotes.length > 0) return;
     let cancelled = false;
 
-    void loadWorkspaceResource("notes:list", async () => {
+    void loadWorkspaceResource(workspaceResourceKeys.notesList(), async () => {
       const response = await fetch("/api/notes");
       if (!response.ok) throw new Error("Failed to load notes");
       return (await response.json()) as NoteListItem[];

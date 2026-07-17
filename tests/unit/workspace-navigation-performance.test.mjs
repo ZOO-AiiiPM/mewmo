@@ -41,16 +41,19 @@ test("clips reuse browser-session list and detail data while refreshing in the b
   const source = read("apps/web/src/app/(app)/clips/page.tsx");
   const detail = read("apps/web/src/app/(app)/clips/[id]/ClipDetailClient.tsx");
 
+  assert.match(source, /workspaceResourceKeys/);
+  assert.match(detail, /workspaceResourceKeys/);
   assert.match(source, /getCachedWorkspaceList<ClipListItem>\("clips"\)/);
   assert.match(source, /getCachedWorkspaceDetail<ClipListItem>\("clips",/);
   assert.match(source, /setCachedWorkspaceList\("clips", data\)/);
   assert.match(source, /setCachedWorkspaceDetail\("clips", data\)/);
   assert.match(source, /isWorkspaceDetailFresh\("clips", clipToLoad\)/);
-  assert.match(source, /loadWorkspaceResource\(`clips:detail:\$\{clipToLoad\.id\}`/);
+  assert.match(source, /loadWorkspaceResource\(workspaceResourceKeys\.clipDetail\(clipToLoad\.id\)/);
   assert.match(source, /res\.status === 404[\s\S]{0,120}removeCachedWorkspaceItem/);
   assert.match(detail, /setCachedWorkspaceList\("clips", initialClips\)/);
   assert.match(detail, /setCachedWorkspaceDetail\("clips", clip\)/);
-  assert.match(detail, /loadWorkspaceResource\(`clips:detail:\$\{item\.id\}`/);
+  assert.match(detail, /loadWorkspaceResource\(workspaceResourceKeys\.clipDetail\(item\.id\)/);
+  assert.doesNotMatch(source, /setIsLoading\(true\)/);
 });
 
 test("clip readers distinguish a pending body from a confirmed empty body", () => {
@@ -66,12 +69,13 @@ test("clip readers distinguish a pending body from a confirmed empty body", () =
 test("notes seed and reuse browser-session details across section switches", () => {
   const source = read("apps/web/src/app/(app)/notes/[slug]/NoteEditorPage.tsx");
 
+  assert.match(source, /workspaceResourceKeys/);
   assert.match(source, /getCachedWorkspaceList<NoteListItem>\("notes"\)/);
   assert.match(source, /getCachedWorkspaceSelection\("notes"\)/);
-  assert.match(source, /loadWorkspaceResource\("notes:list"/);
+  assert.match(source, /loadWorkspaceResource\(workspaceResourceKeys\.notesList\(\)/);
   assert.match(source, /setCachedWorkspaceList\("notes",/);
   assert.match(source, /setCachedWorkspaceDetail\("notes",/);
-  assert.match(source, /loadWorkspaceResource\(`notes:detail:\$\{item\.id\}`/);
+  assert.match(source, /loadWorkspaceResource\(workspaceResourceKeys\.noteDetail\(item\.id\)/);
   assert.match(
     source,
     /if \(selectedNote\) loadNoteDetail\(selectedNote\)/,

@@ -27,8 +27,10 @@ import { useTheme } from "../../lib/theme";
 import {
   clearCachedFeedEntries,
   getCachedFeedSources,
+  loadWorkspaceResource,
   setCachedFeedSources,
 } from "../../lib/workspace-data-cache";
+import { workspaceResourceKeys } from "../../lib/workspace-resource-keys";
 import {
   getRememberedFeedTypeHref,
   getRememberedKnowledgeBaseHref,
@@ -244,15 +246,21 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
     if (!feedDrawer || feedTypes.find((item) => item.type === feedDrawer)?.deferred) return;
 
     let cancelled = false;
-    fetch(`/api/feeds?type=${feedDrawer}`)
-      .then((response) => (response.ok ? response.json() : []))
+    const cachedSources = getCachedFeedSources<SidebarFeed>(feedDrawer);
+    setFeeds(cachedSources ?? []);
+    loadWorkspaceResource(workspaceResourceKeys.feedSources(feedDrawer), async () => {
+      const response = await fetch(`/api/feeds?type=${feedDrawer}`);
+      if (!response.ok) throw new Error("Failed to load feed sources");
+      return (await response.json()) as SidebarFeed[];
+    })
       .then(async (data) => {
         const nextFeeds = Array.isArray(data) ? data : [];
         await preloadFeedIcons(nextFeeds);
+        setCachedFeedSources(feedDrawer, nextFeeds);
         if (!cancelled) setFeeds(nextFeeds);
       })
       .catch(() => {
-        if (!cancelled) setFeeds([]);
+        if (!cancelled && !cachedSources) setFeeds([]);
       });
 
     return () => {

@@ -34,6 +34,7 @@ import {
   setCachedWorkspaceList,
   setCachedWorkspaceSelection,
 } from "../../../lib/workspace-data-cache";
+import { workspaceResourceKeys } from "../../../lib/workspace-resource-keys";
 
 interface ClipListItem {
   id: string;
@@ -135,9 +136,8 @@ export default function ClipsPage() {
 
     async function loadClips() {
       try {
-        setIsLoading(true);
         setError("");
-        const data = await loadWorkspaceResource("clips:list", async () => {
+        const data = await loadWorkspaceResource(workspaceResourceKeys.clipsList(), async () => {
           const res = await fetch("/api/clips");
           if (!res.ok) throw new Error("Failed to load clips");
           return (await res.json()) as ClipListItem[];
@@ -233,7 +233,7 @@ export default function ClipsPage() {
 
     async function loadSelectedClip() {
       try {
-        const data = await loadWorkspaceResource(`clips:detail:${clipToLoad.id}`, async () => {
+        const data = await loadWorkspaceResource(workspaceResourceKeys.clipDetail(clipToLoad.id), async () => {
           const res = await fetch(`/api/clips/${clipToLoad.id}`);
           if (res.status === 404) {
             removeCachedWorkspaceItem("clips", clipToLoad.id);
