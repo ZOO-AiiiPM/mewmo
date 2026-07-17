@@ -27,6 +27,9 @@ test("knowledge base API route uses shared validators and db repository boundari
   );
   assert.match(route, /KnowledgeFolderDepthError/, "API route should translate max-depth errors");
   assert.match(route, /return NextResponse\.json\(await repo\.findByUserId\(userId\)\)/);
+  const repository = readFileSync("packages/db/src/repositories/knowledge-bases.ts", "utf8");
+  assert.doesNotMatch(repository, /note:\s*true|clip:\s*true/);
+  assert.doesNotMatch(repository, /content:\s*true/);
   assert.doesNotMatch(
     route,
     /PROTOTYPE_KNOWLEDGE_BASES|PROTOTYPE_KNOWLEDGE_ITEMS|seedPrototype|removeLegacyPrototypeContent|createNotesRepository|createClipsRepository/,

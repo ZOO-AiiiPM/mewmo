@@ -44,7 +44,9 @@ import {
   copyNoteMarkdownToClipboard,
 } from "../../../lib/note-copy";
 import * as noteToc from "../../../lib/note-toc";
+import { workspaceResourceKeys } from "../../../lib/workspace-resource-keys";
 import { useWorkspaceMemory } from "../../../lib/workspace-memory";
+import { useWorkspaceResource } from "../../../lib/use-workspace-resource";
 import "../../../components/editor/editor-theme.css";
 
 const NoteEditor = dynamic(
@@ -86,6 +88,16 @@ type KnowledgeItemRecord = KnowledgeItemLike & {
   assetType?: "pdf" | "ebook" | null;
 };
 
+type KnowledgeEntityDetail = {
+  id: string;
+  slug?: string;
+  title?: string;
+  summary?: string | null;
+  content?: string | null;
+  updatedAt?: string;
+  createdAt?: string;
+};
+
 type LocalKnowledgeAssetType = "pdf" | "ebook";
 type LocalKnowledgeImportType = "note" | LocalKnowledgeAssetType;
 type KnowledgeFilter = "all" | KnowledgeContentType;
@@ -105,6 +117,45 @@ const knowledgeFilters: Array<{
   { value: "ebook", label: "电子书", icon: "book" },
 ];
 
+function knowledgeDetailRequest(item: KnowledgeItemRecord) {
+  if (item.kind === "note" && item.note) {
+    return {
+      key: workspaceResourceKeys.noteDetail(item.note.id),
+      url: `/api/notes/${item.note.id}`,
+    };
+  }
+  if (item.kind === "clip" && item.clip) {
+    return {
+      key: workspaceResourceKeys.clipDetail(item.clip.id),
+      url: `/api/clips/${item.clip.id}`,
+    };
+  }
+  if (item.kind === "feed_entry" && item.feedEntry) {
+    return {
+      key: workspaceResourceKeys.feedEntryDetail(item.feedEntry.id),
+      url: `/api/feed-entries/${item.feedEntry.id}`,
+    };
+  }
+  return null;
+}
+
+function mergeKnowledgeDetail(
+  item: KnowledgeItemRecord,
+  detail: KnowledgeEntityDetail | null,
+): KnowledgeItemRecord {
+  if (!detail) return item;
+  if (item.kind === "note" && item.note?.id === detail.id) {
+    return { ...item, note: { ...item.note, ...detail } };
+  }
+  if (item.kind === "clip" && item.clip?.id === detail.id) {
+    return { ...item, clip: { ...item.clip, ...detail } };
+  }
+  if (item.kind === "feed_entry" && item.feedEntry?.id === detail.id) {
+    return { ...item, feedEntry: { ...item.feedEntry, ...detail } };
+  }
+  return item;
+}
+
 export default function KnowledgeBasesPage() {
   const router = useRouter();
   const pathname = usePathname();
@@ -122,11 +173,6 @@ export default function KnowledgeBasesPage() {
   const importOpen = searchParams.get("import") === "1";
   const localImport = searchParams.get("localImport");
 
-  const [currentBase, setCurrentBase] = useState<KnowledgeBaseRecord | null>(null);
-  const [folderTree, setFolderTree] = useState<KnowledgeFolderNode[]>([]);
-  const [items, setItems] = useState<KnowledgeItemRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<KnowledgeFilter>("all");
   const [listCollapsed, setListCollapsed] = useState(false);
@@ -148,66 +194,77 @@ export default function KnowledgeBasesPage() {
     [pathname, router, searchParams],
   );
 
-  useEffect(() => {
-    let cancelled = false;
-    async function loadKnowledgeBases() {
+  const {
+    data: knowledgeBases,
+    error: knowledgeBasesError,
+  } = useWorkspaceResource<KnowledgeBaseRecord[]>({
+    key: workspaceResourceKeys.knowledgeBases(),
+    initialData: [],
+    load: async () => {
       const response = await fetch("/api/knowledge-bases");
       if (!response.ok) throw new Error("knowledge-bases");
-      const data = (await response.json()) as KnowledgeBaseRecord[];
-      if (cancelled) return;
-      if (!kbId && data[0]) {
-        updateParams({ kbId: data[0].id });
-      }
-    }
+      return (await response.json()) as KnowledgeBaseRecord[];
+    },
+    errorMessage: "知识库加载失败。",
+  });
 
-    void loadKnowledgeBases().catch(() => {
-      if (!cancelled) setError("知识库加载失败。");
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [kbId, updateParams]);
+  const treeKey = kbId
+    ? workspaceResourceKeys.knowledgeTree(kbId)
+    : "knowledge:tree:none";
+  const {
+    data: currentBase,
+    error: currentBaseError,
+    refresh: loadCurrentBase,
+  } = useWorkspaceResource<KnowledgeBaseRecord | null>({
+    key: treeKey,
+    initialData: null,
+    enabled: Boolean(kbId),
+    load: async () => {
+      if (!kbId) return null;
+      const response = await fetch(`/api/knowledge-bases/${kbId}`);
+      if (!response.ok) throw new Error("knowledge-base");
+      return (await response.json()) as KnowledgeBaseRecord;
+    },
+    errorMessage: "知识库目录加载失败。",
+  });
+  const folderTree = useMemo(
+    () => buildKnowledgeFolderTree(currentBase?.folders ?? []),
+    [currentBase],
+  );
 
-  const loadCurrentBase = useCallback(async () => {
-    if (!kbId) return;
-    const response = await fetch(`/api/knowledge-bases/${kbId}`);
-    if (!response.ok) throw new Error("knowledge-base");
-    const data = (await response.json()) as KnowledgeBaseRecord;
-    setCurrentBase(data);
-    setFolderTree(buildKnowledgeFolderTree(data.folders ?? []));
-  }, [kbId]);
+  const contentsKey = kbId && folderId
+    ? workspaceResourceKeys.knowledgeContents(kbId, folderId)
+    : "knowledge:contents:none";
+  const {
+    data: items,
+    initialLoading: loading,
+    error: contentsError,
+    refresh: loadContents,
+    update: setItems,
+  } = useWorkspaceResource<KnowledgeItemRecord[]>({
+    key: contentsKey,
+    initialData: [],
+    enabled: Boolean(kbId && folderId),
+    load: async () => {
+      if (!kbId || !folderId) return [];
+      const params = new URLSearchParams({ folderId });
+      const response = await fetch(`/api/knowledge-bases/${kbId}/contents?${params.toString()}`);
+      if (!response.ok) throw new Error("knowledge-contents");
+      return (await response.json()) as KnowledgeItemRecord[];
+    },
+    errorMessage: "知识库内容加载失败。",
+  });
+  const error = knowledgeBasesError || currentBaseError || contentsError;
 
-  const loadContents = useCallback(async () => {
-    if (!kbId) return;
-    setLoading(true);
-    setError("");
+  useEffect(() => {
     if (!folderId) {
       setItems([]);
-      setLoading(false);
-      return;
     }
-    const params = new URLSearchParams();
-    params.set("folderId", folderId);
-    const response = await fetch(
-      `/api/knowledge-bases/${kbId}/contents${params.toString() ? `?${params.toString()}` : ""}`,
-    );
-    if (!response.ok) {
-      setItems([]);
-      setError("知识库内容加载失败。");
-      setLoading(false);
-      return;
-    }
-    setItems((await response.json()) as KnowledgeItemRecord[]);
-    setLoading(false);
-  }, [folderId, kbId]);
+  }, [folderId, setItems]);
 
   useEffect(() => {
-    void loadCurrentBase().catch(() => setCurrentBase(null));
-  }, [loadCurrentBase]);
-
-  useEffect(() => {
-    void loadContents();
-  }, [loadContents]);
+    if (!kbId && knowledgeBases[0]) updateParams({ kbId: knowledgeBases[0].id });
+  }, [kbId, knowledgeBases, updateParams]);
 
   const activeFolderName = useMemo(
     () => (folderId ? findFolderName(folderTree, folderId) : null),
@@ -228,8 +285,29 @@ export default function KnowledgeBasesPage() {
     return sortKnowledgeItemsForList(filtered);
   }, [filter, items, query]);
 
-  const selectedItem =
+  const selectedListItem =
     visibleItems.find((item) => item.id === itemId) ?? visibleItems[0] ?? null;
+  const detailRequest = selectedListItem ? knowledgeDetailRequest(selectedListItem) : null;
+  const {
+    data: selectedDetail,
+    initialLoading: selectedDetailLoading,
+    error: selectedDetailError,
+    update: updateSelectedDetail,
+  } = useWorkspaceResource<KnowledgeEntityDetail | null>({
+    key: detailRequest?.key ?? "knowledge:detail:none",
+    initialData: null,
+    enabled: Boolean(detailRequest),
+    load: async () => {
+      if (!detailRequest) return null;
+      const response = await fetch(detailRequest.url);
+      if (!response.ok) throw new Error("knowledge-detail");
+      return (await response.json()) as KnowledgeEntityDetail;
+    },
+    errorMessage: "正文加载失败。",
+  });
+  const selectedItem = selectedListItem
+    ? mergeKnowledgeDetail(selectedListItem, selectedDetail)
+    : null;
   const selectedCard = selectedItem ? buildKnowledgeCardView(selectedItem) : null;
   const selectedToc = useMemo(() => buildKnowledgeItemToc(selectedItem), [selectedItem]);
   const selectedHeadingSelector =
@@ -418,22 +496,12 @@ export default function KnowledgeBasesPage() {
   const updateSelectedNoteContent = useCallback(
     (content: string) => {
       if (selectedItem?.kind !== "note") return;
-      setItems((current) =>
-        current.map((item) => {
-          if (item.id !== selectedItem.id || item.kind !== "note" || !item.note) {
-            return item;
-          }
-          if (item.note.content === content) {
-            return item;
-          }
-          return {
-            ...item,
-            note: { ...item.note, content },
-          };
-        }),
-      );
+      updateSelectedDetail((current) => {
+        if (current?.content === content) return current;
+        return current ? { ...current, content } : current;
+      });
     },
-    [selectedItem],
+    [selectedItem, updateSelectedDetail],
   );
 
   const updateSelectedNoteTitle = useCallback(
@@ -453,8 +521,9 @@ export default function KnowledgeBasesPage() {
           };
         }),
       );
+      updateSelectedDetail((current) => current ? { ...current, title } : current);
     },
-    [selectedItem],
+    [selectedItem, setItems, updateSelectedDetail],
   );
 
   const copySelectedNote = async () => {
@@ -530,7 +599,7 @@ export default function KnowledgeBasesPage() {
             <span className="mewmo-spinner" aria-hidden="true" />
             <p>正在加载知识库...</p>
           </div>
-        ) : error ? (
+        ) : error && items.length === 0 ? (
           <div className="mewmo-list-empty">
             <PrototypeIcon name="empty" size={36} />
             <p>{error}</p>
@@ -660,6 +729,8 @@ export default function KnowledgeBasesPage() {
             item={selectedItem}
             card={selectedCard}
             title={listTitle}
+            loading={selectedDetailLoading}
+            error={selectedDetailError}
             onNoteContentChange={updateSelectedNoteContent}
             onNoteTitleChange={updateSelectedNoteTitle}
           />
@@ -730,12 +801,16 @@ function KnowledgeReader({
   item,
   card,
   title,
+  loading,
+  error,
   onNoteContentChange,
   onNoteTitleChange,
 }: {
   item: KnowledgeItemRecord | null;
   card: ReturnType<typeof buildKnowledgeCardView> | null;
   title: string;
+  loading: boolean;
+  error: string;
   onNoteContentChange: (content: string) => void;
   onNoteTitleChange: (title: string) => void;
 }) {
@@ -749,13 +824,16 @@ function KnowledgeReader({
   }
 
   if (item.kind === "note" && item.note) {
+    if (typeof item.note.content !== "string") {
+      return <KnowledgeBodyLoading loading={loading} error={error} />;
+    }
     return (
       <NoteEditor
         key={item.note.id}
         noteId={item.note.id}
         initialTitle={item.note.title}
         initialSummary={item.note.summary ?? null}
-        initialContent={item.note.content ?? ""}
+        initialContent={item.note.content}
         updatedAt={item.note.updatedAt ?? item.updatedAt}
         onContentChange={onNoteContentChange}
         onTitleChange={onNoteTitleChange}
@@ -781,34 +859,32 @@ function KnowledgeReader({
   }
 
   if (item.kind === "clip" && item.clip) {
+    if (typeof item.clip.content !== "string") {
+      return <KnowledgeBodyLoading loading={loading} error={error} />;
+    }
     return (
       <article className="mewmo-document mewmo-document--clip mewmo-document--knowledge">
         <h1>{card.title}</h1>
         <SourceStrip card={card} url={item.clip.url} />
-        {item.clip.content ? (
-          <ClipContentRenderer html={item.clip.content} sourceUrl={item.clip.url} contentKey={item.clip.id} />
-        ) : (
-          <p>{card.summary}</p>
-        )}
+        <ClipContentRenderer html={item.clip.content} sourceUrl={item.clip.url} contentKey={item.clip.id} />
       </article>
     );
   }
 
   if (item.kind === "feed_entry" && item.feedEntry) {
+    if (typeof item.feedEntry.content !== "string") {
+      return <KnowledgeBodyLoading loading={loading} error={error} />;
+    }
     return (
       <article className="mewmo-document mewmo-document--knowledge">
         <h1>{card.title}</h1>
         <SourceStrip card={card} url={item.feedEntry.url} />
         {item.feedEntry.summary && <p className="mewmo-feed-reader__summary">{item.feedEntry.summary}</p>}
-        {item.feedEntry.content ? (
-          <ClipContentRenderer
-            html={item.feedEntry.content}
-            sourceUrl={item.feedEntry.url}
-            contentKey={item.feedEntry.id}
-          />
-        ) : (
-          <p>{item.feedEntry.excerpt}</p>
-        )}
+        <ClipContentRenderer
+          html={item.feedEntry.content}
+          sourceUrl={item.feedEntry.url}
+          contentKey={item.feedEntry.id}
+        />
       </article>
     );
   }
@@ -823,6 +899,15 @@ function KnowledgeReader({
       <div className="mewmo-knowledge-note-body">
         {item.note?.content || item.note?.summary || card.summary}
       </div>
+    </article>
+  );
+}
+
+function KnowledgeBodyLoading({ loading, error }: { loading: boolean; error: string }) {
+  return (
+    <article className="mewmo-document mewmo-document--empty">
+      {loading && <span className="mewmo-spinner" aria-hidden="true" />}
+      <p>{error || "正在加载内容..."}</p>
     </article>
   );
 }

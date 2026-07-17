@@ -27,8 +27,10 @@ import { useTheme } from "../../lib/theme";
 import {
   clearCachedFeedEntries,
   getCachedFeedSources,
+  getWorkspaceResource,
   loadWorkspaceResource,
   setCachedFeedSources,
+  setWorkspaceResource,
 } from "../../lib/workspace-data-cache";
 import { workspaceResourceKeys } from "../../lib/workspace-resource-keys";
 import {
@@ -215,13 +217,19 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/knowledge-bases")
-      .then((response) => (response.ok ? response.json() : []))
+    const key = workspaceResourceKeys.knowledgeBases();
+    const cachedBases = getWorkspaceResource<SidebarKnowledgeBase[]>(key)?.value ?? null;
+    if (cachedBases) setKnowledgeBases(cachedBases);
+    loadWorkspaceResource(key, async () => {
+      const response = await fetch("/api/knowledge-bases");
+      if (!response.ok) throw new Error("Failed to load knowledge bases");
+      return (await response.json()) as SidebarKnowledgeBase[];
+    })
       .then((data) => {
         if (!cancelled) setKnowledgeBases(Array.isArray(data) ? data : []);
       })
       .catch(() => {
-        if (!cancelled) setKnowledgeBases([]);
+        if (!cancelled && !cachedBases) setKnowledgeBases([]);
       });
 
     return () => {
@@ -292,19 +300,23 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
   };
 
   const reloadKnowledgeBases = async () => {
-    const response = await fetch("/api/knowledge-bases");
-    if (!response.ok) return;
-    const data = await response.json();
+    const data = await loadWorkspaceResource(workspaceResourceKeys.knowledgeBases(), async () => {
+      const response = await fetch("/api/knowledge-bases");
+      if (!response.ok) throw new Error("Failed to load knowledge bases");
+      return (await response.json()) as SidebarKnowledgeBase[];
+    });
     setKnowledgeBases(Array.isArray(data) ? data : []);
   };
 
   const loadKnowledgeTree = async (base: SidebarKnowledgeBase) => {
-    const response = await fetch(`/api/knowledge-bases/${base.id}`);
-    if (!response.ok) {
-      setKnowledgeFolders([]);
-      return;
-    }
-    const data = (await response.json()) as SidebarKnowledgeTree;
+    const key = workspaceResourceKeys.knowledgeTree(base.id);
+    const cachedTree = getWorkspaceResource<SidebarKnowledgeTree>(key)?.value ?? null;
+    if (cachedTree) setKnowledgeFolders(buildKnowledgeFolderTree(cachedTree.folders ?? []));
+    const data = await loadWorkspaceResource(key, async () => {
+      const response = await fetch(`/api/knowledge-bases/${base.id}`);
+      if (!response.ok) throw new Error("Failed to load knowledge tree");
+      return (await response.json()) as SidebarKnowledgeTree;
+    });
     setKnowledgeFolders(buildKnowledgeFolderTree(data.folders ?? []));
   };
 
@@ -345,7 +357,11 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
     });
     if (response.ok) {
       const base = (await response.json()) as SidebarKnowledgeBase;
-      setKnowledgeBases((current) => [...current, base]);
+      setKnowledgeBases((current) => {
+        const next = [...current, base];
+        setWorkspaceResource(workspaceResourceKeys.knowledgeBases(), next);
+        return next;
+      });
       await openKnowledgeBase(base);
       showToast("已新建知识库", "success");
     }
@@ -409,7 +425,11 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
       body: JSON.stringify({ title }),
     });
     if (response.ok) {
-      setKnowledgeBases((current) => current.map((item) => (item.id === base.id ? { ...item, title } : item)));
+      setKnowledgeBases((current) => {
+        const next = current.map((item) => (item.id === base.id ? { ...item, title } : item));
+        setWorkspaceResource(workspaceResourceKeys.knowledgeBases(), next);
+        return next;
+      });
       setKnowledgeDrawer((current) => (current?.id === base.id ? { ...current, title } : current));
       showToast("已重命名知识库", "success");
     }
@@ -418,7 +438,11 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
   const deleteKnowledgeBaseNow = async (base: SidebarKnowledgeBase) => {
     const response = await fetch(`/api/knowledge-bases/${base.id}`, { method: "DELETE" });
     if (response.ok) {
-      setKnowledgeBases((current) => current.filter((item) => item.id !== base.id));
+      setKnowledgeBases((current) => {
+        const next = current.filter((item) => item.id !== base.id);
+        setWorkspaceResource(workspaceResourceKeys.knowledgeBases(), next);
+        return next;
+      });
       if (knowledgeDrawer?.id === base.id) setKnowledgeDrawer(null);
       router.push("/notes");
       showToast("已删除知识库", "success");

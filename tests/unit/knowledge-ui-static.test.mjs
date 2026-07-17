@@ -168,7 +168,7 @@ test("knowledge base UI is wired as a real prototype drawer, not a deferred plac
   );
   assert.match(
     page,
-    /item\.note\.content === content[\s\S]*return item/,
+    /current\?\.content === content[\s\S]*return current/,
     "knowledge note preview updates should no-op when editor content is unchanged to avoid parent render loops",
   );
   assert.doesNotMatch(
