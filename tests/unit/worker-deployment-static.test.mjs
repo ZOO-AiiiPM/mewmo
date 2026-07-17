@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
@@ -40,6 +41,23 @@ test("Worker image installs the monorepo and starts the production runtime", () 
   assert.match(dockerfile, /CMD \["pnpm", "--filter", "@mewmo\/worker", "start"\]/);
   assert.equal(workerPackage.scripts.start, "tsx src/index.ts");
   assert.equal(workerPackage.dependencies.tsx, "4.22.4");
+});
+
+test("Feed Cron deployment command reaches runtime environment validation", () => {
+  const result = spawnSync(
+    process.execPath,
+    ["apps/worker/node_modules/tsx/dist/cli.mjs", "apps/worker/src/feed-cron.ts"],
+    {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      env: { NODE_ENV: "development", PATH: process.env.PATH ?? "" },
+    },
+  );
+  const output = `${result.stdout}${result.stderr}`;
+
+  assert.notEqual(result.status, 0);
+  assert.doesNotMatch(output, /Top-level await is currently not supported/);
+  assert.match(output, /Invalid Worker environment/);
 });
 
 test("Worker Compose service has no public port and owns restart behavior", () => {
