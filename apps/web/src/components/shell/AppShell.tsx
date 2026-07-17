@@ -6,6 +6,7 @@ import {
   AI_FAB_DEFAULT_BOTTOM,
   clampAiFabBottom,
 } from "../../lib/ai-fab-position";
+import { WorkspaceAccountProvider } from "../../lib/workspace-account";
 import { scopeWorkspaceDataCache } from "../../lib/workspace-data-cache";
 import { AISidebar, AISidebarProvider } from "./AISidebar";
 import { PrototypeIcon } from "./PrototypeIcon";
@@ -13,7 +14,7 @@ import { Sidebar } from "./Sidebar";
 
 interface AppShellProps {
   children: ReactNode;
-  user?: { name?: string | null; email?: string | null; image?: string | null };
+  user?: { id?: string | null; name?: string | null; email?: string | null; image?: string | null };
 }
 
 const AI_W_DEFAULT = 320;
@@ -28,7 +29,7 @@ function clampAiWidth(width: number) {
 }
 
 export function AppShell({ children, user }: AppShellProps) {
-  scopeWorkspaceDataCache(user?.email);
+  scopeWorkspaceDataCache(user?.id);
   const shellRef = useRef<HTMLDivElement>(null);
   const sidebarPeekTimer = useRef<number | null>(null);
   const aiFabDragRef = useRef<{
@@ -161,7 +162,8 @@ export function AppShell({ children, user }: AppShellProps) {
   };
 
   return (
-    <div
+    <WorkspaceAccountProvider userId={user?.id}>
+      <div
       ref={shellRef}
       className={[
         "mewmo-shell",
@@ -211,6 +213,7 @@ export function AppShell({ children, user }: AppShellProps) {
       >
         <PrototypeIcon name="mewmo-logo" size={22} />
       </button>
-    </div>
+      </div>
+    </WorkspaceAccountProvider>
   );
 }

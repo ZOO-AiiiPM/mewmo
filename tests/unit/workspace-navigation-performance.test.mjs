@@ -89,3 +89,25 @@ test("primary note and clip navigation enters lightweight cached section routes"
     /section === "notes" \|\| section === "clips"[\s\S]{0,100}\? entry\.href/,
   );
 });
+
+test("workspace cache is scoped by immutable user id", () => {
+  const shell = read("apps/web/src/components/shell/AppShell.tsx");
+  const account = read("apps/web/src/lib/workspace-account.tsx");
+
+  assert.match(shell, /scopeWorkspaceDataCache\(user\?\.id\)/);
+  assert.doesNotMatch(shell, /scopeWorkspaceDataCache\(user\?\.email\)/);
+  assert.match(shell, /WorkspaceAccountProvider/);
+  assert.match(account, /WorkspaceAccountContext/);
+  assert.match(account, /useWorkspaceAccountId/);
+});
+
+test("workspace pages share one cache-first background-refresh hook", () => {
+  const hook = read("apps/web/src/lib/use-workspace-resource.ts");
+
+  assert.match(hook, /getWorkspaceResource/);
+  assert.match(hook, /refreshWorkspaceResource/);
+  assert.match(hook, /setWorkspaceResource/);
+  assert.match(hook, /WorkspaceScopeChangedError/);
+  assert.match(hook, /initialLoading/);
+  assert.match(hook, /refreshing/);
+});
