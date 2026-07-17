@@ -42,7 +42,7 @@ test("trash page exposes restore, manual permanent delete, and 14-day retention"
   assert.match(page, /永久删除/, "trash page should label permanent delete explicitly");
   assert.match(page, /mewmo-list-card--button/, "trash items should use selectable workspace cards");
   assert.match(page, /mewmo-list-card--selected/, "trash cards should expose the selected state");
-  assert.match(page, /fetch\(itemPath\(selectedListItem\)\)/, "trash details should load only for the selected item");
+  assert.match(page, /refreshWorkspaceResource\(/, "trash details should load only for the selected item");
   assert.match(page, /SharedNoteMarkdown/, "deleted notes should render through the read-only markdown renderer");
   assert.match(page, /ClipContentRenderer/, "deleted clips should use the sanitized clip renderer");
   assert.match(page, /<ReaderToolbar[\s\S]*actions=/, "trash mutations should live in the reader toolbar");

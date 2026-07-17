@@ -10,6 +10,15 @@ import { useReaderToolbarTitleVisibility } from "../../../components/shell/useRe
 import { SharedNoteMarkdown } from "../../../components/share/SharedNoteMarkdown";
 import { ConfirmDialog } from "../../../components/ui/ConfirmDialog";
 import { useToast } from "../../../components/ui/ToastProvider";
+import {
+  WorkspaceScopeChangedError,
+  getWorkspaceResource,
+  invalidateWorkspaceResource,
+  invalidateWorkspaceResourcePrefix,
+  refreshWorkspaceResource,
+} from "../../../lib/workspace-data-cache";
+import { workspaceResourceKeys } from "../../../lib/workspace-resource-keys";
+import { useWorkspaceResource } from "../../../lib/use-workspace-resource";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -156,39 +165,27 @@ function TrashDetail({ item, loading }: { item: TrashItem; loading: boolean }) {
 export default function TrashPage() {
   const { showToast } = useToast();
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [items, setItems] = useState<TrashItem[]>([]);
+  const {
+    data: items,
+    initialLoading: isLoading,
+    error,
+    update: updateItems,
+  } = useWorkspaceResource<TrashItem[]>({
+    key: workspaceResourceKeys.trashList(),
+    initialData: [],
+    load: async () => {
+      const response = await fetch("/api/trash");
+      if (!response.ok) throw new Error("Failed to load trash");
+      return (await response.json()) as TrashItem[];
+    },
+    errorMessage: "无法加载废纸篓",
+  });
   const [query, setQuery] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState("");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [selectedDetail, setSelectedDetail] = useState<TrashItem | null>(null);
   const [loadingDetailKey, setLoadingDetailKey] = useState<string | null>(null);
   const [detailError, setDetailError] = useState("");
   const [confirmDeleteItem, setConfirmDeleteItem] = useState<TrashItem | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadTrash() {
-      try {
-        setIsLoading(true);
-        setError("");
-        const response = await fetch("/api/trash");
-        if (!response.ok) throw new Error("Failed to load trash");
-        const data = (await response.json()) as TrashItem[];
-        if (!cancelled) setItems(data);
-      } catch {
-        if (!cancelled) setError("无法加载废纸篓");
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    }
-
-    void loadTrash();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const visibleItems = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -217,20 +214,23 @@ export default function TrashPage() {
 
     const item = selectedListItem;
     let cancelled = false;
-    setSelectedDetail(null);
+    const resourceKey = workspaceResourceKeys.trashDetail(item.type, item.id);
+    const cachedDetail = getWorkspaceResource<TrashItem>(resourceKey)?.value ?? null;
+    if (cachedDetail) setSelectedDetail(cachedDetail);
     setDetailError("");
     setLoadingDetailKey(itemKey(item));
-    fetch(itemPath(selectedListItem))
-      .then((response) => {
+    void refreshWorkspaceResource(resourceKey, async () => {
+      const response = await fetch(itemPath(item));
         if (!response.ok) throw new Error("detail");
-        return response.json() as Promise<TrashItem>;
-      })
+      return (await response.json()) as TrashItem;
+    })
       .then((detail) => {
         if (!cancelled) setSelectedDetail(detail);
       })
-      .catch(() => {
+      .catch((loadError: unknown) => {
+        if (loadError instanceof WorkspaceScopeChangedError) return;
         if (!cancelled) {
-          setSelectedDetail(null);
+          if (!cachedDetail) setSelectedDetail(null);
           setDetailError("无法加载这条内容");
         }
       })
@@ -245,8 +245,27 @@ export default function TrashPage() {
 
   const { toolbarTitleVisible } = useReaderToolbarTitleVisibility({ scrollRef });
 
+  const invalidateRestoredWorkspaceResources = (item: TrashItem) => {
+    invalidateWorkspaceResource(workspaceResourceKeys.trashDetail(item.type, item.id));
+    invalidateWorkspaceResource(workspaceResourceKeys.todayList());
+    invalidateWorkspaceResourcePrefix("knowledge:contents:");
+    if (item.type === "note") {
+      invalidateWorkspaceResource(workspaceResourceKeys.notesList());
+      invalidateWorkspaceResource(workspaceResourceKeys.noteDetail(item.id));
+    } else if (item.type === "clip") {
+      invalidateWorkspaceResource(workspaceResourceKeys.clipsList());
+      invalidateWorkspaceResource(workspaceResourceKeys.clipDetail(item.id));
+    } else if (item.type === "feed") {
+      invalidateWorkspaceResourcePrefix("feeds:sources:");
+    } else {
+      invalidateWorkspaceResource(workspaceResourceKeys.knowledgeBases());
+      invalidateWorkspaceResourcePrefix("knowledge:tree:");
+    }
+  };
+
   const removeItem = (item: TrashItem) => {
-    setItems((current) => current.filter((value) => itemKey(value) !== itemKey(item)));
+    updateItems((current) => current.filter((value) => itemKey(value) !== itemKey(item)));
+    invalidateRestoredWorkspaceResources(item);
     setSelectedDetail(null);
     setDetailError("");
   };
@@ -289,7 +308,7 @@ export default function TrashPage() {
             <span className="mewmo-spinner" aria-hidden="true" />
             <p>正在加载废纸篓...</p>
           </div>
-        ) : error ? (
+        ) : error && items.length === 0 ? (
           <div className="mewmo-list-empty">
             <PrototypeIcon name="empty" size={36} />
             <p>{error}</p>
@@ -368,12 +387,12 @@ export default function TrashPage() {
           }
         />
         <div ref={scrollRef} className="mewmo-reader-scroll">
-          {detailIsLoading ? (
+          {detailIsLoading && !selectedDetail ? (
             <article className="mewmo-document mewmo-document--empty">
               <span className="mewmo-spinner" aria-hidden="true" />
               <p>正在加载内容...</p>
             </article>
-          ) : detailError ? (
+          ) : detailError && !selectedDetail ? (
             <article className="mewmo-document mewmo-document--empty">
               <h1>内容暂时无法打开</h1>
               <p>{detailError}</p>
