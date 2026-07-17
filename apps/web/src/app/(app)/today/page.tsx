@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { ListColumn } from "../../../components/shell/ListColumn";
 import { PrototypeIcon, type PrototypeIconName } from "../../../components/shell/PrototypeIcon";
 import { ReaderBackToTopButton } from "../../../components/shell/ReaderBackToTopButton";
@@ -16,11 +16,14 @@ import {
   copyNoteMarkdownToClipboard,
 } from "../../../lib/note-copy";
 import { extractNoteImages, notePreviewText } from "../../../lib/note-list-preview";
+import { setWorkspaceResource } from "../../../lib/workspace-data-cache";
+import { workspaceResourceKeys } from "../../../lib/workspace-resource-keys";
 import {
   getRememberedWorkspaceSelection,
   rememberWorkspaceSelection,
   useWorkspaceMemory,
 } from "../../../lib/workspace-memory";
+import { useWorkspaceResource } from "../../../lib/use-workspace-resource";
 import "../../../components/editor/editor-theme.css";
 
 const NoteEditor = dynamic(
@@ -57,10 +60,13 @@ interface TodayItem {
   feedTitle?: string | null;
   author?: string | null;
   publishedAt?: string | null;
+  version?: number;
   eventAt: string;
   createdAt: string;
   updatedAt: string;
 }
+
+type TodayDetail = Partial<TodayItem> & { id: string };
 
 const typeLabels: Record<TodayItemType, string> = {
   note: "笔记",
@@ -136,13 +142,58 @@ function metaTime(item: TodayItem) {
   return time;
 }
 
+function todayDetailRequest(item: TodayItem) {
+  if (item.type === "note") {
+    return {
+      key: workspaceResourceKeys.noteDetail(item.id),
+      url: `/api/notes/${item.id}`,
+    };
+  }
+  if (item.type === "clip") {
+    return {
+      key: workspaceResourceKeys.clipDetail(item.id),
+      url: `/api/clips/${item.id}`,
+    };
+  }
+  return {
+    key: workspaceResourceKeys.feedEntryDetail(item.id),
+    url: `/api/feed-entries/${item.id}`,
+  };
+}
+
+function mergeTodayDetail(item: TodayItem, detail: TodayDetail | null) {
+  if (!detail || detail.id !== item.id) return item;
+  return {
+    ...item,
+    ...detail,
+    type: item.type,
+    id: item.id,
+    href: item.href,
+    eventAt: item.eventAt,
+    createdAt: item.createdAt,
+  };
+}
+
 export default function TodayPage() {
   const { showToast } = useToast();
   const listRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [items, setItems] = useState<TodayItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const {
+    data: items,
+    initialLoading: loading,
+    error,
+    update: updateItems,
+  } = useWorkspaceResource<TodayItem[]>({
+    key: workspaceResourceKeys.todayList(),
+    initialData: [],
+    load: async () => {
+      const response = await fetch("/api/today");
+      if (!response.ok) throw new Error("today");
+      const data = (await response.json()) as TodayItem[];
+      return Array.isArray(data) ? data : [];
+    },
+    errorMessage: "今天内容加载失败。",
+  });
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<TodayFilter>("all");
   const [selectedId, setSelectedId] = useState<string | null>(() =>
@@ -158,30 +209,6 @@ export default function TodayPage() {
     restoreKey: loading ? "loading" : "ready",
   });
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadToday() {
-      try {
-        setLoading(true);
-        setError("");
-        const response = await fetch("/api/today");
-        if (!response.ok) throw new Error("today");
-        const data = (await response.json()) as TodayItem[];
-        if (!cancelled) setItems(Array.isArray(data) ? data : []);
-      } catch {
-        if (!cancelled) setError("今天内容加载失败。");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
-    void loadToday();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   const visibleItems = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     return [...items]
@@ -195,7 +222,28 @@ export default function TodayPage() {
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   }, [filter, items, query]);
 
-  const selected = visibleItems.find((item) => `${item.type}-${item.id}` === selectedId) ?? visibleItems[0] ?? null;
+  const selectedListItem = visibleItems.find((item) => `${item.type}-${item.id}` === selectedId) ?? visibleItems[0] ?? null;
+  const detailRequest = selectedListItem ? todayDetailRequest(selectedListItem) : null;
+  const {
+    data: selectedDetail,
+    initialLoading: selectedDetailLoading,
+    error: selectedDetailError,
+    update: updateSelectedDetail,
+  } = useWorkspaceResource<TodayDetail | null>({
+    key: detailRequest?.key ?? "today:detail:none",
+    initialData: null,
+    enabled: Boolean(detailRequest),
+    load: async () => {
+      if (!detailRequest) return null;
+      const response = await fetch(detailRequest.url);
+      if (!response.ok) throw new Error("today detail");
+      return (await response.json()) as TodayDetail;
+    },
+    errorMessage: "正文加载失败。",
+  });
+  const selected = selectedListItem
+    ? mergeTodayDetail(selectedListItem, selectedDetail)
+    : null;
   const selectedPreview = selected ? todayPreview(selected) : "";
   const selectedSource = selected ? readerSourceLabel(selected) : "";
   const quickSwitch = (
@@ -220,7 +268,7 @@ export default function TodayPage() {
       body: JSON.stringify({ title: "Untitled" }),
     });
     if (!response.ok) {
-      setError("新建笔记失败。");
+      showToast("新建笔记失败。", "error");
       return;
     }
 
@@ -239,38 +287,37 @@ export default function TodayPage() {
       href: `/notes/${note.slug}`,
       title: note.title,
       summary: note.summary,
-      content: note.content,
       eventAt: note.updatedAt,
       createdAt: note.createdAt,
       updatedAt: note.updatedAt,
     };
+    setWorkspaceResource(workspaceResourceKeys.noteDetail(note.id), note);
     const key = `note-${note.id}`;
-    setItems((current) => [item, ...current.filter((entry) => `${entry.type}-${entry.id}` !== key)]);
+    updateItems((current) => [item, ...current.filter((entry) => `${entry.type}-${entry.id}` !== key)]);
     setSelectedId(key);
     rememberWorkspaceSelection("today", key);
-  }, []);
+  }, [showToast, updateItems]);
 
   const updateSelectedNoteContent = useCallback((content: string) => {
     if (selected?.type !== "note") return;
-    setItems((current) =>
-      current.map((item) =>
-        item.type === "note" && item.id === selected.id
-          ? { ...item, content }
-          : item,
-      ),
+    updateSelectedDetail((current) =>
+      current ? { ...current, content } : { id: selected.id, content },
     );
-  }, [selected]);
+  }, [selected, updateSelectedDetail]);
 
-  const updateSelectedNoteTitle = useCallback((title: string) => {
+  const updateSelectedNoteTitle = useCallback((title: string, slug?: string) => {
     if (selected?.type !== "note") return;
-    setItems((current) =>
+    updateItems((current) =>
       current.map((item) =>
         item.type === "note" && item.id === selected.id
-          ? { ...item, title }
+          ? { ...item, title, ...(slug ? { href: `/notes/${slug}` } : {}) }
           : item,
       ),
     );
-  }, [selected]);
+    updateSelectedDetail((current) =>
+      current ? { ...current, title, ...(slug ? { slug } : {}) } : current,
+    );
+  }, [selected, updateItems, updateSelectedDetail]);
 
   const copySelectedNote = async () => {
     if (selected?.type !== "note") return;
@@ -316,7 +363,7 @@ export default function TodayPage() {
             <span className="mewmo-spinner" aria-hidden="true" />
             <p>正在加载今天...</p>
           </div>
-        ) : error ? (
+        ) : error && items.length === 0 ? (
           <div className="mewmo-list-empty">
             <PrototypeIcon name="empty" size={36} />
             <p>{error}</p>
@@ -331,7 +378,7 @@ export default function TodayPage() {
             {visibleItems.map((item) => {
               const preview = todayPreview(item);
               const label = cardSourceLabel(item);
-              const noteImages = item.type === "note" ? extractNoteImages(item.content) : [];
+              const noteImages = item.type === "note" ? extractNoteImages(item.content ?? "") : [];
               return (
                 <article key={`${item.type}-${item.id}`} className="mewmo-list-card-wrap">
                   <button
@@ -391,17 +438,24 @@ export default function TodayPage() {
           className={`mewmo-reader-scroll ${selected?.type === "note" ? "mewmo-reader-scroll--editor" : ""}`}
         >
           {selected?.type === "note" ? (
-            <NoteEditor
-              key={selected.id}
-              noteId={selected.id}
-              initialTitle={selected.title}
-              initialSummary={selected.summary ?? null}
-              initialContent={selected.content ?? ""}
-              updatedAt={selected.updatedAt}
-              onContentChange={updateSelectedNoteContent}
-              onTitleChange={updateSelectedNoteTitle}
-              embedded
-            />
+            typeof selected.content === "string" ? (
+              <NoteEditor
+                key={selected.id}
+                noteId={selected.id}
+                initialTitle={selected.title}
+                initialSummary={selected.summary ?? null}
+                initialContent={selected.content}
+                updatedAt={selected.updatedAt}
+                onContentChange={updateSelectedNoteContent}
+                onTitleChange={updateSelectedNoteTitle}
+                embedded
+              />
+            ) : (
+              <div className="mewmo-empty-state">
+                {selectedDetailLoading && <span className="mewmo-spinner" aria-hidden="true" />}
+                <p>{selectedDetailError || "正在加载笔记..."}</p>
+              </div>
+            )
           ) : (
             <article className="mewmo-document mewmo-document--empty">
               <h1>{selected?.title ?? "今天"}</h1>

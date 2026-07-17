@@ -115,3 +115,10 @@ test("workspace pages share one cache-first background-refresh hook", () => {
   assert.match(hook, /initialLoading/);
   assert.match(hook, /refreshing/);
 });
+
+test("today follows the shared list and detail cache contract", () => {
+  const page = read("apps/web/src/app/(app)/today/page.tsx");
+
+  assert.match(page, /workspaceResourceKeys/);
+  assert.match(page, /useWorkspaceResource/);
+});
