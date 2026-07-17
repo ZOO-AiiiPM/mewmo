@@ -1,15 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  WorkspaceScopeChangedError,
   clearCachedFeedEntries,
   clearWorkspaceDataCache,
+  getWorkspaceResource,
   getCachedFeedEntries,
   getCachedFeedSources,
   getCachedWorkspaceDetail,
   getCachedWorkspaceList,
   getCachedWorkspaceSelection,
+  invalidateWorkspaceResource,
+  invalidateWorkspaceResourcePrefix,
   isWorkspaceDetailFresh,
   loadWorkspaceResource,
+  refreshWorkspaceResource,
   removeCachedWorkspaceItem,
   scopeWorkspaceDataCache,
   setCachedFeedEntries,
@@ -17,9 +22,11 @@ import {
   setCachedWorkspaceDetail,
   setCachedWorkspaceList,
   setCachedWorkspaceSelection,
+  setWorkspaceResource,
   updateCachedWorkspaceItem,
   updateCachedFeedEntry,
 } from "../../apps/web/src/lib/workspace-data-cache";
+import { workspaceResourceKeys } from "../../apps/web/src/lib/workspace-resource-keys";
 
 interface TestItem {
   id: string;
@@ -53,6 +60,72 @@ beforeEach(() => {
 });
 
 describe("workspace data cache", () => {
+  it("stores arbitrary resources with an accepted timestamp without leaking references", () => {
+    scopeWorkspaceDataCache("resource-user");
+    const value = [{ id: "today-1", nested: { title: "Today" } }];
+
+    setWorkspaceResource(workspaceResourceKeys.todayList(), value, 123);
+    value[0]!.nested.title = "Changed outside";
+
+    const cached = getWorkspaceResource<typeof value>(workspaceResourceKeys.todayList());
+    expect(cached).toEqual({
+      value: [{ id: "today-1", nested: { title: "Today" } }],
+      acceptedAt: 123,
+    });
+
+    cached!.value[0]!.nested.title = "Changed after read";
+    expect(getWorkspaceResource<typeof value>(workspaceResourceKeys.todayList())?.value[0]?.nested.title)
+      .toBe("Today");
+  });
+
+  it("invalidates exact resources and resource families", () => {
+    scopeWorkspaceDataCache("invalidate-user");
+    setWorkspaceResource(workspaceResourceKeys.todayList(), [{ id: "today-1" }]);
+    setWorkspaceResource(workspaceResourceKeys.knowledgeTree("kb-1"), { id: "kb-1" });
+    setWorkspaceResource(workspaceResourceKeys.knowledgeTree("kb-2"), { id: "kb-2" });
+
+    invalidateWorkspaceResource(workspaceResourceKeys.todayList());
+    invalidateWorkspaceResourcePrefix("knowledge:tree:");
+
+    expect(getWorkspaceResource(workspaceResourceKeys.todayList())).toBeNull();
+    expect(getWorkspaceResource(workspaceResourceKeys.knowledgeTree("kb-1"))).toBeNull();
+    expect(getWorkspaceResource(workspaceResourceKeys.knowledgeTree("kb-2"))).toBeNull();
+  });
+
+  it("rejects a response that resolves after the account generation changes", async () => {
+    scopeWorkspaceDataCache("delayed-user-1");
+    let resolve!: (value: string[]) => void;
+    const pending = refreshWorkspaceResource(
+      workspaceResourceKeys.notesList(),
+      () => new Promise<string[]>((done) => {
+        resolve = done;
+      }),
+    );
+    await Promise.resolve();
+
+    scopeWorkspaceDataCache("delayed-user-2");
+    resolve(["private-user-1"]);
+
+    await expect(pending).rejects.toBeInstanceOf(WorkspaceScopeChangedError);
+    expect(getWorkspaceResource(workspaceResourceKeys.notesList())).toBeNull();
+  });
+
+  it("deduplicates generic refreshes and stores the accepted response", async () => {
+    scopeWorkspaceDataCache("dedupe-user");
+    const loader = vi.fn(async () => [{ id: "clip-1" }]);
+    const key = workspaceResourceKeys.clipsList();
+
+    const [left, right] = await Promise.all([
+      refreshWorkspaceResource(key, loader),
+      refreshWorkspaceResource(key, loader),
+    ]);
+
+    expect(loader).toHaveBeenCalledTimes(1);
+    expect(left).toEqual([{ id: "clip-1" }]);
+    expect(right).toEqual([{ id: "clip-1" }]);
+    expect(getWorkspaceResource(key)?.value).toEqual([{ id: "clip-1" }]);
+  });
+
   it("stores lists and details synchronously without leaking mutable references", () => {
     setCachedWorkspaceList("notes", [first]);
     setCachedWorkspaceDetail("notes", { ...first, content: "body" });
