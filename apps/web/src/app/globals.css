@@ -1931,6 +1931,12 @@ html.light .mewmo-card-menu {
   justify-content: center;
   color: var(--accent);
   pointer-events: none;
+  transition: opacity 0.12s;
+}
+
+.mewmo-list-card-wrap:hover .mewmo-feed-entry-card__favorite,
+.mewmo-list-card-wrap--menu-open .mewmo-feed-entry-card__favorite {
+  opacity: 0;
 }
 
 .mewmo-feed-entry-card__favorite .mewmo-prototype-icon {
@@ -4190,6 +4196,14 @@ html.light .afr-catsel__btn {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.addfeed__actions .mewmo-button--primary:disabled {
+  background: var(--s2);
+  color: var(--ink-faint);
+  cursor: not-allowed;
+  opacity: 0.72;
+  box-shadow: none;
 }
 
 .mewmo-feed-modal__spinner {

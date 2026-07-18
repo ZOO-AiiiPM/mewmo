@@ -39,20 +39,11 @@ describe("feed display metadata", () => {
     ]);
   });
 
-  it("orders reader metadata as author, source, time, then reading stats without tags", () => {
-    expect(
-      buildFeedReaderMeta({
-        entry,
-        selectedFeedId: "feed-1",
-        words: 1260,
-        minutes: 5,
-      }),
-    ).toEqual([
+  it("orders reader metadata as author, source, then time without reading stats", () => {
+    expect(buildFeedReaderMeta({ entry })).toEqual([
       "CG艺术实验室",
       "少数派 - 高品质数字消费指南",
       "2026-06-30T10:20:00.000Z",
-      "1260 字",
-      "预计 5 分钟",
     ]);
   });
 });

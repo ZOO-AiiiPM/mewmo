@@ -4,7 +4,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 import { ClipContentRenderer } from "../../../components/clips/ClipContentRenderer";
-import { FeedArticleMenu } from "../../../components/shell/FeedArticleMenu";
+import { CardActionMenu } from "../../../components/shell/CardActionMenu";
 import { ListColumn } from "../../../components/shell/ListColumn";
 import { PrototypeIcon, type PrototypeIconName } from "../../../components/shell/PrototypeIcon";
 import { useAISidebarContext } from "../../../components/shell/AISidebar";
@@ -132,6 +132,7 @@ export default function FeedsPage() {
   const [feedsLoaded, setFeedsLoaded] = useState(() => initialFeeds !== null);
   const [error, setError] = useState("");
   const [swapKey, setSwapKey] = useState(`${type}:${feedId ?? "all"}`);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const feedsRequestRef = useRef(0);
   const entriesRequestRef = useRef(0);
   const effectiveFeedId = feedId ?? feeds[0]?.id ?? null;
@@ -350,16 +351,15 @@ export default function FeedsPage() {
     }
   }, [effectiveFeedId, isDeferredType, loadEntries, loadFeeds, showToast, type]);
 
-  const favoriteSelectedEntry = useCallback(async () => {
-    if (!selectedEntry) return;
-    if (selectedEntry.isFavorited) {
+  const favoriteEntry = useCallback(async (entry: FeedEntry) => {
+    if (entry.isFavorited) {
       showToast("已收藏", "success");
       return;
     }
 
     showToast("正在收藏...", "loading");
     try {
-      const response = await fetch(`/api/feed-entries/${selectedEntry.id}/favorite`, {
+      const response = await fetch(`/api/feed-entries/${entry.id}/favorite`, {
         method: "POST",
       });
       const data = (await response.json().catch(() => null)) as {
@@ -368,22 +368,22 @@ export default function FeedsPage() {
         clip?: { id: string };
       } | null;
       if (!response.ok || !data?.isFavorited) throw new Error("favorite");
-      setEntries((current) => current.map((entry) => (entry.id === selectedEntry.id ? { ...entry, isFavorited: true } : entry)));
-      updateCachedFeedEntry<FeedEntry>(selectedEntry.feedId, selectedEntry.id, (entry) => ({
-        ...entry,
+      setEntries((current) => current.map((item) => (item.id === entry.id ? { ...item, isFavorited: true } : item)));
+      updateCachedFeedEntry<FeedEntry>(entry.feedId, entry.id, (cachedEntry) => ({
+        ...cachedEntry,
         isFavorited: true,
       }));
       showToast(data.created ? "已保存到剪藏" : "已收藏", "success");
     } catch {
       showToast("收藏失败，请稍后再试", "error");
     }
-  }, [selectedEntry, showToast]);
+  }, [showToast]);
 
-  const copySelectedEntryLink = useCallback(() => {
-    if (!selectedEntry?.url) return;
-    void navigator.clipboard?.writeText(selectedEntry.url);
+  const copyEntryLink = useCallback((entry: FeedEntry) => {
+    if (!entry.url) return;
+    void navigator.clipboard?.writeText(entry.url);
     showToast("已复制原文链接", "success");
-  }, [selectedEntry?.url, showToast]);
+  }, [showToast]);
 
   const quickSwitch = (
     <>
@@ -427,14 +427,6 @@ export default function FeedsPage() {
             <PrototypeIcon name="plus" size={17} />
           </button>
         }
-        overflowAction={
-          <FeedArticleMenu
-            disabled={!selectedEntry}
-            favoriteActive={Boolean(selectedEntry?.isFavorited)}
-            onFavorite={() => void favoriteSelectedEntry()}
-            onCopyLink={copySelectedEntryLink}
-          />
-        }
       >
         <div key={swapKey} className="mewmo-list-stack mewmo-feed-list-swap">
           {isDeferredType ? (
@@ -455,40 +447,54 @@ export default function FeedsPage() {
             visibleEntries.map((entry) => {
               const entryDate = entry.publishedAt ?? entry.createdAt;
               const meta = buildFeedCardMeta(entry, effectiveFeedId);
+              const menuOpen = openMenuId === entry.id;
               return (
-                <button
+                <article
                   key={entry.id}
-                  type="button"
-                  className={`mewmo-list-card mewmo-list-card--button mewmo-feed-entry-card ${selectedEntry?.id === entry.id ? "mewmo-list-card--selected" : ""}`}
-                  onClick={() => selectEntry(entry)}
+                  className={`mewmo-list-card-wrap ${menuOpen ? "mewmo-list-card-wrap--menu-open" : ""}`}
                 >
-                  <div className="mewmo-list-card__title">
-                    {!entry.readAt && <i className="mewmo-unread-dot" />}
-                    <span>{entry.title}</span>
-                  </div>
-                  <p>{clipPreviewText(entry) || "这个订阅条目暂时没有摘要。"}</p>
-                  {entry.coverImage && (
-                    <div className="mewmo-list-card__cover" aria-hidden="true">
-                      <img src={proxiedImageUrl(entry.coverImage)} alt="" />
+                  <button
+                    type="button"
+                    className={`mewmo-list-card mewmo-list-card--button mewmo-feed-entry-card ${selectedEntry?.id === entry.id ? "mewmo-list-card--selected" : ""}`}
+                    onClick={() => selectEntry(entry)}
+                  >
+                    <div className="mewmo-list-card__title">
+                      {!entry.readAt && <i className="mewmo-unread-dot" />}
+                      <span>{entry.title}</span>
                     </div>
-                  )}
-                  <div className="mewmo-list-card__source mewmo-list-card__source--clip">
-                    {meta.map((item) =>
-                      item === entryDate ? (
-                        <time key={item} dateTime={item}>
-                          {formatClipListTime(item)}
-                        </time>
-                      ) : (
-                        <span key={item}>{item}</span>
-                      ),
+                    <p>{clipPreviewText(entry) || "这个订阅条目暂时没有摘要。"}</p>
+                    {entry.coverImage && (
+                      <div className="mewmo-list-card__cover" aria-hidden="true">
+                        <img src={proxiedImageUrl(entry.coverImage)} alt="" />
+                      </div>
                     )}
-                  </div>
-                  {entry.isFavorited && (
-                    <span className="mewmo-feed-entry-card__favorite" aria-label="已保存到剪藏">
-                      <PrototypeIcon name="bookmark" size={14} dual />
-                    </span>
-                  )}
-                </button>
+                    <div className="mewmo-list-card__source mewmo-list-card__source--clip">
+                      {meta.map((item) =>
+                        item === entryDate ? (
+                          <time key={item} dateTime={item}>
+                            {formatClipListTime(item)}
+                          </time>
+                        ) : (
+                          <span key={item}>{item}</span>
+                        ),
+                      )}
+                    </div>
+                    {entry.isFavorited && (
+                      <span className="mewmo-feed-entry-card__favorite" aria-label="已保存到剪藏">
+                        <PrototypeIcon name="bookmark" size={14} dual />
+                      </span>
+                    )}
+                  </button>
+                  <CardActionMenu
+                    kind="feed"
+                    open={menuOpen}
+                    ariaLabel="订阅文章操作"
+                    favoriteActive={Boolean(entry.isFavorited)}
+                    onOpenChange={(open) => setOpenMenuId(open ? entry.id : null)}
+                    onFavorite={() => void favoriteEntry(entry)}
+                    onCopyLink={() => copyEntryLink(entry)}
+                  />
+                </article>
               );
             })
           )}
@@ -502,8 +508,8 @@ export default function FeedsPage() {
           onTitleClick={scrollToTop}
           menuKind="feed"
           favoriteActive={Boolean(selectedEntry?.isFavorited)}
-          onFavorite={() => void favoriteSelectedEntry()}
-          onCopyLink={copySelectedEntryLink}
+          onFavorite={selectedEntry ? () => void favoriteEntry(selectedEntry) : undefined}
+          onCopyLink={selectedEntry ? () => copyEntryLink(selectedEntry) : undefined}
         />
         <ReaderToc
           items={selectedEntryToc}
@@ -514,7 +520,7 @@ export default function FeedsPage() {
         />
         <div ref={scrollRef} className="mewmo-reader-scroll">
           {selectedEntry ? (
-            <FeedReader entry={selectedEntry} selectedFeedId={effectiveFeedId} />
+            <FeedReader entry={selectedEntry} />
           ) : (
             <article className="mewmo-document mewmo-document--empty">
               <h1>{isDeferredType ? `${currentType.label}订阅待开发` : "选择一篇订阅条目"}</h1>
@@ -550,17 +556,9 @@ export default function FeedsPage() {
   );
 }
 
-function FeedReader({ entry, selectedFeedId }: { entry: FeedEntry; selectedFeedId?: string | null }) {
-  const content = plainText(entry.content);
+function FeedReader({ entry }: { entry: FeedEntry }) {
   const sourceDate = entry.publishedAt ?? entry.createdAt;
-  const words = countWords(content);
-  const minutes = Math.max(1, Math.ceil(words / 420));
-  const meta = buildFeedReaderMeta({
-    entry,
-    selectedFeedId,
-    words,
-    minutes,
-  }).map((item) => (item === sourceDate ? formatDate(item) : item));
+  const meta = buildFeedReaderMeta({ entry }).map((item) => (item === sourceDate ? formatDate(item) : item));
 
   return (
     <article className="mewmo-document mewmo-feed-reader mewmo-feed-doc">
@@ -923,22 +921,6 @@ function parseFeedType(value: string | null): FeedType | null {
   return feedTypes.some((item) => item.type === value) ? (value as FeedType) : null;
 }
 
-function plainText(value: string | null | undefined) {
-  if (!value) return "";
-  return value
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 function formatDate(value: string | null | undefined) {
   if (!value) return "无日期";
   return new Date(value).toLocaleString("zh-CN", {
@@ -947,14 +929,4 @@ function formatDate(value: string | null | undefined) {
     hour: "2-digit",
     minute: "2-digit",
   });
-}
-
-function countWords(value: string) {
-  const cjk = value.match(/[\u4e00-\u9fff]/g)?.length ?? 0;
-  const latin = value
-    .replace(/[\u4e00-\u9fff]/g, " ")
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean).length;
-  return cjk + latin;
 }
