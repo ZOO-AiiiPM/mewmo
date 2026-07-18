@@ -11,8 +11,14 @@ test("sidebar returns to remembered section routes without resetting scroll", ()
   assert.match(sidebar, /getRememberedFeedTypeHref/);
   assert.match(sidebar, /getRememberedKnowledgeBaseHref/);
   assert.match(sidebar, /useRememberedWorkspaceHref\("today",\s*"\/today"\)/);
-  assert.match(sidebar, /router\.push\(getRememberedFeedTypeHref\(type,/);
-  assert.match(sidebar, /router\.push\(getRememberedKnowledgeBaseHref\(base\.id,/);
+  assert.match(sidebar, /const href = getRememberedFeedTypeHref\(type,/);
+  assert.match(sidebar, /const href = getRememberedKnowledgeBaseHref\(base\.id,/);
+  assert.match(sidebar, /beginNavigation\(href\)/);
+  assert.match(sidebar, /router\.push\(href,\s*\{\s*scroll:\s*false\s*\}\)/);
+  assert.match(
+    sidebar,
+    /const treePromise = loadKnowledgeTree\(base\)[\s\S]*beginNavigation\(href\)[\s\S]*await treePromise/,
+  );
   assert.match(sidebar, /scroll=\{false\}/);
   assert.match(sidebar, /router\.push\([\s\S]*?,\s*\{\s*scroll:\s*false\s*\}\)/);
 });

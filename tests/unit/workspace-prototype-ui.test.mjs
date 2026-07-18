@@ -1856,7 +1856,7 @@ test("today view aggregates notes clips and subscription updates with prototype 
   );
   assert.match(
     todayPage,
-    /extractNoteImages\(item\.content\)[\s\S]*mewmo-list-card__thumbs/,
+    /extractNoteImages\(item\.content\s*\?\?\s*""\)[\s\S]*mewmo-list-card__thumbs/,
     "today note cards should reuse the knowledge card note thumbnail pattern",
   );
   assert.match(

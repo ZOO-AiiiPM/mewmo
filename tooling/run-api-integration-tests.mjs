@@ -32,6 +32,7 @@ const env = {
   GOOGLE_CLIENT_SECRET:
     process.env.GOOGLE_CLIENT_SECRET ?? "integration-google-secret",
   OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? "integration-openai-key",
+  AI_SUMMARY_MODEL: process.env.AI_SUMMARY_MODEL ?? "integration-summary-model",
   R2_ENDPOINT:
     process.env.R2_ENDPOINT ?? "https://integration.r2.cloudflarestorage.com",
   R2_ACCESS_KEY: process.env.R2_ACCESS_KEY ?? "integration-r2-access",

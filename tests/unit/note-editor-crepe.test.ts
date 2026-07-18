@@ -45,11 +45,10 @@ describe("note editor Crepe configuration", () => {
   });
 
   it("uses local note drafts for unsynced content and background retry", () => {
-    expect(source).toContain(
-      "resolveInitialNoteContent(initialContent, readNoteContentDraft(noteId))",
-    );
-    expect(source).toContain("queueNoteContentSync(noteId, content)");
-    expect(source).toContain("retryStoredNoteContent(noteId, draft.content)");
+    expect(source).toContain("const initialDraft = readNoteDraft(userId, noteId)");
+    expect(source).toContain("initialDraft?.content ?? initialContent");
+    expect(source).toContain("queueNoteDraftSync({");
+    expect(source).toContain("retryStoredNoteDraft(userId, noteId)");
   });
 
   it("uploads pasted editor images through the permanent note image endpoint", () => {

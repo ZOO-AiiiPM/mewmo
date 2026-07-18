@@ -122,3 +122,18 @@ test("today follows the shared list and detail cache contract", () => {
   assert.match(page, /workspaceResourceKeys/);
   assert.match(page, /useWorkspaceResource/);
 });
+
+test("all content workspaces use the shared cache contract", () => {
+  for (const path of [
+    "apps/web/src/app/(app)/notes/[slug]/NoteEditorPage.tsx",
+    "apps/web/src/app/(app)/clips/page.tsx",
+    "apps/web/src/app/(app)/feeds/page.tsx",
+    "apps/web/src/app/(app)/today/page.tsx",
+    "apps/web/src/app/(app)/trash/page.tsx",
+    "apps/web/src/app/(app)/knowledge-bases/page.tsx",
+  ]) {
+    const source = read(path);
+    assert.match(source, /workspaceResourceKeys/);
+    assert.match(source, /loadWorkspaceResource|refreshWorkspaceResource|useWorkspaceResource/);
+  }
+});

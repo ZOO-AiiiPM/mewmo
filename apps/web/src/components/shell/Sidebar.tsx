@@ -333,7 +333,7 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
     setFeedDrawer(null);
     setKnowledgeDrawer(base);
     setKnowledgeMenu(null);
-    await loadKnowledgeTree(base);
+    const treePromise = loadKnowledgeTree(base);
     if (options.navigate !== false) {
       const href = getRememberedKnowledgeBaseHref(base.id, `/knowledge-bases?kbId=${base.id}`);
       beginNavigation(href);
@@ -341,6 +341,7 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
         scroll: false,
       });
     }
+    await treePromise;
   };
 
   const openTextPrompt = (prompt: TextPromptState) => {
