@@ -446,6 +446,7 @@ export default function TodayPage() {
                 initialSummary={selected.summary ?? null}
                 initialContent={selected.content}
                 updatedAt={selected.updatedAt}
+                serverVersion={selected.version}
                 onContentChange={updateSelectedNoteContent}
                 onTitleChange={updateSelectedNoteTitle}
                 embedded

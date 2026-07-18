@@ -2548,6 +2548,18 @@ html.light .mewmo-doc-toc:hover {
   color: var(--ink-faint);
 }
 
+.mewmo-note-save-status {
+  display: inline-flex;
+  margin-bottom: 8px;
+  color: var(--ink-faint);
+  font-size: 12px;
+}
+
+.mewmo-note-save-status--offline,
+.mewmo-note-save-status--error {
+  color: var(--coral);
+}
+
 .mewmo-note-editor__meta {
   display: flex;
   align-items: center;

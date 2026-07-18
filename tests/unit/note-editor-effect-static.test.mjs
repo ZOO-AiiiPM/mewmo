@@ -4,25 +4,14 @@ import test from "node:test";
 
 const source = readFileSync("apps/web/src/components/editor/NoteEditor.tsx", "utf8");
 
-test("draft restore effect does not loop when parent content callback changes", () => {
-  assert.match(
-    source,
-    /const onContentChangeRef = useRef\(onContentChange\)/,
-    "NoteEditor should keep the latest content callback in a ref",
-  );
-  assert.match(
-    source,
-    /onContentChangeRef\.current = onContentChange/,
-    "NoteEditor should refresh the content callback ref each render",
-  );
-  assert.match(
-    source,
-    /onContentChangeRef\.current\?\.\(draft\.content\)/,
-    "draft restoration should call the callback ref instead of closing over a changing callback",
-  );
-  assert.match(
-    source,
-    /useEffect\(\(\) => \{[\s\S]*readNoteContentDraft\(noteId\)[\s\S]*onContentChangeRef\.current\?\.\(draft\.content\)[\s\S]*retryStoredNoteContent\(noteId, draft\.content\)[\s\S]*\}, \[noteId\]\)/,
-    "draft restoration should run only when the note changes",
-  );
+test("editor persists a full account-scoped draft and exposes save state", () => {
+  assert.match(source, /useWorkspaceAccountId\(\)/);
+  assert.match(source, /queueNoteDraftSync/);
+  assert.match(source, /subscribeNoteDraftSync/);
+  assert.match(source, /retryStoredNoteDraft/);
+  assert.match(source, /window\.addEventListener\("online"/);
+  for (const message of ["保存中…", "已保存", "离线，已保存在本机", "保存失败"]) {
+    assert.match(source, new RegExp(message));
+  }
+  assert.match(source, /aria-live="polite"/);
 });

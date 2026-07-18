@@ -88,6 +88,18 @@ test("Notes API", async (t) => {
     assert.equal(note.title, "Renamed Note");
   });
 
+  await t.test("PATCH /api/notes/[id] rejects a stale expected version", async () => {
+    const before = await (await authedFetch(`/api/notes/${createdNoteId}`)).json();
+    const res = await authedFetch(`/api/notes/${createdNoteId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ content: "must not overwrite", expectedVersion: before.version - 1 }),
+    });
+    assert.equal(res.status, 409);
+    const after = await (await authedFetch(`/api/notes/${createdNoteId}`)).json();
+    assert.notEqual(after.content, "must not overwrite");
+    assert.equal(after.version, before.version);
+  });
+
   await t.test("DELETE /api/notes/[id] soft-deletes", async () => {
     const res = await authedFetch(`/api/notes/${createdNoteId}`, {
       method: "DELETE",

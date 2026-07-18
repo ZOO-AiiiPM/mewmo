@@ -1,70 +1,127 @@
-import {
-  removeNoteContentDraft,
-  writeNoteContentDraft,
-} from "./note-draft-store";
+import { readNoteDraft, removeNoteDraft, writeNoteDraft, type NoteDraft } from "./note-draft-store";
 
-interface PendingNoteContentSync {
-  content: string;
-  retryDelayMs: number;
+export type NoteSaveStatus = "saving" | "saved" | "offline" | "error";
+export interface NoteSaveSnapshot {
+  status: NoteSaveStatus;
+  message: string;
+  serverVersion?: number;
+  title?: string;
+  slug?: string;
+}
+
+const messages: Record<NoteSaveStatus, string> = {
+  saving: "保存中…",
+  saved: "已保存",
+  offline: "离线，已保存在本机",
+  error: "保存失败",
+};
+
+interface PendingSync {
+  draft: NoteDraft;
   timer: ReturnType<typeof setTimeout> | null;
+  retryDelayMs: number;
 }
 
-const FIRST_RETRY_DELAY_MS = 2000;
-const MAX_RETRY_DELAY_MS = 30000;
-const pendingContentSyncs = new Map<string, PendingNoteContentSync>();
+const pending = new Map<string, PendingSync>();
+const snapshots = new Map<string, NoteSaveSnapshot>();
+const listeners = new Map<string, Set<(snapshot: NoteSaveSnapshot) => void>>();
+const keyFor = (userId: string, noteId: string) => `${userId}:${noteId}`;
 
-export function queueNoteContentSync(noteId: string, content: string, delayMs = 800) {
-  writeNoteContentDraft(noteId, content);
-  scheduleNoteContentSync(noteId, content, delayMs);
-}
-
-export function retryStoredNoteContent(noteId: string, content: string) {
-  scheduleNoteContentSync(noteId, content, 0);
-}
-
-function scheduleNoteContentSync(noteId: string, content: string, delayMs: number) {
-  const existing = pendingContentSyncs.get(noteId);
-  if (existing?.timer) clearTimeout(existing.timer);
-
-  const next: PendingNoteContentSync = {
-    content,
-    retryDelayMs: existing?.retryDelayMs ?? FIRST_RETRY_DELAY_MS,
-    timer: setTimeout(() => {
-      void flushNoteContentSync(noteId, content);
-    }, delayMs),
+function emit(key: string, status: NoteSaveStatus, saved?: { version?: number; title?: string; slug?: string }) {
+  const snapshot: NoteSaveSnapshot = {
+    status,
+    message: messages[status],
+    ...(saved?.version !== undefined ? { serverVersion: saved.version } : {}),
+    ...(saved?.title !== undefined ? { title: saved.title } : {}),
+    ...(saved?.slug !== undefined ? { slug: saved.slug } : {}),
   };
-  pendingContentSyncs.set(noteId, next);
+  snapshots.set(key, snapshot);
+  for (const listener of listeners.get(key) ?? []) listener(snapshot);
 }
 
-async function flushNoteContentSync(noteId: string, content: string) {
-  const current = pendingContentSyncs.get(noteId);
-  if (!current || current.content !== content) return;
+export function subscribeNoteDraftSync(
+  userId: string,
+  noteId: string,
+  listener: (snapshot: NoteSaveSnapshot) => void,
+) {
+  const key = keyFor(userId, noteId);
+  const group = listeners.get(key) ?? new Set();
+  group.add(listener);
+  listeners.set(key, group);
+  listener(snapshots.get(key) ?? { status: "saved", message: messages.saved });
+  return () => {
+    group.delete(listener);
+    if (group.size === 0) listeners.delete(key);
+  };
+}
+
+export function queueNoteDraftSync(draft: NoteDraft, delayMs = 800) {
+  const key = keyFor(draft.userId, draft.noteId);
+  if (!writeNoteDraft(draft).ok) {
+    emit(key, "error");
+    return;
+  }
+  const existing = pending.get(key);
+  if (existing?.timer) clearTimeout(existing.timer);
+  pending.set(key, {
+    draft,
+    retryDelayMs: existing?.retryDelayMs ?? 2000,
+    timer: setTimeout(() => void flush(key, draft), delayMs),
+  });
+  emit(key, "saving");
+}
+
+export function retryStoredNoteDraft(userId: string, noteId: string) {
+  const draft = readNoteDraft(userId, noteId);
+  if (!draft) return;
+  queueNoteDraftSync(draft, 0);
+}
+
+async function flush(key: string, submitted: NoteDraft) {
+  const current = pending.get(key);
+  if (!current || current.draft.updatedAt !== submitted.updatedAt) return;
   current.timer = null;
 
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    emit(key, "offline");
+    scheduleRetry(key, submitted);
+    return;
+  }
+
   try {
-    const response = await fetch(`/api/notes/${noteId}`, {
+    const response = await fetch(`/api/notes/${submitted.noteId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content }),
+      body: JSON.stringify({
+        title: submitted.title,
+        content: submitted.content,
+        expectedVersion: submitted.serverVersion,
+      }),
     });
-    if (!response.ok) throw new Error("Save failed");
-
-    const latest = pendingContentSyncs.get(noteId);
-    if (latest?.content === content) {
-      pendingContentSyncs.delete(noteId);
-      removeNoteContentDraft(noteId);
+    if (!response.ok) {
+      emit(key, "error");
+      return;
+    }
+    const saved = (await response.json()) as { version?: number; title?: string; slug?: string };
+    const latest = pending.get(key);
+    if (latest?.draft.updatedAt === submitted.updatedAt) {
+      pending.delete(key);
+      removeNoteDraft(submitted.userId, submitted.noteId, submitted.updatedAt);
+      emit(key, "saved", saved);
+    } else if (latest && typeof saved.version === "number") {
+      latest.draft = { ...latest.draft, serverVersion: saved.version };
+      writeNoteDraft(latest.draft);
     }
   } catch {
-    const latest = pendingContentSyncs.get(noteId);
-    if (!latest || latest.content !== content) return;
-
-    const retryDelayMs = latest.retryDelayMs;
-    pendingContentSyncs.set(noteId, {
-      content,
-      retryDelayMs: Math.min(retryDelayMs * 2, MAX_RETRY_DELAY_MS),
-      timer: setTimeout(() => {
-        void flushNoteContentSync(noteId, content);
-      }, retryDelayMs),
-    });
+    emit(key, "offline");
+    scheduleRetry(key, submitted);
   }
+}
+
+function scheduleRetry(key: string, draft: NoteDraft) {
+  const current = pending.get(key);
+  if (!current || current.draft.updatedAt !== draft.updatedAt) return;
+  const delay = current.retryDelayMs;
+  current.retryDelayMs = Math.min(delay * 2, 30000);
+  current.timer = setTimeout(() => void flush(key, draft), delay);
 }

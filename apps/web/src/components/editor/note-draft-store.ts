@@ -1,61 +1,66 @@
-export interface NoteContentDraft {
+export interface NoteDraft {
+  userId: string;
+  noteId: string;
+  title: string;
   content: string;
+  serverVersion: number;
   updatedAt: number;
 }
 
 type DraftStorage = Pick<Storage, "getItem" | "removeItem" | "setItem">;
 
-const NOTE_CONTENT_DRAFT_PREFIX = "mewmo:note-content-draft:";
-
-export function noteContentDraftKey(noteId: string) {
-  return `${NOTE_CONTENT_DRAFT_PREFIX}${noteId}`;
+export function noteDraftKey(userId: string, noteId: string) {
+  return `mewmo:note-draft:${userId}:${noteId}`;
 }
 
-export function readNoteContentDraft(
-  noteId: string,
-  storage = browserDraftStorage(),
-): NoteContentDraft | null {
+export function readNoteDraft(userId: string, noteId: string, storage = browserDraftStorage()) {
   if (!storage) return null;
-
+  const key = noteDraftKey(userId, noteId);
   try {
-    const raw = storage.getItem(noteContentDraftKey(noteId));
+    const raw = storage.getItem(key);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<NoteContentDraft>;
-    if (typeof parsed.content !== "string" || typeof parsed.updatedAt !== "number") {
-      storage.removeItem(noteContentDraftKey(noteId));
+    const value = JSON.parse(raw) as Partial<NoteDraft>;
+    if (
+      value.userId !== userId || value.noteId !== noteId ||
+      typeof value.title !== "string" || typeof value.content !== "string" ||
+      typeof value.serverVersion !== "number" || typeof value.updatedAt !== "number"
+    ) {
+      storage.removeItem(key);
       return null;
     }
-    return { content: parsed.content, updatedAt: parsed.updatedAt };
+    return value as NoteDraft;
   } catch {
+    storage.removeItem(key);
     return null;
   }
 }
 
-export function writeNoteContentDraft(
+export function writeNoteDraft(draft: NoteDraft, storage = browserDraftStorage()) {
+  if (!storage) return { ok: false as const };
+  try {
+    storage.setItem(noteDraftKey(draft.userId, draft.noteId), JSON.stringify(draft));
+    return { ok: true as const };
+  } catch {
+    return { ok: false as const };
+  }
+}
+
+export function removeNoteDraft(
+  userId: string,
   noteId: string,
-  content: string,
+  expectedUpdatedAt?: number,
   storage = browserDraftStorage(),
 ) {
   if (!storage) return;
-
-  storage.setItem(
-    noteContentDraftKey(noteId),
-    JSON.stringify({ content, updatedAt: Date.now() } satisfies NoteContentDraft),
-  );
+  if (expectedUpdatedAt !== undefined) {
+    const current = readNoteDraft(userId, noteId, storage);
+    if (current?.updatedAt !== expectedUpdatedAt) return;
+  }
+  storage.removeItem(noteDraftKey(userId, noteId));
 }
 
-export function removeNoteContentDraft(
-  noteId: string,
-  storage = browserDraftStorage(),
-) {
-  storage?.removeItem(noteContentDraftKey(noteId));
-}
-
-export function resolveInitialNoteContent(
-  serverContent: string,
-  draft: NoteContentDraft | null,
-) {
-  return draft?.content ?? serverContent;
+export function removeLegacyNoteDraft(noteId: string, storage = browserDraftStorage()) {
+  storage?.removeItem(`mewmo:note-content-draft:${noteId}`);
 }
 
 function browserDraftStorage() {

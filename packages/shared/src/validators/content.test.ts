@@ -45,6 +45,8 @@ describe("content validators", () => {
 
   it("requires update notes to include at least one mutable field", () => {
     expect(() => updateNoteSchema.parse({})).toThrow();
+    expect(() => updateNoteSchema.parse({ expectedVersion: 3 })).toThrow();
+    expect(updateNoteSchema.parse({ content: "draft", expectedVersion: 3 }).expectedVersion).toBe(3);
   });
 
   it("accepts clips with optional metadata", () => {

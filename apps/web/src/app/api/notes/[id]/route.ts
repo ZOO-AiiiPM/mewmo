@@ -66,6 +66,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  if (parsed.data.expectedVersion !== undefined && parsed.data.expectedVersion !== note.version) {
+    return NextResponse.json(
+      { error: "Version conflict", currentVersion: note.version, updatedAt: note.updatedAt },
+      { status: 409 },
+    );
+  }
+
   const updateData: {
     slug?: string;
     title?: string;

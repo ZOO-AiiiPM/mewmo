@@ -81,6 +81,7 @@ interface NoteListItem {
   summary: string | null;
   content?: string;
   pinned: boolean;
+  version?: number;
   updatedAt: string;
   createdAt?: string;
 }
@@ -91,6 +92,7 @@ interface CurrentNote {
   title: string;
   summary: string | null;
   content: string;
+  version: number;
   updatedAt: string;
 }
 
@@ -631,7 +633,8 @@ export function NoteEditorPage({
                 initialTitle={selectedNote.title}
                 initialSummary={selectedNote.summary}
                 initialContent={selectedNote.content}
-                updatedAt={selectedNote.updatedAt}
+                    updatedAt={selectedNote.updatedAt}
+                    serverVersion={selectedNote.version}
                 autoFocusTitle={selectedNote.title === "Untitled" && !selectedNote.content.trim()}
                 onContentChange={updateSelectedNoteContent}
                 onTitleChange={updateSelectedNoteTitle}

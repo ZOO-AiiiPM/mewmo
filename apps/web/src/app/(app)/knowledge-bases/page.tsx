@@ -96,6 +96,7 @@ type KnowledgeEntityDetail = {
   content?: string | null;
   updatedAt?: string;
   createdAt?: string;
+  version?: number;
 };
 
 type LocalKnowledgeAssetType = "pdf" | "ebook";
@@ -835,6 +836,7 @@ function KnowledgeReader({
         initialSummary={item.note.summary ?? null}
         initialContent={item.note.content}
         updatedAt={item.note.updatedAt ?? item.updatedAt}
+        serverVersion={(item.note as { version?: number }).version}
         onContentChange={onNoteContentChange}
         onTitleChange={onNoteTitleChange}
         embedded

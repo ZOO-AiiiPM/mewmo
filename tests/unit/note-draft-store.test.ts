@@ -1,63 +1,48 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  noteContentDraftKey,
-  readNoteContentDraft,
-  removeNoteContentDraft,
-  resolveInitialNoteContent,
-  writeNoteContentDraft,
+  noteDraftKey,
+  readNoteDraft,
+  removeNoteDraft,
+  writeNoteDraft,
 } from "../../apps/web/src/components/editor/note-draft-store";
 
 class MemoryStorage {
   private values = new Map<string, string>();
-
-  getItem(key: string) {
-    return this.values.get(key) ?? null;
-  }
-
-  removeItem(key: string) {
-    this.values.delete(key);
-  }
-
-  setItem(key: string, value: string) {
-    this.values.set(key, value);
-  }
+  getItem(key: string) { return this.values.get(key) ?? null; }
+  removeItem(key: string) { this.values.delete(key); }
+  setItem(key: string, value: string) { this.values.set(key, value); }
 }
 
-describe("note content draft store", () => {
-  it("stores unsynced note content by note id", () => {
+describe("note draft store", () => {
+  it("stores full drafts by account and note", () => {
     const storage = new MemoryStorage();
+    const draft = {
+      userId: "user-1",
+      noteId: "note-1",
+      title: "Offline title",
+      content: "Offline body",
+      serverVersion: 4,
+      updatedAt: 123,
+    };
 
-    writeNoteContentDraft("note-1", "![image](data:image/png;base64,abc)", storage);
-
-    expect(readNoteContentDraft("note-1", storage)?.content).toBe(
-      "![image](data:image/png;base64,abc)",
-    );
+    expect(writeNoteDraft(draft, storage)).toEqual({ ok: true });
+    expect(readNoteDraft("user-1", "note-1", storage)).toEqual(draft);
+    expect(readNoteDraft("user-2", "note-1", storage)).toBeNull();
   });
 
-  it("prefers local draft content over stale server content", () => {
-    expect(
-      resolveInitialNoteContent("old cloud content", {
-        content: "local image draft",
-        updatedAt: Date.now(),
-      }),
-    ).toBe("local image draft");
+  it("only clears the submitted draft revision", () => {
+    const storage = new MemoryStorage();
+    writeNoteDraft({ userId: "u", noteId: "n", title: "new", content: "body", serverVersion: 2, updatedAt: 2 }, storage);
+    removeNoteDraft("u", "n", 1, storage);
+    expect(readNoteDraft("u", "n", storage)?.updatedAt).toBe(2);
+    removeNoteDraft("u", "n", 2, storage);
+    expect(readNoteDraft("u", "n", storage)).toBeNull();
   });
 
-  it("clears the local draft after cloud save succeeds", () => {
+  it("drops corrupt records", () => {
     const storage = new MemoryStorage();
-    writeNoteContentDraft("note-1", "draft", storage);
-
-    removeNoteContentDraft("note-1", storage);
-
-    expect(readNoteContentDraft("note-1", storage)).toBeNull();
-  });
-
-  it("drops corrupt draft records", () => {
-    const storage = new MemoryStorage();
-    storage.setItem(noteContentDraftKey("note-1"), JSON.stringify({ content: 1 }));
-
-    expect(readNoteContentDraft("note-1", storage)).toBeNull();
-    expect(storage.getItem(noteContentDraftKey("note-1"))).toBeNull();
+    storage.setItem(noteDraftKey("u", "n"), JSON.stringify({ content: 1 }));
+    expect(readNoteDraft("u", "n", storage)).toBeNull();
   });
 });

@@ -10,6 +10,7 @@ const noteListSelect = {
   title: true,
   summary: true,
   pinned: true,
+  version: true,
   createdAt: true,
   updatedAt: true,
 } satisfies Prisma.NoteSelect;
@@ -44,6 +45,7 @@ export default async function NoteDetailPage({ params }: { params: Promise<{ slu
         title: note.title,
         summary: note.summary,
         content: note.content,
+        version: note.version,
         updatedAt: note.updatedAt.toISOString(),
       }}
       notes={notes.map((item: NoteListItem) => ({

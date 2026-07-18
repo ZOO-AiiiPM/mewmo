@@ -11,7 +11,8 @@ test("renaming a note persists a unique slug and replaces the selected note URL"
 
   assert.match(route, /createUniqueNoteSlug/);
   assert.match(route, /updateData\.slug\s*=\s*await createUniqueNoteSlug/);
-  assert.match(editor, /updated\.slug/);
+  assert.match(editor, /snapshot\.slug/);
+  assert.match(editor, /onTitleChangeRef\.current\?\.\(snapshot\.title, snapshot\.slug\)/);
   assert.match(page, /pushStableSelectionUrl\(`\/notes\/\$\{slug\}`,[\s\S]{0,40}"replace"\)/);
   assert.match(page, /previousSelectedNoteRef/);
   assert.match(

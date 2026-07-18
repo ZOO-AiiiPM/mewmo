@@ -10,6 +10,7 @@ const noteListSelect = {
   title: true,
   summary: true,
   pinned: true,
+  version: true,
   createdAt: true,
   updatedAt: true,
 } satisfies Prisma.NoteSelect;

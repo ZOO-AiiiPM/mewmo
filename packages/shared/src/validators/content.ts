@@ -29,8 +29,9 @@ export const updateNoteSchema = z
     summary: z.string().optional(),
     pinned: z.boolean().optional(),
     tags: z.array(z.string().min(1)).optional(),
+    expectedVersion: z.number().int().nonnegative().optional(),
   })
-  .refine((value) => Object.values(value).some((item) => item !== undefined), {
+  .refine((value) => [value.title, value.content, value.summary, value.pinned, value.tags].some((item) => item !== undefined), {
     message: "at least one field must be provided",
   });
 
