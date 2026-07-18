@@ -12,6 +12,12 @@ const outboundUrlSchema = urlSchema.refine((value) => {
   return (url.protocol === "http:" || url.protocol === "https:") && !url.username && !url.password;
 }, "fetch URLs must use HTTP(S) without credentials");
 export const feedTypeSchema = z.enum(["article", "media", "video", "podcast"]);
+const initialFeedEntryLimitSchema = z.union([
+  z.literal(5),
+  z.literal(10),
+  z.literal(20),
+  z.literal(50),
+]);
 export const knowledgeItemKindSchema = z.enum(["note", "clip", "feed_entry", "asset"]);
 export const knowledgeAssetTypeSchema = z.enum(["pdf", "ebook"]);
 const nonEmptyUpdate = (value: Record<string, unknown>) =>
@@ -75,6 +81,7 @@ export const createFeedSchema = z.object({
   description: z.string().optional(),
   favicon: z.string().optional(),
   refreshInterval: z.number().int().positive().optional().default(3600),
+  initialEntryLimit: initialFeedEntryLimitSchema.optional().default(10),
 });
 
 export const updateFeedSchema = z

@@ -100,7 +100,9 @@ export async function POST(request: Request, { params }: { params: Promise<FeedR
         }),
       });
       const feedRecord = feed as Record<string, unknown> & InitialFeedRecord;
-      const initialFetch = await fetchInitialFeed(userId, feedRecord);
+      const initialFetch = await fetchInitialFeed(userId, feedRecord, {
+        limit: parsed.data.initialEntryLimit,
+      });
       return NextResponse.json(
         {
           ...feedRecord,

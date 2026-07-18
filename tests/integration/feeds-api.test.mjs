@@ -104,6 +104,54 @@ test("Feeds API", async (t) => {
     assert.equal(close.mock.calls.length, 1);
   });
 
+  await t.test("initialEntryLimit stores only the requested first five entries", async () => {
+    const res = await authedFetch("/api/feeds", {
+      method: "POST",
+      body: JSON.stringify({
+        url: `${API_TEST_ARTICLE_URL}?rss=${Date.now()}&items=12`,
+        title: "Five-entry feed",
+        initialEntryLimit: 5,
+      }),
+    });
+    assert.equal(res.status, 201);
+    const feed = await res.json();
+    assert.equal(feed.initialFetch.fetched, 5);
+    assert.equal(feed.initialFetch.created, 5);
+
+    const entriesRes = await authedFetch(`/api/feeds/${feed.id}/entries`);
+    assert.equal(entriesRes.status, 200);
+    assert.equal((await entriesRes.json()).length, 5);
+    assert.equal((await authedFetch(`/api/feeds/${feed.id}`, { method: "DELETE" })).status, 200);
+  });
+
+  await t.test("initialEntryLimit can import more than the previous fixed ten", async () => {
+    const res = await authedFetch("/api/feeds", {
+      method: "POST",
+      body: JSON.stringify({
+        url: `${API_TEST_ARTICLE_URL}?rss=${Date.now()}&items=12`,
+        title: "Twenty-entry limit feed",
+        initialEntryLimit: 20,
+      }),
+    });
+    assert.equal(res.status, 201);
+    const feed = await res.json();
+    assert.equal(feed.initialFetch.fetched, 12);
+    assert.equal(feed.initialFetch.created, 12);
+    assert.equal((await authedFetch(`/api/feeds/${feed.id}`, { method: "DELETE" })).status, 200);
+  });
+
+  await t.test("unsupported initialEntryLimit values are rejected", async () => {
+    const res = await authedFetch("/api/feeds", {
+      method: "POST",
+      body: JSON.stringify({
+        url: `${API_TEST_ARTICLE_URL}?rss=${Date.now()}&items=12`,
+        title: "Invalid limit feed",
+        initialEntryLimit: 7,
+      }),
+    });
+    assert.equal(res.status, 400);
+  });
+
   await t.test("PATCH /api/feed-entries/[id] can mark read/unread when an entry exists", async () => {
     if (!createdEntryId) {
       return;

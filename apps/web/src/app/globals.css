@@ -4125,7 +4125,14 @@ html.light .mewmo-popover-card {
 .addfeed__catrow {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 18px;
   margin-bottom: 14px;
+}
+
+.addfeed__catsetting {
+  display: flex;
+  align-items: center;
 }
 
 .addfeed__catlabel {
@@ -4161,6 +4168,10 @@ html.light .afr-catsel__btn {
   border-color: var(--ink-faint);
 }
 
+.afr-catsel__btn--limit {
+  min-width: 92px;
+}
+
 .afr-catsel__cur {
   margin-right: auto;
 }
@@ -4181,6 +4192,11 @@ html.light .afr-catsel__btn {
 .mewmo-addfeed-category-menu {
   z-index: 190;
   min-width: 128px;
+}
+
+.mewmo-addfeed-limit-menu {
+  z-index: 190;
+  min-width: 112px;
 }
 
 .mewmo-addfeed-category-menu .mewmo-floating-menu__item:disabled {

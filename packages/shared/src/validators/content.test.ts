@@ -53,6 +53,18 @@ describe("content validators", () => {
     expect(() => createFeedSchema.parse({ url: "https://example.com/feed.xml", title: "Example", type: "book" })).toThrow();
   });
 
+  it("accepts only the supported initial feed entry limits and defaults to ten", () => {
+    const base = { url: "https://example.com/feed.xml", title: "Example" };
+
+    expect(createFeedSchema.parse(base).initialEntryLimit).toBe(10);
+    for (const initialEntryLimit of [5, 10, 20, 50]) {
+      expect(createFeedSchema.parse({ ...base, initialEntryLimit }).initialEntryLimit).toBe(initialEntryLimit);
+    }
+    for (const initialEntryLimit of [0, 7, 15, 100]) {
+      expect(() => createFeedSchema.parse({ ...base, initialEntryLimit })).toThrow();
+    }
+  });
+
   it("requires update notes to include at least one mutable field", () => {
     expect(() => updateNoteSchema.parse({})).toThrow();
   });

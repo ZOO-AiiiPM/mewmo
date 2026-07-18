@@ -47,6 +47,9 @@ const feedTypes: Array<{
 ];
 
 const MODAL_EXIT_MS = 160;
+const INITIAL_FEED_LIMITS = [5, 10, 20, 50] as const;
+const DEFAULT_INITIAL_FEED_LIMIT = 10;
+type InitialFeedLimit = (typeof INITIAL_FEED_LIMITS)[number];
 
 interface FeedSource {
   id: string;
@@ -617,7 +620,10 @@ function AddFeedModal({
   const [searched, setSearched] = useState(false);
   const [autoType, setAutoType] = useState(autoDetectType);
   const [categoryMenuOpen, setCategoryMenuOpen] = useState(false);
+  const [initialEntryLimit, setInitialEntryLimit] = useState<InitialFeedLimit>(DEFAULT_INITIAL_FEED_LIMIT);
+  const [limitMenuOpen, setLimitMenuOpen] = useState(false);
   const categoryButtonRef = useRef<HTMLButtonElement>(null);
+  const limitButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (open) {
@@ -650,6 +656,8 @@ function AddFeedModal({
     setAutoType(autoDetectType);
     setSearched(false);
     setCategoryMenuOpen(false);
+    setInitialEntryLimit(DEFAULT_INITIAL_FEED_LIMIT);
+    setLimitMenuOpen(false);
   }, [autoDetectType, initialType, open]);
 
   if (!mounted) return null;
@@ -704,6 +712,7 @@ function AddFeedModal({
             title: candidate.title,
             description: candidate.description,
             favicon: candidate.favicon,
+            initialEntryLimit,
           }),
         });
         if (!response.ok) throw new Error("add");
@@ -808,6 +817,7 @@ function AddFeedModal({
                     onChange={() => {
                       setSelectedUrls((current) => toggleFeedUrl(current, result.url));
                       setCategoryMenuOpen(false);
+                      setLimitMenuOpen(false);
                       if (autoType && result.type && !feedTypes.find((item) => item.type === result.type)?.deferred) {
                         setType(result.type);
                       }
@@ -841,43 +851,89 @@ function AddFeedModal({
 
         {selectedUrls.length > 0 && (
           <div className="addfeed__catrow">
-            <span className="addfeed__catlabel">订阅至</span>
-            <div className={`afr-catsel ${categoryMenuOpen ? "open" : ""}`} aria-label="订阅分类">
-              <button
-                ref={categoryButtonRef}
-                type="button"
-                className="afr-catsel__btn"
-                onClick={() => setCategoryMenuOpen((value) => !value)}
-                aria-expanded={categoryMenuOpen}
-              >
-                <PrototypeIcon name={selectedType.icon} size={15} className="afr-catsel__ic" />
-                <span className="afr-catsel__cur">{selectedType.label}</span>
-                <PrototypeIcon name="caret" size={12} />
-              </button>
-              <PopoverMenu
-                open={categoryMenuOpen}
-                anchorRef={categoryButtonRef}
-                onOpenChange={setCategoryMenuOpen}
-                align="start"
-                className="mewmo-card-menu afr-catsel__menu mewmo-addfeed-category-menu"
-              >
-                {feedTypes.map((item) => (
-                  <FloatingMenuButton
-                    key={item.type}
-                    icon={item.icon}
-                    checked={type === item.type}
-                    disabled={Boolean(item.deferred)}
-                    onClick={() => {
-                      if (item.deferred) return;
-                      setAutoType(false);
-                      setType(item.type);
-                      setCategoryMenuOpen(false);
-                    }}
-                  >
-                    {item.deferred ? `${item.label} · 待开发` : item.label}
-                  </FloatingMenuButton>
-                ))}
-              </PopoverMenu>
+            <div className="addfeed__catsetting">
+              <span className="addfeed__catlabel">订阅至</span>
+              <div className={`afr-catsel ${categoryMenuOpen ? "open" : ""}`} aria-label="订阅分类">
+                <button
+                  ref={categoryButtonRef}
+                  type="button"
+                  className="afr-catsel__btn"
+                  onClick={() => {
+                    setLimitMenuOpen(false);
+                    setCategoryMenuOpen((value) => !value);
+                  }}
+                  aria-expanded={categoryMenuOpen}
+                >
+                  <PrototypeIcon name={selectedType.icon} size={15} className="afr-catsel__ic" />
+                  <span className="afr-catsel__cur">{selectedType.label}</span>
+                  <PrototypeIcon name="caret" size={12} />
+                </button>
+                <PopoverMenu
+                  open={categoryMenuOpen}
+                  anchorRef={categoryButtonRef}
+                  onOpenChange={setCategoryMenuOpen}
+                  align="start"
+                  className="mewmo-card-menu afr-catsel__menu mewmo-addfeed-category-menu"
+                >
+                  {feedTypes.map((item) => (
+                    <FloatingMenuButton
+                      key={item.type}
+                      icon={item.icon}
+                      checked={type === item.type}
+                      disabled={Boolean(item.deferred)}
+                      onClick={() => {
+                        if (item.deferred) return;
+                        setAutoType(false);
+                        setType(item.type);
+                        setCategoryMenuOpen(false);
+                      }}
+                    >
+                      {item.deferred ? `${item.label} · 待开发` : item.label}
+                    </FloatingMenuButton>
+                  ))}
+                </PopoverMenu>
+              </div>
+            </div>
+            <div className="addfeed__catsetting">
+              <span className="addfeed__catlabel">首次导入</span>
+              <div className={`afr-catsel ${limitMenuOpen ? "open" : ""}`} aria-label="首次导入数量">
+                <button
+                  ref={limitButtonRef}
+                  type="button"
+                  className="afr-catsel__btn afr-catsel__btn--limit"
+                  onClick={() => {
+                    setCategoryMenuOpen(false);
+                    setLimitMenuOpen((value) => !value);
+                  }}
+                  aria-expanded={limitMenuOpen}
+                  aria-label={`首次导入 ${initialEntryLimit} 篇`}
+                >
+                  <PrototypeIcon name="list" size={15} className="afr-catsel__ic" />
+                  <span className="afr-catsel__cur">{initialEntryLimit} 篇</span>
+                  <PrototypeIcon name="caret" size={12} />
+                </button>
+                <PopoverMenu
+                  open={limitMenuOpen}
+                  anchorRef={limitButtonRef}
+                  onOpenChange={setLimitMenuOpen}
+                  align="start"
+                  className="mewmo-card-menu afr-catsel__menu mewmo-addfeed-limit-menu"
+                >
+                  {INITIAL_FEED_LIMITS.map((limit) => (
+                    <FloatingMenuButton
+                      key={limit}
+                      icon="list"
+                      checked={initialEntryLimit === limit}
+                      onClick={() => {
+                        setInitialEntryLimit(limit);
+                        setLimitMenuOpen(false);
+                      }}
+                    >
+                      {limit} 篇
+                    </FloatingMenuButton>
+                  ))}
+                </PopoverMenu>
+              </div>
             </div>
           </div>
         )}

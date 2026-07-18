@@ -87,8 +87,13 @@ function startFixtureServer() {
     const url = new URL(request.url ?? "/", fixtureUrl);
     const respond = () => {
       if (url.searchParams.has("rss")) {
+        const itemCount = Math.min(Math.max(Number.parseInt(url.searchParams.get("items") ?? "1", 10) || 1, 1), 60);
+        const items = Array.from({ length: itemCount }, (_, index) => {
+          const suffix = index === 0 ? "" : ` ${index + 1}`;
+          return `<item><title>Fixture Entry${suffix}</title><link>${fixtureUrl}?article=${index + 1}</link><guid>fixture-entry-${index + 1}</guid><description>Fixture body ${index + 1}</description></item>`;
+        }).join("");
         response.writeHead(200, { "content-type": "application/rss+xml; charset=utf-8" });
-        response.end(`<?xml version="1.0"?><rss version="2.0"><channel><title>Integration Feed</title><link>${fixtureUrl}</link><description>Fixture</description><item><title>Fixture Entry</title><link>${fixtureUrl}</link><guid>fixture-entry</guid><description>Fixture body</description></item></channel></rss>`);
+        response.end(`<?xml version="1.0"?><rss version="2.0"><channel><title>Integration Feed</title><link>${fixtureUrl}</link><description>Fixture</description>${items}</channel></rss>`);
         return;
       }
       response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
