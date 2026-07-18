@@ -16,7 +16,8 @@ test("trash routes keep recovery, retention, and permanent delete behind authent
 
   assert.match(listRoute, /auth\(\)/, "trash list should require the current user");
   assert.match(listRoute, /createTrashRepository\(\)\.list\(session\.user\.id\)/, "trash list should use the scoped repository");
-  assert.match(itemRoute, /z\.enum\(\["note",\s*"clip",\s*"feed",\s*"knowledge_base"\]\)/, "trash item route should validate supported kinds");
+  assert.match(itemRoute, /z\.enum\(\["note",\s*"clip",\s*"knowledge_base"\]\)/, "trash item route should validate supported kinds");
+  assert.doesNotMatch(itemRoute, /"feed"/, "subscriptions should never be addressable through trash APIs");
   assert.match(itemRoute, /export async function GET/, "trash item route should expose deleted item details");
   assert.match(itemRoute, /get\(session\.user\.id,\s*parsedKind\.data,\s*id\)/, "GET should read through the scoped repository");
   assert.match(itemRoute, /if \(!item\) return notFound\(\)/, "GET should return 404 for missing trash items");
@@ -68,4 +69,6 @@ test("trash page exposes restore, manual permanent delete, and 14-day retention"
     "narrow trash readers should reserve toolbar space for restore and delete",
   );
   assert.doesNotMatch(styles, /\.mewmo-trash-card__actions/, "obsolete card action styles should be removed");
+  assert.doesNotMatch(page, /type TrashItemType = [^;]*"feed"/, "trash UI should not model subscriptions as recoverable items");
+  assert.doesNotMatch(page, /订阅源/, "trash UI should not label any item as a subscription source");
 });

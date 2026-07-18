@@ -12,7 +12,7 @@ export interface ClipCardSource {
 }
 
 export function clipPreviewText(clip: ClipCardSource) {
-  const source = clip.excerpt?.trim() || stripHtml(clip.content ?? "");
+  const source = stripHtml(clip.excerpt ?? "") || stripHtml(clip.content ?? "");
   return source || clip.summary?.trim() || clip.url;
 }
 

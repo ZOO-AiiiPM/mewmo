@@ -18,6 +18,7 @@ import {
 let cookies = "";
 let createdFeedId = "";
 let createdEntryId = "";
+let createdFeedUrl = "";
 
 async function login() {
   const res = await fetch(`${BASE}/api/login`, {
@@ -44,10 +45,11 @@ test("Feeds API", async (t) => {
   await login();
 
   await t.test("POST /api/feeds creates a feed", async () => {
+    createdFeedUrl = `${API_TEST_ARTICLE_URL}?rss=${Date.now()}`;
     const res = await authedFetch("/api/feeds", {
       method: "POST",
       body: JSON.stringify({
-        url: `${API_TEST_ARTICLE_URL}?rss=${Date.now()}`,
+        url: createdFeedUrl,
         title: "Test Feed from TDD",
         description: "Created by feeds API smoke test",
       }),
@@ -122,10 +124,50 @@ test("Feeds API", async (t) => {
     assert.equal((await unreadRes.json()).readAt, null);
   });
 
-  await t.test("DELETE /api/feeds/[id] soft-deletes", async () => {
+  await t.test("DELETE /api/feeds/[id] permanently deletes the feed and entries", async () => {
     const res = await authedFetch(`/api/feeds/${createdFeedId}`, { method: "DELETE" });
     assert.equal(res.status, 200);
     assert.equal((await res.json()).ok, true);
+
+    const prisma = getPrisma();
+    assert.equal(await prisma.feed.findUnique({ where: { id: createdFeedId } }), null);
+    assert.equal(await prisma.feedEntry.count({ where: { feedId: createdFeedId } }), 0);
+  });
+
+  await t.test("the same URL can be subscribed again after permanent deletion", async () => {
+    const res = await authedFetch("/api/feeds", {
+      method: "POST",
+      body: JSON.stringify({
+        url: createdFeedUrl,
+        title: "Re-added Feed",
+        description: "Recreated after permanent deletion",
+      }),
+    });
+    assert.equal(res.status, 201);
+    const feed = await res.json();
+    assert.notEqual(feed.id, createdFeedId);
+    assert.equal(feed.existing, false);
+  });
+
+  await t.test("a legacy soft-deleted row no longer causes a 409", async () => {
+    const staleUrl = `${API_TEST_ARTICLE_URL}?legacy=${Date.now()}`;
+    await getPrisma().feed.create({
+      data: {
+        userId: (await getPrisma().user.findUniqueOrThrow({ where: { email: API_TEST_EMAIL } })).id,
+        url: staleUrl,
+        type: "article",
+        title: "Legacy deleted feed",
+        deletedAt: new Date(),
+      },
+    });
+
+    const res = await authedFetch("/api/feeds", {
+      method: "POST",
+      body: JSON.stringify({ url: staleUrl, title: "Restored as new feed" }),
+    });
+    assert.equal(res.status, 201);
+    const feed = await res.json();
+    assert.equal(feed.existing, false);
   });
 
   await t.test("unauthenticated requests return 401", async () => {

@@ -13,7 +13,7 @@ import { useToast } from "../../../components/ui/ToastProvider";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-type TrashItemType = "note" | "clip" | "feed" | "knowledge_base";
+type TrashItemType = "note" | "clip" | "knowledge_base";
 
 interface TrashItem {
   type: TrashItemType;
@@ -26,7 +26,6 @@ interface TrashItem {
   expiresAt: string;
   url?: string | null;
   icon?: string | null;
-  feedType?: string | null;
   content?: string;
   description?: string | null;
   excerpt?: string | null;
@@ -40,7 +39,6 @@ interface TrashItem {
 const typeMeta: Record<TrashItemType, { label: string; icon: PrototypeIconName }> = {
   note: { label: "笔记", icon: "note" },
   clip: { label: "剪藏", icon: "bookmark" },
-  feed: { label: "订阅源", icon: "rss" },
   knowledge_base: { label: "知识库", icon: "library" },
 };
 
@@ -86,7 +84,6 @@ function previewText(item: TrashItem) {
 
 function sourceLabel(item: TrashItem) {
   if (item.sourceName) return item.sourceName;
-  if (item.type === "feed" && item.feedType) return item.feedType;
   return typeMeta[item.type].label;
 }
 
@@ -143,9 +140,6 @@ function TrashDetail({ item, loading }: { item: TrashItem; loading: boolean }) {
           <p>{item.description ?? item.summary ?? "这条内容没有补充说明。"}</p>
           {item.type === "knowledge_base" && item.icon && (
             <p className="mewmo-trash-detail__source">知识库标识：{item.icon}</p>
-          )}
-          {item.type === "feed" && item.feedType && (
-            <p className="mewmo-trash-detail__source">订阅类型：{item.feedType}</p>
           )}
         </div>
       )}

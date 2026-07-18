@@ -260,6 +260,18 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
     };
   }, [feedDrawer]);
 
+  useEffect(() => {
+    const syncFeedSources = (event: Event) => {
+      const detail = (event as CustomEvent<{ type?: FeedType }>).detail;
+      if (!feedDrawer || detail?.type !== feedDrawer) return;
+      const cachedFeeds = getCachedFeedSources<SidebarFeed>(feedDrawer);
+      if (cachedFeeds) setFeeds(cachedFeeds);
+    };
+
+    window.addEventListener("mewmo:feed-sources-changed", syncFeedSources);
+    return () => window.removeEventListener("mewmo:feed-sources-changed", syncFeedSources);
+  }, [feedDrawer]);
+
   const openFeedType = (type: FeedType) => {
     const meta = feedTypes.find((item) => item.type === type);
     setKnowledgeDrawer(null);

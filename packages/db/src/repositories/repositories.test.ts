@@ -76,6 +76,33 @@ describe("repositories", () => {
     });
   });
 
+  it("permanently deletes feeds with ownership and active-row guards", async () => {
+    const deleteMany = vi.fn().mockResolvedValue({ count: 1 });
+    const repo = createFeedsRepository({ feed: { deleteMany } });
+
+    await repo.delete("user-1", "feed-1");
+
+    expect(deleteMany).toHaveBeenCalledWith({
+      where: { id: "feed-1", userId: "user-1", deletedAt: null },
+    });
+  });
+
+  it("purges a legacy soft-deleted duplicate before recreating a feed", async () => {
+    const deleteMany = vi.fn().mockResolvedValue({ count: 1 });
+    const repo = createFeedsRepository({ feed: { deleteMany } });
+
+    await repo.purgeDeletedDuplicate("user-1", "https://example.com/feed", "article");
+
+    expect(deleteMany).toHaveBeenCalledWith({
+      where: {
+        userId: "user-1",
+        url: "https://example.com/feed",
+        type: "article",
+        deletedAt: { not: null },
+      },
+    });
+  });
+
   it("marks feed entries as read with user and soft-delete guards", async () => {
     const updateMany = vi.fn().mockResolvedValue({ count: 1 });
     const repo = createFeedEntriesRepository({ feedEntry: { updateMany } });
@@ -378,22 +405,19 @@ describe("repositories", () => {
       { id: "note-1", title: "Note", summary: null, createdAt: deletedAt, updatedAt: deletedAt, deletedAt },
     ]);
     const clipFindMany = vi.fn().mockResolvedValue([]);
-    const feedFindMany = vi.fn().mockResolvedValue([]);
     const knowledgeBaseFindMany = vi.fn().mockResolvedValue([]);
     const noteDeleteMany = vi.fn().mockResolvedValue({ count: 0 });
     const clipDeleteMany = vi.fn().mockResolvedValue({ count: 0 });
-    const feedDeleteMany = vi.fn().mockResolvedValue({ count: 0 });
     const knowledgeBaseDeleteMany = vi.fn().mockResolvedValue({ count: 0 });
     const repo = createTrashRepository({
       note: { findMany: noteFindMany, deleteMany: noteDeleteMany },
       clip: { findMany: clipFindMany, deleteMany: clipDeleteMany },
-      feed: { findMany: feedFindMany, deleteMany: feedDeleteMany },
       knowledgeBase: { findMany: knowledgeBaseFindMany, deleteMany: knowledgeBaseDeleteMany },
     });
 
     const items = await repo.list("user-1", now);
 
-    for (const deleteMany of [noteDeleteMany, clipDeleteMany, feedDeleteMany, knowledgeBaseDeleteMany]) {
+    for (const deleteMany of [noteDeleteMany, clipDeleteMany, knowledgeBaseDeleteMany]) {
       expect(deleteMany).toHaveBeenCalledWith({
         where: { userId: "user-1", deletedAt: { lte: cutoff } },
       });

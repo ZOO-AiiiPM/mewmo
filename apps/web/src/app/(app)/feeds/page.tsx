@@ -541,6 +541,11 @@ export default function FeedsPage() {
             const cachedSources = getCachedFeedSources<FeedSource>(feed.type) ?? [];
             setCachedFeedSources(feed.type, [feed, ...cachedSources.filter((source) => source.id !== feed.id)]);
             clearCachedFeedEntries(feed.id);
+            window.dispatchEvent(
+              new CustomEvent("mewmo:feed-sources-changed", {
+                detail: { type: feed.type },
+              }),
+            );
           }
           void loadFeeds();
           void loadEntries();

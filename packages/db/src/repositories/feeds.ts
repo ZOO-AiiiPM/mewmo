@@ -1,5 +1,5 @@
 import { getPrisma, Prisma } from "../client";
-import { activeByUser, softDeleteData, versionedUpdateData } from "./repository-utils";
+import { activeByUser, versionedUpdateData } from "./repository-utils";
 
 export interface CreateFeedInput {
   url: string;
@@ -39,6 +39,7 @@ interface FeedsClient {
     findMany(args: unknown): Promise<unknown>;
     findFirst(args: unknown): Promise<unknown>;
     updateMany(args: unknown): Promise<unknown>;
+    deleteMany(args: unknown): Promise<{ count: number }>;
   };
   $queryRaw(query: unknown): Promise<unknown>;
 }
@@ -123,10 +124,24 @@ export function createFeedsRepository(client: unknown = getPrisma()) {
       });
     },
 
-    delete(userId: string, id: string, now = new Date()) {
-      return db.feed.updateMany({
+    delete(userId: string, id: string) {
+      return db.feed.deleteMany({
         where: { id, ...activeByUser(userId) },
-        data: softDeleteData(now),
+      });
+    },
+
+    purgeDeletedDuplicate(
+      userId: string,
+      url: string,
+      type: "article" | "media" | "video" | "podcast",
+    ) {
+      return db.feed.deleteMany({
+        where: {
+          userId,
+          url,
+          type,
+          deletedAt: { not: null },
+        },
       });
     },
   };

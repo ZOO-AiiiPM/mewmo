@@ -4,7 +4,7 @@ export const TRASH_RETENTION_DAYS = 14;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export const trashKindValues = ["note", "clip", "feed", "knowledge_base"] as const;
+export const trashKindValues = ["note", "clip", "knowledge_base"] as const;
 export type TrashKind = (typeof trashKindValues)[number];
 
 export interface TrashItem {
@@ -18,7 +18,6 @@ export interface TrashItem {
   expiresAt: Date;
   url?: string | null;
   icon?: string | null;
-  feedType?: string | null;
   content?: string;
   description?: string | null;
   excerpt?: string | null;
@@ -40,7 +39,6 @@ interface DeletedRecord {
   favicon?: string | null;
   coverImage?: string | null;
   excerpt?: string | null;
-  type?: string | null;
   sourceName?: string | null;
   author?: string | null;
   publishedAt?: Date | null;
@@ -59,7 +57,6 @@ interface TrashModelClient {
 interface TrashClient {
   note: TrashModelClient;
   clip: TrashModelClient;
-  feed: TrashModelClient;
   knowledgeBase: TrashModelClient;
 }
 
@@ -81,18 +78,6 @@ const clipSelect = {
   favicon: true,
   coverImage: true,
   sourceName: true,
-  createdAt: true,
-  updatedAt: true,
-  deletedAt: true,
-};
-
-const feedSelect = {
-  id: true,
-  url: true,
-  title: true,
-  description: true,
-  favicon: true,
-  type: true,
   createdAt: true,
   updatedAt: true,
   deletedAt: true,
@@ -122,7 +107,6 @@ const clipDetailSelect = {
 function detailSelectFor(kind: TrashKind) {
   if (kind === "note") return noteDetailSelect;
   if (kind === "clip") return clipDetailSelect;
-  if (kind === "feed") return feedSelect;
   return knowledgeBaseSelect;
 }
 
@@ -137,7 +121,6 @@ function expiresAt(deletedAt: Date) {
 function delegateFor(db: Partial<TrashClient>, kind: TrashKind) {
   if (kind === "note") return db.note;
   if (kind === "clip") return db.clip;
-  if (kind === "feed") return db.feed;
   return db.knowledgeBase;
 }
 
@@ -161,7 +144,6 @@ function toTrashItem(kind: TrashKind, record: DeletedRecord): TrashItem | null {
     expiresAt: expiresAt(record.deletedAt),
     ...(record.url !== undefined ? { url: record.url } : {}),
     ...(record.icon !== undefined ? { icon: record.icon } : {}),
-    ...(record.type !== undefined ? { feedType: record.type } : {}),
     ...(record.content !== undefined ? { content: record.content } : {}),
     ...(record.description !== undefined ? { description: record.description } : {}),
     ...(record.excerpt !== undefined ? { excerpt: record.excerpt } : {}),
@@ -187,7 +169,6 @@ export function createTrashRepository(client: unknown = getPrisma()) {
     await Promise.all([
       db.note?.deleteMany?.({ where }),
       db.clip?.deleteMany?.({ where }),
-      db.feed?.deleteMany?.({ where }),
       db.knowledgeBase?.deleteMany?.({ where }),
     ]);
   }
@@ -198,7 +179,7 @@ export function createTrashRepository(client: unknown = getPrisma()) {
     async list(userId: string, now = new Date()) {
       await cleanupExpired(userId, now);
 
-      const [notes, clips, feeds, knowledgeBases] = await Promise.all([
+      const [notes, clips, knowledgeBases] = await Promise.all([
         db.note?.findMany?.({
           where: { userId, deletedAt: { not: null } },
           orderBy: { deletedAt: "desc" },
@@ -208,11 +189,6 @@ export function createTrashRepository(client: unknown = getPrisma()) {
           where: { userId, deletedAt: { not: null } },
           orderBy: { deletedAt: "desc" },
           select: clipSelect,
-        }) ?? Promise.resolve([]),
-        db.feed?.findMany?.({
-          where: { userId, deletedAt: { not: null } },
-          orderBy: { deletedAt: "desc" },
-          select: feedSelect,
         }) ?? Promise.resolve([]),
         db.knowledgeBase?.findMany?.({
           where: { userId, deletedAt: { not: null } },
@@ -224,7 +200,6 @@ export function createTrashRepository(client: unknown = getPrisma()) {
       return [
         ...notes.map((item) => toTrashItem("note", item)),
         ...clips.map((item) => toTrashItem("clip", item)),
-        ...feeds.map((item) => toTrashItem("feed", item)),
         ...knowledgeBases.map((item) => toTrashItem("knowledge_base", item)),
       ].filter((item): item is TrashItem => Boolean(item)).sort(sortByDeletedAtDesc);
     },

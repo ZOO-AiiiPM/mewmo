@@ -85,7 +85,9 @@ export async function POST(request: Request, { params }: { params: Promise<FeedR
     }
 
     try {
-      const feed = await createFeedsRepository().create(userId, {
+      const feedsRepository = createFeedsRepository();
+      await feedsRepository.purgeDeletedDuplicate(userId, parsed.data.url, parsed.data.type);
+      const feed = await feedsRepository.create(userId, {
         url: parsed.data.url,
         type: parsed.data.type,
         title: parsed.data.title,
@@ -244,15 +246,8 @@ export async function DELETE(_request: Request, { params }: { params: Promise<Fe
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const feed = await requireFeed(session.user.id, parts[0]);
-  if (!feed) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-
-  await getPrisma().feed.update({
-    where: { id: parts[0] },
-    data: { deletedAt: new Date(), version: { increment: 1 } },
-  });
+  const deleted = await createFeedsRepository().delete(session.user.id, parts[0]);
+  if (!deleted.count) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   return NextResponse.json({ ok: true });
 }

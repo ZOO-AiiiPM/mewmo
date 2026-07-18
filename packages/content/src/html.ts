@@ -1,3 +1,5 @@
+import { decodeHTMLStrict } from "entities";
+
 const BODY_SELECTORS = [
   { kind: "id", value: "js_content" },
   { kind: "class", value: "RichText" },
@@ -37,14 +39,18 @@ export function extractArticleBodyHtml(html: string): string {
 }
 
 export function stripHtml(html: string): string {
-  return html
+  let decoded = html;
+  for (let pass = 0; pass < 3; pass += 1) {
+    const next = decodeHTMLStrict(decoded);
+    if (next === decoded) break;
+    decoded = next;
+  }
+
+  return decoded
     .replace(/<script\b[\s\S]*?<\/script>/gi, " ")
     .replace(/<style\b[\s\S]*?<\/style>/gi, " ")
     .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&amp;/gi, "&")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
+    .replace(/[\u00a0\u2007\u202f]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }

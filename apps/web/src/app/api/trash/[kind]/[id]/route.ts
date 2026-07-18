@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import { auth } from "../../../../../lib/auth";
 
-const trashKindSchema = z.enum(["note", "clip", "feed", "knowledge_base"]);
+const trashKindSchema = z.enum(["note", "clip", "knowledge_base"]);
 
 interface TrashItemRouteParams {
   kind: string;
