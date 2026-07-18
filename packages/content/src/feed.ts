@@ -1,6 +1,7 @@
 import { XMLParser } from "fast-xml-parser";
 
 import { fetchOutbound, type ResolvedAddress } from "./outbound";
+import { normalizeExternalTitle } from "./title";
 
 export interface ParsedFeedEntry {
   title: string;
@@ -119,7 +120,7 @@ export function parseFeedXml(xml: string, limit = Number.POSITIVE_INFINITY): Par
         const author = textValue(rssItem.author) || textValue(rssItem["dc:creator"]) || undefined;
         const publishedAt = dateValue(rssItem.pubDate);
         return {
-          title: textValue(rssItem.title),
+          title: normalizeExternalTitle(textValue(rssItem.title)),
           url: textValue(rssItem.link),
           content: textValue(rssItem["content:encoded"]) || textValue(rssItem.description),
           ...optionalFields({ excerpt, author, publishedAt }),
@@ -137,7 +138,7 @@ export function parseFeedXml(xml: string, limit = Number.POSITIVE_INFINITY): Par
         const author = textValue((atomEntry.author as { name?: unknown } | undefined)?.name) || undefined;
         const publishedAt = dateValue(atomEntry.published) ?? dateValue(atomEntry.updated);
         return {
-          title: textValue(atomEntry.title),
+          title: normalizeExternalTitle(textValue(atomEntry.title)),
           url: atomLinkValue(atomEntry.link),
           content: textValue(atomEntry.content) || textValue(atomEntry.summary),
           ...optionalFields({ excerpt, author, publishedAt }),

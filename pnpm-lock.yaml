@@ -222,6 +222,9 @@ importers:
 
   packages/content:
     dependencies:
+      entities:
+        specifier: 7.0.1
+        version: 7.0.1
       fast-xml-parser:
         specifier: ^5.9.3
         version: 5.9.3
