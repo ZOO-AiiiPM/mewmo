@@ -52,6 +52,24 @@ describe("parseFeedXml", () => {
     expect(entry).not.toHaveProperty("summary");
   });
 
+  it("normalizes numeric and repeatedly escaped entities in RSS and Atom titles", () => {
+    const [rssEntry] = parseFeedXml(`
+      <rss><channel><item>
+        <title>产品设计 &amp;amp;#8211; RSS &amp; Research</title>
+        <link>https://example.com/rss</link>
+      </item></channel></rss>
+    `);
+    const [atomEntry] = parseFeedXml(`
+      <feed><entry>
+        <title>产品设计 &amp;amp;#x2013; Atom &amp; Research</title>
+        <link href="https://example.com/atom" />
+      </entry></feed>
+    `);
+
+    expect(rssEntry?.title).toBe("产品设计 – RSS & Research");
+    expect(atomEntry?.title).toBe("产品设计 – Atom & Research");
+  });
+
   it("decodes escaped HTML attributes inside RSS content", () => {
     const [entry] = parseFeedXml(`
       <rss><channel><item>

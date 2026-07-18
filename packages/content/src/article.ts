@@ -1,5 +1,6 @@
 import { extractArticleBodyHtml, stripHtml } from "./html";
 import { fetchOutbound, type ResolvedAddress } from "./outbound";
+import { normalizeExternalTitle } from "./title";
 
 export interface ExtractedArticle {
   title: string;
@@ -47,11 +48,11 @@ export async function fetchArticleFromUrl(
 
 export function extractArticleFromHtml(html: string, pageUrl: string): ExtractedArticle {
   const content = extractArticleBodyHtml(html);
-  const title =
+  const extractedTitle =
     readMeta(html, "property", "og:title") ||
     readMeta(html, "name", "twitter:title") ||
-    readTitle(html) ||
-    fallbackTitle(pageUrl);
+    readTitle(html);
+  const title = normalizeExternalTitle(extractedTitle || fallbackTitle(pageUrl)) || fallbackTitle(pageUrl);
   const rawExcerpt =
     readMeta(html, "property", "og:description") ||
     readMeta(html, "name", "description") ||

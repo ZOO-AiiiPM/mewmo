@@ -1,3 +1,4 @@
+import { normalizeExternalTitle } from "@mewmo/content";
 import { decodeHTMLStrict } from "entities";
 
 export type FeedType = "article" | "media" | "video" | "podcast";
@@ -93,7 +94,7 @@ async function discoverFromUrl(url: string, fetchFeed: typeof fetch, fallback?: 
       : undefined;
     return [
       {
-        title: readFeedTitle(text) ?? fallback?.title ?? hostname(finalUrl),
+        title: readFeedTitle(text) ?? normalizedTitle(fallback?.title) ?? hostname(finalUrl),
         url: finalUrl,
         ...(siteUrl ? { siteUrl } : {}),
         ...(description ? { description } : {}),
@@ -109,7 +110,7 @@ async function discoverFromUrl(url: string, fetchFeed: typeof fetch, fallback?: 
     const favicon = readFavicon(text, finalUrl);
     const description = readMetaDescription(text) ?? fallback?.description;
     return links.map((link) => ({
-      title: link.title ?? readHtmlTitle(text) ?? fallback?.title ?? hostname(finalUrl),
+      title: link.title ?? readHtmlTitle(text) ?? normalizedTitle(fallback?.title) ?? hostname(finalUrl),
       url: link.href,
       siteUrl: finalUrl,
       ...(description ? { description } : {}),
@@ -158,14 +159,14 @@ function readAlternateFeeds(html: string, baseUrl: string) {
     const href = absoluteUrl(readAttribute(tag, "href"), baseUrl);
     if (!href || !rel.includes("alternate")) continue;
     if (!type.includes("rss") && !type.includes("atom") && !type.includes("xml")) continue;
-    const title = cleanText(readAttribute(tag, "title"));
+    const title = normalizedTitle(readAttribute(tag, "title"));
     links.push({ href, ...(title ? { title } : {}) });
   }
   return links;
 }
 
 function readFeedTitle(xml: string) {
-  return cleanText(xml.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1]);
+  return normalizedTitle(xml.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1]);
 }
 
 function readFeedDescription(xml: string) {
@@ -180,7 +181,7 @@ function readFeedLink(xml: string) {
 }
 
 function readHtmlTitle(html: string) {
-  return cleanText(html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1]);
+  return normalizedTitle(html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1]);
 }
 
 function readMetaDescription(html: string) {
@@ -265,6 +266,12 @@ function cleanText(value: string | undefined) {
   if (!value) return undefined;
   const text = decodeEntities(value.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
   return text || undefined;
+}
+
+function normalizedTitle(value: string | undefined) {
+  if (!value) return undefined;
+  const title = normalizeExternalTitle(value);
+  return title || undefined;
 }
 
 function decodeEntities(value: string) {

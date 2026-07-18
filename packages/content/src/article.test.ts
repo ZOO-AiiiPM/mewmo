@@ -28,6 +28,16 @@ describe("extractArticleFromHtml", () => {
     expect(article).not.toHaveProperty("summary");
   });
 
+  it("normalizes repeatedly escaped article title metadata", () => {
+    const article = extractArticleFromHtml(`
+      <!doctype html><html><head>
+        <meta property="og:title" content="产品设计 &amp;amp;#8211; 网页 &amp; Research">
+      </head><body><main><p>Readable body.</p></main></body></html>
+    `, "https://example.com/article");
+
+    expect(article.title).toBe("产品设计 – 网页 & Research");
+  });
+
   it("fetches articles through the validated outbound boundary", async () => {
     const fetchArticle = vi.fn().mockResolvedValue(new Response(
       "<!doctype html><title>Article</title><article><p>Body</p></article>",
