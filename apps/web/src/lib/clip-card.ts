@@ -1,4 +1,4 @@
-import { stripHtml } from "./clip-content";
+import { normalizeListCardPreview } from "./list-card-preview";
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -12,8 +12,11 @@ export interface ClipCardSource {
 }
 
 export function clipPreviewText(clip: ClipCardSource) {
-  const source = clip.excerpt?.trim() || stripHtml(clip.content ?? "");
-  return source || clip.summary?.trim() || clip.url;
+  for (const source of [clip.excerpt, clip.content, clip.summary, clip.url]) {
+    const preview = normalizeListCardPreview(source ?? "");
+    if (preview) return preview;
+  }
+  return "";
 }
 
 export function formatClipListTime(value: string | Date, now = new Date()) {

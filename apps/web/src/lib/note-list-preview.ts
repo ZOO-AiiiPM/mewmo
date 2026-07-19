@@ -1,7 +1,10 @@
+import { normalizeListCardPreview } from "./list-card-preview";
+
 export interface NotePreviewSource {
   title: string;
   summary: string | null;
-  content?: string | null;
+  preview?: string | null | undefined;
+  content?: string | null | undefined;
 }
 
 export interface NoteMetadataSource extends NotePreviewSource {
@@ -30,21 +33,23 @@ export function contentTags(note: NotePreviewSource) {
   return tags.slice(0, 2);
 }
 
-export function notePreviewText(note: Pick<NotePreviewSource, "summary" | "content">) {
-  const source = note.summary?.trim() || note.content || "";
-  return source
-    .replace(markdownImagePattern, "")
-    .replace(htmlImagePattern, "")
-    .replace(/<br\s*\/?>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
+export function notePreviewText(note: Pick<NotePreviewSource, "summary" | "preview" | "content">) {
+  const source =
+    typeof note.content === "string"
+      ? note.content
+      : note.preview?.trim() || note.summary?.trim() || "";
+  const normalized = normalizeListCardPreview(
+    source
+      .replace(markdownImagePattern, "")
+      .replace(htmlImagePattern, ""),
+    null,
+  )
     .split("\n")
     .map(cleanPreviewLine)
     .filter(Boolean)
-    .join(" ")
-    .replace(/\s+/g, " ")
-    .replace(/\s+([，。！？；：、])/g, "$1")
-    .replace(/([，。！？；：、])\s+/g, "$1")
-    .trim();
+    .join("\n");
+
+  return normalizeListCardPreview(normalized);
 }
 
 function cleanPreviewLine(line: string) {

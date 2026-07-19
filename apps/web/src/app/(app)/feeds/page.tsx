@@ -476,39 +476,40 @@ export default function FeedsPage() {
               const entryDate = entry.publishedAt ?? entry.createdAt;
               const meta = buildFeedCardMeta(entry, effectiveFeedId);
               return (
-                <button
-                  key={entry.id}
-                  type="button"
-                  className={`mewmo-list-card mewmo-list-card--button mewmo-feed-entry-card ${selectedEntry?.id === entry.id ? "mewmo-list-card--selected" : ""}`}
-                  onClick={() => selectEntry(entry)}
-                >
-                  <div className="mewmo-list-card__title">
-                    {!entry.readAt && <i className="mewmo-unread-dot" />}
-                    <span>{entry.title}</span>
-                  </div>
-                  <p>{clipPreviewText(entry) || "这个订阅条目暂时没有摘要。"}</p>
-                  {entry.coverImage && (
-                    <div className="mewmo-list-card__cover" aria-hidden="true">
-                      <img src={proxiedImageUrl(entry.coverImage)} alt="" />
+                <article key={entry.id} className="mewmo-list-card-wrap">
+                  <button
+                    type="button"
+                    className={`mewmo-list-card mewmo-list-card--button mewmo-feed-entry-card ${selectedEntry?.id === entry.id ? "mewmo-list-card--selected" : ""}`}
+                    onClick={() => selectEntry(entry)}
+                  >
+                    <div className="mewmo-list-card__title">
+                      {!entry.readAt && <i className="mewmo-unread-dot" />}
+                      <span>{entry.title}</span>
                     </div>
-                  )}
-                  <div className="mewmo-list-card__source mewmo-list-card__source--clip">
-                    {meta.map((item) =>
-                      item === entryDate ? (
-                        <time key={item} dateTime={item}>
-                          {formatClipListTime(item)}
-                        </time>
-                      ) : (
-                        <span key={item}>{item}</span>
-                      ),
+                    <p>{clipPreviewText(entry) || "这个订阅条目暂时没有摘要。"}</p>
+                    {entry.coverImage && (
+                      <div className="mewmo-list-card__cover" aria-hidden="true">
+                        <img src={proxiedImageUrl(entry.coverImage)} alt="" />
+                      </div>
                     )}
-                  </div>
-                  {entry.isFavorited && (
-                    <span className="mewmo-feed-entry-card__favorite" aria-label="已保存到剪藏">
-                      <PrototypeIcon name="bookmark" size={14} dual />
-                    </span>
-                  )}
-                </button>
+                    <div className="mewmo-list-card__source mewmo-list-card__source--clip">
+                      {meta.map((item) =>
+                        item === entryDate ? (
+                          <time key={item} dateTime={item}>
+                            {formatClipListTime(item)}
+                          </time>
+                        ) : (
+                          <span key={item}>{item}</span>
+                        ),
+                      )}
+                    </div>
+                    {entry.isFavorited && (
+                      <span className="mewmo-feed-entry-card__favorite" aria-label="已保存到剪藏">
+                        <PrototypeIcon name="bookmark" size={14} dual />
+                      </span>
+                    )}
+                  </button>
+                </article>
               );
             })
           )}

@@ -1,6 +1,7 @@
 import type { PrototypeIconName } from "../components/shell/PrototypeIcon";
 import { clipPreviewText } from "./clip-card";
 import { preferredFeedCardSource, preferredFeedReaderSource } from "./feed-display";
+import { normalizeListCardPreview } from "./list-card-preview";
 import { notePreviewText } from "./note-list-preview";
 
 type KnowledgeItemKind = "note" | "clip" | "feed_entry" | "asset";
@@ -205,9 +206,11 @@ export function buildKnowledgeCardView(item: KnowledgeItemLike): KnowledgeCardVi
 }
 
 function previewText(...values: Array<string | null | undefined>) {
-  const value = values.find((item) => item?.trim());
-  if (!value) return "";
-  return value.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  for (const value of values) {
+    const preview = normalizeListCardPreview(value ?? "");
+    if (preview) return preview;
+  }
+  return "";
 }
 
 function domainFromUrl(url: string) {

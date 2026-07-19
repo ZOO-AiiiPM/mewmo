@@ -1,17 +1,8 @@
 import { NextResponse } from "next/server";
-import { getPrisma, Prisma } from "@mewmo/db";
+import { getPrisma } from "@mewmo/db";
 import { auth } from "../../../lib/auth";
+import { listNotesWithPreviews } from "../../../lib/note-list-data";
 import { createNoteSlug } from "../../../lib/note-slug";
-
-const noteListSelect = {
-  id: true,
-  slug: true,
-  title: true,
-  summary: true,
-  pinned: true,
-  createdAt: true,
-  updatedAt: true,
-} satisfies Prisma.NoteSelect;
 
 export async function GET() {
   const session = await auth();
@@ -19,12 +10,7 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const prisma = getPrisma();
-  const notes = await prisma.note.findMany({
-    where: { userId: session.user.id, deletedAt: null },
-    orderBy: [{ pinned: "desc" }, { updatedAt: "desc" }],
-    select: noteListSelect,
-  });
+  const notes = await listNotesWithPreviews(session.user.id);
 
   return NextResponse.json(notes);
 }

@@ -125,6 +125,16 @@ test("feed card metadata uses clip-style fixed time and ellipsized text", () => 
   );
 });
 
+test("feed cards use the shared wrapper so hover and selected separators disappear", () => {
+  const feedsPage = read("apps/web/src/app/(app)/feeds/page.tsx");
+
+  assert.match(
+    feedsPage,
+    /<article key=\{entry\.id\} className="mewmo-list-card-wrap">[\s\S]*?mewmo-feed-entry-card/,
+    "feed cards should participate in the shared adjacent-card separator rules",
+  );
+});
+
 test("feed reader metadata uses clip-style dot separators", () => {
   const feedsPage = read("apps/web/src/app/(app)/feeds/page.tsx");
 

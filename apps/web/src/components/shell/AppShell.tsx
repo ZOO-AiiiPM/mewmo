@@ -152,12 +152,12 @@ export function AppShell({ children, user }: AppShellProps) {
     }
   };
 
-  const toggleAiOpen = () => {
+  const openAi = () => {
     if (suppressAiFabClickRef.current) {
       suppressAiFabClickRef.current = false;
       return;
     }
-    setAiOpen((value) => !value);
+    setAiOpen(true);
   };
 
   return (
@@ -198,19 +198,21 @@ export function AppShell({ children, user }: AppShellProps) {
         onPointerDown={startAiResize}
         onDoubleClick={() => setAiWidth(AI_W_DEFAULT)}
       />
-      <button
-        type="button"
-        className={`mewmo-ai-fab ${aiOpen ? "mewmo-ai-fab--open" : ""} ${aiFabDragging ? "mewmo-ai-fab--dragging" : ""}`}
-        onPointerDown={startAiFabDrag}
-        onPointerMove={moveAiFab}
-        onPointerUp={endAiFabDrag}
-        onPointerCancel={endAiFabDrag}
-        onClick={toggleAiOpen}
-        aria-label={aiOpen ? "收起 mewmo" : "打开 mewmo"}
-        title={aiOpen ? "收起 mewmo" : "打开 mewmo"}
-      >
-        <PrototypeIcon name="mewmo-logo" size={22} />
-      </button>
+      {!aiOpen && (
+        <button
+          type="button"
+          className={`mewmo-ai-fab ${aiFabDragging ? "mewmo-ai-fab--dragging" : ""}`}
+          onPointerDown={startAiFabDrag}
+          onPointerMove={moveAiFab}
+          onPointerUp={endAiFabDrag}
+          onPointerCancel={endAiFabDrag}
+          onClick={openAi}
+          aria-label="打开 mewmo"
+          title="打开 mewmo"
+        >
+          <PrototypeIcon name="mewmo-logo" size={22} />
+        </button>
+      )}
     </div>
   );
 }
