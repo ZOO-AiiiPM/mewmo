@@ -744,12 +744,11 @@ function AddFeedModal({
       showToast(toast.text, toast.type);
     } else {
       const initialFailures = savedFeeds.filter((feed) => feed.initialFetch?.status === "error").length;
-      showToast(
-        initialFailures > 0
-          ? `已保存 ${savedFeeds.length} 个订阅，${initialFailures} 个会在后台自动重试`
-          : `已处理 ${savedFeeds.length} 个订阅，后台会继续补全`,
-        initialFailures > 0 ? "error" : "success",
-      );
+      if (initialFailures > 0) {
+        showToast(`已保存 ${savedFeeds.length} 个订阅，${initialFailures} 个首次读取失败，可重试`, "error");
+      } else {
+        showToast(`已处理 ${savedFeeds.length} 个订阅，定时更新会继续补全`, "success");
+      }
     }
   };
 

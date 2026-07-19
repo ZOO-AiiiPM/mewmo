@@ -94,6 +94,11 @@ function startFixtureServer() {
         return;
       }
       if (url.searchParams.has("rss")) {
+        if (url.searchParams.get("fail") === "1") {
+          response.writeHead(503, { "content-type": "text/plain; charset=utf-8" });
+          response.end("fixture feed unavailable");
+          return;
+        }
         const itemCount = Math.min(Math.max(Number.parseInt(url.searchParams.get("items") ?? "1", 10) || 1, 1), 60);
         const start = Math.max(Number.parseInt(url.searchParams.get("start") ?? "1", 10) || 1, 1);
         const items = Array.from({ length: itemCount }, (_, index) => {

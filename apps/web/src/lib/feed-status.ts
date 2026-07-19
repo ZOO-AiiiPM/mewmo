@@ -44,7 +44,7 @@ export function getFeedAddToast(feed: FeedCreationStatus): {
     return { text: "该订阅已经添加过", type: "success" };
   }
   if (feed.initialFetch?.status === "error") {
-    return { text: "订阅已保存，后台会自动重试", type: "error" };
+    return { text: "首次读取失败，请稍后重试", type: "error" };
   }
   const fetched = feed.initialFetch?.fetched;
   const requested = feed.initialFetch?.requested;

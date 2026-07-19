@@ -1,5 +1,5 @@
 import { fetchFeedDocument, type ParsedFeedEntry } from "@mewmo/content";
-import { createBackgroundJobsRepository, createFeedEntriesRepository, getPrisma } from "@mewmo/db";
+import { createFeedEntriesRepository, getPrisma } from "@mewmo/db";
 
 import { normalizeFeedEntryContent } from "./feed-content";
 import { integrationFixtureOrigins } from "./content-fetch-runtime";
@@ -42,17 +42,6 @@ interface InitialFeedEntryRepository {
 interface FetchInitialFeedDependencies {
   prisma?: InitialFeedPrisma;
   entryRepository?: InitialFeedEntryRepository;
-  jobsRepository?: {
-    enqueueInitialFeedImport(userId: string, feedId: string, limit: 5 | 10 | 20 | 50): Promise<unknown>;
-    enqueueFeedEntryProcess(userId: string, entryId: string, rss?: {
-      title: string;
-      url: string;
-      content: string;
-      excerpt?: string;
-      author?: string;
-      publishedAt?: string;
-    }): Promise<unknown>;
-  };
   fetchFeed?: (url: string) => Promise<ParsedFeedEntry[]>;
   now?: () => Date;
   limit?: number;
@@ -75,7 +64,6 @@ export async function fetchInitialFeed(
 ): Promise<InitialFeedFetchResult> {
   const prisma = dependencies.prisma ?? (getPrisma() as unknown as InitialFeedPrisma);
   const entryRepository = dependencies.entryRepository ?? createFeedEntriesRepository();
-  const jobsRepository = dependencies.jobsRepository ?? createBackgroundJobsRepository();
   const allowedPrivateOrigins = integrationFixtureOrigins();
   const fetchFeed = dependencies.fetchFeed ?? ((url: string) => fetchFeedDocument(url, {
     ...(allowedPrivateOrigins ? { allowedPrivateOrigins } : {}),
@@ -127,17 +115,6 @@ export async function fetchInitialFeed(
         ...(entry.publishedAt ? { publishedAt: entry.publishedAt } : {}),
       });
       if (result.created) created += 1;
-      const savedEntry = result.entry as { id?: string };
-      if (savedEntry.id) {
-        await jobsRepository.enqueueFeedEntryProcess(userId, savedEntry.id, {
-          title: entry.title,
-          url: entry.url,
-          content: entry.content,
-          ...(entry.excerpt ? { excerpt: entry.excerpt } : {}),
-          ...(entry.author ? { author: entry.author } : {}),
-          ...(entry.publishedAt ? { publishedAt: entry.publishedAt.toISOString() } : {}),
-        });
-      }
     }
 
     const completedAt = now();
@@ -186,9 +163,7 @@ export async function fetchInitialFeed(
     if (failure.count === 0) {
       return { status: "error", fetched: 0, created: 0, requested: dependencies.limit ?? DEFAULT_INITIAL_FEED_LIMIT, reason: "lease_lost" };
     }
-    const requested = (dependencies.limit ?? DEFAULT_INITIAL_FEED_LIMIT) as 5 | 10 | 20 | 50;
-    await jobsRepository.enqueueInitialFeedImport(userId, feed.id, requested);
-    return { status: "error", fetched: 0, created: 0, requested, error: message };
+    return { status: "error", fetched: 0, created: 0, requested: dependencies.limit ?? DEFAULT_INITIAL_FEED_LIMIT, error: message };
   }
 }
 

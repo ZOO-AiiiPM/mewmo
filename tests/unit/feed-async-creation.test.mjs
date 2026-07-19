@@ -49,6 +49,6 @@ test("single-source add trusts the synchronous API result and closes without pol
 
   assert.doesNotMatch(page, /waitForFirstFeedEntry|FEED_ENTRY_REQUEST_TIMEOUT_MS/);
   assert.match(page, /initialFetch/);
-  assert.match(status, /订阅已保存[\s\S]*自动重试/);
+  assert.match(status, /首次读取失败[\s\S]*稍后重试/);
   assert.match(page, /onAdded\(\[feed\],\s*true\)/);
 });

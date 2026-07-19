@@ -109,7 +109,9 @@ test("Feeds API", async (t) => {
     });
     assert.equal(cronResult.upserted, 0, "Cron must stop at the initial cursor instead of importing the other seven old entries");
     const afterCron = await authedFetch(`/api/feeds/${feed.id}/entries`);
-    assert.equal((await afterCron.json()).length, 5);
+    const entriesAfterCron = await afterCron.json();
+    assert.equal(entriesAfterCron.length, 5);
+    assert.ok(entriesAfterCron.every((entry) => entry.summary === "Integration Mewmo AI summary"));
     assert.equal((await authedFetch(`/api/feeds/${feed.id}`, { method: "DELETE" })).status, 200);
   });
 
@@ -153,7 +155,25 @@ test("Feeds API", async (t) => {
     assert.equal(result.upserted, 12);
     assert.equal(result.created, 12);
     assert.equal(await getPrisma().feedEntry.count({ where: { feedId: feed.id } }), 13);
+    assert.equal(await getPrisma().feedEntry.count({
+      where: { feedId: feed.id, summary: "Integration Mewmo AI summary" },
+    }), 13);
     assert.equal((await authedFetch(`/api/feeds/${feed.id}`, { method: "DELETE" })).status, 200);
+  });
+
+  await t.test("a failed initial RSS read leaves no half-created subscription", async () => {
+    const failedUrl = `${API_TEST_ARTICLE_URL}?rss=${Date.now()}&fail=1`;
+    const res = await authedFetch("/api/feeds", {
+      method: "POST",
+      body: JSON.stringify({
+        url: failedUrl,
+        title: "Unavailable feed",
+        initialEntryLimit: 5,
+      }),
+    });
+
+    assert.equal(res.status, 502);
+    assert.equal(await getPrisma().feed.count({ where: { url: failedUrl } }), 0);
   });
 
   await t.test("unsupported initialEntryLimit values are rejected", async () => {

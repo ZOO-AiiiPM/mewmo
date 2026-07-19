@@ -21,7 +21,8 @@ const feed: FeedCronRecord = {
 describe("processFeed", () => {
   const updateMany = vi.fn();
   const upsertSourceByFeedUrl = vi.fn();
-  const enqueueFeedEntryProcess = vi.fn();
+  const findPendingEntries = vi.fn();
+  const processEntry = vi.fn();
   const fetchFeed = vi.fn();
 
   beforeEach(() => {
@@ -46,20 +47,22 @@ describe("processFeed", () => {
       created: true,
       entry: { id: "entry-1" },
     });
-    enqueueFeedEntryProcess.mockResolvedValue({ id: "job-1" });
+    findPendingEntries.mockResolvedValue([{ id: "entry-1", url: "https://example.com/new" }]);
+    processEntry.mockResolvedValue({ status: "ok" });
   });
 
   function dependencies() {
     return {
       prisma: { feed: { updateMany } },
       entryRepository: { upsertSourceByFeedUrl },
-      jobsRepository: { enqueueFeedEntryProcess },
       fetchFeed,
+      findPendingEntries,
+      processEntry,
       now: () => startedAt,
     };
   }
 
-  it("imports only entries before the saved cursor and creates PostgreSQL jobs", async () => {
+  it("imports only entries before the saved cursor and summarizes them in the same Cron run", async () => {
     const result = await processFeed(feed, dependencies());
 
     expect(result).toEqual({
@@ -77,12 +80,11 @@ describe("processFeed", () => {
         content: "New RSS body",
       }),
     );
-    expect(enqueueFeedEntryProcess).toHaveBeenCalledWith(
-      "user-1",
-      "entry-1",
+    expect(processEntry).toHaveBeenCalledWith(
       expect.objectContaining({
-        title: "New RSS title",
-        content: "New RSS body",
+        userId: "user-1",
+        entryId: "entry-1",
+        rss: expect.objectContaining({ title: "New RSS title", content: "New RSS body" }),
       }),
     );
   });
@@ -111,6 +113,9 @@ describe("processFeed", () => {
         entry: { id: input.url },
       }),
     );
+    findPendingEntries.mockResolvedValue(
+      newEntries.map((entry) => ({ id: entry.url, url: entry.url })),
+    );
 
     const result = await processFeed(feed, dependencies());
 
@@ -121,7 +126,40 @@ describe("processFeed", () => {
       failed: 0,
     });
     expect(upsertSourceByFeedUrl).toHaveBeenCalledTimes(12);
-    expect(enqueueFeedEntryProcess).toHaveBeenCalledTimes(12);
+    expect(processEntry).toHaveBeenCalledTimes(12);
+  });
+
+  it("summarizes initial-import entries on the next Cron without importing older history", async () => {
+    fetchFeed.mockResolvedValue([
+      { title: "Cursor", url: feed.lastSeenEntryUrl, content: "Cursor body" },
+      { title: "Excluded old", url: "https://example.com/excluded", content: "Old body" },
+    ]);
+    findPendingEntries.mockResolvedValue([
+      { id: "initial-entry", url: feed.lastSeenEntryUrl },
+    ]);
+
+    const result = await processFeed(feed, dependencies());
+
+    expect(result.upserted).toBe(0);
+    expect(upsertSourceByFeedUrl).not.toHaveBeenCalled();
+    expect(processEntry).toHaveBeenCalledWith(expect.objectContaining({
+      entryId: "initial-entry",
+      rss: expect.objectContaining({ title: "Cursor" }),
+    }));
+  });
+
+  it("marks the feed partial when AI fails and leaves it for the next Cron retry", async () => {
+    processEntry.mockRejectedValue(new Error("AI unavailable"));
+
+    const result = await processFeed(feed, dependencies());
+
+    expect(result).toEqual({ status: "partial", upserted: 1, created: 1, failed: 1 });
+    expect(updateMany).toHaveBeenLastCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        lastFetchStatus: "partial",
+        lastFetchError: "AI unavailable",
+      }),
+    }));
   });
 
   it("does not backfill old history when the cursor disappeared from the feed", () => {

@@ -1,5 +1,8 @@
 import { fetchFeedDocument, type ParsedFeedEntry } from "@mewmo/content";
-import { createBackgroundJobsRepository, createFeedEntriesRepository, getPrisma } from "@mewmo/db";
+import { createFeedEntriesRepository, getPrisma } from "@mewmo/db";
+
+import { findRssEntryByUrl } from "./feed-entry-content";
+import { processFeedEntry, type ProcessFeedEntryInput } from "./process-feed-entry";
 
 export interface FeedCronRecord {
   id: string;
@@ -34,22 +37,12 @@ interface FeedEntryRepository {
   ): Promise<{ created: boolean; entry: unknown }>;
 }
 
-interface BackgroundJobsRepository {
-  enqueueFeedEntryProcess(userId: string, entryId: string, rss?: {
-    title: string;
-    url: string;
-    content: string;
-    excerpt?: string;
-    author?: string;
-    publishedAt?: string;
-  }): Promise<unknown>;
-}
-
 interface ProcessFeedDependencies {
   prisma?: FeedCronPrisma;
   entryRepository?: FeedEntryRepository;
-  jobsRepository?: BackgroundJobsRepository;
   fetchFeed?: (url: string) => Promise<ParsedFeedEntry[]>;
+  findPendingEntries?: (userId: string, feedId: string) => Promise<Array<{ id: string; url: string }>>;
+  processEntry?: (input: ProcessFeedEntryInput) => Promise<unknown>;
   now?: () => Date;
 }
 
@@ -64,8 +57,14 @@ export async function processFeed(
 ): Promise<ProcessFeedResult> {
   const prisma = dependencies.prisma ?? (getPrisma() as unknown as FeedCronPrisma);
   const entryRepository = dependencies.entryRepository ?? createFeedEntriesRepository();
-  const jobsRepository = dependencies.jobsRepository ?? createBackgroundJobsRepository();
   const fetchFeed = dependencies.fetchFeed ?? fetchFeedDocument;
+  const findPendingEntries = dependencies.findPendingEntries ?? (async (userId, feedId) =>
+    getPrisma().feedEntry.findMany({
+      where: { userId, feedId, deletedAt: null, summary: null },
+      select: { id: true, url: true },
+      orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+    }));
+  const processEntry = dependencies.processEntry ?? processFeedEntry;
   const now = dependencies.now ?? (() => new Date());
   const startedAt = now();
 
@@ -108,19 +107,22 @@ export async function processFeed(
         });
         if (result.created) created += 1;
 
-        const entry = result.entry as { id?: string };
-        if (entry.id) {
-          await jobsRepository.enqueueFeedEntryProcess(feed.userId, entry.id, {
-            title: sourceEntry.title,
-            url: sourceEntry.url,
-            content: sourceEntry.content,
-            ...(sourceEntry.excerpt ? { excerpt: sourceEntry.excerpt } : {}),
-            ...(sourceEntry.author ? { author: sourceEntry.author } : {}),
-            ...(sourceEntry.publishedAt ? { publishedAt: sourceEntry.publishedAt.toISOString() } : {}),
-          });
-        }
       } catch (error) {
         failures.push(error instanceof Error ? error.message : "Feed entry processing failed");
+      }
+    }
+
+    const pendingEntries = await findPendingEntries(feed.userId, feed.id);
+    for (const pendingEntry of pendingEntries) {
+      try {
+        const rss = findRssEntryByUrl(entries, pendingEntry.url);
+        await processEntry({
+          userId: feed.userId,
+          entryId: pendingEntry.id,
+          ...(rss ? { rss } : {}),
+        });
+      } catch (error) {
+        failures.push(error instanceof Error ? error.message : "Feed AI summary failed");
       }
     }
 

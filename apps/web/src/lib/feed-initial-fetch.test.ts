@@ -19,12 +19,10 @@ describe("fetchInitialFeed", () => {
     const upsertSourceByFeedUrl = vi
       .fn()
       .mockResolvedValue({ created: true, entry: { id: "entry-1" } });
-    const enqueueFeedEntryProcess = vi.fn().mockResolvedValue({ id: "job-1" });
 
     const result = await fetchInitialFeed("user-1", feed, {
       prisma: { feed: { updateMany } },
       entryRepository: { upsertSourceByFeedUrl },
-      jobsRepository: { enqueueFeedEntryProcess, enqueueInitialFeedImport: vi.fn() },
       fetchFeed: vi.fn().mockResolvedValue([
         {
           title: "Newest",
@@ -52,14 +50,6 @@ describe("fetchInitialFeed", () => {
       completedAt,
     });
     expect(upsertSourceByFeedUrl).toHaveBeenCalledTimes(1);
-    expect(enqueueFeedEntryProcess).toHaveBeenCalledWith(
-      "user-1",
-      "entry-1",
-      expect.objectContaining({
-        title: "Newest",
-        content: "<p>Newest body</p>",
-      }),
-    );
     expect(updateMany).toHaveBeenLastCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -77,7 +67,6 @@ describe("fetchInitialFeed", () => {
     const result = await fetchInitialFeed("user-1", feed, {
       prisma: { feed: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) } },
       entryRepository: { upsertSourceByFeedUrl: vi.fn() },
-      jobsRepository: { enqueueFeedEntryProcess: vi.fn(), enqueueInitialFeedImport: vi.fn() },
       fetchFeed,
       limit: 5,
     });
@@ -104,10 +93,6 @@ describe("fetchInitialFeed", () => {
           .fn()
           .mockResolvedValue({ created: true, entry: { id: "entry-1" } }),
       },
-      jobsRepository: {
-        enqueueFeedEntryProcess: vi.fn().mockResolvedValue({ id: "job-1" }),
-        enqueueInitialFeedImport: vi.fn(),
-      },
       fetchFeed: vi
         .fn()
         .mockResolvedValue([
@@ -127,11 +112,9 @@ describe("fetchInitialFeed", () => {
   it("records an initial RSS error without deleting the feed", async () => {
     const completedAt = new Date("2026-07-16T00:00:00.000Z");
     const updateMany = vi.fn().mockResolvedValue({ count: 1 });
-    const enqueueInitialFeedImport = vi.fn().mockResolvedValue({ id: "initial-job" });
     const result = await fetchInitialFeed("user-1", feed, {
       prisma: { feed: { updateMany } },
       entryRepository: { upsertSourceByFeedUrl: vi.fn() },
-      jobsRepository: { enqueueFeedEntryProcess: vi.fn(), enqueueInitialFeedImport },
       fetchFeed: vi.fn().mockRejectedValue(new Error("Feed fetch timed out")),
       now: () => completedAt,
     });
@@ -143,7 +126,6 @@ describe("fetchInitialFeed", () => {
       requested: 10,
       error: "Feed fetch timed out",
     });
-    expect(enqueueInitialFeedImport).toHaveBeenCalledWith("user-1", "feed-1", 10);
     expect(updateMany).toHaveBeenLastCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({

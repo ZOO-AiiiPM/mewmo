@@ -13,7 +13,7 @@ describe("feed status copy", () => {
       type: "success",
     });
     expect(getFeedAddToast({ existing: false, initialFetch: { status: "error" } })).toEqual({
-      text: "订阅已保存，后台会自动重试",
+      text: "首次读取失败，请稍后重试",
       type: "error",
     });
     expect(getFeedAddToast({ existing: true })).toEqual({

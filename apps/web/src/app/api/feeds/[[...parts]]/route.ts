@@ -103,6 +103,13 @@ export async function POST(request: Request, { params }: { params: Promise<FeedR
       const initialFetch = await fetchInitialFeed(userId, feedRecord, {
         limit: parsed.data.initialEntryLimit,
       });
+      if (initialFetch.status === "error") {
+        await feedsRepository.delete(userId, feedRecord.id);
+        return NextResponse.json(
+          { error: initialFetch.error ?? "Initial feed import failed", initialFetch },
+          { status: 502 },
+        );
+      }
       return NextResponse.json(
         {
           ...feedRecord,
