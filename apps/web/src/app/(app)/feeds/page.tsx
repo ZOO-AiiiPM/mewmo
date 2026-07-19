@@ -66,9 +66,10 @@ interface FeedSource {
   lastFetchStartedAt?: string | null;
   existing?: boolean;
   initialFetch?: {
-    status: "queued" | "error";
+    status: "success" | "error";
     fetched: number;
     created: number;
+    requested: number;
     error?: string;
   };
 }

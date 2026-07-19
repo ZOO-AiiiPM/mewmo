@@ -4,8 +4,12 @@ import { getFeedAddToast, getFeedEmptyState, isFeedSyncActive } from "./feed-sta
 
 describe("feed status copy", () => {
   it("explains immediate initial fetch results without exposing queue details", () => {
-    expect(getFeedAddToast({ existing: false, initialFetch: { status: "queued" } })).toEqual({
-      text: "已添加订阅，后台会继续补全",
+    expect(getFeedAddToast({ existing: false, initialFetch: { status: "success", fetched: 5, requested: 5 } })).toEqual({
+      text: "已导入 5 篇，后台正在补全正文与 AI 总结",
+      type: "success",
+    });
+    expect(getFeedAddToast({ existing: false, initialFetch: { status: "success", fetched: 3, requested: 5 } })).toEqual({
+      text: "已导入 3 篇（源当前仅提供 3 篇），后台正在补全正文与 AI 总结",
       type: "success",
     });
     expect(getFeedAddToast({ existing: false, initialFetch: { status: "error" } })).toEqual({

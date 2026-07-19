@@ -22,6 +22,7 @@ export interface UpdateFeedInput {
   lastFetchStatus?: string;
   lastFetchError?: string | null;
   lastFetchCount?: number;
+  lastSeenEntryUrl?: string | null;
 }
 
 export interface DueFeedForRefresh {
@@ -29,8 +30,10 @@ export interface DueFeedForRefresh {
   userId: string;
   url: string;
   title: string;
+  lastFetchedAt: Date | null;
   lastFetchStatus: string;
   lastFetchStartedAt: Date | null;
+  lastSeenEntryUrl: string | null;
 }
 
 interface FeedsClient {
@@ -87,8 +90,10 @@ export function createFeedsRepository(client: unknown = getPrisma()) {
           user_id AS "userId",
           url,
           title,
+          last_fetched_at AS "lastFetchedAt",
           last_fetch_status AS "lastFetchStatus",
-          last_fetch_started_at AS "lastFetchStartedAt"
+          last_fetch_started_at AS "lastFetchStartedAt",
+          last_seen_entry_url AS "lastSeenEntryUrl"
         FROM feeds
         WHERE deleted_at IS NULL
           AND (

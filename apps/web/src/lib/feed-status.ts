@@ -3,7 +3,9 @@ type ToastType = "success" | "loading" | "error";
 interface FeedCreationStatus {
   existing?: boolean;
   initialFetch?: {
-    status: "queued" | "error";
+    status: "success" | "error";
+    fetched?: number;
+    requested?: number;
   };
 }
 
@@ -44,7 +46,17 @@ export function getFeedAddToast(feed: FeedCreationStatus): {
   if (feed.initialFetch?.status === "error") {
     return { text: "订阅已保存，后台会自动重试", type: "error" };
   }
-  return { text: "已添加订阅，后台会继续补全", type: "success" };
+  const fetched = feed.initialFetch?.fetched;
+  const requested = feed.initialFetch?.requested;
+  if (typeof fetched === "number" && typeof requested === "number") {
+    return {
+      text: fetched < requested
+        ? `已导入 ${fetched} 篇（源当前仅提供 ${fetched} 篇），后台正在补全正文与 AI 总结`
+        : `已导入 ${fetched} 篇，后台正在补全正文与 AI 总结`,
+      type: "success",
+    };
+  }
+  return { text: "已添加订阅，后台正在补全正文与 AI 总结", type: "success" };
 }
 
 export function getFeedEmptyState({ feedId, selectedFeed, feedsLoaded = true, now = new Date() }: FeedEmptyStateInput): FeedEmptyState {

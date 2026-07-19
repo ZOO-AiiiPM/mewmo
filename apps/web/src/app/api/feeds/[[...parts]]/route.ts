@@ -106,8 +106,8 @@ export async function POST(request: Request, { params }: { params: Promise<FeedR
       return NextResponse.json(
         {
           ...feedRecord,
-          lastFetchedAt: null,
-          lastFetchStartedAt: initialFetch.status === "queued" ? null : feedRecord.lastFetchStartedAt,
+          lastFetchedAt: initialFetch.completedAt ?? null,
+          lastFetchStartedAt: null,
           lastFetchStatus: initialFetch.status,
           lastFetchError: initialFetch.error ?? null,
           lastFetchCount: initialFetch.created,

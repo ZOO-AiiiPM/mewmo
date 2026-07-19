@@ -1,17 +1,15 @@
-import { fetchArticleFromUrl, fetchFeedDocument, type ExtractedArticle, type ParsedFeedEntry } from "@mewmo/content";
-import { createFeedEntriesRepository, getPrisma } from "@mewmo/db";
-import { createQueueHelpers, withTimeout } from "@mewmo/queue";
-
-const FEED_ENTRY_LIMIT = 10;
-const POST_PROCESS_TIMEOUT_MS = 3_000;
+import { fetchFeedDocument, type ParsedFeedEntry } from "@mewmo/content";
+import { createBackgroundJobsRepository, createFeedEntriesRepository, getPrisma } from "@mewmo/db";
 
 export interface FeedCronRecord {
   id: string;
   userId: string;
   url: string;
   title: string;
+  lastFetchedAt: Date | null;
   lastFetchStatus: string;
   lastFetchStartedAt: Date | null;
+  lastSeenEntryUrl: string | null;
 }
 
 interface FeedCronPrisma {
@@ -28,7 +26,6 @@ interface FeedEntryRepository {
       title: string;
       url: string;
       content: string;
-      coverImage?: string;
       excerpt?: string;
       sourceName?: string;
       author?: string;
@@ -37,17 +34,22 @@ interface FeedEntryRepository {
   ): Promise<{ created: boolean; entry: unknown }>;
 }
 
-export interface ProcessFeedQueueHelpers {
-  addSummaryJob: ReturnType<typeof createQueueHelpers>["addSummaryJob"];
-  addTagJob: ReturnType<typeof createQueueHelpers>["addTagJob"];
+interface BackgroundJobsRepository {
+  enqueueFeedEntryProcess(userId: string, entryId: string, rss?: {
+    title: string;
+    url: string;
+    content: string;
+    excerpt?: string;
+    author?: string;
+    publishedAt?: string;
+  }): Promise<unknown>;
 }
 
 interface ProcessFeedDependencies {
   prisma?: FeedCronPrisma;
   entryRepository?: FeedEntryRepository;
-  queueHelpers?: ProcessFeedQueueHelpers;
+  jobsRepository?: BackgroundJobsRepository;
   fetchFeed?: (url: string) => Promise<ParsedFeedEntry[]>;
-  fetchArticle?: (url: string) => Promise<ExtractedArticle>;
   now?: () => Date;
 }
 
@@ -62,9 +64,8 @@ export async function processFeed(
 ): Promise<ProcessFeedResult> {
   const prisma = dependencies.prisma ?? (getPrisma() as unknown as FeedCronPrisma);
   const entryRepository = dependencies.entryRepository ?? createFeedEntriesRepository();
-  const queueHelpers = dependencies.queueHelpers ?? createQueueHelpers();
+  const jobsRepository = dependencies.jobsRepository ?? createBackgroundJobsRepository();
   const fetchFeed = dependencies.fetchFeed ?? fetchFeedDocument;
-  const fetchArticle = dependencies.fetchArticle ?? fetchArticleFromUrl;
   const now = dependencies.now ?? (() => new Date());
   const startedAt = now();
 
@@ -88,57 +89,35 @@ export async function processFeed(
   }
 
   try {
-    const entries = (await fetchFeed(feed.url)).sort(comparePublishedAt).slice(0, FEED_ENTRY_LIMIT);
+    const entries = (await fetchFeed(feed.url)).sort(comparePublishedAt);
+    const unseenEntries = selectUnseenFeedEntries(entries, feed);
     let created = 0;
     const failures: string[] = [];
 
-    for (const sourceEntry of entries) {
+    for (const sourceEntry of unseenEntries) {
       try {
-        const article = await fetchArticle(sourceEntry.url).catch(() => null);
         const result = await entryRepository.upsertSourceByFeedUrl(feed.userId, {
           feedId: feed.id,
-          title: article?.title ?? sourceEntry.title,
+          title: sourceEntry.title,
           url: sourceEntry.url,
-          content: article?.content || sourceEntry.content,
-          ...((article?.coverImage) ? { coverImage: article.coverImage } : {}),
-          ...((article?.excerpt ?? sourceEntry.excerpt) ? { excerpt: article?.excerpt ?? sourceEntry.excerpt } : {}),
-          sourceName: article?.sourceName ?? feed.title,
-          ...((article?.author ?? sourceEntry.author) ? { author: article?.author ?? sourceEntry.author } : {}),
-          ...((article?.publishedAt ?? sourceEntry.publishedAt) ? { publishedAt: article?.publishedAt ?? sourceEntry.publishedAt } : {}),
+          content: sourceEntry.content,
+          ...(sourceEntry.excerpt ? { excerpt: sourceEntry.excerpt } : {}),
+          sourceName: feed.title,
+          ...(sourceEntry.author ? { author: sourceEntry.author } : {}),
+          ...(sourceEntry.publishedAt ? { publishedAt: sourceEntry.publishedAt } : {}),
         });
         if (result.created) created += 1;
 
-        const entry = result.entry as { id?: string; summary?: string | null };
-        const shouldQueue = result.created || entry.summary === null || feed.lastFetchStatus === "partial";
-        if (entry.id && shouldQueue) {
-          const jobs = await Promise.allSettled([
-            withTimeout(
-              queueHelpers.addSummaryJob(
-                { userId: feed.userId, targetId: entry.id, targetType: "feed_entry" },
-                {
-                  jobId: `summary-feed-entry-${entry.id}`,
-                  removeOnComplete: true,
-                  removeOnFail: true,
-                },
-              ),
-              POST_PROCESS_TIMEOUT_MS,
-              `Summary queue timed out for ${entry.id}`,
-            ),
-            withTimeout(
-              queueHelpers.addTagJob(
-                { userId: feed.userId, taggableId: entry.id, taggableType: "feed_entry" },
-                {
-                  jobId: `tag-feed-entry-${entry.id}`,
-                  removeOnComplete: true,
-                  removeOnFail: true,
-                },
-              ),
-              POST_PROCESS_TIMEOUT_MS,
-              `Tag queue timed out for ${entry.id}`,
-            ),
-          ]);
-          const rejected = jobs.find((job) => job.status === "rejected");
-          if (rejected?.status === "rejected") throw rejected.reason;
+        const entry = result.entry as { id?: string };
+        if (entry.id) {
+          await jobsRepository.enqueueFeedEntryProcess(feed.userId, entry.id, {
+            title: sourceEntry.title,
+            url: sourceEntry.url,
+            content: sourceEntry.content,
+            ...(sourceEntry.excerpt ? { excerpt: sourceEntry.excerpt } : {}),
+            ...(sourceEntry.author ? { author: sourceEntry.author } : {}),
+            ...(sourceEntry.publishedAt ? { publishedAt: sourceEntry.publishedAt.toISOString() } : {}),
+          });
         }
       } catch (error) {
         failures.push(error instanceof Error ? error.message : "Feed entry processing failed");
@@ -156,9 +135,11 @@ export async function processFeed(
       },
       data: {
         lastFetchedAt: now(),
+        lastFetchStartedAt: null,
         lastFetchStatus: status,
         lastFetchError: failures[0] ?? null,
         lastFetchCount: created,
+        lastSeenEntryUrl: entries[0]?.url ?? feed.lastSeenEntryUrl,
         version: { increment: 1 },
       },
     });
@@ -166,13 +147,13 @@ export async function processFeed(
       return {
         status: "skipped",
         reason: "lease_lost",
-        upserted: entries.length,
+        upserted: unseenEntries.length,
         created,
         failed: failures.length,
       };
     }
 
-    return { status, upserted: entries.length, created, failed: failures.length };
+    return { status, upserted: unseenEntries.length, created, failed: failures.length };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Feed fetch failed";
     const failure = await prisma.feed.updateMany({
@@ -184,6 +165,7 @@ export async function processFeed(
         lastFetchStartedAt: startedAt,
       },
       data: {
+        lastFetchStartedAt: null,
         lastFetchStatus: "error",
         lastFetchError: message,
         lastFetchCount: 0,
@@ -195,6 +177,18 @@ export async function processFeed(
     }
     return { status: "error", upserted: 0, created: 0, failed: 1, error: message };
   }
+}
+
+export function selectUnseenFeedEntries(entries: ParsedFeedEntry[], feed: Pick<FeedCronRecord, "lastSeenEntryUrl" | "lastFetchedAt">) {
+  if (entries.length === 0) return [];
+
+  if (feed.lastSeenEntryUrl) {
+    const cursorIndex = entries.findIndex((entry) => entry.url === feed.lastSeenEntryUrl);
+    if (cursorIndex >= 0) return entries.slice(0, cursorIndex);
+  }
+
+  if (!feed.lastFetchedAt) return [];
+  return entries.filter((entry) => entry.publishedAt && entry.publishedAt > feed.lastFetchedAt!);
 }
 
 function comparePublishedAt(left: ParsedFeedEntry, right: ParsedFeedEntry) {

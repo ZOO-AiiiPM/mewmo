@@ -4,7 +4,7 @@
  */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { fetchArticleFromUrl, fetchFeedDocument } from "../../packages/content/src/index.ts";
+import { fetchFeedDocument } from "../../packages/content/src/index.ts";
 import { getPrisma } from "../../packages/db/src/client.ts";
 import { processFeed } from "../../apps/worker/src/feeds/process-feed.ts";
 import { runFeedCron } from "../../apps/worker/src/feeds/run-feed-cron.ts";
@@ -58,7 +58,7 @@ test("Feeds API", async (t) => {
     const feed = await res.json();
     assert.ok(feed.id, "should have an id");
     assert.equal(feed.title, "Test Feed from TDD");
-    assert.equal(feed.initialFetch.status, "queued");
+    assert.equal(feed.initialFetch.status, "success");
     createdFeedId = feed.id;
   });
 
@@ -79,29 +79,9 @@ test("Feeds API", async (t) => {
     createdEntryId = entries[0]?.id ?? "";
   });
 
-  await t.test("one-shot Cron claims the real database row and completes", async () => {
-    const close = mockAsync();
-    const allowedPrivateOrigins = [new URL(API_TEST_ARTICLE_URL).origin];
-    const result = await runFeedCron({
-      createQueueHelpers: () => ({
-        addSummaryJob: mockAsync({ id: "summary-job" }),
-        addTagJob: mockAsync({ id: "tag-job" }),
-        close,
-      }),
-      processFeed: (feed, { queueHelpers }) => processFeed(feed, {
-        queueHelpers,
-        fetchFeed: (url) => fetchFeedDocument(url, { allowedPrivateOrigins }),
-        fetchArticle: (url) => fetchArticleFromUrl(url, { allowedPrivateOrigins }),
-      }),
-    });
-    const feed = await getPrisma().feed.findUniqueOrThrow({ where: { id: createdFeedId } });
-
-    assert.equal(result.selected, 1);
-    assert.equal(result.succeeded, 1);
-    assert.equal(feed.lastFetchStatus, "success");
-    assert.ok(feed.lastFetchStartedAt, "Cron should store a claim timestamp");
-    assert.ok(feed.lastFetchedAt, "Cron should store a completion timestamp");
-    assert.equal(close.mock.calls.length, 1);
+  await t.test("Cron does not immediately refill history excluded by the initial import", async () => {
+    const result = await runFeedCron();
+    assert.equal(result.selected, 0);
   });
 
   await t.test("initialEntryLimit stores only the requested first five entries", async () => {
@@ -121,6 +101,15 @@ test("Feeds API", async (t) => {
     const entriesRes = await authedFetch(`/api/feeds/${feed.id}/entries`);
     assert.equal(entriesRes.status, 200);
     assert.equal((await entriesRes.json()).length, 5);
+
+    const feedRecord = await getPrisma().feed.findUniqueOrThrow({ where: { id: feed.id } });
+    const allowedPrivateOrigins = [new URL(API_TEST_ARTICLE_URL).origin];
+    const cronResult = await processFeed(feedRecord, {
+      fetchFeed: (url) => fetchFeedDocument(url, { allowedPrivateOrigins }),
+    });
+    assert.equal(cronResult.upserted, 0, "Cron must stop at the initial cursor instead of importing the other seven old entries");
+    const afterCron = await authedFetch(`/api/feeds/${feed.id}/entries`);
+    assert.equal((await afterCron.json()).length, 5);
     assert.equal((await authedFetch(`/api/feeds/${feed.id}`, { method: "DELETE" })).status, 200);
   });
 
@@ -137,6 +126,33 @@ test("Feeds API", async (t) => {
     const feed = await res.json();
     assert.equal(feed.initialFetch.fetched, 12);
     assert.equal(feed.initialFetch.created, 12);
+    assert.equal((await authedFetch(`/api/feeds/${feed.id}`, { method: "DELETE" })).status, 200);
+  });
+
+  await t.test("one Cron refresh imports all twelve entries newer than the saved cursor", async () => {
+    const initialUrl = `${API_TEST_ARTICLE_URL}?rss=${Date.now()}&items=1&start=13`;
+    const res = await authedFetch("/api/feeds", {
+      method: "POST",
+      body: JSON.stringify({
+        url: initialUrl,
+        title: "Incremental feed",
+        initialEntryLimit: 5,
+      }),
+    });
+    assert.equal(res.status, 201);
+    const feed = await res.json();
+    const nextUrl = `${API_TEST_ARTICLE_URL}?rss=${Date.now()}&items=13&start=1`;
+    await getPrisma().feed.update({ where: { id: feed.id }, data: { url: nextUrl } });
+    const feedRecord = await getPrisma().feed.findUniqueOrThrow({ where: { id: feed.id } });
+    const allowedPrivateOrigins = [new URL(API_TEST_ARTICLE_URL).origin];
+
+    const result = await processFeed(feedRecord, {
+      fetchFeed: (url) => fetchFeedDocument(url, { allowedPrivateOrigins }),
+    });
+
+    assert.equal(result.upserted, 12);
+    assert.equal(result.created, 12);
+    assert.equal(await getPrisma().feedEntry.count({ where: { feedId: feed.id } }), 13);
     assert.equal((await authedFetch(`/api/feeds/${feed.id}`, { method: "DELETE" })).status, 200);
   });
 
@@ -223,12 +239,3 @@ test("Feeds API", async (t) => {
     assert.equal(res.status, 401);
   });
 });
-
-function mockAsync(value) {
-  const mock = async (...args) => {
-    mock.mock.calls.push(args);
-    return value;
-  };
-  mock.mock = { calls: [] };
-  return mock;
-}

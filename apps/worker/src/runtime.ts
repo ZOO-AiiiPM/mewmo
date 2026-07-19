@@ -1,4 +1,5 @@
 import { createSummaryWorker } from "./workers/summary-worker";
+import { startBackgroundJobRunner } from "./jobs/background-job-runner";
 
 export interface WorkerHandle {
   close(): Promise<void>;
@@ -6,6 +7,7 @@ export interface WorkerHandle {
 
 interface WorkerRuntimeDependencies {
   createWorker?: () => WorkerHandle;
+  createBackgroundJobRunner?: () => WorkerHandle;
 }
 
 export interface WorkerRuntime {
@@ -18,12 +20,13 @@ function createDefaultWorker(): WorkerHandle {
 
 export function startWorkerRuntime(dependencies: WorkerRuntimeDependencies = {}): WorkerRuntime {
   const worker = (dependencies.createWorker ?? createDefaultWorker)();
+  const backgroundJobRunner = (dependencies.createBackgroundJobRunner ?? startBackgroundJobRunner)();
   let stopPromise: Promise<void> | undefined;
 
   return {
     stop() {
       stopPromise ??= (async () => {
-        await worker.close();
+        await Promise.all([worker.close(), backgroundJobRunner.close()]);
       })();
       return stopPromise;
     },

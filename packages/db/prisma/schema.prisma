@@ -34,6 +34,7 @@ model User {
   knowledgeFolders KnowledgeFolder[]
   knowledgeItems KnowledgeItem[]
   noteShares     NoteShare[]
+  backgroundJobs BackgroundJob[]
 
   @@map("users")
 }
@@ -178,6 +179,7 @@ model Feed {
   lastFetchError  String?      @map("last_fetch_error")
   lastFetchCount  Int          @default(0) @map("last_fetch_count")
   lastFetchedAt   DateTime?   @map("last_fetched_at")
+  lastSeenEntryUrl String?     @map("last_seen_entry_url")
   version         Int         @default(1)
   userId          String      @map("user_id")
   createdAt       DateTime    @default(now()) @map("created_at")
@@ -190,6 +192,42 @@ model Feed {
   @@unique([userId, url, type])
   @@index([userId, deletedAt, lastFetchedAt])
   @@map("feeds")
+}
+
+enum BackgroundJobType {
+  feed_initial_import
+  feed_entry_process
+}
+
+enum BackgroundJobStatus {
+  pending
+  running
+  succeeded
+  failed
+}
+
+model BackgroundJob {
+  id          String              @id @default(cuid())
+  type        BackgroundJobType
+  dedupeKey   String              @map("dedupe_key")
+  payload     Json
+  status      BackgroundJobStatus @default(pending)
+  runAt       DateTime            @default(now()) @map("run_at")
+  lockedUntil DateTime?           @map("locked_until")
+  attempts    Int                 @default(0)
+  maxAttempts Int                 @default(3) @map("max_attempts")
+  lastError   String?             @map("last_error")
+  userId      String              @map("user_id")
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+  finishedAt  DateTime?           @map("finished_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([type, dedupeKey])
+  @@index([status, runAt, lockedUntil])
+  @@index([userId, status])
+  @@map("background_jobs")
 }
 
 model FeedEntry {

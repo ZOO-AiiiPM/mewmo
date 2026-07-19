@@ -50,8 +50,10 @@ describe("repositories", () => {
     expect(sql).toContain("last_fetch_status IN ('error', 'partial')");
     expect(sql).toContain("last_fetch_status = 'fetching'");
     expect(sql).toContain('user_id AS "userId"');
+    expect(sql).toContain('last_fetched_at AS "lastFetchedAt"');
     expect(sql).toContain('last_fetch_status AS "lastFetchStatus"');
     expect(sql).toContain('last_fetch_started_at AS "lastFetchStartedAt"');
+    expect(sql).toContain('last_seen_entry_url AS "lastSeenEntryUrl"');
     expect(sql).not.toContain("SELECT *");
     expect(sql).toContain("LIMIT");
     expect(query.values).toContain(50);
