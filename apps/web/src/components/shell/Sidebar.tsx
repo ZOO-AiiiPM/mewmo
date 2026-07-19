@@ -24,7 +24,6 @@ import {
   type KnowledgeFolderNode,
 } from "../../lib/knowledge-tree";
 import { useTheme } from "../../lib/theme";
-import { mockVideoSources } from "../../lib/video-mock-data";
 import {
   clearCachedFeedEntries,
   getCachedFeedSources,
@@ -243,11 +242,6 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
 
   useEffect(() => {
     if (!feedDrawer || feedTypes.find((item) => item.type === feedDrawer)?.deferred) return;
-
-    if (feedDrawer === "video") {
-      setFeeds(mockVideoSources);
-      return;
-    }
 
     let cancelled = false;
     fetch(`/api/feeds?type=${feedDrawer}`)

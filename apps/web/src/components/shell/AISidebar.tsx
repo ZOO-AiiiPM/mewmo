@@ -1,24 +1,64 @@
 "use client";
 
-import { createContext, useEffect, useMemo, useState, useContext, type ReactNode } from "react";
+import { createContext, useCallback, useEffect, useMemo, useState, useContext, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import type { VideoChapter, VideoProcessingStatus, VideoQuickJudgment } from "../../lib/video-types";
 import { PrototypeIcon, type PrototypeIconName } from "./PrototypeIcon";
+
+type AISidebarTab = "summary" | "chat";
 
 export type AISidebarContentContext =
   | { kind: "clip"; id: string; title: string; sourceLabel: string; summary: string | null }
   | { kind: "feed_entry"; id: string; title: string; sourceLabel: string; summary: string | null }
-  | { kind: "note"; id: string; title: string; sourceLabel: string; summary: string | null };
+  | { kind: "note"; id: string; title: string; sourceLabel: string; summary: string | null }
+  | {
+      kind: "video";
+      id: string;
+      title: string;
+      sourceLabel: string;
+      summary: string | null;
+      quickJudgment: VideoQuickJudgment | null;
+      chapters: VideoChapter[];
+      processingStatus: VideoProcessingStatus;
+      onSeek: (seconds: number) => void;
+      onOpenTranscript: (seconds: number) => void;
+      onCreateHighlight: (text: string, startSeconds: number | null) => void;
+    };
 
 interface AISidebarContextValue {
   contentContext: AISidebarContentContext | null;
   setContentContext: (context: AISidebarContentContext | null) => void;
+  activeTab: AISidebarTab;
+  setActiveTab: (tab: AISidebarTab) => void;
+  isOpen: boolean;
+  openSidebar: (tab?: AISidebarTab) => void;
 }
 
 const AISidebarContext = createContext<AISidebarContextValue | null>(null);
 
-export function AISidebarProvider({ children }: { children: ReactNode }) {
+export function AISidebarProvider({
+  children,
+  open,
+  onOpenChange,
+}: {
+  children: ReactNode;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
   const [contentContext, setContentContext] = useState<AISidebarContentContext | null>(null);
-  const value = useMemo(() => ({ contentContext, setContentContext }), [contentContext]);
+  const [activeTab, setActiveTab] = useState<AISidebarTab>("summary");
+  const openSidebar = useCallback((tab: AISidebarTab = "summary") => {
+    setActiveTab(tab);
+    onOpenChange(true);
+  }, [onOpenChange]);
+  const value = useMemo(() => ({
+    contentContext,
+    setContentContext,
+    activeTab,
+    setActiveTab,
+    isOpen: open,
+    openSidebar,
+  }), [activeTab, contentContext, open, openSidebar]);
 
   return <AISidebarContext.Provider value={value}>{children}</AISidebarContext.Provider>;
 }
@@ -38,8 +78,7 @@ export function AISidebar({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { contentContext } = useAISidebarContext();
-  const [activeTab, setActiveTab] = useState<"summary" | "chat">("summary");
+  const { contentContext, activeTab, setActiveTab } = useAISidebarContext();
 
   return (
     <aside className={`mewmo-ai-rail ${open ? "mewmo-ai-rail--open" : ""}`} aria-hidden={!open}>
@@ -98,6 +137,12 @@ function SummaryPanel({
 }: {
   context: AISidebarContentContext | null;
 }) {
+  return context?.kind === "video"
+    ? <VideoInsightPanel context={context} />
+    : <ArticleSummaryPanel context={context} />;
+}
+
+function ArticleSummaryPanel({ context }: { context: Exclude<AISidebarContentContext, { kind: "video" }> | null }) {
   const [copied, setCopied] = useState(false);
   const [summaryStatus, setSummaryStatus] = useState<SummaryStatus>("idle");
   const [summaryOverride, setSummaryOverride] = useState<string | null>(null);
@@ -251,6 +296,154 @@ function SummaryPanel({
       </section>
 
       <RelatedDetailModal item={selectedRelated} onClose={() => setSelectedRelated(null)} />
+    </>
+  );
+}
+
+function VideoInsightPanel({
+  context,
+}: {
+  context: Extract<AISidebarContentContext, { kind: "video" }>;
+}) {
+  const [summaryMode, setSummaryMode] = useState<"timeline" | "theme">("timeline");
+  const [judgmentOpen, setJudgmentOpen] = useState(true);
+  const [selectionToolbar, setSelectionToolbar] = useState<{
+    text: string;
+    startSeconds: number | null;
+    left: number;
+    top: number;
+  } | null>(null);
+  const chapters = useMemo(
+    () => [...context.chapters].sort((left, right) => (
+      summaryMode === "timeline"
+        ? left.startSeconds - right.startSeconds
+        : left.theme.localeCompare(right.theme, "zh-CN") || left.startSeconds - right.startSeconds
+    )),
+    [context.chapters, summaryMode],
+  );
+
+  useEffect(() => {
+    setSummaryMode("timeline");
+    setJudgmentOpen(true);
+    setSelectionToolbar(null);
+  }, [context.id]);
+
+  const handleTextSelection = (event: ReactMouseEvent<HTMLElement>) => {
+    const selection = window.getSelection();
+    const text = selection?.toString().trim() ?? "";
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed || !text) {
+      setSelectionToolbar(null);
+      return;
+    }
+
+    const range = selection.getRangeAt(0);
+    if (!event.currentTarget.contains(range.commonAncestorContainer)) {
+      setSelectionToolbar(null);
+      return;
+    }
+
+    const rect = range.getBoundingClientRect();
+    const selectedElement = range.startContainer.parentElement;
+    const startValue = selectedElement?.closest<HTMLElement>("[data-video-start]")?.dataset.videoStart;
+    const startSeconds = startValue === undefined ? null : Number(startValue);
+    setSelectionToolbar({
+      text,
+      startSeconds: Number.isFinite(startSeconds) ? startSeconds : null,
+      left: Math.min(window.innerWidth - 164, Math.max(12, rect.left + rect.width / 2 - 82)),
+      top: Math.max(12, rect.top - 52),
+    });
+  };
+
+  const saveSelectionAsHighlight = () => {
+    if (!selectionToolbar) return;
+    context.onCreateHighlight(selectionToolbar.text, selectionToolbar.startSeconds);
+    window.getSelection()?.removeAllRanges();
+    setSelectionToolbar(null);
+  };
+
+  return (
+    <>
+      <section className="mewmo-ai-section mewmo-ai-video-judgment mewmo-video-selectable" onMouseUp={handleTextSelection}>
+        <button
+          type="button"
+          className="mewmo-ai-video-judgment__head"
+          onClick={() => setJudgmentOpen((open) => !open)}
+          aria-expanded={judgmentOpen}
+        >
+          <span><PrototypeIcon name="spark" size={15} /><strong>AI 快速判断</strong></span>
+          <span>{judgmentOpen ? "收起" : "展开"}<PrototypeIcon name="caret" size={13} /></span>
+        </button>
+        {judgmentOpen && (context.quickJudgment ? (
+          <div className="mewmo-ai-video-judgment__body">
+            <section className="mewmo-ai-video-judgment__block">
+              <h4><span>01</span>摘要</h4>
+              <p>{context.quickJudgment.summary}</p>
+            </section>
+            <section className="mewmo-ai-video-judgment__block">
+              <h4><span>02</span>亮点</h4>
+              <ul>{context.quickJudgment.highlights.map((item) => <li key={item}>{item}</li>)}</ul>
+            </section>
+            <details className="mewmo-ai-video-judgment__block">
+              <summary><span><b>03</b>思考</span><PrototypeIcon name="caret" size={13} /></summary>
+              <ul>{context.quickJudgment.thoughts.map((item) => <li key={item}>{item}</li>)}</ul>
+            </details>
+            <details className="mewmo-ai-video-judgment__block">
+              <summary><span><b>04</b>术语解释</span><PrototypeIcon name="caret" size={13} /></summary>
+              <dl>{context.quickJudgment.terms.map((item) => <div key={item.term}><dt>{item.term}</dt><dd>{item.explanation}</dd></div>)}</dl>
+            </details>
+          </div>
+        ) : (
+          <div className="mewmo-ai-video-empty">
+            <PrototypeIcon name={context.processingStatus === "failed" ? "empty" : "sync"} size={20} />
+            <strong>快速判断暂不可用</strong>
+            <span>{videoStatusDescription(context.processingStatus)}</span>
+          </div>
+        ))}
+      </section>
+
+      <section className="mewmo-ai-section mewmo-ai-video-summary mewmo-video-selectable" onMouseUp={handleTextSelection}>
+        <div className="mewmo-ai-section__head mewmo-ai-video-summary__head">
+          <div>
+            <h3>全文总结</h3>
+            <span>{summaryMode === "timeline" ? "顺着视频进度掌握内容" : "把分散观点聚合到主题"}</span>
+          </div>
+          <div className="mewmo-ai-video-summary-modes" aria-label="总结方式">
+            <button type="button" className={summaryMode === "timeline" ? "active" : ""} onClick={() => setSummaryMode("timeline")}>按时间线总结</button>
+            <button type="button" className={summaryMode === "theme" ? "active" : ""} onClick={() => setSummaryMode("theme")}>按主题归纳</button>
+          </div>
+        </div>
+
+        {chapters.length > 0 ? (
+          <div className="mewmo-ai-video-chapters">
+            {chapters.map((chapter, index) => (
+              <article key={chapter.id} className="mewmo-ai-video-chapter" data-video-start={chapter.startSeconds}>
+                <header>
+                  <button type="button" onClick={() => context.onSeek(chapter.startSeconds)}>{formatVideoDuration(chapter.startSeconds)}</button>
+                  <span>{summaryMode === "timeline" ? `第 ${index + 1} 部分` : chapter.theme}</span>
+                </header>
+                <h4>{chapter.title}</h4>
+                <p>{chapter.summary}</p>
+                <button type="button" className="mewmo-ai-video-chapter__source" onClick={() => context.onOpenTranscript(chapter.startSeconds)}>
+                  查看原文<PrototypeIcon name="chev-right" size={13} />
+                </button>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="mewmo-ai-video-empty">
+            <PrototypeIcon name={context.processingStatus === "failed" ? "empty" : "sync"} size={20} />
+            <strong>全文总结暂不可用</strong>
+            <span>{videoStatusDescription(context.processingStatus)}</span>
+          </div>
+        )}
+      </section>
+
+      {selectionToolbar && (
+        <div className="mewmo-ai-video-selection-toolbar" style={{ left: selectionToolbar.left, top: selectionToolbar.top }}>
+          <span>{selectionToolbar.text.length} 字</span>
+          <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={saveSelectionAsHighlight}>高光</button>
+        </div>
+      )}
     </>
   );
 }
@@ -498,5 +691,25 @@ function normalizeSummaryText(summary: string | null) {
 function contextLabel(kind: AISidebarContentContext["kind"]) {
   if (kind === "clip") return "剪藏";
   if (kind === "feed_entry") return "订阅文章";
+  if (kind === "video") return "视频";
   return "笔记";
+}
+
+function formatVideoDuration(value: number) {
+  const total = Math.max(0, Math.round(value));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  return hours > 0
+    ? `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
+    : `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+function videoStatusDescription(status: VideoProcessingStatus) {
+  if (status === "fetching_metadata") return "正在获取标题、封面和时长。";
+  if (status === "fetching_transcript") return "正在获取字幕，稍后会自动生成。";
+  if (status === "analyzing") return "AI 正在生成摘要和章节。";
+  if (status === "no_transcript") return "没有可用字幕，暂时无法生成。";
+  if (status === "failed") return "处理失败，可以稍后重新分析。";
+  return "视频内容已经完成分析。";
 }

@@ -1,7 +1,7 @@
 import { Worker, type Job } from "bullmq";
 import { getPrisma } from "@mewmo/db";
 import { summarizeContent, type SummaryContentInput } from "@mewmo/ai";
-import { createRedisConnection, queueNames, type SummaryJobPayload } from "@mewmo/queue";
+import { createRedisWorkerConnection, queueNames, type SummaryJobPayload } from "@mewmo/queue";
 
 interface SummaryWorkerDeps {
   prisma?: unknown;
@@ -94,7 +94,7 @@ export async function processSummaryJob(payload: SummaryJobPayload, deps: Summar
   return { status: "ok", targetType: "feed_entry", targetId: payload.targetId };
 }
 
-export function createSummaryWorker(connection: unknown = createRedisConnection()) {
+export function createSummaryWorker(connection: unknown = createRedisWorkerConnection()) {
   return new Worker(
     queueNames.summary,
     (job: Job<SummaryJobPayload>) => processSummaryJob(job.data),

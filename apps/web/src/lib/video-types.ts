@@ -9,6 +9,13 @@ export type VideoProcessingStatus =
   | "failed";
 
 export type VideoWatchStatus = "unwatched" | "watching" | "watched";
+export interface UserVideoHighlight {
+  id: string;
+  text: string;
+  startSeconds: number | null;
+  createdAt: string;
+}
+
 export interface VideoSource {
   id: string;
   title: string;
@@ -29,13 +36,19 @@ export interface VideoListItem {
   creatorName: string;
   durationSeconds: number | null;
   publishedAt: string | null;
+  preview: string;
+  sourceTags: string[];
+  mewmoTags: string[];
   summary: string | null;
   processingStatus: VideoProcessingStatus;
+  isUnread: boolean;
   watchStatus: VideoWatchStatus;
   progressSeconds: number;
   isFavorited: boolean;
-  coverImage: string;
-  mockVideoUrl: string;
+  coverImage: string | null;
+  mockVideoUrl: string | null;
+  embedUrl?: string | null;
+  mewmoTagColors?: Record<string, string>;
 }
 
 export interface VideoChapter {
@@ -82,6 +95,8 @@ export interface VideoVisualCard {
 }
 
 export interface VideoDetail extends VideoListItem {
+  description: string | null;
+  suggestedTags: string[];
   quickJudgment: VideoQuickJudgment | null;
   keyPoints: string[];
   targetAudience: string | null;
@@ -89,4 +104,5 @@ export interface VideoDetail extends VideoListItem {
   transcript: VideoTranscriptSegment[];
   highlights: VideoHighlight[];
   visualSummary: VideoVisualCard[];
+  userHighlights?: UserVideoHighlight[];
 }

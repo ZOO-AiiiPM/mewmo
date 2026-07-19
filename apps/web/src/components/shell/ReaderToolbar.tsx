@@ -12,7 +12,7 @@ interface ReaderToolbarProps {
   onToggleList?: () => void;
   listCollapsed?: boolean;
   actions?: ReactNode;
-  menuKind?: "notes" | "clips" | "feed";
+  menuKind?: "notes" | "clips" | "feed" | "video";
   pinned?: boolean | undefined;
   onDelete?: (() => void) | undefined;
   onTogglePin?: (() => void) | undefined;
@@ -21,6 +21,9 @@ interface ReaderToolbarProps {
   onRefresh?: (() => void) | undefined;
   onCopyLink?: (() => void) | undefined;
   onFavorite?: (() => void) | undefined;
+  onAddToKnowledge?: (() => void) | undefined;
+  onCopyContent?: (() => void) | undefined;
+  onReanalyze?: (() => void) | undefined;
   favoriteActive?: boolean | undefined;
 }
 
@@ -40,6 +43,9 @@ export function ReaderToolbar({
   onRefresh,
   onCopyLink,
   onFavorite,
+  onAddToKnowledge,
+  onCopyContent,
+  onReanalyze,
   favoriteActive = false,
 }: ReaderToolbarProps) {
   const menuButtonRef = useRef<HTMLButtonElement>(null);
@@ -147,6 +153,69 @@ export function ReaderToolbar({
                       <PrototypeIcon name="export" size={16} />
                     </span>
                     <span>导出</span>
+                  </button>
+                </>
+              ) : menuKind === "video" ? (
+                <>
+                  <button
+                    type="button"
+                    className="mewmo-card-menu__item"
+                    onClick={() => runMenuAction(onFavorite)}
+                  >
+                    <span className="mewmo-card-menu__icon">
+                      <PrototypeIcon name="bookmark" size={16} />
+                    </span>
+                    <span>{favoriteActive ? "已收藏" : "收藏"}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="mewmo-card-menu__item"
+                    onClick={() => runMenuAction(onAddToKnowledge)}
+                  >
+                    <span className="mewmo-card-menu__icon">
+                      <PrototypeIcon name="library" size={16} />
+                    </span>
+                    <span>加入知识库</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="mewmo-card-menu__item"
+                    onClick={() => runMenuAction(onCopyContent)}
+                  >
+                    <span className="mewmo-card-menu__icon">
+                      <PrototypeIcon name="copy-plain" size={16} />
+                    </span>
+                    <span>复制内容</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="mewmo-card-menu__item"
+                    onClick={() => runMenuAction(onCopyLink)}
+                  >
+                    <span className="mewmo-card-menu__icon">
+                      <PrototypeIcon name="copy" size={16} />
+                    </span>
+                    <span>复制视频链接</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="mewmo-card-menu__item"
+                    onClick={() => runMenuAction(onExport)}
+                  >
+                    <span className="mewmo-card-menu__icon">
+                      <PrototypeIcon name="export" size={16} />
+                    </span>
+                    <span>导出</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="mewmo-card-menu__item"
+                    onClick={() => runMenuAction(onReanalyze)}
+                  >
+                    <span className="mewmo-card-menu__icon">
+                      <PrototypeIcon name="sync" size={16} />
+                    </span>
+                    <span>重新分析</span>
                   </button>
                 </>
               ) : menuKind === "feed" ? (

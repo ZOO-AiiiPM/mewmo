@@ -186,7 +186,7 @@ export function AppShell({ children, user }: AppShellProps) {
         onMouseEnter={clearSidebarPeekTimer}
         onMouseLeave={scheduleSidebarPeekClose}
       />
-      <AISidebarProvider>
+      <AISidebarProvider open={aiOpen} onOpenChange={setAiOpen}>
         <main className="mewmo-shell__main">{children}</main>
         <AISidebar open={aiOpen} onOpenChange={setAiOpen} />
       </AISidebarProvider>

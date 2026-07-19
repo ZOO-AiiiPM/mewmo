@@ -1,5 +1,11 @@
 import { readFile } from "node:fs/promises";
 
+import {
+  videoAnalysisResultSchema,
+  type VideoAnalysisResult,
+  type VideoTranscriptSegment,
+} from "@mewmo/shared";
+
 export interface SummaryContentInput {
   type: "clip" | "feed_entry";
   title: string;
@@ -45,6 +51,16 @@ export interface SummarizeContentOptions {
   prompt?: string;
   fetch?: typeof fetch;
 }
+
+export interface VideoAnalysisInput {
+  title: string;
+  source?: string;
+  url?: string;
+  durationSeconds?: number | null;
+  transcript: VideoTranscriptSegment[];
+}
+
+export type AnalyzeVideoTranscriptOptions = SummarizeContentOptions;
 
 export type GenerateAgentReplyOptions = SummarizeContentOptions;
 
@@ -92,6 +108,21 @@ export function buildSummaryUserPrompt(input: SummaryContentInput) {
     "",
     "正文（Markdown 清洗版）：",
     content,
+  ].join("\n");
+}
+
+export function buildVideoAnalysisUserPrompt(input: VideoAnalysisInput) {
+  return [
+    `标题：${input.title}`,
+    `来源：${input.source ?? ""}`,
+    `链接：${input.url ?? ""}`,
+    `视频时长：${input.durationSeconds ?? "未知"} 秒`,
+    "",
+    "带时间戳字幕：",
+    ...input.transcript.map(
+      (segment) =>
+        `[${formatVideoTimestamp(segment.startSeconds)} - ${formatVideoTimestamp(segment.endSeconds)}] ${segment.text}`,
+    ),
   ].join("\n");
 }
 
@@ -232,6 +263,37 @@ export async function summarizeContent(input: SummaryContentInput, options: Summ
   return summarizeWithOpenAICompatible({ ...config, fetch: fetchImpl, systemPrompt, userPrompt });
 }
 
+export async function analyzeVideoTranscript(
+  input: VideoAnalysisInput,
+  options: AnalyzeVideoTranscriptOptions = {},
+): Promise<VideoAnalysisResult> {
+  const config = resolveSummarizeConfig(options);
+  const fetchImpl = options.fetch ?? fetch;
+  const systemPrompt = options.prompt ?? (await loadPrompt("video.analysis.zh"));
+  const userPrompt = buildVideoAnalysisUserPrompt(input);
+
+  const raw =
+    config.provider === "anthropic"
+      ? await analyzeVideoWithAnthropic({ ...config, fetch: fetchImpl, systemPrompt, userPrompt })
+      : await analyzeVideoWithOpenAICompatible({ ...config, fetch: fetchImpl, systemPrompt, userPrompt });
+
+  const analysis = parseVideoAnalysisResponse(raw);
+  validateVideoAnalysisTimeline(analysis, input.durationSeconds);
+  return analysis;
+}
+
+export function parseVideoAnalysisResponse(raw: string): VideoAnalysisResult {
+  const normalized = unwrapJsonFence(raw.trim());
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(normalized);
+  } catch {
+    throw new Error("AI video analysis response was not valid JSON");
+  }
+
+  return videoAnalysisResultSchema.parse(parsed);
+}
+
 async function summarizeWithOpenAICompatible({
   apiKey,
   baseUrl,
@@ -266,6 +328,45 @@ async function summarizeWithOpenAICompatible({
   const content = data.choices?.[0]?.message?.content?.trim();
   if (!content) {
     throw new Error("AI summary response did not include message content");
+  }
+
+  return content;
+}
+
+async function analyzeVideoWithOpenAICompatible({
+  apiKey,
+  baseUrl,
+  summaryModel,
+  fetch,
+  systemPrompt,
+  userPrompt,
+}: AIConfig & { fetch: typeof globalThis.fetch; systemPrompt: string; userPrompt: string }) {
+  const response = await fetch(`${baseUrl}/chat/completions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: summaryModel,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      max_tokens: 4096,
+      temperature: 0.2,
+    }),
+  });
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new Error(`AI video analysis request failed: ${response.status} ${body}`.trim());
+  }
+
+  const data = (await response.json()) as ChatCompletionResponse;
+  const content = data.choices?.[0]?.message?.content?.trim();
+  if (!content) {
+    throw new Error("AI video analysis response did not include message content");
   }
 
   return content;
@@ -339,6 +440,44 @@ async function summarizeWithAnthropic({
   const content = data.content?.find((item) => item.type === "text" && item.text)?.text?.trim();
   if (!content) {
     throw new Error("AI summary response did not include message content");
+  }
+
+  return content;
+}
+
+async function analyzeVideoWithAnthropic({
+  apiKey,
+  baseUrl,
+  summaryModel,
+  fetch,
+  systemPrompt,
+  userPrompt,
+}: AIConfig & { fetch: typeof globalThis.fetch; systemPrompt: string; userPrompt: string }) {
+  const response = await fetch(`${baseUrl}/messages`, {
+    method: "POST",
+    headers: {
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
+      "x-api-key": apiKey,
+    },
+    body: JSON.stringify({
+      model: summaryModel,
+      max_tokens: 4096,
+      system: systemPrompt,
+      messages: [{ role: "user", content: userPrompt }],
+      temperature: 0.2,
+    }),
+  });
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new Error(`AI video analysis request failed: ${response.status} ${body}`.trim());
+  }
+
+  const data = (await response.json()) as AnthropicMessagesResponse;
+  const content = data.content?.find((item) => item.type === "text" && item.text)?.text?.trim();
+  if (!content) {
+    throw new Error("AI video analysis response did not include message content");
   }
 
   return content;
@@ -476,6 +615,45 @@ function stripFrontmatter(raw: string) {
 
 function trimTrailingSlash(value: string) {
   return value.replace(/\/+$/, "");
+}
+
+function unwrapJsonFence(value: string) {
+  const fenced = value.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  return fenced?.[1]?.trim() ?? value;
+}
+
+function formatVideoTimestamp(totalSeconds: number) {
+  const totalMilliseconds = Math.round(totalSeconds * 1000);
+  const minutes = Math.floor(totalMilliseconds / 60_000);
+  const seconds = Math.floor((totalMilliseconds % 60_000) / 1000);
+  const milliseconds = totalMilliseconds % 1000;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${String(milliseconds).padStart(3, "0")}`;
+}
+
+function validateVideoAnalysisTimeline(
+  analysis: VideoAnalysisResult,
+  durationSeconds?: number | null,
+) {
+  let previousStart = -1;
+  for (const chapter of analysis.chapters) {
+    if (chapter.startSeconds < previousStart) {
+      throw new Error("AI video analysis chapters must be ordered by startSeconds");
+    }
+    previousStart = chapter.startSeconds;
+  }
+
+  if (durationSeconds === null || durationSeconds === undefined) {
+    return;
+  }
+
+  const timestamps = [
+    ...analysis.chapters.flatMap((chapter) => [chapter.startSeconds, chapter.endSeconds]),
+    ...analysis.highlights.map((highlight) => highlight.startSeconds),
+  ].filter((value): value is number => value !== null);
+
+  if (timestamps.some((value) => value > durationSeconds)) {
+    throw new Error("AI video analysis timestamp exceeds video duration");
+  }
 }
 
 function replaceBlock(source: string, tag: string, replacer: (inner: string) => string) {

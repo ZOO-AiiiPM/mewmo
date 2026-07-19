@@ -35,14 +35,24 @@ export async function GET(request: Request) {
       session.user.id,
       feedId,
     )) as FeedEntryWithId[];
-    return NextResponse.json(await withFavoriteState(session.user.id, entries));
+    const withFavorites = await withFavoriteState(session.user.id, entries);
+    return NextResponse.json(
+      parsedType.data === "video"
+        ? await withVideoState(session.user.id, withFavorites)
+        : withFavorites,
+    );
   }
 
   const entries = (await createFeedEntriesRepository().findByUserFeedType(
     session.user.id,
     parsedType.data,
   )) as FeedEntryWithId[];
-  return NextResponse.json(await withFavoriteState(session.user.id, entries));
+  const withFavorites = await withFavoriteState(session.user.id, entries);
+  return NextResponse.json(
+    parsedType.data === "video"
+      ? await withVideoState(session.user.id, withFavorites)
+      : withFavorites,
+  );
 }
 
 async function withFavoriteState<T extends FeedEntryWithId>(
@@ -64,5 +74,45 @@ async function withFavoriteState<T extends FeedEntryWithId>(
   return entries.map((entry) => ({
     ...entry,
     isFavorited: favoriteUrls.has(entry.url),
+  }));
+}
+
+async function withVideoState<T extends FeedEntryWithId>(userId: string, entries: T[]) {
+  if (entries.length === 0) return entries;
+  const ids = entries.map((entry) => entry.id);
+  const prisma = getPrisma();
+  const [details, taggables] = await Promise.all([
+    prisma.videoDetail.findMany({
+      where: {
+        feedEntryId: { in: ids },
+        feedEntry: {
+          userId,
+          deletedAt: null,
+          feed: { userId, deletedAt: null, type: "video" },
+        },
+      },
+    }),
+    prisma.taggable.findMany({
+      where: {
+        taggableId: { in: ids },
+        taggableType: "feed_entry",
+        tag: { userId, deletedAt: null },
+      },
+      include: { tag: true },
+      orderBy: { createdAt: "asc" },
+    }),
+  ]);
+  const detailByEntry = new Map(details.map((detail) => [detail.feedEntryId, detail]));
+  const tagsByEntry = new Map<string, typeof taggables>();
+  for (const taggable of taggables) {
+    const current = tagsByEntry.get(taggable.taggableId) ?? [];
+    current.push(taggable);
+    tagsByEntry.set(taggable.taggableId, current);
+  }
+
+  return entries.map((entry) => ({
+    ...entry,
+    videoDetail: detailByEntry.get(entry.id) ?? null,
+    tags: (tagsByEntry.get(entry.id) ?? []).map((taggable) => taggable.tag),
   }));
 }

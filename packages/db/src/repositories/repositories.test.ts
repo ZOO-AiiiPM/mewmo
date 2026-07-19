@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { Prisma } from "../client";
+
 import { createAiChatsRepository } from "./ai-chats";
 import { createFeedEntriesRepository } from "./feed-entries";
 import { createFeedsRepository } from "./feeds";
@@ -10,6 +12,7 @@ import {
 import { createNotesRepository } from "./notes";
 import { createTagsRepository } from "./tags";
 import { createTrashRepository } from "./trash";
+import { createVideosRepository } from "./videos";
 
 describe("repositories", () => {
   it("scopes note lists to a user and active rows", async () => {
@@ -107,6 +110,50 @@ describe("repositories", () => {
     expect(create).toHaveBeenCalledWith({
       data: { tagId: "tag-1", taggableId: "note-1", taggableType: "note" },
     });
+  });
+
+  it("replaces feed entry tags only after verifying target ownership", async () => {
+    const findEntry = vi.fn().mockResolvedValue({ id: "entry-1" });
+    const findTag = vi.fn().mockResolvedValue(null);
+    const createTag = vi.fn().mockResolvedValue({ id: "tag-1", name: "AI", color: "#7c3aed" });
+    const deleteMany = vi.fn().mockResolvedValue({ count: 0 });
+    const createMany = vi.fn().mockResolvedValue({ count: 1 });
+    const client = {
+      feedEntry: { findFirst: findEntry },
+      tag: { findFirst: findTag, create: createTag },
+      taggable: { deleteMany, createMany },
+    };
+    const transaction = vi.fn(async (callback: (tx: typeof client) => Promise<unknown>) => callback(client));
+    const repo = createTagsRepository({ ...client, $transaction: transaction });
+
+    await repo.replaceFeedEntryTags("user-1", "entry-1", [{ name: "AI", color: "#7c3aed" }]);
+
+    expect(findEntry).toHaveBeenCalledWith({
+      where: { id: "entry-1", userId: "user-1", deletedAt: null },
+      select: { id: true },
+    });
+    expect(deleteMany).toHaveBeenCalledWith({
+      where: { taggableId: "entry-1", taggableType: "feed_entry" },
+    });
+    expect(createMany).toHaveBeenCalledWith({
+      data: [{ tagId: "tag-1", taggableId: "entry-1", taggableType: "feed_entry" }],
+      skipDuplicates: true,
+    });
+  });
+
+  it("rejects tag replacement for another user's feed entry", async () => {
+    const findFirst = vi.fn().mockResolvedValue(null);
+    const deleteMany = vi.fn();
+    const repo = createTagsRepository({
+      feedEntry: { findFirst },
+      tag: { findFirst: vi.fn(), create: vi.fn() },
+      taggable: { deleteMany, createMany: vi.fn() },
+    });
+
+    await expect(
+      repo.replaceFeedEntryTags("user-1", "entry-other", [{ name: "AI" }]),
+    ).rejects.toMatchObject({ name: "TaggableTargetNotFoundError" });
+    expect(deleteMany).not.toHaveBeenCalled();
   });
 
   it("creates AI chats with user ownership", async () => {
@@ -410,6 +457,155 @@ describe("repositories", () => {
 
     expect(deleteMany).toHaveBeenCalledWith({
       where: { id: "kb-1", userId: "user-1", deletedAt: { not: null } },
+    });
+  });
+
+  it("loads video details only through an active user-owned video entry", async () => {
+    const findFirst = vi.fn().mockResolvedValue({ feedEntryId: "entry-1" });
+    const findMany = vi.fn().mockResolvedValue([]);
+    const repo = createVideosRepository({
+      videoDetail: { findFirst },
+      videoUserHighlight: { findMany },
+    });
+
+    await repo.findDetail("user-1", "entry-1");
+
+    expect(findFirst).toHaveBeenCalledWith({
+      where: {
+        feedEntryId: "entry-1",
+        feedEntry: {
+          userId: "user-1",
+          deletedAt: null,
+          feed: { userId: "user-1", deletedAt: null, type: "video" },
+        },
+      },
+    });
+    expect(findMany).toHaveBeenCalledWith({
+      where: {
+        feedEntryId: "entry-1",
+        userId: "user-1",
+        deletedAt: null,
+        feedEntry: {
+          userId: "user-1",
+          deletedAt: null,
+          feed: { userId: "user-1", deletedAt: null, type: "video" },
+        },
+      },
+      orderBy: { createdAt: "asc" },
+    });
+  });
+
+  it("creates a video detail only after verifying entry ownership and type", async () => {
+    const findFirst = vi.fn().mockResolvedValue({ id: "entry-1" });
+    const upsert = vi.fn().mockResolvedValue({ feedEntryId: "entry-1" });
+    const repo = createVideosRepository({
+      feedEntry: { findFirst },
+      videoDetail: { upsert },
+    });
+
+    await repo.createDetail("user-1", "entry-1", {
+      platform: "bilibili",
+      externalVideoId: "BV1mock001",
+    });
+
+    expect(findFirst).toHaveBeenCalledWith({
+      where: {
+        id: "entry-1",
+        userId: "user-1",
+        deletedAt: null,
+        feed: { userId: "user-1", deletedAt: null, type: "video" },
+      },
+      select: { id: true },
+    });
+    expect(upsert).toHaveBeenCalledWith({
+      where: { feedEntryId: "entry-1" },
+      create: {
+        feedEntryId: "entry-1",
+        platform: "bilibili",
+        externalVideoId: "BV1mock001",
+      },
+      update: {
+        platform: "bilibili",
+        externalVideoId: "BV1mock001",
+        processingStatus: "fetching_metadata",
+        processingError: null,
+        transcript: Prisma.DbNull,
+        transcriptLanguage: null,
+        quickJudgment: Prisma.DbNull,
+        keyPoints: Prisma.DbNull,
+        targetAudience: null,
+        chapters: Prisma.DbNull,
+        aiHighlights: Prisma.DbNull,
+        suggestedTags: Prisma.DbNull,
+        analysisVersion: 1,
+        processingAttempts: 0,
+        lastProcessedAt: null,
+      },
+    });
+  });
+
+  it("rejects video detail creation for entries outside the current user scope", async () => {
+    const findFirst = vi.fn().mockResolvedValue(null);
+    const upsert = vi.fn();
+    const repo = createVideosRepository({
+      feedEntry: { findFirst },
+      videoDetail: { upsert },
+    });
+
+    await expect(
+      repo.createDetail("user-1", "entry-other", {
+        platform: "bilibili",
+        externalVideoId: "BV1other",
+      }),
+    ).rejects.toMatchObject({ name: "VideoEntryNotFoundError" });
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
+  it("creates user highlights only for an owned video entry", async () => {
+    const findFirst = vi.fn().mockResolvedValue({ id: "entry-1" });
+    const create = vi.fn().mockResolvedValue({ id: "highlight-1" });
+    const repo = createVideosRepository({
+      feedEntry: { findFirst },
+      videoUserHighlight: { create },
+    });
+
+    await repo.createHighlight("user-1", "entry-1", {
+      text: "值得记录的原文",
+      startSeconds: 42,
+    });
+
+    expect(create).toHaveBeenCalledWith({
+      data: {
+        feedEntryId: "entry-1",
+        userId: "user-1",
+        text: "值得记录的原文",
+        startSeconds: 42,
+      },
+    });
+  });
+
+  it("soft deletes only a matching owned video highlight", async () => {
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const repo = createVideosRepository({ videoUserHighlight: { updateMany } });
+    const now = new Date("2026-07-19T09:00:00.000Z");
+
+    await expect(
+      repo.deleteHighlight("user-1", "entry-1", "highlight-1", now),
+    ).resolves.toBe(true);
+
+    expect(updateMany).toHaveBeenCalledWith({
+      where: {
+        id: "highlight-1",
+        feedEntryId: "entry-1",
+        userId: "user-1",
+        deletedAt: null,
+        feedEntry: {
+          userId: "user-1",
+          deletedAt: null,
+          feed: { userId: "user-1", deletedAt: null, type: "video" },
+        },
+      },
+      data: { deletedAt: now, version: { increment: 1 } },
     });
   });
 });

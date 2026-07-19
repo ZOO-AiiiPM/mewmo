@@ -8,6 +8,8 @@ import {
   createKnowledgeBaseSchema,
   createKnowledgeFolderSchema,
   createNoteSchema,
+  createVideoHighlightSchema,
+  createVideoSchema,
   importKnowledgeItemsSchema,
   syncPullSchema,
   syncPushSchema,
@@ -16,6 +18,9 @@ import {
   updateKnowledgeBaseSchema,
   updateKnowledgeFolderSchema,
   updateNoteSchema,
+  videoAnalysisResultSchema,
+  videoProcessingStatusSchema,
+  videoTranscriptSchema,
 } from "./content";
 
 describe("content validators", () => {
@@ -166,5 +171,37 @@ describe("content validators", () => {
         assetType: "audio",
       }),
     ).toThrow();
+  });
+
+  it("validates video creation, status, and timestamped transcript contracts", () => {
+    expect(createVideoSchema.parse({ url: "https://www.bilibili.com/video/BV1mock001" }).url).toContain("bilibili");
+    expect(videoProcessingStatusSchema.parse("fetching_transcript")).toBe("fetching_transcript");
+    expect(() => videoProcessingStatusSchema.parse("retrying_forever")).toThrow();
+    expect(videoTranscriptSchema.parse([
+      { startSeconds: 0, endSeconds: 8.5, text: "第一段字幕" },
+      { startSeconds: 8.5, endSeconds: 15, text: "第二段字幕" },
+    ])).toHaveLength(2);
+    expect(() => videoTranscriptSchema.parse([{ startSeconds: 4, endSeconds: 2, text: "倒序" }])).toThrow();
+  });
+
+  it("validates structured video analysis and user highlights", () => {
+    const analysis = videoAnalysisResultSchema.parse({
+      schemaVersion: 1,
+      quickJudgment: {
+        summary: "核心摘要",
+        highlights: ["亮点"],
+        thoughts: ["思考"],
+        terms: [{ term: "长期记忆", explanation: "跨会话保留的上下文" }],
+      },
+      keyPoints: ["关键点"],
+      targetAudience: "产品经理",
+      chapters: [{ startSeconds: 0, endSeconds: null, title: "开场", theme: "背景", summary: "章节摘要" }],
+      highlights: [{ startSeconds: 3, title: "高光", note: "值得记录", score: 90 }],
+      suggestedTags: ["AI", "产品"],
+    });
+
+    expect(analysis.schemaVersion).toBe(1);
+    expect(createVideoHighlightSchema.parse({ text: "用户选择的内容", startSeconds: 3 }).text).toContain("用户");
+    expect(() => createVideoHighlightSchema.parse({ text: "", startSeconds: -1 })).toThrow();
   });
 });

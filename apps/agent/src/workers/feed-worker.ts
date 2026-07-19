@@ -3,7 +3,7 @@ import { createFeedEntriesRepository, getPrisma } from "@mewmo/db";
 import {
   createMewmoQueues,
   createQueueHelpers,
-  createRedisConnection,
+  createRedisWorkerConnection,
   queueNames,
   type FeedFetchJobPayload,
 } from "@mewmo/queue";
@@ -66,7 +66,7 @@ export async function processFeedFetchJob(payload: FeedFetchJobPayload, deps: Fe
   return { status: "ok", upserted: entries.length, created };
 }
 
-export function createFeedWorker(connection: unknown = createRedisConnection()) {
+export function createFeedWorker(connection: unknown = createRedisWorkerConnection()) {
   return new Worker(
     queueNames.feedFetch,
     (job: Job<FeedFetchJobPayload>) => processFeedFetchJob(job.data, { connection }),

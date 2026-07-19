@@ -1,35 +1,44 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent as ReactMouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type MouseEvent as ReactMouseEvent } from "react";
 
-import { mockVideoDetails, mockVideoList, mockVideoSources } from "../../lib/video-mock-data";
+import {
+  createVideo,
+  createVideoHighlight,
+  deleteVideo,
+  deleteVideoHighlight,
+  favoriteVideo,
+  fetchGlobalTags,
+  fetchVideoDetail,
+  fetchVideoEntries,
+  fetchVideoSources,
+  markVideoRead,
+  reanalyzeVideo,
+  replaceVideoTags,
+  type VideoTagRecord,
+} from "../../lib/video-api";
 import type {
+  UserVideoHighlight,
   VideoDetail,
   VideoListItem,
   VideoProcessingStatus,
   VideoSource,
-  VideoWatchStatus,
 } from "../../lib/video-types";
 import { useWorkspaceMemory } from "../../lib/workspace-memory";
-import { FloatingMenuButton, FloatingMenuLink } from "../ui/FloatingMenu";
+import { noteTagPalette } from "../../lib/note-list-preview";
+import { FloatingMenuButton, FloatingMenuLink, PopoverMenu } from "../ui/FloatingMenu";
 import { useToast } from "../ui/ToastProvider";
+import { useAISidebarContext } from "../shell/AISidebar";
+import { CardActionMenu } from "../shell/CardActionMenu";
 import { ListColumn } from "../shell/ListColumn";
 import { PrototypeIcon } from "../shell/PrototypeIcon";
 import { ReaderBackToTopButton } from "../shell/ReaderBackToTopButton";
 import { ReaderToolbar } from "../shell/ReaderToolbar";
 
-type VideoTab = "summary" | "transcript" | "highlights";
-type SummaryMode = "timeline" | "theme";
+type VideoTab = "transcript" | "highlights";
 type HighlightFilter = "all" | "ai" | "user";
 type AddMode = "video" | "channel";
-
-interface UserVideoHighlight {
-  id: string;
-  text: string;
-  startSeconds: number | null;
-  createdAt: string;
-}
 
 interface SelectionToolbarState {
   text: string;
@@ -38,35 +47,38 @@ interface SelectionToolbarState {
   top: number;
 }
 
-const statusCopy: Record<VideoProcessingStatus, string> = {
-  fetching_metadata: "获取信息中",
-  fetching_transcript: "获取字幕中",
-  analyzing: "AI 分析中",
-  ready: "分析完成",
-  no_transcript: "暂无字幕",
-  failed: "处理失败",
-};
+interface VideoSeekRequest {
+  seconds: number;
+  nonce: number;
+}
 
-const watchCopy: Record<VideoWatchStatus, string> = {
-  unwatched: "未看",
-  watching: "观看中",
-  watched: "已看",
-};
+const MEWMO_TAG_OPTIONS = ["读书", "设计", "产品", "数据层", "AI", "知识管理", "用户研究", "行业趋势"];
+const MEWMO_TAG_COLORS = ["#4f93e8", "#e88478", "#4caf72", "#a874e0", "#e0a93a", "#4f9b91", "#d47a9b", "#6f8fc7"];
 
 export function VideoWorkspace() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { showToast } = useToast();
+  const { setContentContext, openSidebar } = useAISidebarContext();
   const listRef = useRef<HTMLDivElement>(null);
   const readerRef = useRef<HTMLDivElement>(null);
-  const [sources, setSources] = useState<VideoSource[]>(mockVideoSources);
-  const [videos, setVideos] = useState<VideoListItem[]>(mockVideoList);
-  const [details, setDetails] = useState<VideoDetail[]>(mockVideoDetails);
+  const [sources, setSources] = useState<VideoSource[]>([]);
+  const [videos, setVideos] = useState<VideoListItem[]>([]);
+  const [details, setDetails] = useState<VideoDetail[]>([]);
+  const [tagOptions, setTagOptions] = useState<VideoTagRecord[]>(
+    MEWMO_TAG_OPTIONS.map((name) => ({ name, color: mewmoTagColor(name) })),
+  );
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [activeTab, setActiveTab] = useState<VideoTab>("summary");
+  const [activeTab, setActiveTab] = useState<VideoTab>("transcript");
   const [currentTime, setCurrentTime] = useState(0);
   const [transcriptQuery, setTranscriptQuery] = useState("");
+  const [userHighlights, setUserHighlights] = useState<UserVideoHighlight[]>([]);
+  const [seekRequest, setSeekRequest] = useState<VideoSeekRequest | null>(null);
+  const [listCollapsed, setListCollapsed] = useState(false);
+  const pollingAttemptsRef = useRef(0);
 
   const feedId = searchParams.get("feedId");
   const entryId = searchParams.get("entryId");
@@ -80,17 +92,72 @@ export function VideoWorkspace() {
       .filter((video) => !feedId || video.sourceId === feedId)
       .filter((video) => {
         if (!normalizedQuery) return true;
-        return `${video.title} ${video.creatorName} ${video.summary ?? ""}`
+        return `${video.title} ${video.creatorName} ${video.preview} ${video.mewmoTags.join(" ")} ${video.summary ?? ""}`
           .toLowerCase()
           .includes(normalizedQuery);
       })
       .sort((left, right) => timestamp(right.publishedAt) - timestamp(left.publishedAt));
   }, [feedId, query, videos]);
 
-  const selectedVideo =
-    details.find((video) => video.id === entryId) ??
-    details.find((video) => video.id === visibleVideos[0]?.id) ??
+  const selectedEntry =
+    videos.find((video) => video.id === entryId) ??
+    visibleVideos[0] ??
     null;
+  const selectedVideo = details.find((video) => video.id === selectedEntry?.id) ?? null;
+
+  const loadWorkspace = useCallback(async () => {
+    setLoadError(null);
+    try {
+      const [nextSources, nextVideos, nextTags] = await Promise.all([
+        fetchVideoSources(),
+        fetchVideoEntries(),
+        fetchGlobalTags(),
+      ]);
+      setSources(nextSources);
+      setVideos(nextVideos);
+      setTagOptions((current) => mergeTagOptions(current, nextTags));
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "视频数据加载失败");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const loadDetail = useCallback(async (id: string) => {
+    const detail = await fetchVideoDetail(id);
+    if (!detail) throw new Error("视频详情不存在");
+    setDetails((current) => [detail, ...current.filter((item) => item.id !== id)]);
+    setVideos((current) => current.map((item) => item.id === id ? toListItem(detail) : item));
+    return detail;
+  }, []);
+
+  useEffect(() => {
+    void loadWorkspace();
+  }, [loadWorkspace]);
+
+  useEffect(() => {
+    if (!selectedEntry?.id) return;
+    let cancelled = false;
+    void loadDetail(selectedEntry.id).catch((error) => {
+      if (!cancelled) setLoadError(error instanceof Error ? error.message : "视频详情加载失败");
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [loadDetail, selectedEntry?.id]);
+
+  useEffect(() => {
+    pollingAttemptsRef.current = 0;
+  }, [selectedVideo?.id]);
+
+  useEffect(() => {
+    if (!selectedVideo || isTerminalStatus(selectedVideo.processingStatus) || pollingAttemptsRef.current >= 20) return;
+    const timer = window.setTimeout(() => {
+      pollingAttemptsRef.current += 1;
+      void loadDetail(selectedVideo.id).catch(() => undefined);
+    }, Math.min(10_000, 2_500 + pollingAttemptsRef.current * 500));
+    return () => window.clearTimeout(timer);
+  }, [loadDetail, selectedVideo]);
 
   useWorkspaceMemory({
     section: "feeds",
@@ -101,10 +168,96 @@ export function VideoWorkspace() {
   });
 
   useEffect(() => {
-    setActiveTab("summary");
+    setActiveTab("transcript");
     setTranscriptQuery("");
+    setUserHighlights(selectedVideo?.userHighlights ?? []);
+    setSeekRequest(null);
+  }, [selectedVideo?.id, selectedVideo?.userHighlights]);
+
+  useEffect(() => {
     setCurrentTime(selectedVideo?.progressSeconds ?? 0);
   }, [selectedVideo?.id, selectedVideo?.progressSeconds]);
+
+  const seekFromAI = useCallback((seconds: number) => {
+    setCurrentTime(seconds);
+    setSeekRequest({ seconds, nonce: Date.now() });
+  }, []);
+
+  const openTranscriptFromAI = useCallback((seconds: number) => {
+    setActiveTab("transcript");
+    setTranscriptQuery("");
+    setCurrentTime(seconds);
+    setSeekRequest({ seconds, nonce: Date.now() });
+  }, []);
+
+  const addUserHighlight = useCallback(async (text: string, startSeconds: number | null) => {
+    if (!selectedVideo) return;
+    const optimistic: UserVideoHighlight = {
+      id: `local-highlight-${Date.now()}`,
+      text,
+      startSeconds,
+      createdAt: new Date().toISOString(),
+    };
+    setUserHighlights((current) => [optimistic, ...current]);
+    try {
+      const saved = await createVideoHighlight(selectedVideo.id, text, startSeconds);
+      setUserHighlights((current) => current.map((item) => item.id === optimistic.id ? saved : item));
+      showToast("已加入我的高光", "success");
+    } catch (error) {
+      setUserHighlights((current) => current.filter((item) => item.id !== optimistic.id));
+      showToast(error instanceof Error ? error.message : "高光保存失败", "error");
+    }
+  }, [selectedVideo, showToast]);
+
+  const deleteUserHighlight = useCallback(async (highlightId: string) => {
+    if (!selectedVideo) return;
+    const removed = userHighlights.find((item) => item.id === highlightId);
+    setUserHighlights((current) => current.filter((item) => item.id !== highlightId));
+    try {
+      await deleteVideoHighlight(selectedVideo.id, highlightId);
+    } catch (error) {
+      if (removed) setUserHighlights((current) => [removed, ...current]);
+      showToast(error instanceof Error ? error.message : "删除高光失败", "error");
+    }
+  }, [selectedVideo, showToast, userHighlights]);
+
+  useEffect(() => {
+    if (!selectedVideo) {
+      setContentContext(null);
+      return;
+    }
+
+    setContentContext({
+      kind: "video",
+      id: selectedVideo.id,
+      title: selectedVideo.title,
+      sourceLabel: selectedVideo.creatorName,
+      summary: selectedVideo.summary,
+      quickJudgment: selectedVideo.quickJudgment,
+      chapters: selectedVideo.chapters,
+      processingStatus: selectedVideo.processingStatus,
+      onSeek: seekFromAI,
+      onOpenTranscript: openTranscriptFromAI,
+      onCreateHighlight: addUserHighlight,
+    });
+
+    return () => setContentContext(null);
+  }, [addUserHighlight, openTranscriptFromAI, seekFromAI, selectedVideo, setContentContext]);
+
+  useEffect(() => {
+    if (!selectedVideo?.isUnread) return;
+    setVideos((current) => current.map((video) => (video.id === selectedVideo.id ? { ...video, isUnread: false } : video)));
+    setDetails((current) => current.map((video) => (video.id === selectedVideo.id ? { ...video, isUnread: false } : video)));
+    setSources((current) => current.map((source) => (
+      source.id === selectedVideo.sourceId
+        ? { ...source, unreadCount: Math.max(0, source.unreadCount - 1) }
+        : source
+    )));
+    void markVideoRead(selectedVideo.id).catch(() => {
+      setVideos((current) => current.map((video) => (video.id === selectedVideo.id ? { ...video, isUnread: true } : video)));
+      setDetails((current) => current.map((video) => (video.id === selectedVideo.id ? { ...video, isUnread: true } : video)));
+    });
+  }, [selectedVideo?.id, selectedVideo?.isUnread, selectedVideo?.sourceId]);
 
   const updateParams = (updates: Record<string, string | null>) => {
     const next = new URLSearchParams(searchParams.toString());
@@ -115,6 +268,11 @@ export function VideoWorkspace() {
     }
     router.push(`${pathname}?${next.toString()}`, { scroll: false });
   };
+
+  useEffect(() => {
+    if (loading || !feedId || sources.some((source) => source.id === feedId)) return;
+    updateParams({ feedId: null, entryId: null });
+  }, [feedId, loading, sources]);
 
   const selectVideo = (video: VideoListItem) => {
     updateParams({ feedId: video.sourceId, entryId: video.id, add: null });
@@ -127,73 +285,121 @@ export function VideoWorkspace() {
     setVideos((current) => current.map((video) => (video.id === next.id ? toListItem(next) : video)));
   };
 
-  const toggleFavorite = () => {
-    if (!selectedVideo) return;
-    const nextValue = !selectedVideo.isFavorited;
-    updateSelected((video) => ({ ...video, isFavorited: nextValue }));
-    showToast(nextValue ? "已收藏视频（前端原型）" : "已取消收藏（前端原型）", "success");
-  };
-
-  const markWatched = () => {
-    if (!selectedVideo) return;
-    const watched = selectedVideo.watchStatus !== "watched";
-    updateSelected((video) => ({
-      ...video,
-      watchStatus: watched ? "watched" : "unwatched",
-      progressSeconds: watched ? video.durationSeconds ?? 0 : 0,
-    }));
-    setCurrentTime(watched ? selectedVideo.durationSeconds ?? 0 : 0);
-    showToast(watched ? "已标记为看完" : "已标记为未看", "success");
-  };
-
-  const addPrototypeItem = (mode: AddMode, value: string) => {
-    if (mode === "channel") {
-      const source: VideoSource = {
-        id: `video-source-${Date.now()}`,
-        title: "新订阅频道",
-        url: value,
-        type: "video",
-        platform: value.includes("youtube") ? "youtube" : "bilibili",
-        favicon: null,
-        unreadCount: 0,
-        lastFetchedAt: null,
-      };
-      setSources((current) => [source, ...current]);
-      showToast("已添加频道（前端原型）", "success");
-      updateParams({ feedId: source.id, entryId: null, add: null });
+  const favoriteVideoItem = async (video: VideoListItem) => {
+    if (video.isFavorited) {
+      showToast("该视频已经收藏到剪藏", "success");
       return;
     }
+    setVideos((current) => current.map((item) => item.id === video.id ? { ...item, isFavorited: true } : item));
+    setDetails((current) => current.map((item) => item.id === video.id ? { ...item, isFavorited: true } : item));
+    try {
+      await favoriteVideo(video.id);
+      showToast("已收藏到剪藏", "success");
+    } catch (error) {
+      setVideos((current) => current.map((item) => item.id === video.id ? { ...item, isFavorited: false } : item));
+      setDetails((current) => current.map((item) => item.id === video.id ? { ...item, isFavorited: false } : item));
+      showToast(error instanceof Error ? error.message : "收藏失败", "error");
+    }
+  };
 
-    const source = sources[0] ?? mockVideoSources[0]!;
-    const id = `video-entry-${Date.now()}`;
-    const detail: VideoDetail = {
-      id,
-      sourceId: source.id,
-      platform: value.includes("youtube") ? "youtube" : "bilibili",
-      title: "刚刚添加的视频",
-      url: value,
-      creatorName: source.title,
-      durationSeconds: null,
-      publishedAt: new Date().toISOString(),
-      summary: null,
+  const toggleFavorite = async () => {
+    if (selectedVideo) await favoriteVideoItem(selectedVideo);
+  };
+
+  const copyVideoLink = (video: VideoListItem) => {
+    void navigator.clipboard?.writeText(video.url);
+    showToast("已复制视频链接", "success");
+  };
+
+  const deleteVideoItem = async (video: VideoListItem) => {
+    try {
+      await deleteVideo(video.id);
+      const nextVideo = visibleVideos.find((item) => item.id !== video.id) ?? null;
+      setVideos((current) => current.filter((item) => item.id !== video.id));
+      setDetails((current) => current.filter((item) => item.id !== video.id));
+      if (selectedEntry?.id === video.id) {
+        updateParams({
+          feedId: nextVideo?.sourceId ?? feedId,
+          entryId: nextVideo?.id ?? null,
+        });
+      }
+      showToast("已删除视频", "success");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "视频删除失败", "error");
+    }
+  };
+
+  const addVideoItem = async (mode: AddMode, value: string) => {
+    if (mode === "channel") {
+      showToast("频道订阅将在下一阶段开放，当前先支持单个 Bilibili 视频", "error");
+      return false;
+    }
+    try {
+      const created = await createVideo(value);
+      await loadWorkspace();
+      showToast("已加入视频处理队列", "success");
+      updateParams({ feedId: created.entry.feedId, entryId: created.entry.id, add: null });
+      return true;
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "视频添加失败", "error");
+      return false;
+    }
+  };
+
+  const saveTags = async (tags: string[]) => {
+    if (!selectedVideo) return;
+    const previousTags = selectedVideo.mewmoTags;
+    const previousColors = selectedVideo.mewmoTagColors ?? {};
+    updateSelected((video) => ({ ...video, mewmoTags: tags }));
+    try {
+      const confirmed = await replaceVideoTags(
+        selectedVideo.id,
+        tags.map((name) => ({
+          name,
+          color: tagOptions.find((option) => option.name === name)?.color ?? previousColors[name] ?? mewmoTagColor(name),
+        })),
+      );
+      const colors = Object.fromEntries(confirmed.flatMap((tag) => tag.color ? [[tag.name, tag.color]] : []));
+      updateSelected((video) => ({
+        ...video,
+        mewmoTags: confirmed.map((tag) => tag.name),
+        mewmoTagColors: colors,
+      }));
+      setTagOptions((current) => mergeTagOptions(current, confirmed));
+    } catch (error) {
+      updateSelected((video) => ({ ...video, mewmoTags: previousTags, mewmoTagColors: previousColors }));
+      showToast(error instanceof Error ? error.message : "标签保存失败", "error");
+    }
+  };
+
+  const reanalyzeVideoItem = async (video: VideoListItem) => {
+    setVideos((current) => current.map((item) => item.id === video.id
+      ? { ...item, processingStatus: "fetching_metadata", summary: null }
+      : item));
+    setDetails((current) => current.map((item) => item.id === video.id ? {
+      ...item,
       processingStatus: "fetching_metadata",
-      watchStatus: "unwatched",
-      progressSeconds: 0,
-      isFavorited: false,
-      coverImage: "https://storage.googleapis.com/gtv-videos-bucket/sample/images/BigBuckBunny.jpg",
-      mockVideoUrl: "https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+      summary: null,
       quickJudgment: null,
       keyPoints: [],
       targetAudience: null,
       chapters: [],
-      transcript: [],
       highlights: [],
-      visualSummary: [],
-    };
-    setDetails((current) => [detail, ...current]);
-    setVideos((current) => [toListItem(detail), ...current]);
-    showToast("已加入处理队列（前端原型）", "success");
-    updateParams({ feedId: source.id, entryId: id, add: null });
+      transcript: [],
+    } : item));
+    if (selectedEntry?.id === video.id) pollingAttemptsRef.current = 0;
+    try {
+      await reanalyzeVideo(video.id);
+      showToast("已重新开始分析", "success");
+    } catch (error) {
+      if (selectedEntry?.id === video.id) await loadDetail(video.id).catch(() => undefined);
+      else await loadWorkspace();
+      showToast(error instanceof Error ? error.message : "重新分析失败", "error");
+    }
+  };
+
+  const handleReanalyze = async () => {
+    if (selectedVideo) await reanalyzeVideoItem(selectedVideo);
   };
 
   const quickSwitch = (
@@ -205,7 +411,7 @@ export function VideoWorkspace() {
   );
 
   return (
-    <div className="mewmo-workspace mewmo-video-workspace">
+    <div className={`mewmo-workspace mewmo-video-workspace ${listCollapsed ? "mewmo-workspace--list-collapsed" : ""}`}>
       <ListColumn
         title={currentSource?.title ?? "视频"}
         bodyRef={listRef}
@@ -219,11 +425,19 @@ export function VideoWorkspace() {
         }
       >
         <div className="mewmo-list-stack mewmo-video-list">
-          <div className="mewmo-video-prototype-note">
-            <PrototypeIcon name="info" size={14} />
-            <span>当前为前端原型，视频识别和 AI 处理尚未连接后端。</span>
-          </div>
-          {visibleVideos.length === 0 ? (
+          {loadError && (
+            <div className="mewmo-video-prototype-note">
+              <PrototypeIcon name="info" size={14} />
+              <span>{loadError}</span>
+              <button type="button" onClick={() => void loadWorkspace()}>重试</button>
+            </div>
+          )}
+          {loading ? (
+            <div className="mewmo-feed-placeholder">
+              <PrototypeIcon name="sync" size={32} />
+              <span>正在加载视频...</span>
+            </div>
+          ) : visibleVideos.length === 0 ? (
             <div className="mewmo-feed-placeholder">
               <PrototypeIcon name="video" size={40} />
               <span>{feedId ? "这个频道还没有视频" : "还没有视频内容"}</span>
@@ -236,6 +450,10 @@ export function VideoWorkspace() {
                 video={video}
                 selected={selectedVideo?.id === video.id}
                 onSelect={() => selectVideo(video)}
+                onDelete={() => void deleteVideoItem(video)}
+                onFavorite={() => void favoriteVideoItem(video)}
+                onReanalyze={() => void reanalyzeVideoItem(video)}
+                onCopyLink={() => copyVideoLink(video)}
               />
             ))
           )}
@@ -245,21 +463,24 @@ export function VideoWorkspace() {
       <section className="mewmo-reader-surface">
         <ReaderToolbar
           title={selectedVideo?.title ?? currentSource?.title ?? "视频"}
-          menuKind="feed"
+          onToggleList={() => setListCollapsed((value) => !value)}
+          listCollapsed={listCollapsed}
+          menuKind="video"
           favoriteActive={Boolean(selectedVideo?.isFavorited)}
-          onFavorite={toggleFavorite}
+          onFavorite={() => void toggleFavorite()}
+          onAddToKnowledge={() => showToast("加入知识库将在下一阶段接入", "success")}
+          onCopyContent={() => {
+            if (!selectedVideo) return;
+            const content = [selectedVideo.title, selectedVideo.description, ...selectedVideo.transcript.map((item) => item.text)].filter(Boolean).join("\n\n");
+            void navigator.clipboard?.writeText(content);
+            showToast("已复制当前内容", "success");
+          }}
+          onExport={() => showToast("视频导出功能即将开放", "success")}
+          onReanalyze={() => void handleReanalyze()}
           onCopyLink={() => {
             if (!selectedVideo) return;
-            void navigator.clipboard?.writeText(selectedVideo.url);
-            showToast("已复制视频链接", "success");
+            copyVideoLink(selectedVideo);
           }}
-          actions={
-            selectedVideo ? (
-              <button type="button" className="mewmo-icon-button" onClick={() => showToast("加入知识库将在后端阶段接入", "success")} aria-label="加入知识库">
-                <PrototypeIcon name="library" size={19} />
-              </button>
-            ) : null
-          }
         />
         <div ref={readerRef} className="mewmo-reader-scroll">
           {selectedVideo ? (
@@ -271,13 +492,19 @@ export function VideoWorkspace() {
               onCurrentTimeChange={setCurrentTime}
               transcriptQuery={transcriptQuery}
               onTranscriptQueryChange={setTranscriptQuery}
-              onToggleWatched={markWatched}
-              onPrototypeAction={(message) => showToast(`${message}（前端原型）`, "success")}
+              userHighlights={userHighlights}
+              onAddUserHighlight={addUserHighlight}
+              onDeleteUserHighlight={deleteUserHighlight}
+              seekRequest={seekRequest}
+              onOpenAI={() => openSidebar("summary")}
+              availableTags={tagOptions}
+              onTagsChange={(tags) => void saveTags(tags)}
+              onAction={(message) => showToast(message, "success")}
             />
           ) : (
             <article className="mewmo-document mewmo-document--empty">
               <h1>选择一个视频</h1>
-              <p>从左侧列表选择视频，查看全文总结、原文和高光笔记。</p>
+              <p>从左侧列表选择视频，查看原文、高光笔记和右侧 AI 解读。</p>
             </article>
           )}
         </div>
@@ -287,41 +514,72 @@ export function VideoWorkspace() {
       <AddVideoModal
         open={addOpen}
         onClose={() => updateParams({ add: null })}
-        onAdd={addPrototypeItem}
+        onAdd={addVideoItem}
       />
     </div>
   );
 }
 
-function VideoCard({ video, selected, onSelect }: { video: VideoListItem; selected: boolean; onSelect: () => void }) {
+function VideoCard({
+  video,
+  selected,
+  onSelect,
+  onDelete,
+  onFavorite,
+  onReanalyze,
+  onCopyLink,
+}: {
+  video: VideoListItem;
+  selected: boolean;
+  onSelect: () => void;
+  onDelete: () => void;
+  onFavorite: () => void;
+  onReanalyze: () => void;
+  onCopyLink: () => void;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
   return (
-    <button
-      type="button"
-      className={`mewmo-list-card mewmo-list-card--button mewmo-video-card ${selected ? "mewmo-list-card--selected" : ""}`}
-      onClick={onSelect}
-    >
-      <div className="mewmo-list-card__title">
-        {video.watchStatus === "unwatched" && <i className="mewmo-unread-dot" />}
-        <span>{video.title}</span>
-      </div>
-      <p>{video.summary || statusDescription(video.processingStatus)}</p>
-      <div className="mewmo-list-card__cover mewmo-video-card__cover" aria-hidden="true">
-        <img src={video.coverImage} alt="" referrerPolicy="no-referrer" />
-        {video.durationSeconds !== null && <span>{formatDuration(video.durationSeconds)}</span>}
-      </div>
-      <div className="mewmo-list-card__source mewmo-list-card__source--clip">
-        <span className={`mewmo-favicon mewmo-video-platform mewmo-video-platform--${video.platform}`}>
-          {video.platform === "bilibili" ? "B" : "Y"}
-        </span>
-        <span>{video.creatorName}</span>
-        <time>{formatDate(video.publishedAt)}</time>
-      </div>
-      <div className="mewmo-video-card__badges">
-        <span className={`mewmo-video-status mewmo-video-status--${video.processingStatus}`}>{statusCopy[video.processingStatus]}</span>
-        <span>{watchCopy[video.watchStatus]}</span>
-      </div>
-      {video.isFavorited && <PrototypeIcon name="bookmark" size={14} className="mewmo-video-card__bookmark" />}
-    </button>
+    <article className={`mewmo-list-card-wrap ${menuOpen ? "mewmo-list-card-wrap--menu-open" : ""}`}>
+      <button
+        type="button"
+        className={`mewmo-list-card mewmo-list-card--button mewmo-video-card ${selected ? "mewmo-list-card--selected" : ""}`}
+        onClick={onSelect}
+      >
+        <div className="mewmo-list-card__title">
+          {video.isUnread && <i className="mewmo-unread-dot" />}
+          <span>{video.title}</span>
+        </div>
+        <p>{video.preview}</p>
+        <div className="mewmo-list-card__cover mewmo-video-card__cover" aria-hidden="true">
+          {video.coverImage ? (
+            <img src={video.coverImage} alt="" referrerPolicy="no-referrer" />
+          ) : (
+            <span className="mewmo-video-card__cover-empty"><PrototypeIcon name="video" size={24} /></span>
+          )}
+          {video.durationSeconds !== null && <span>{formatDuration(video.durationSeconds)}</span>}
+        </div>
+        <div className="mewmo-list-card__source mewmo-list-card__source--clip">
+          <span className={`mewmo-favicon mewmo-video-platform mewmo-video-platform--${video.platform}`}>
+            {video.platform === "bilibili" ? "B" : "Y"}
+          </span>
+          <span>{video.creatorName}</span>
+          <time>{formatDate(video.publishedAt)}</time>
+        </div>
+        {video.isFavorited && <PrototypeIcon name="bookmark" size={14} className="mewmo-video-card__bookmark" />}
+      </button>
+      <CardActionMenu
+        kind="video"
+        open={menuOpen}
+        ariaLabel="视频操作"
+        favoriteActive={video.isFavorited}
+        onOpenChange={setMenuOpen}
+        onDelete={onDelete}
+        onFavorite={onFavorite}
+        onReanalyze={onReanalyze}
+        onCopyLink={onCopyLink}
+        href={video.url}
+      />
+    </article>
   );
 }
 
@@ -333,8 +591,14 @@ function VideoReader({
   onCurrentTimeChange,
   transcriptQuery,
   onTranscriptQueryChange,
-  onToggleWatched,
-  onPrototypeAction,
+  userHighlights,
+  onAddUserHighlight,
+  onDeleteUserHighlight,
+  seekRequest,
+  onOpenAI,
+  availableTags,
+  onTagsChange,
+  onAction,
 }: {
   video: VideoDetail;
   activeTab: VideoTab;
@@ -343,40 +607,36 @@ function VideoReader({
   onCurrentTimeChange: (value: number) => void;
   transcriptQuery: string;
   onTranscriptQueryChange: (value: string) => void;
-  onToggleWatched: () => void;
-  onPrototypeAction: (message: string) => void;
+  userHighlights: UserVideoHighlight[];
+  onAddUserHighlight: (text: string, startSeconds: number | null) => void;
+  onDeleteUserHighlight: (highlightId: string) => void;
+  seekRequest: VideoSeekRequest | null;
+  onOpenAI: () => void;
+  availableTags: VideoTagRecord[];
+  onTagsChange: (tags: string[]) => void;
+  onAction: (message: string) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [quickJudgmentOpen, setQuickJudgmentOpen] = useState(true);
-  const [summaryMode, setSummaryMode] = useState<SummaryMode>("timeline");
-  const [expandedChapters, setExpandedChapters] = useState<string[]>([]);
   const [highlightFilter, setHighlightFilter] = useState<HighlightFilter>("all");
-  const [userHighlights, setUserHighlights] = useState<UserVideoHighlight[]>([]);
   const [selectionToolbar, setSelectionToolbar] = useState<SelectionToolbarState | null>(null);
-  const activeChapter = video.chapters.find(
-    (chapter) => currentTime >= chapter.startSeconds && (chapter.endSeconds === null || currentTime < chapter.endSeconds),
-  );
   const normalizedQuery = transcriptQuery.trim().toLowerCase();
   const visibleTranscript = video.transcript.filter((segment) =>
     normalizedQuery ? segment.text.toLowerCase().includes(normalizedQuery) : true,
   );
-  const summarySections = useMemo(
-    () => [...video.chapters].sort((left, right) => (
-      summaryMode === "timeline"
-        ? left.startSeconds - right.startSeconds
-        : left.theme.localeCompare(right.theme, "zh-CN") || left.startSeconds - right.startSeconds
-    )),
-    [summaryMode, video.chapters],
-  );
-
   useEffect(() => {
-    setQuickJudgmentOpen(true);
-    setSummaryMode("timeline");
-    setExpandedChapters([]);
     setHighlightFilter("all");
-    setUserHighlights([]);
     setSelectionToolbar(null);
   }, [video.id]);
+
+  useEffect(() => {
+    if (!seekRequest) return;
+    const player = videoRef.current;
+    if (player) {
+      player.currentTime = seekRequest.seconds;
+      void player.play().catch(() => undefined);
+    }
+    onCurrentTimeChange(seekRequest.seconds);
+  }, [onCurrentTimeChange, seekRequest]);
 
   const seekTo = (seconds: number) => {
     const player = videoRef.current;
@@ -385,23 +645,6 @@ function VideoReader({
       void player.play().catch(() => undefined);
     }
     onCurrentTimeChange(seconds);
-  };
-
-  const transcriptForChapter = (chapterId: string) => {
-    const chapter = video.chapters.find((item) => item.id === chapterId);
-    if (!chapter) return [];
-    return video.transcript.filter((segment) => (
-      segment.startSeconds >= chapter.startSeconds
-      && (chapter.endSeconds === null || segment.startSeconds < chapter.endSeconds)
-    ));
-  };
-
-  const toggleChapter = (chapterId: string) => {
-    setExpandedChapters((current) => (
-      current.includes(chapterId)
-        ? current.filter((id) => id !== chapterId)
-        : [...current, chapterId]
-    ));
   };
 
   const handleTextSelection = (event: ReactMouseEvent<HTMLElement>) => {
@@ -432,15 +675,9 @@ function VideoReader({
 
   const saveSelectionAsHighlight = () => {
     if (!selectionToolbar) return;
-    setUserHighlights((current) => [{
-      id: `user-highlight-${Date.now()}`,
-      text: selectionToolbar.text,
-      startSeconds: selectionToolbar.startSeconds,
-      createdAt: new Date().toISOString(),
-    }, ...current]);
+    onAddUserHighlight(selectionToolbar.text, selectionToolbar.startSeconds);
     window.getSelection()?.removeAllRanges();
     setSelectionToolbar(null);
-    onPrototypeAction("已加入我的高光");
   };
 
   return (
@@ -454,111 +691,73 @@ function VideoReader({
             {video.durationSeconds !== null && <span><b>·</b>{formatDuration(video.durationSeconds)}</span>}
           </div>
         </div>
-        <button type="button" className="mewmo-button mewmo-button--ghost" onClick={onToggleWatched}>
-          {video.watchStatus === "watched" ? "标为未看" : "标为看完"}
-        </button>
       </div>
 
       <div className="mewmo-video-player">
-        <video
-          key={video.id}
-          ref={videoRef}
-          controls
-          playsInline
-          preload="metadata"
-          poster={video.coverImage}
-          src={video.mockVideoUrl}
-          onLoadedMetadata={(event) => {
-            const player = event.currentTarget;
-            player.currentTime = Math.min(video.progressSeconds, player.duration || video.progressSeconds);
-          }}
-          onTimeUpdate={(event) => onCurrentTimeChange(event.currentTarget.currentTime)}
-        />
-      </div>
-
-      <div className="mewmo-video-reader__state">
-        <span className={`mewmo-video-status mewmo-video-status--${video.processingStatus}`}>{statusCopy[video.processingStatus]}</span>
-        {activeChapter && <span>当前章节：{activeChapter.title}</span>}
-      </div>
-
-      <section className={`mewmo-video-quick-judgment ${quickJudgmentOpen ? "is-open" : ""}`}>
-        <button type="button" className="mewmo-video-quick-judgment__head" onClick={() => setQuickJudgmentOpen((open) => !open)} aria-expanded={quickJudgmentOpen}>
-          <span><PrototypeIcon name="spark" size={17} /><strong>AI 快速判断</strong><small>先用 1 分钟判断这条视频是否值得看</small></span>
-          <span>{quickJudgmentOpen ? "收起" : "展开"}<PrototypeIcon name="caret" size={15} /></span>
-        </button>
-        {quickJudgmentOpen && (video.quickJudgment ? (
-          <div className="mewmo-video-quick-judgment__body">
-            <section className="mewmo-video-judgment-block mewmo-video-judgment-block--summary">
-              <h2>摘要</h2>
-              <p>{video.quickJudgment.summary}</p>
-            </section>
-            <section className="mewmo-video-judgment-block">
-              <h2>亮点</h2>
-              <ul>{video.quickJudgment.highlights.map((item) => <li key={item}>{item}</li>)}</ul>
-            </section>
-            <section className="mewmo-video-judgment-block">
-              <h2>思考</h2>
-              <ul>{video.quickJudgment.thoughts.map((item) => <li key={item}>{item}</li>)}</ul>
-            </section>
-            <section className="mewmo-video-judgment-block">
-              <h2>术语解释</h2>
-              <dl>{video.quickJudgment.terms.map((item) => <div key={item.term}><dt>{item.term}</dt><dd>{item.explanation}</dd></div>)}</dl>
-            </section>
+        {video.mockVideoUrl ? (
+          <video
+            key={video.id}
+            ref={videoRef}
+            controls
+            playsInline
+            preload="metadata"
+            poster={video.coverImage ?? undefined}
+            src={video.mockVideoUrl}
+            onLoadedMetadata={(event) => {
+              const player = event.currentTarget;
+              player.currentTime = Math.min(video.progressSeconds, player.duration || video.progressSeconds);
+            }}
+            onTimeUpdate={(event) => onCurrentTimeChange(event.currentTarget.currentTime)}
+          />
+        ) : video.embedUrl ? (
+          <iframe
+            key={`${video.id}-${seekRequest?.nonce ?? 0}`}
+            src={withEmbedStart(video.embedUrl, seekRequest?.seconds ?? currentTime)}
+            title={video.title}
+            allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+            allowFullScreen
+          />
+        ) : (
+          <div className="mewmo-video-player__empty">
+            <PrototypeIcon name="video" size={30} />
+            <span>播放器暂不可用，可前往原平台观看。</span>
           </div>
-        ) : <VideoUnavailable status={video.processingStatus} label="AI 快速判断" />)}
+        )}
+      </div>
+
+      <section className="mewmo-video-description">
+        <header>
+          <div><PrototypeIcon name="doc" size={14} /><strong>原视频简介</strong><span>来自 {video.platform === "bilibili" ? "Bilibili" : "YouTube"}</span></div>
+          <a href={video.url} target="_blank" rel="noreferrer">查看原视频<PrototypeIcon name="external" size={13} /></a>
+        </header>
+        <p>{video.description || video.preview}</p>
       </section>
 
+      <VideoTagManager
+        tags={video.mewmoTags}
+        tagColors={video.mewmoTagColors ?? {}}
+        availableTags={availableTags}
+        suggestions={video.suggestedTags}
+        onTagsChange={onTagsChange}
+        onFeedback={onAction}
+      />
+
+      <button type="button" className="mewmo-video-ai-teaser" onClick={onOpenAI}>
+        <span className="mewmo-video-ai-teaser__icon"><PrototypeIcon name="spark" size={17} /></span>
+        <span>
+          <strong>{analysisStatusTitle(video.processingStatus)}</strong>
+          <small>{video.quickJudgment?.summary ?? statusDescription(video.processingStatus)}</small>
+        </span>
+        <span>在右侧查看<PrototypeIcon name="chev-right" size={14} /></span>
+      </button>
+
       <div className="mewmo-video-tabs" role="tablist" aria-label="视频内容">
-        {(["summary", "transcript", "highlights"] as VideoTab[]).map((tab) => (
+        {(["transcript", "highlights"] as VideoTab[]).map((tab) => (
           <button key={tab} type="button" role="tab" aria-selected={activeTab === tab} className={activeTab === tab ? "active" : ""} onClick={() => onTabChange(tab)}>
-            {tab === "summary" ? "全文总结" : tab === "transcript" ? "原文细读" : `高光笔记 ${video.highlights.length + userHighlights.length || ""}`}
+            {tab === "transcript" ? "原文细读" : `高光笔记 ${video.highlights.length + userHighlights.length || ""}`}
           </button>
         ))}
       </div>
-
-      <div className="mewmo-video-action-bar">
-        <button type="button" onClick={() => onPrototypeAction("已加入知识库") }><PrototypeIcon name="library" size={15} />加入知识库</button>
-        <button type="button" onClick={() => onPrototypeAction("已复制当前内容") }><PrototypeIcon name="copy" size={15} />复制</button>
-        <button type="button" onClick={() => onPrototypeAction("已准备导出") }><PrototypeIcon name="export" size={15} />导出</button>
-        <button type="button" onClick={() => onPrototypeAction("已重新开始分析") }><PrototypeIcon name="sync" size={15} />重新分析</button>
-      </div>
-
-      {activeTab === "summary" && (
-        <section className="mewmo-video-panel mewmo-video-selectable" onMouseUp={handleTextSelection}>
-          <div className="mewmo-video-summary-toolbar">
-            <div><strong>全文总结</strong><span>{summaryMode === "timeline" ? "顺着视频进度快速掌握内容" : "把分散观点重新聚合到主题下"}</span></div>
-            <div className="mewmo-video-summary-modes" aria-label="总结方式">
-              <button type="button" className={summaryMode === "timeline" ? "active" : ""} onClick={() => setSummaryMode("timeline")}>按时间线总结</button>
-              <button type="button" className={summaryMode === "theme" ? "active" : ""} onClick={() => setSummaryMode("theme")}>按主题归纳</button>
-            </div>
-          </div>
-          {summarySections.length > 0 ? (
-            <div className="mewmo-video-summary-sections">
-              {summarySections.map((chapter) => {
-                const expanded = expandedChapters.includes(chapter.id);
-                const transcript = transcriptForChapter(chapter.id);
-                return (
-                  <article key={chapter.id} className={`mewmo-video-summary-section ${activeChapter?.id === chapter.id ? "active" : ""}`} data-video-start={chapter.startSeconds}>
-                    <header>
-                      <button type="button" onClick={() => seekTo(chapter.startSeconds)}>{formatDuration(chapter.startSeconds)}</button>
-                      <div><span>{summaryMode === "timeline" ? `第 ${video.chapters.indexOf(chapter) + 1} 部分` : chapter.theme}</span><h2>{chapter.title}</h2></div>
-                      <button type="button" className="mewmo-video-summary-section__toggle" onClick={() => toggleChapter(chapter.id)}>{expanded ? "收起原文" : "展开原文"}<PrototypeIcon name="caret" size={14} /></button>
-                    </header>
-                    <p>{chapter.summary}</p>
-                    {expanded && (
-                      <div className="mewmo-video-summary-original">
-                        {transcript.length > 0 ? transcript.map((segment) => (
-                          <p key={segment.id} data-video-start={segment.startSeconds}><button type="button" onClick={() => seekTo(segment.startSeconds)}>{formatDuration(segment.startSeconds)}</button><span>{segment.text}</span></p>
-                        )) : <span>这一部分暂时没有可用的逐字稿。</span>}
-                      </div>
-                    )}
-                  </article>
-                );
-              })}
-            </div>
-          ) : <VideoUnavailable status={video.processingStatus} label="全文总结" />}
-        </section>
-      )}
 
       {activeTab === "highlights" && (
         <section className="mewmo-video-panel">
@@ -576,7 +775,7 @@ function VideoReader({
                   <article key={highlight.id} className="mewmo-video-highlight-card--ai">
                     <button type="button" onClick={() => seekTo(highlight.startSeconds)}>{formatDuration(highlight.startSeconds)}</button>
                     <div><span className="mewmo-video-highlight-source">AI 提炼{highlight.score ? ` · 重要度 ${highlight.score}` : ""}</span><strong>{highlight.title}</strong><p>{highlight.note}</p></div>
-                    <button type="button" className="mewmo-icon-button" onClick={() => onPrototypeAction("已复制高光笔记")} aria-label="复制高光"><PrototypeIcon name="copy-plain" size={14} /></button>
+                    <button type="button" className="mewmo-icon-button" onClick={() => onAction("已复制高光笔记")} aria-label="复制高光"><PrototypeIcon name="copy-plain" size={14} /></button>
                   </article>
                 ))}
               </div>
@@ -590,10 +789,10 @@ function VideoReader({
                   <article key={highlight.id} className="mewmo-video-highlight-card--user">
                     {highlight.startSeconds !== null ? <button type="button" onClick={() => seekTo(highlight.startSeconds!)}>{formatDuration(highlight.startSeconds)}</button> : <span />}
                     <div><span className="mewmo-video-highlight-source">我选择的高光 · {highlight.text.length} 字</span><p>{highlight.text}</p></div>
-                    <button type="button" className="mewmo-icon-button" onClick={() => setUserHighlights((current) => current.filter((item) => item.id !== highlight.id))} aria-label="删除高光"><PrototypeIcon name="close" size={14} /></button>
+                    <button type="button" className="mewmo-icon-button" onClick={() => onDeleteUserHighlight(highlight.id)} aria-label="删除高光"><PrototypeIcon name="close" size={14} /></button>
                   </article>
                 ))}
-              </div> : <div className="mewmo-video-highlight-empty">在「全文总结」或「原文细读」中选中文字，即可一键加入这里。</div>}
+              </div> : <div className="mewmo-video-highlight-empty">在右侧 AI 解读或「原文细读」中选中文字，即可一键加入这里。</div>}
             </div>
           )}
           {highlightFilter === "ai" && video.highlights.length === 0 && <VideoUnavailable status={video.processingStatus} label="AI 高光" />}
@@ -633,16 +832,148 @@ function VideoReader({
   );
 }
 
-function AddVideoModal({ open, onClose, onAdd }: { open: boolean; onClose: () => void; onAdd: (mode: AddMode, value: string) => void }) {
+function VideoTagManager({
+  tags,
+  tagColors,
+  availableTags,
+  suggestions,
+  onTagsChange,
+  onFeedback,
+}: {
+  tags: string[];
+  tagColors: Record<string, string>;
+  availableTags: VideoTagRecord[];
+  suggestions: string[];
+  onTagsChange: (tags: string[]) => void;
+  onFeedback: (message: string) => void;
+}) {
+  const anchorRef = useRef<HTMLSpanElement>(null);
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const normalizedSearch = search.trim().toLowerCase();
+  const options = useMemo(
+    () => [...new Set([...availableTags.map((tag) => tag.name), ...MEWMO_TAG_OPTIONS, ...tags, ...suggestions])]
+      .filter((tag) => !normalizedSearch || tag.toLowerCase().includes(normalizedSearch)),
+    [availableTags, normalizedSearch, suggestions, tags],
+  );
+  const pendingSuggestions = suggestions.filter((tag) => !tags.includes(tag));
+
+  const toggleTag = (tag: string, source: "picker" | "suggestion" | "create" = "picker") => {
+    const exists = tags.includes(tag);
+    onTagsChange(exists ? tags.filter((item) => item !== tag) : [...tags, tag]);
+    if (source === "suggestion") onFeedback(`已确认 AI 建议标签「${tag}」`);
+    else if (source === "create") onFeedback(`已创建并添加标签「${tag}」`);
+    else onFeedback(exists ? `已移除标签「${tag}」` : `已添加标签「${tag}」`);
+  };
+
+  const createTag = () => {
+    const tag = search.trim();
+    if (!tag) return;
+    if (!tags.includes(tag)) toggleTag(tag, "create");
+    setSearch("");
+    setOpen(false);
+  };
+
+  return (
+    <section className="mewmo-video-mewmo-tags">
+      <header>
+        <div><PrototypeIcon name="tag" size={14} /><strong>Mewmo 标签</strong><span>跨笔记、剪藏与订阅统一组织</span></div>
+        <span ref={anchorRef}>
+          <button type="button" className="mewmo-video-mewmo-tags__add" onClick={() => setOpen((value) => !value)} aria-expanded={open}>
+            <PrototypeIcon name="plus" size={13} />标签
+          </button>
+        </span>
+      </header>
+
+      <div className="mewmo-video-mewmo-tags__confirmed">
+        {tags.length > 0 ? tags.map((tag) => (
+          <button
+            type="button"
+            key={tag}
+            style={{ "--tc": tagColors[tag] ?? availableTags.find((option) => option.name === tag)?.color ?? mewmoTagColor(tag) } as CSSProperties}
+            onClick={() => setOpen(true)}
+            title={`管理标签：${tag}`}
+          >
+            {tag}
+          </button>
+        )) : <span>还没有标签，可手动选择或确认 AI 建议。</span>}
+      </div>
+
+      {pendingSuggestions.length > 0 && (
+        <div className="mewmo-video-mewmo-tags__suggestions">
+          <span><PrototypeIcon name="spark" size={13} />AI 建议 · 确认后加入</span>
+          <div>
+            {pendingSuggestions.map((tag) => (
+              <button type="button" key={tag} onClick={() => toggleTag(tag, "suggestion")}>
+                <PrototypeIcon name="plus" size={11} />{tag}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <PopoverMenu
+        open={open}
+        anchorRef={anchorRef}
+        onOpenChange={setOpen}
+        align="end"
+        gap={5}
+        boundary="main"
+        className="mewmo-tag-picker mewmo-video-tag-picker"
+      >
+        <div className="mewmo-tag-picker__search">
+          <PrototypeIcon name="search" size={14} />
+          <input
+            value={search}
+            placeholder="搜索或创建标签..."
+            onChange={(event) => setSearch(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") createTag();
+              if (event.key === "Escape") setOpen(false);
+            }}
+          />
+        </div>
+        <div className="mewmo-tag-picker__list">
+          {options.map((tag) => {
+            const checked = tags.includes(tag);
+            return (
+              <button
+                key={tag}
+                type="button"
+                className={`mewmo-tag-picker__item ${checked ? "mewmo-tag-picker__item--checked" : ""}`}
+                onClick={() => toggleTag(tag)}
+              >
+                <span className="mewmo-tag-picker__dot" style={{ "--tc": tagColors[tag] ?? availableTags.find((option) => option.name === tag)?.color ?? mewmoTagColor(tag) } as CSSProperties} />
+                <span>{tag}</span>
+                {checked && <span className="mewmo-tag-picker__check"><PrototypeIcon name="check" size={14} /></span>}
+              </button>
+            );
+          })}
+        </div>
+        {search.trim() && ![...availableTags.map((tag) => tag.name), ...MEWMO_TAG_OPTIONS, ...tags, ...suggestions].some((tag) => tag.toLowerCase() === normalizedSearch) && (
+          <button type="button" className="mewmo-tag-picker__create" onClick={createTag}>
+            <PrototypeIcon name="plus" size={14} />
+            <span>新建「{search.trim()}」</span>
+          </button>
+        )}
+      </PopoverMenu>
+    </section>
+  );
+}
+
+function AddVideoModal({ open, onClose, onAdd }: { open: boolean; onClose: () => void; onAdd: (mode: AddMode, value: string) => Promise<boolean> }) {
   const [mode, setMode] = useState<AddMode>("video");
   const [value, setValue] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   if (!open) return null;
 
-  const submit = (event: FormEvent<HTMLFormElement>) => {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!value.trim()) return;
-    onAdd(mode, value.trim());
-    setValue("");
+    if (!value.trim() || submitting) return;
+    setSubmitting(true);
+    const added = await onAdd(mode, value.trim());
+    if (added) setValue("");
+    setSubmitting(false);
   };
 
   return (
@@ -654,13 +985,13 @@ function AddVideoModal({ open, onClose, onAdd }: { open: boolean; onClose: () =>
           <button type="button" className={mode === "video" ? "active" : ""} onClick={() => setMode("video")}>单个视频</button>
           <button type="button" className={mode === "channel" ? "active" : ""} onClick={() => setMode("channel")}>订阅频道</button>
         </div>
-        <form onSubmit={submit}>
+        <form onSubmit={(event) => void submit(event)}>
           <label className="mewmo-video-add-field">
             <span>{mode === "video" ? "视频链接" : "频道或 UP 主链接"}</span>
-            <input autoFocus value={value} onChange={(event) => setValue(event.target.value)} placeholder={mode === "video" ? "粘贴 Bilibili / YouTube 视频链接" : "粘贴频道主页链接"} />
+            <input autoFocus value={value} onChange={(event) => setValue(event.target.value)} placeholder={mode === "video" ? "粘贴 Bilibili 视频链接" : "粘贴频道主页链接"} disabled={submitting} />
           </label>
-          <div className="mewmo-video-add-support"><span>Bilibili</span><span>YouTube</span><small>仅演示前端识别和处理状态</small></div>
-          <div className="addfeed__actions"><button type="button" className="mewmo-button mewmo-button--ghost" onClick={onClose}>取消</button><button type="submit" className="mewmo-button mewmo-button--primary" disabled={!value.trim()}>{mode === "video" ? "添加并分析" : "订阅频道"}</button></div>
+          <div className="mewmo-video-add-support"><span>Bilibili</span><small>当前先支持单个视频；YouTube 与频道订阅将在后续开放</small></div>
+          <div className="addfeed__actions"><button type="button" className="mewmo-button mewmo-button--ghost" onClick={onClose} disabled={submitting}>取消</button><button type="submit" className="mewmo-button mewmo-button--primary" disabled={!value.trim() || submitting}>{submitting ? "正在添加..." : mode === "video" ? "添加并分析" : "订阅频道"}</button></div>
         </form>
       </div>
     </div>
@@ -678,6 +1009,13 @@ function statusDescription(status: VideoProcessingStatus) {
   if (status === "no_transcript") return "平台没有提供可用字幕，暂时无法生成章节。";
   if (status === "failed") return "处理失败，可以稍后重新分析。";
   return "视频内容已经完成分析。";
+}
+
+function analysisStatusTitle(status: VideoProcessingStatus) {
+  if (status === "ready") return "AI 解读已生成";
+  if (status === "no_transcript") return "AI 解读暂不可用";
+  if (status === "failed") return "AI 解读失败";
+  return "AI 正在解读这条视频";
 }
 
 function formatDuration(value: number) {
@@ -702,6 +1040,8 @@ function timestamp(value: string | null) {
 }
 
 function toListItem({
+  description: _description,
+  suggestedTags: _suggestedTags,
   quickJudgment: _quickJudgment,
   keyPoints: _keyPoints,
   targetAudience: _targetAudience,
@@ -709,9 +1049,46 @@ function toListItem({
   transcript: _transcript,
   highlights: _highlights,
   visualSummary: _visualSummary,
+  userHighlights: _userHighlights,
   ...item
 }: VideoDetail): VideoListItem {
   return item;
+}
+
+function mewmoTagColor(tag: string) {
+  const known = noteTagPalette[tag];
+  if (known) return known;
+  const hash = [...tag].reduce((value, character) => value + character.charCodeAt(0), 0);
+  return MEWMO_TAG_COLORS[hash % MEWMO_TAG_COLORS.length]!;
+}
+
+function mergeTagOptions(current: VideoTagRecord[], incoming: VideoTagRecord[]) {
+  const merged = new Map(current.map((tag) => [tag.name, tag]));
+  for (const tag of incoming) {
+    const existing = merged.get(tag.name);
+    merged.set(tag.name, {
+      ...existing,
+      ...tag,
+      color: tag.color ?? existing?.color ?? mewmoTagColor(tag.name),
+    });
+  }
+  return [...merged.values()].sort((left, right) => left.name.localeCompare(right.name, "zh-CN"));
+}
+
+function isTerminalStatus(status: VideoProcessingStatus) {
+  return status === "ready" || status === "no_transcript" || status === "failed";
+}
+
+function withEmbedStart(embedUrl: string, seconds: number) {
+  try {
+    const url = new URL(embedUrl);
+    const start = Math.max(0, Math.round(seconds));
+    if (url.hostname.includes("bilibili.com")) url.searchParams.set("t", String(start));
+    if (url.hostname.includes("youtube.com")) url.searchParams.set("start", String(start));
+    return url.toString();
+  } catch {
+    return embedUrl;
+  }
 }
 
 function highlightText(text: string, query: string) {

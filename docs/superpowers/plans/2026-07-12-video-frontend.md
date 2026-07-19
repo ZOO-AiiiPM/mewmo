@@ -11,8 +11,13 @@
 ## 2. Video Workspace
 
 - Add a dedicated `VideoWorkspace` component.
-- Add cover-first list cards, processing badges, and route-based selection.
-- Add a reader with a simulated player and Overview/Chapters/Transcript tabs.
+- Add cover-first list cards with a subscription-style unread dot, stable video preview, and route-based selection.
+- Keep read state separate from watch progress, and clear unread state optimistically on selection.
+- Add a reader with a complete player, an AI-reading teaser, and Transcript/Highlight Notes tabs.
+- Preserve the original platform description below the player and use the shared colored Mewmo tag interaction; raw platform tags stay hidden as optional AI suggestion input.
+- Remove redundant mark-watched and processing-status fields from the reader chrome.
+- Put vertically stacked AI quick judgment and Full Summary in the right AI rail, with timestamp seek and View Transcript handoff to the center reader.
+- Put low-frequency video actions in the reader toolbar overflow menu so tab content starts immediately below the tab bar.
 
 ## 3. Add Flow
 

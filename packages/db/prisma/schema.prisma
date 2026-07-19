@@ -18,22 +18,23 @@ model User {
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
-  accounts       Account[]
-  sessions       Session[]
-  authenticators Authenticator[]
-  notes          Note[]
-  clips          Clip[]
-  feeds          Feed[]
-  feedEntries    FeedEntry[]
-  aiChats        AiChat[]
+  accounts             Account[]
+  sessions             Session[]
+  authenticators       Authenticator[]
+  notes                Note[]
+  clips                Clip[]
+  feeds                Feed[]
+  feedEntries          FeedEntry[]
+  aiChats              AiChat[]
   aiContextAttachments AiContextAttachment[]
-  tags           Tag[]
-  tagPool        TagPool[]
-  syncCursors    SyncCursor[]
-  knowledgeBases KnowledgeBase[]
-  knowledgeFolders KnowledgeFolder[]
-  knowledgeItems KnowledgeItem[]
-  noteShares     NoteShare[]
+  tags                 Tag[]
+  tagPool              TagPool[]
+  syncCursors          SyncCursor[]
+  knowledgeBases       KnowledgeBase[]
+  knowledgeFolders     KnowledgeFolder[]
+  knowledgeItems       KnowledgeItem[]
+  noteShares           NoteShare[]
+  videoHighlights      VideoUserHighlight[]
 
   @@map("users")
 }
@@ -109,9 +110,9 @@ model Note {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   knowledgeItems KnowledgeItem[]
-  shares NoteShare[]
+  shares         NoteShare[]
 
   @@unique([userId, slug])
   @@index([userId, deletedAt, updatedAt])
@@ -135,49 +136,56 @@ model NoteShare {
 }
 
 model Clip {
-  id          String    @id @default(cuid())
-  url         String
-  title       String
-  content     String    @default("")
-  summary     String?
-  favicon     String?
-  coverImage  String?   @map("cover_image")
-  excerpt     String?
-  sourceName  String?   @map("source_name")
-  author      String?
-  publishedAt DateTime? @map("published_at")
-  version     Int       @default(1)
-  userId      String    @map("user_id")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
-  deletedAt   DateTime? @map("deleted_at")
+  id             String    @id @default(cuid())
+  url            String
+  title          String
+  content        String    @default("")
+  summary        String?
+  favicon        String?
+  coverImage     String?   @map("cover_image")
+  excerpt        String?
+  sourceName     String?   @map("source_name")
+  author         String?
+  publishedAt    DateTime? @map("published_at")
+  version        Int       @default(1)
+  userId         String    @map("user_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+  fetchError     String?   @map("fetch_error")
+  fetchStatus    String    @default("idle") @map("fetch_status")
+  fetchedAt      DateTime? @map("fetched_at")
+  normalizedUrl  String?   @map("normalized_url")
+  fetchStartedAt DateTime? @map("fetch_started_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   knowledgeItems KnowledgeItem[]
 
+  @@unique([userId, normalizedUrl])
   @@index([userId, deletedAt, updatedAt])
   @@map("clips")
 }
 
 model Feed {
-  id              String      @id @default(cuid())
-  url             String
-  type            FeedType    @default(article)
-  title           String
-  description     String?
-  favicon         String?
-  refreshInterval Int         @default(3600) @map("refresh_interval")
-  lastFetchStartedAt DateTime? @map("last_fetch_started_at")
-  lastFetchStatus String       @default("idle") @map("last_fetch_status")
-  lastFetchError  String?      @map("last_fetch_error")
-  lastFetchCount  Int          @default(0) @map("last_fetch_count")
-  lastFetchedAt   DateTime?   @map("last_fetched_at")
-  version         Int         @default(1)
-  userId          String      @map("user_id")
-  createdAt       DateTime    @default(now()) @map("created_at")
-  updatedAt       DateTime    @updatedAt @map("updated_at")
-  deletedAt       DateTime?   @map("deleted_at")
-  entries         FeedEntry[]
+  id                 String      @id @default(cuid())
+  url                String
+  type               FeedType    @default(article)
+  title              String
+  description        String?
+  favicon            String?
+  refreshInterval    Int         @default(3600) @map("refresh_interval")
+  lastFetchStartedAt DateTime?   @map("last_fetch_started_at")
+  lastFetchStatus    String      @default("idle") @map("last_fetch_status")
+  lastFetchError     String?     @map("last_fetch_error")
+  lastFetchCount     Int         @default(0) @map("last_fetch_count")
+  lastFetchedAt      DateTime?   @map("last_fetched_at")
+  version            Int         @default(1)
+  userId             String      @map("user_id")
+  createdAt          DateTime    @default(now()) @map("created_at")
+  updatedAt          DateTime    @updatedAt @map("updated_at")
+  deletedAt          DateTime?   @map("deleted_at")
+  lastSeenEntryUrl   String?     @map("last_seen_entry_url")
+  entries            FeedEntry[]
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -205,14 +213,64 @@ model FeedEntry {
   updatedAt   DateTime  @updatedAt @map("updated_at")
   deletedAt   DateTime? @map("deleted_at")
 
-  feed Feed @relation(fields: [feedId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  knowledgeItems KnowledgeItem[]
+  feed            Feed                 @relation(fields: [feedId], references: [id], onDelete: Cascade)
+  user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  knowledgeItems  KnowledgeItem[]
+  videoDetail     VideoDetail?
+  videoHighlights VideoUserHighlight[]
 
   @@unique([feedId, url])
   @@index([feedId, deletedAt, publishedAt])
   @@index([userId, deletedAt, readAt])
   @@map("feed_entries")
+}
+
+model VideoDetail {
+  feedEntryId        String                @id @map("feed_entry_id")
+  platform           VideoPlatform
+  externalVideoId    String                @map("external_video_id")
+  durationSeconds    Int?                  @map("duration_seconds")
+  sourceTags         Json?                 @map("source_tags")
+  transcript         Json?
+  transcriptLanguage String?               @map("transcript_language")
+  quickJudgment      Json?                 @map("quick_judgment")
+  keyPoints          Json?                 @map("key_points")
+  targetAudience     String?               @map("target_audience")
+  chapters           Json?
+  aiHighlights       Json?                 @map("ai_highlights")
+  suggestedTags      Json?                 @map("suggested_tags")
+  processingStatus   VideoProcessingStatus @default(fetching_metadata) @map("processing_status")
+  processingError    String?               @map("processing_error")
+  processingAttempts Int                   @default(0) @map("processing_attempts")
+  analysisVersion    Int                   @default(1) @map("analysis_version")
+  lastProcessedAt    DateTime?             @map("last_processed_at")
+  createdAt          DateTime              @default(now()) @map("created_at")
+  updatedAt          DateTime              @updatedAt @map("updated_at")
+
+  feedEntry FeedEntry @relation(fields: [feedEntryId], references: [id], onDelete: Cascade)
+
+  @@index([processingStatus, updatedAt])
+  @@index([platform, externalVideoId])
+  @@map("video_details")
+}
+
+model VideoUserHighlight {
+  id           String    @id @default(cuid())
+  feedEntryId  String    @map("feed_entry_id")
+  userId       String    @map("user_id")
+  text         String
+  startSeconds Float?    @map("start_seconds")
+  version      Int       @default(1)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
+
+  feedEntry FeedEntry @relation(fields: [feedEntryId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([feedEntryId, userId, deletedAt, createdAt])
+  @@index([userId, deletedAt, updatedAt])
+  @@map("video_user_highlights")
 }
 
 model AiChat {
@@ -232,17 +290,17 @@ model AiChat {
 }
 
 model AiMessage {
-  id        String        @id @default(cuid())
-  chatId    String        @map("chat_id")
+  id        String          @id @default(cuid())
+  chatId    String          @map("chat_id")
   role      AiMessageRole
   content   String
   status    AiMessageStatus @default(completed)
   metadata  Json?
-  version   Int           @default(1)
-  createdAt DateTime      @default(now()) @map("created_at")
-  deletedAt DateTime?     @map("deleted_at")
+  version   Int             @default(1)
+  createdAt DateTime        @default(now()) @map("created_at")
+  deletedAt DateTime?       @map("deleted_at")
 
-  chat AiChat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  chat               AiChat                @relation(fields: [chatId], references: [id], onDelete: Cascade)
   contextAttachments AiContextAttachment[]
 
   @@index([chatId, deletedAt, createdAt])
@@ -436,6 +494,20 @@ enum FeedType {
   media
   video
   podcast
+}
+
+enum VideoPlatform {
+  bilibili
+  youtube
+}
+
+enum VideoProcessingStatus {
+  fetching_metadata
+  fetching_transcript
+  analyzing
+  ready
+  no_transcript
+  failed
 }
 
 enum KnowledgeItemKind {

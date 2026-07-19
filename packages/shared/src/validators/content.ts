@@ -112,6 +112,90 @@ export const updateFeedEntrySchema = z
   })
   .refine(nonEmptyUpdate, { message: "at least one field must be provided" });
 
+export const videoPlatformSchema = z.enum(["bilibili", "youtube"]);
+export const videoProcessingStatusSchema = z.enum([
+  "fetching_metadata",
+  "fetching_transcript",
+  "analyzing",
+  "ready",
+  "no_transcript",
+  "failed",
+]);
+
+export const videoTranscriptSegmentSchema = z
+  .object({
+    startSeconds: z.number().finite().min(0),
+    endSeconds: z.number().finite().min(0),
+    text: z.string().trim().min(1),
+  })
+  .refine((segment) => segment.endSeconds > segment.startSeconds, {
+    message: "transcript endSeconds must be greater than startSeconds",
+    path: ["endSeconds"],
+  });
+
+export const videoTranscriptSchema = z.array(videoTranscriptSegmentSchema);
+
+export const videoQuickJudgmentSchema = z.object({
+  summary: z.string().trim().min(1),
+  highlights: z.array(z.string().trim().min(1)).max(12),
+  thoughts: z.array(z.string().trim().min(1)).max(12),
+  terms: z.array(z.object({
+    term: z.string().trim().min(1).max(80),
+    explanation: z.string().trim().min(1).max(600),
+  })).max(20),
+});
+
+export const videoChapterSchema = z
+  .object({
+    startSeconds: z.number().finite().min(0),
+    endSeconds: z.number().finite().min(0).nullable(),
+    title: z.string().trim().min(1).max(180),
+    theme: z.string().trim().min(1).max(80),
+    summary: z.string().trim().min(1).max(2000),
+  })
+  .refine((chapter) => chapter.endSeconds === null || chapter.endSeconds > chapter.startSeconds, {
+    message: "chapter endSeconds must be greater than startSeconds",
+    path: ["endSeconds"],
+  });
+
+export const videoAiHighlightSchema = z.object({
+  startSeconds: z.number().finite().min(0),
+  title: z.string().trim().min(1).max(180),
+  note: z.string().trim().min(1).max(2000),
+  score: z.number().int().min(0).max(100).optional(),
+});
+
+export const videoAnalysisResultSchema = z.object({
+  schemaVersion: z.literal(1),
+  quickJudgment: videoQuickJudgmentSchema,
+  keyPoints: z.array(z.string().trim().min(1)).max(20),
+  targetAudience: z.string().trim().min(1).max(600).nullable(),
+  chapters: z.array(videoChapterSchema).max(100),
+  highlights: z.array(videoAiHighlightSchema).max(100),
+  suggestedTags: z.array(z.string().trim().min(1).max(50)).max(20),
+});
+
+export const createVideoSchema = z.object({
+  url: urlSchema,
+});
+
+export const createVideoHighlightSchema = z.object({
+  text: z.string().trim().min(1).max(10_000),
+  startSeconds: z.number().finite().min(0).nullable().optional(),
+});
+
+export const replaceFeedEntryTagsSchema = z.object({
+  tags: z.array(z.object({
+    name: z.string().trim().min(1).max(50),
+    color: z.string().trim().min(1).max(32).optional(),
+  })).max(50),
+});
+
+export type VideoPlatform = z.infer<typeof videoPlatformSchema>;
+export type VideoProcessingStatus = z.infer<typeof videoProcessingStatusSchema>;
+export type VideoTranscriptSegment = z.infer<typeof videoTranscriptSegmentSchema>;
+export type VideoAnalysisResult = z.infer<typeof videoAnalysisResultSchema>;
+
 export const createKnowledgeBaseSchema = z.object({
   title: z.string().trim().min(1).max(80),
   icon: z.string().trim().min(1).max(40).optional().default("book"),

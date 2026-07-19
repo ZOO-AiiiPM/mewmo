@@ -4,7 +4,7 @@ import { useRef } from "react";
 import { PopoverMenu } from "../ui/FloatingMenu";
 import { PrototypeIcon } from "./PrototypeIcon";
 
-type CardActionKind = "notes" | "clips";
+type CardActionKind = "notes" | "clips" | "video";
 
 interface CardActionMenuProps {
   kind: CardActionKind;
@@ -18,6 +18,9 @@ interface CardActionMenuProps {
   onExport?: () => void;
   onRefresh?: () => void;
   onCopyLink?: () => void;
+  onFavorite?: () => void;
+  onReanalyze?: () => void;
+  favoriteActive?: boolean;
   href?: string;
 }
 
@@ -33,6 +36,9 @@ export function CardActionMenu({
   onExport,
   onRefresh,
   onCopyLink,
+  onFavorite,
+  onReanalyze,
+  favoriteActive = false,
   href,
 }: CardActionMenuProps) {
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -84,6 +90,51 @@ export function CardActionMenu({
             <span className="mewmo-card-menu__icon"><PrototypeIcon name="export" size={16} /></span>
             <span>导出</span>
           </button>
+        </>
+      ) : kind === "video" ? (
+        <>
+          <button
+            type="button"
+            className="mewmo-card-menu__item mewmo-card-menu__item--danger"
+            onClick={() => run(onDelete)}
+          >
+            <span className="mewmo-card-menu__icon"><PrototypeIcon name="trash" size={16} /></span>
+            <span>删除</span>
+          </button>
+          <button
+            type="button"
+            className="mewmo-card-menu__item"
+            onClick={() => run(onFavorite)}
+          >
+            <span className="mewmo-card-menu__icon"><PrototypeIcon name="bookmark" size={16} /></span>
+            <span>{favoriteActive ? "已收藏" : "收藏到剪藏"}</span>
+          </button>
+          <button
+            type="button"
+            className="mewmo-card-menu__item"
+            onClick={() => run(onReanalyze)}
+          >
+            <span className="mewmo-card-menu__icon"><PrototypeIcon name="sync" size={16} /></span>
+            <span>重新分析</span>
+          </button>
+          <button
+            type="button"
+            className="mewmo-card-menu__item"
+            onClick={() => run(onCopyLink)}
+          >
+            <span className="mewmo-card-menu__icon"><PrototypeIcon name="copy" size={16} /></span>
+            <span>复制视频链接</span>
+          </button>
+          <a
+            className="mewmo-card-menu__item"
+            href={href}
+            target="_blank"
+            rel="noreferrer"
+            onClick={() => onOpenChange(false)}
+          >
+            <span className="mewmo-card-menu__icon"><PrototypeIcon name="external" size={16} /></span>
+            <span>浏览器打开</span>
+          </a>
         </>
       ) : (
         <>
