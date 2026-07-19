@@ -1592,8 +1592,14 @@ html.light .mewmo-clip-url__field {
 }
 
 .mewmo-list-card:hover {
+  border-top-color: transparent;
   border-radius: 12px;
   background: var(--hover);
+}
+
+.mewmo-list-card-wrap--hover > .mewmo-list-card,
+.mewmo-list-card-wrap--menu-open > .mewmo-list-card {
+  border-top-color: transparent;
 }
 
 .mewmo-list-card--selected {
@@ -1605,6 +1611,12 @@ html.light .mewmo-clip-url__field {
 .mewmo-list-card-wrap:has(.mewmo-list-card--selected)
   + .mewmo-list-card-wrap
   .mewmo-list-card {
+  border-top-color: transparent;
+}
+
+.mewmo-list-card-wrap:hover + .mewmo-list-card-wrap .mewmo-list-card,
+.mewmo-list-card-wrap--hover + .mewmo-list-card-wrap .mewmo-list-card,
+.mewmo-list-card-wrap--menu-open + .mewmo-list-card-wrap .mewmo-list-card {
   border-top-color: transparent;
 }
 
@@ -1818,6 +1830,7 @@ html.light .mewmo-card-menu {
   color: var(--ink-soft);
   font-size: 12.7px;
   line-height: 1.5;
+  white-space: pre-line;
 }
 
 .mewmo-list-card__thumbs {
@@ -2330,9 +2343,9 @@ html.light .mewmo-reader-menu {
 }
 
 .mewmo-reader-to-top {
-  position: fixed;
-  right: 9px;
-  bottom: calc(var(--ai-fab-bottom, 80px) + 64px);
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
   z-index: 59;
   display: grid;
   width: 40px;
@@ -2365,12 +2378,6 @@ html.light .mewmo-reader-to-top {
 }
 
 .mewmo-reader-to-top--visible {
-  opacity: 1;
-  pointer-events: auto;
-  transform: translateY(0) scale(1);
-}
-
-.mewmo-shell--ai-open .mewmo-reader-to-top--visible {
   opacity: 1;
   pointer-events: auto;
   transform: translateY(0) scale(1);
@@ -3974,10 +3981,6 @@ html.light .mewmo-ai-related-modal__panel {
 
 .mewmo-ai-fab:hover {
   width: 70px;
-  background: var(--raised);
-}
-
-.mewmo-ai-fab--open {
   background: var(--raised);
 }
 

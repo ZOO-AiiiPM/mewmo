@@ -1,23 +1,15 @@
 import { notFound, redirect } from "next/navigation";
-import { getPrisma, Prisma } from "@mewmo/db";
+import { getPrisma } from "@mewmo/db";
 import { auth } from "../../../../lib/auth";
+import { listNotesWithPreviews } from "../../../../lib/note-list-data";
 import { decodeNoteSlug } from "../../../../lib/note-slug";
 import { NoteEditorPage } from "./NoteEditorPage";
 
-const noteListSelect = {
-  id: true,
-  slug: true,
-  title: true,
-  summary: true,
-  pinned: true,
-  version: true,
-  createdAt: true,
-  updatedAt: true,
-} satisfies Prisma.NoteSelect;
-
-type NoteListItem = Prisma.NoteGetPayload<{ select: typeof noteListSelect }>;
-
-export default async function NoteDetailPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function NoteDetailPage({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
@@ -28,11 +20,7 @@ export default async function NoteDetailPage({ params }: { params: Promise<{ slu
     prisma.note.findFirst({
       where: { userId: session.user.id, slug, deletedAt: null },
     }),
-    prisma.note.findMany({
-      where: { userId: session.user.id, deletedAt: null },
-      orderBy: { updatedAt: "desc" },
-      select: noteListSelect,
-    }),
+    listNotesWithPreviews(session.user.id, prisma),
   ]);
 
   if (!note) notFound();
@@ -48,7 +36,7 @@ export default async function NoteDetailPage({ params }: { params: Promise<{ slu
         version: note.version,
         updatedAt: note.updatedAt.toISOString(),
       }}
-      notes={notes.map((item: NoteListItem) => ({
+      notes={notes.map((item) => ({
         ...item,
         ...(note.id === item.id ? { content: note.content } : {}),
         createdAt: item.createdAt.toISOString(),

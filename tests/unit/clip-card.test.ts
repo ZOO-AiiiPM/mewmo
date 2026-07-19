@@ -16,6 +16,51 @@ describe("clip card helpers", () => {
     ).toBe("正文第一段，解释真实内容。");
   });
 
+  it("preserves plain-text and HTML paragraph breaks for shared list cards", () => {
+    expect(
+      clipPreviewText({
+        url: "https://example.com/plain",
+        excerpt: "第一段\n\n第二段",
+      }),
+    ).toBe("第一段\n第二段");
+
+    expect(
+      clipPreviewText({
+        url: "https://example.com/html",
+        content: "<p>第一段</p><p>第二段<br>第三行</p>",
+      }),
+    ).toBe("第一段\n第二段\n第三行");
+  });
+
+  it("removes markdown thematic breaks without deleting ordinary punctuation", () => {
+    for (const marker of ["---", "* * *", "___"]) {
+      expect(
+        clipPreviewText({
+          url: "https://example.com",
+          excerpt: `整理日期：2026-01-19\n${marker}\n正文预览`,
+        }),
+      ).toBe("整理日期：2026-01-19\n正文预览");
+    }
+
+    expect(
+      clipPreviewText({
+        url: "https://example.com",
+        excerpt: "npm --version\nrelease_*_notes",
+      }),
+    ).toBe("npm --version\nrelease_*_notes");
+  });
+
+  it("limits shared list previews to 240 characters", () => {
+    expect(
+      Array.from(
+        clipPreviewText({
+          url: "https://example.com",
+          excerpt: "猫".repeat(300),
+        }),
+      ),
+    ).toHaveLength(240);
+  });
+
   it("formats clip times by recency buckets", () => {
     expect(formatClipListTime("2026-07-06T01:05:00.000+08:00", now)).toBe("01:05");
     expect(formatClipListTime("2026-07-05T22:15:00.000+08:00", now)).toBe("昨天 22:15");

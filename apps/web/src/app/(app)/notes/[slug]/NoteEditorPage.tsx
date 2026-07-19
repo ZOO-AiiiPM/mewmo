@@ -79,6 +79,7 @@ interface NoteListItem {
   slug: string;
   title: string;
   summary: string | null;
+  preview?: string;
   content?: string;
   pinned: boolean;
   version?: number;
@@ -511,7 +512,7 @@ export function NoteEditorPage({
           {visibleNotes.map((item) => {
             const content = item.content ?? "";
             const tags = contentTags({ ...item, content });
-            const preview = notePreviewText({ ...item, content });
+            const preview = notePreviewText({ ...item, content: item.content });
             const images = extractNoteImages(content);
             const menuOpen = openMenuId === item.id;
             const cardHovered = hoveredCardId === item.id || menuOpen;

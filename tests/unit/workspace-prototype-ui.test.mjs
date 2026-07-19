@@ -380,6 +380,16 @@ test("notes and clips list cards expose prototype actions, search, and pinned st
   );
   assert.match(
     css,
+    /\.mewmo-list-card-wrap--hover\s*\+\s*\.mewmo-list-card-wrap\s+\.mewmo-list-card[\s\S]*border-top-color:\s*transparent/,
+    "the separator after a hovered card should disappear so both rounded edges stay clean",
+  );
+  assert.match(
+    css,
+    /\.mewmo-list-card p\s*\{[\s\S]*white-space:\s*pre-line/,
+    "gray preview text should render preserved line breaks in every list section",
+  );
+  assert.match(
+    css,
     /\.mewmo-list-card__title span\s*\{[\s\S]*font-size:\s*14\.5px[\s\S]*font-weight:\s*620/,
     "card titles should use the prototype 14.5px / 620 text treatment",
   );
@@ -667,6 +677,8 @@ test("reader surfaces expose the prototype back-to-top affordance", () => {
     "apps/web/src/app/(app)/clips/[id]/ClipDetailClient.tsx",
     "apps/web/src/app/(app)/knowledge-bases/page.tsx",
     "apps/web/src/app/(app)/feeds/page.tsx",
+    "apps/web/src/app/(app)/today/page.tsx",
+    "apps/web/src/app/(app)/trash/page.tsx",
   ].map(read);
 
   assert.match(
@@ -698,9 +710,10 @@ test("reader surfaces expose the prototype back-to-top affordance", () => {
     );
   }
 
-  assert.match(css, /\.mewmo-reader-to-top\s*\{[^}]*right:\s*9px/, "button should use the prototype right offset");
-  assert.match(css, /\.mewmo-reader-to-top\s*\{[^}]*position:\s*fixed/, "button should share the AI entry viewport coordinate system");
-  assert.match(css, /\.mewmo-reader-to-top\s*\{[^}]*bottom:\s*calc\(var\(--ai-fab-bottom,\s*80px\)\s*\+\s*64px\)/, "button should sit above the current fixed AI entry without overlapping it");
+  assert.match(css, /\.mewmo-reader-surface\s*\{[^}]*position:\s*relative/, "reader surface should own the back-to-top positioning context");
+  assert.match(css, /\.mewmo-reader-to-top\s*\{[^}]*position:\s*absolute/, "button should stay inside the reader surface instead of the viewport");
+  assert.match(css, /\.mewmo-reader-to-top\s*\{[^}]*right:\s*16px[^}]*bottom:\s*16px/, "button should sit at the reader panel bottom-right corner");
+  assert.doesNotMatch(css, /\.mewmo-reader-to-top\s*\{[^}]*--ai-fab-bottom/, "button position must not depend on the movable AI entry");
   assert.match(css, /\.mewmo-reader-to-top\s*\{[^}]*width:\s*40px[^}]*height:\s*40px/, "button should keep the prototype 40px square hit target");
   assert.match(css, /\.mewmo-reader-to-top\s*\{[^}]*opacity:\s*0[^}]*pointer-events:\s*none/, "button should be hidden before the threshold");
   assert.match(css, /\.mewmo-reader-to-top--visible\s*\{[^}]*opacity:\s*1[^}]*pointer-events:\s*auto/, "button should become interactive once visible");
@@ -788,15 +801,20 @@ test("workspace shell preserves prototype AI rail proportions and resizer", () =
     /mewmo-ai-resizer/,
     "AI rail should expose the prototype drag handle between reader and AI",
   );
-  assert.doesNotMatch(
+  assert.match(
     appShell,
     /\{!aiOpen && \(/,
-    "cat entry should stay visible after opening so the user has a stable collapse affordance",
+    "cat entry should disappear after opening so the rail close button is the only collapse affordance",
   );
   assert.match(
     appShell,
-    /aria-label=\{aiOpen \? "收起 mewmo" : "打开 mewmo"\}/,
-    "cat entry should toggle between opening and collapsing the AI rail",
+    /onClick=\{openAi\}[\s\S]*aria-label="打开 mewmo"/,
+    "cat entry should only open the AI rail",
+  );
+  assert.match(
+    aiSidebar,
+    /onClick=\{\(\) => onOpenChange\(false\)\}[\s\S]*aria-label="关闭 mewmo"/,
+    "the AI rail close button should own the collapse action",
   );
   assert.match(
     appShell,
@@ -851,12 +869,7 @@ test("workspace shell preserves prototype AI rail proportions and resizer", () =
   assert.doesNotMatch(
     css,
     /\.mewmo-shell--ai-open\s+\.mewmo-reader-to-top\s*\{/,
-    "back-to-top should remain available when the AI rail is open because title-hidden state is the visibility rule",
-  );
-  assert.match(
-    css,
-    /\.mewmo-shell--ai-open\s+\.mewmo-reader-to-top--visible\s*\{[\s\S]*opacity:\s*1[\s\S]*pointer-events:\s*auto/,
-    "back-to-top visible state should win even while the AI rail is open",
+    "back-to-top should not have an AI-open positioning or visibility override",
   );
   assert.match(
     css,

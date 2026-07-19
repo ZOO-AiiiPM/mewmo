@@ -1,34 +1,25 @@
 import { NextResponse } from "next/server";
-import { getPrisma, Prisma } from "@mewmo/db";
+import { getPrisma } from "@mewmo/db";
 import { auth } from "../../../lib/auth";
+import { listNotesWithPreviews } from "../../../lib/note-list-data";
 import { createNoteSlug } from "../../../lib/note-slug";
-import { attachServerTiming, createServerTiming } from "../../../lib/server-timing";
-
-const noteListSelect = {
-  id: true,
-  slug: true,
-  title: true,
-  summary: true,
-  pinned: true,
-  version: true,
-  createdAt: true,
-  updatedAt: true,
-} satisfies Prisma.NoteSelect;
+import {
+  attachServerTiming,
+  createServerTiming,
+} from "../../../lib/server-timing";
 
 export async function GET() {
   const timing = createServerTiming();
   const session = await timing.measure("auth", () => auth());
   if (!session?.user?.id) {
-    return attachServerTiming(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), timing);
+    return attachServerTiming(
+      NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+      timing,
+    );
   }
   const userId = session.user.id;
 
-  const prisma = getPrisma();
-  const notes = await timing.measure("db", () => prisma.note.findMany({
-    where: { userId, deletedAt: null },
-    orderBy: [{ pinned: "desc" }, { updatedAt: "desc" }],
-    select: noteListSelect,
-  }));
+  const notes = await timing.measure("db", () => listNotesWithPreviews(userId));
 
   return attachServerTiming(NextResponse.json(notes), timing);
 }

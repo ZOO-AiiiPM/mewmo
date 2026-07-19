@@ -15,7 +15,12 @@ import { Sidebar } from "./Sidebar";
 
 interface AppShellProps {
   children: ReactNode;
-  user?: { id?: string | null; name?: string | null; email?: string | null; image?: string | null };
+  user?: {
+    id?: string | null;
+    name?: string | null;
+    email?: string | null;
+    image?: string | null;
+  };
 }
 
 const AI_W_DEFAULT = 320;
@@ -155,70 +160,75 @@ export function AppShell({ children, user }: AppShellProps) {
     }
   };
 
-  const toggleAiOpen = () => {
+  const openAi = () => {
     if (suppressAiFabClickRef.current) {
       suppressAiFabClickRef.current = false;
       return;
     }
-    setAiOpen((value) => !value);
+    setAiOpen(true);
   };
 
   return (
     <WorkspaceAccountProvider userId={user?.id}>
       <WorkspaceNavigationProvider onPendingChange={setNavigationPending}>
-      <div
-      ref={shellRef}
-      className={[
-        "mewmo-shell",
-        sidebarCollapsed ? "mewmo-shell--sidebar-collapsed" : "",
-        sidebarPeek ? "mewmo-shell--sidebar-peek" : "",
-        aiOpen ? "mewmo-shell--ai-open" : "",
-        aiResizing ? "mewmo-shell--ai-resizing" : "",
-        navigationPending ? "mewmo-shell--navigation-pending" : "",
-      ]
-        .filter(Boolean)
-        .join(" ")}
-      style={
-        {
-          "--ai-w": `${aiWidth}px`,
-          "--ai-fab-bottom": `${aiFabBottom}px`,
-        } as CSSProperties
-      }
-    >
-      <div className="mewmo-workspace-navigation-progress" aria-hidden={!navigationPending} />
-      <Sidebar
-        user={user}
-        collapsed={sidebarCollapsed}
-        onToggleCollapsed={() => setSidebarCollapsed((value) => !value)}
-        onMouseEnter={clearSidebarPeekTimer}
-        onMouseLeave={scheduleSidebarPeekClose}
-      />
-      <AISidebarProvider>
-        <main className="mewmo-shell__main">{children}</main>
-        <AISidebar open={aiOpen} onOpenChange={setAiOpen} />
-      </AISidebarProvider>
-      <div
-        className="mewmo-ai-resizer"
-        role="separator"
-        aria-label="调整 mewmo 宽度"
-        aria-orientation="vertical"
-        onPointerDown={startAiResize}
-        onDoubleClick={() => setAiWidth(AI_W_DEFAULT)}
-      />
-      <button
-        type="button"
-        className={`mewmo-ai-fab ${aiOpen ? "mewmo-ai-fab--open" : ""} ${aiFabDragging ? "mewmo-ai-fab--dragging" : ""}`}
-        onPointerDown={startAiFabDrag}
-        onPointerMove={moveAiFab}
-        onPointerUp={endAiFabDrag}
-        onPointerCancel={endAiFabDrag}
-        onClick={toggleAiOpen}
-        aria-label={aiOpen ? "收起 mewmo" : "打开 mewmo"}
-        title={aiOpen ? "收起 mewmo" : "打开 mewmo"}
-      >
-        <PrototypeIcon name="mewmo-logo" size={22} />
-      </button>
-      </div>
+        <div
+          ref={shellRef}
+          className={[
+            "mewmo-shell",
+            sidebarCollapsed ? "mewmo-shell--sidebar-collapsed" : "",
+            sidebarPeek ? "mewmo-shell--sidebar-peek" : "",
+            aiOpen ? "mewmo-shell--ai-open" : "",
+            aiResizing ? "mewmo-shell--ai-resizing" : "",
+            navigationPending ? "mewmo-shell--navigation-pending" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+          style={
+            {
+              "--ai-w": `${aiWidth}px`,
+              "--ai-fab-bottom": `${aiFabBottom}px`,
+            } as CSSProperties
+          }
+        >
+          <div
+            className="mewmo-workspace-navigation-progress"
+            aria-hidden={!navigationPending}
+          />
+          <Sidebar
+            user={user}
+            collapsed={sidebarCollapsed}
+            onToggleCollapsed={() => setSidebarCollapsed((value) => !value)}
+            onMouseEnter={clearSidebarPeekTimer}
+            onMouseLeave={scheduleSidebarPeekClose}
+          />
+          <AISidebarProvider>
+            <main className="mewmo-shell__main">{children}</main>
+            <AISidebar open={aiOpen} onOpenChange={setAiOpen} />
+          </AISidebarProvider>
+          <div
+            className="mewmo-ai-resizer"
+            role="separator"
+            aria-label="调整 mewmo 宽度"
+            aria-orientation="vertical"
+            onPointerDown={startAiResize}
+            onDoubleClick={() => setAiWidth(AI_W_DEFAULT)}
+          />
+          {!aiOpen && (
+            <button
+              type="button"
+              className={`mewmo-ai-fab ${aiFabDragging ? "mewmo-ai-fab--dragging" : ""}`}
+              onPointerDown={startAiFabDrag}
+              onPointerMove={moveAiFab}
+              onPointerUp={endAiFabDrag}
+              onPointerCancel={endAiFabDrag}
+              onClick={openAi}
+              aria-label="打开 mewmo"
+              title="打开 mewmo"
+            >
+              <PrototypeIcon name="mewmo-logo" size={22} />
+            </button>
+          )}
+        </div>
       </WorkspaceNavigationProvider>
     </WorkspaceAccountProvider>
   );

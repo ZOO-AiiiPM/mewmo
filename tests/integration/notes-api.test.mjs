@@ -18,7 +18,10 @@ async function login() {
   const res = await fetch(`${BASE}/api/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: API_TEST_EMAIL, password: API_TEST_PASSWORD }),
+    body: JSON.stringify({
+      email: API_TEST_EMAIL,
+      password: API_TEST_PASSWORD,
+    }),
     redirect: "manual",
   });
   assert.equal(res.status, 200, "login should return 200");
@@ -30,7 +33,11 @@ async function login() {
 function authedFetch(path, opts = {}) {
   return fetch(`${BASE}${path}`, {
     ...opts,
-    headers: { ...opts.headers, Cookie: cookies, "Content-Type": "application/json" },
+    headers: {
+      ...opts.headers,
+      Cookie: cookies,
+      "Content-Type": "application/json",
+    },
     redirect: "manual",
   });
 }
@@ -77,6 +84,23 @@ test("Notes API", async (t) => {
     assert.equal(note.content, "# Hello World\n\nUpdated content.");
     assert.ok(note.version >= 2, "version should increment");
   });
+
+  await t.test(
+    "GET /api/notes returns a bounded line-preserving preview without content",
+    async () => {
+      const res = await authedFetch("/api/notes");
+      assert.equal(res.status, 200);
+      const data = await res.json();
+      const note = data.find((item) => item.id === createdNoteId);
+      assert.ok(note, "updated note should appear in the list");
+      assert.equal(note.preview, "Updated content.");
+      assert.equal(
+        "content" in note,
+        false,
+        "list items should not include the full note body",
+      );
+    },
+  );
 
   await t.test("PATCH /api/notes/[id] updates title", async () => {
     const res = await authedFetch(`/api/notes/${createdNoteId}`, {
