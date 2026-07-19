@@ -24,6 +24,7 @@ import {
   type KnowledgeFolderNode,
 } from "../../lib/knowledge-tree";
 import { useTheme } from "../../lib/theme";
+import { mockVideoSources } from "../../lib/video-mock-data";
 import {
   clearCachedFeedEntries,
   getCachedFeedSources,
@@ -69,7 +70,7 @@ type FeedType = "article" | "media" | "video" | "podcast";
 const feedTypes: Array<{ type: FeedType; label: string; icon: PrototypeIconName; deferred?: boolean }> = [
   { type: "article", label: "文章", icon: "doc" },
   { type: "media", label: "媒体", icon: "media" },
-  { type: "video", label: "视频", icon: "video", deferred: true },
+  { type: "video", label: "视频", icon: "video" },
   { type: "podcast", label: "播客", icon: "mic", deferred: true },
 ];
 const FEED_ICON_PRELOAD_TIMEOUT_MS = 450;
@@ -242,6 +243,11 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
 
   useEffect(() => {
     if (!feedDrawer || feedTypes.find((item) => item.type === feedDrawer)?.deferred) return;
+
+    if (feedDrawer === "video") {
+      setFeeds(mockVideoSources);
+      return;
+    }
 
     let cancelled = false;
     fetch(`/api/feeds?type=${feedDrawer}`)
