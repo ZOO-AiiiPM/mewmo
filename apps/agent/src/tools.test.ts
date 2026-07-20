@@ -7,6 +7,7 @@ function requestContext(overrides: Partial<AgentRequestContext["request"]> = {})
   return {
     actor: TEST_ACTOR,
     chatId: "chat-1",
+    history: [],
     request: {
       clientRequestId: "request-1",
       content: "test",

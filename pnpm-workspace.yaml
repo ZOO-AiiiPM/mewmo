@@ -6,6 +6,7 @@ allowBuilds:
   esbuild: true
   msgpackr-extract: true
   prisma: true
+  protobufjs: false
   sharp: true
 minimumReleaseAgeExclude:
   - '@turbo/darwin-64@2.10.0'

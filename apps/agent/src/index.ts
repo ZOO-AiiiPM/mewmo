@@ -14,3 +14,9 @@ const runtime = createAgentRuntime({
 const server = buildAgentServer({ config, runtime, application: adapters.application });
 
 await server.listen({ host: config.AGENT_HOST, port: config.AGENT_PORT });
+
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+  process.once(signal, () => {
+    void server.close().finally(() => process.exit(0));
+  });
+}

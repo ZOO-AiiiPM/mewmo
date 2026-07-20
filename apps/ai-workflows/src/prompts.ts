@@ -6,7 +6,7 @@ import type { LoadedPrompt } from "./contracts";
 const FRONTMATTER = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/;
 
 export async function loadWorkflowPrompt(
-  name: "article-summary.zh" | "note-insight.zh",
+  name: "article-summary.zh" | "note-insight.zh" | "summary-judge.zh",
 ): Promise<LoadedPrompt> {
   const url = new URL(`../prompts/${name}.md`, import.meta.url);
   return parseWorkflowPrompt(await readFile(url, "utf8"));

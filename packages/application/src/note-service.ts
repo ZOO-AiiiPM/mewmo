@@ -1,4 +1,4 @@
-import { getPrisma, type PrismaClient } from "@mewmo/db";
+import { getPrisma, type Prisma, type PrismaClient } from "@mewmo/db";
 import {
   noteCreateCommandSchema,
   noteUpdateCommandSchema,
@@ -19,7 +19,11 @@ export function createNoteService(options: { prisma?: PrismaClient } = {}) {
       await assertConfirmedAgentAction(db, actor, input.actionId, input.idempotencyKey);
       const slug = input.slug ?? slugify(input.title);
       try {
-        return await db.note.create({ data: { userId: actor.userId, title: input.title, content: input.content, slug } });
+        return await db.$transaction(async (tx) => {
+          const note = await tx.note.create({ data: { userId: actor.userId, title: input.title, content: input.content, slug } });
+          await enqueueNoteEmbedding(tx, actor.userId, note.id, note.version);
+          return note;
+        });
       } catch (error) {
         if (isUniqueError(error)) throw new DomainError("already_exists", "note slug already exists");
         throw error;
@@ -35,12 +39,18 @@ export function createNoteService(options: { prisma?: PrismaClient } = {}) {
         ...(input.patch.content === undefined ? {} : { content: input.patch.content }),
         ...(input.patch.pinned === undefined ? {} : { pinned: input.patch.pinned }),
       };
-      const result = await db.note.updateMany({
-        where: { id: input.noteId, userId: actor.userId, deletedAt: null, version: input.expectedVersion },
-        data: { ...patch, version: { increment: 1 } },
+      return db.$transaction(async (tx) => {
+        const result = await tx.note.updateMany({
+          where: { id: input.noteId, userId: actor.userId, deletedAt: null, version: input.expectedVersion },
+          data: { ...patch, version: { increment: 1 } },
+        });
+        await assertMutationResult(tx, actor.userId, input.noteId, input.expectedVersion, result.count);
+        const note = await tx.note.findFirstOrThrow({ where: { id: input.noteId, userId: actor.userId } });
+        if (input.patch.title !== undefined || input.patch.content !== undefined) {
+          await enqueueNoteEmbedding(tx, actor.userId, note.id, note.version);
+        }
+        return note;
       });
-      await assertMutationResult(db, actor.userId, input.noteId, input.expectedVersion, result.count);
-      return db.note.findFirstOrThrow({ where: { id: input.noteId, userId: actor.userId } });
     },
 
     async moveToTrash(actor: Actor, command: NoteVersionCommandDto) {
@@ -69,11 +79,33 @@ export function createNoteService(options: { prisma?: PrismaClient } = {}) {
   };
 }
 
-async function assertMutationResult(db: PrismaClient, userId: string, noteId: string, expectedVersion: number, count: number) {
+async function assertMutationResult(db: Pick<PrismaClient, "note"> | Prisma.TransactionClient, userId: string, noteId: string, expectedVersion: number, count: number) {
   if (count === 1) return;
   const existing = await db.note.findFirst({ where: { id: noteId, userId }, select: { version: true } });
   if (!existing) throw new DomainError("not_found", "note was not found");
   throw new DomainError("conflict", "note version changed", { expectedVersion, actualVersion: existing.version });
+}
+
+function enqueueNoteEmbedding(
+  db: Pick<PrismaClient, "aiRun"> | Prisma.TransactionClient,
+  userId: string,
+  noteId: string,
+  inputVersion: number,
+) {
+  const idempotencyKey = `embedding:note:${noteId}:v${inputVersion}`;
+  return db.aiRun.upsert({
+    where: { userId_idempotencyKey: { userId, idempotencyKey } },
+    create: {
+      userId,
+      kind: "embedding",
+      targetType: "note",
+      targetId: noteId,
+      inputVersion,
+      idempotencyKey,
+      priority: 10,
+    },
+    update: {},
+  });
 }
 
 function slugify(value: string) {

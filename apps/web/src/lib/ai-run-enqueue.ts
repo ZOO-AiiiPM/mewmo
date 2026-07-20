@@ -1,5 +1,5 @@
-export type AiRunKind = "summary" | "embedding";
-export type AiRunTargetType = "clip" | "feed_entry";
+export type AiRunKind = "summary" | "embedding" | "relation" | "note_insight";
+export type AiRunTargetType = "note" | "clip" | "feed_entry";
 
 export interface EnqueuedAiRun {
   id: string;
@@ -54,6 +54,23 @@ export async function enqueueArticleRuns(input: {
     priority: kind === "summary" ? 20 : 10,
     idempotencyKey: `${kind}:${input.targetType}:${input.targetId}:v${input.inputVersion}`,
   })));
+}
+
+export async function enqueueNoteRuns(input: {
+  userId: string;
+  targetId: string;
+  inputVersion: number;
+}) {
+  const service = await getService();
+  return service.enqueue({
+    userId: input.userId,
+    kind: "embedding",
+    targetType: "note",
+    targetId: input.targetId,
+    inputVersion: input.inputVersion,
+    priority: 10,
+    idempotencyKey: `embedding:note:${input.targetId}:v${input.inputVersion}`,
+  });
 }
 
 async function getService() {

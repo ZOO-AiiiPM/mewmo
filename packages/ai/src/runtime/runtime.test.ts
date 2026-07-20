@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createAIRuntime, createFakeAIRuntime } from "./runtime";
+import { loadAIRuntimeConfig } from "./env";
 
 describe("AI runtime", () => {
   it("routes multiple purposes through one provider with different models", async () => {
@@ -40,5 +41,22 @@ describe("AI runtime", () => {
     const embedded = await runtime.embed({ purpose: "workflow.embedding", values: ["text"] });
     expect(generated.object).toEqual({ title: "Result" });
     expect(embedded.embeddings).toEqual([[0.1, 0.2]]);
+  });
+
+  it("keeps the existing model environment variables as migration fallbacks", () => {
+    const config = loadAIRuntimeConfig({
+      AI_PROVIDER: "custom",
+      CUSTOM_AI_API_KEY: "secret",
+      CUSTOM_AI_BASE_URL: "https://ai.example/v1",
+      AI_CHAT_MODEL: "legacy-chat",
+      AI_SUMMARY_MODEL: "legacy-summary",
+      AI_EMBEDDING_MODEL: "legacy-embedding",
+    });
+    expect(config.models).toMatchObject({
+      "agent.chat": { model: "legacy-chat" },
+      "agent.deep_insight": { model: "legacy-chat" },
+      "workflow.summary": { model: "legacy-summary" },
+      "workflow.embedding": { model: "legacy-embedding" },
+    });
   });
 });

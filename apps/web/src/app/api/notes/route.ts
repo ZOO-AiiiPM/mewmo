@@ -3,6 +3,7 @@ import { getPrisma } from "@mewmo/db";
 import { auth } from "../../../lib/auth";
 import { listNotesWithPreviews } from "../../../lib/note-list-data";
 import { createNoteSlug } from "../../../lib/note-slug";
+import { enqueueNoteRuns } from "../../../lib/ai-run-enqueue";
 import {
   attachServerTiming,
   createServerTiming,
@@ -54,6 +55,10 @@ export async function POST(request: Request) {
       content: body.content || "",
       userId: session.user.id,
     },
+  });
+
+  await enqueueNoteRuns({ userId: session.user.id, targetId: note.id, inputVersion: note.version }).catch((error) => {
+    console.error("Failed to enqueue note AI workflows", error);
   });
 
   return NextResponse.json(note, { status: 201 });

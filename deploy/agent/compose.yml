@@ -1,0 +1,29 @@
+name: mewmo-agent
+
+services:
+  agent:
+    image: ${AGENT_IMAGE:-mewmo-agent:local}
+    env_file:
+      - ${AGENT_ENV_FILE:-.env.agent}
+    command: ["pnpm", "--filter", "@mewmo/agent", "start"]
+    restart: unless-stopped
+    init: true
+    ports:
+      - "127.0.0.1:${AGENT_BIND_PORT:-3101}:3101"
+    mem_limit: 768m
+    mem_reservation: 192m
+    cpus: 1.0
+    pids_limit: 128
+    environment:
+      NODE_OPTIONS: --max-old-space-size=512
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3101/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

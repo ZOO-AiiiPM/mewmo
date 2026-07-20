@@ -63,8 +63,8 @@ export interface AgentActionProposal {
 }
 
 export interface AgentMessageResponse {
-  userMessage: { clientRequestId: string; content: string };
-  assistantMessage: { role: "assistant"; content: string };
+  userMessage: { id: string; role: "user"; content: string; status: string; createdAt: string };
+  assistantMessage: { id: string; role: "assistant"; content: string; status: string; createdAt: string };
   proposals?: AgentActionProposal[];
   usage?: { inputTokens?: number; outputTokens?: number };
 }

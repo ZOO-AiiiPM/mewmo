@@ -3,6 +3,7 @@ import { getPrisma } from "@mewmo/db";
 import { updateNoteSchema } from "@mewmo/shared";
 import { auth } from "../../../../lib/auth";
 import { createNoteSlug } from "../../../../lib/note-slug";
+import { enqueueNoteRuns } from "../../../../lib/ai-run-enqueue";
 import { attachServerTiming, createServerTiming } from "../../../../lib/server-timing";
 
 async function createUniqueNoteSlug(userId: string, noteId: string, title: string) {
@@ -93,6 +94,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     where: { id },
     data: updateData,
   });
+
+  if (parsed.data.title !== undefined || parsed.data.content !== undefined) {
+    await enqueueNoteRuns({ userId: session.user.id, targetId: updated.id, inputVersion: updated.version }).catch((error) => {
+      console.error("Failed to enqueue note AI workflows", error);
+    });
+  }
 
   return NextResponse.json(updated);
 }

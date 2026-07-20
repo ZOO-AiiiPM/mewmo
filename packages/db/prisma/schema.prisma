@@ -244,19 +244,21 @@ model AiChat {
 }
 
 model AiMessage {
-  id        String        @id @default(cuid())
-  chatId    String        @map("chat_id")
-  role      AiMessageRole
-  content   String
-  status    AiMessageStatus @default(completed)
-  metadata  Json?
-  version   Int           @default(1)
-  createdAt DateTime      @default(now()) @map("created_at")
-  deletedAt DateTime?     @map("deleted_at")
+  id              String          @id @default(cuid())
+  chatId          String          @map("chat_id")
+  clientRequestId String?         @map("client_request_id")
+  role            AiMessageRole
+  content         String
+  status          AiMessageStatus @default(completed)
+  metadata        Json?
+  version         Int             @default(1)
+  createdAt       DateTime        @default(now()) @map("created_at")
+  deletedAt       DateTime?       @map("deleted_at")
 
   chat AiChat @relation(fields: [chatId], references: [id], onDelete: Cascade)
   contextAttachments AiContextAttachment[]
 
+  @@unique([chatId, clientRequestId, role], name: "chat_turn_role")
   @@index([chatId, deletedAt, createdAt])
   @@map("ai_messages")
 }

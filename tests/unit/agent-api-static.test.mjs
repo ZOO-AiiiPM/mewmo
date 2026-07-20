@@ -22,13 +22,18 @@ test("agent browser API is an authenticated BFF with explicit service degradatio
   assert.match(messages, /auth\(\)/);
   assert.match(messages, /agentMessageRequestSchema\.safeParse/);
   assert.match(messages, /requestAgentServer\(session\.user\.id/);
+  assert.match(messages, /skill:\s*parsed\.data\.skillId === "deep-insight"/);
+  assert.match(messages, /targetType:\s*context\.resource\.type/);
   assert.match(messages, /\/v1\/chats\/\$\{encodeURIComponent\(id\)\}\/messages/);
   assert.doesNotMatch(messages, /generateAgentReply|getPrisma|contentSnapshot/);
   assert.match(actions, /\["confirm", "cancel", "retry"\]/);
+  assert.match(actions, /executionMode:\s*parsed\.data\.executionMode \?\? "server"/);
   assert.match(contract, /executionMode/);
   assert.match(client, /AGENT_SERVER_URL/);
   assert.match(client, /AGENT_INTERNAL_SECRET/);
   assert.match(client, /Authorization: `Bearer \$\{createAgentIdentityToken/);
+  assert.match(client, /source:\s*"web_bff"/);
+  assert.match(client, /sid:\s*randomUUID\(\)/);
   assert.match(client, /agent_not_configured/);
   assert.doesNotMatch(client, /NEXT_PUBLIC_/);
 });
@@ -42,6 +47,21 @@ test("chat history strips context snapshots and leaves a pagination contract", (
   assert.doesNotMatch(collection, /contextAttachments:/);
   assert.match(detail, /pageInfo:\s*\{ nextCursor: null \}/);
   assert.doesNotMatch(detail, /contextAttachments/);
+});
+
+test("Agent service owns idempotent multi-turn message persistence", () => {
+  const server = read("apps/agent/src/server.ts");
+  const runtime = read("apps/agent/src/runtime.ts");
+  const service = read("packages/application/src/ai-chat-service.ts");
+  const schema = read("packages/db/prisma/schema.prisma");
+  assert.match(server, /application\.chats\.prepareTurn/);
+  assert.match(server, /application\.chats\.completeTurn/);
+  assert.match(server, /if \(turn\.cached\)/);
+  assert.match(runtime, /\.\.\.context\.history\.map/);
+  assert.match(service, /userId: actor\.userId/);
+  assert.match(service, /chat_turn_role/);
+  assert.match(schema, /clientRequestId\s+String\?/);
+  assert.match(schema, /@@unique\(\[chatId, clientRequestId, role\], name: "chat_turn_role"\)/);
 });
 
 test("AI sidebar supports draft context, Deep Insight, proposals, and idempotent retry", () => {

@@ -36,7 +36,9 @@ docker tag "mewmo-worker:<commit-sha>" mewmo-worker:local
 docker compose -f compose.yml config --quiet
 ```
 
-填写 Neon、AI Provider、Foundation adapter module 和逻辑模型配置。`.env.worker` 不进入 Git 或 Docker 镜像。
+填写 Neon、AI Provider 和逻辑模型配置。`AI_MODEL_SUMMARY`、`AI_MODEL_EMBEDDING`、`AI_MODEL_RECOMMENDATION`、`AI_MODEL_NOTE_INSIGHT` 可以指向同一个模型，也可以按任务拆分；Embedding 必须使用提供 embedding API 的模型。`.env.worker` 不进入 Git 或 Docker 镜像。
+
+旧的 `AI_SUMMARY_MODEL`、`AI_EMBEDDING_MODEL`、`AI_CHAT_MODEL` 只作为迁移期 fallback；新部署优先填写 `AI_MODEL_*`。当前 Runtime 已内置真实 Application/Database adapter，不再配置动态 adapter module。
 
 ## 手动验收
 

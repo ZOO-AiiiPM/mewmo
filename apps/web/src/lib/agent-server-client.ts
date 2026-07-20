@@ -12,6 +12,8 @@ interface AgentServerConfig {
 
 interface AgentIdentityClaims {
   sub: string;
+  sid: string;
+  source: "web_bff";
   aud: "mewmo-agent";
   iss: "mewmo-web";
   iat: number;
@@ -28,7 +30,7 @@ export function loadAgentServerConfig(
 ): AgentServerConfig | null {
   const baseUrl = env.AGENT_SERVER_URL?.trim();
   const secret = env.AGENT_INTERNAL_SECRET?.trim();
-  if (!baseUrl || !secret) return null;
+  if (!baseUrl || !secret || secret.length < 32) return null;
   return { baseUrl: baseUrl.replace(/\/$/, ""), secret };
 }
 
@@ -40,6 +42,8 @@ export function createAgentIdentityToken(
   const header = encodeJson({ alg: "HS256", typ: "JWT" });
   const claims: AgentIdentityClaims = {
     sub: userId,
+    sid: randomUUID(),
+    source: "web_bff",
     aud: "mewmo-agent",
     iss: "mewmo-web",
     iat: nowSeconds,

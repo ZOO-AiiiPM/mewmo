@@ -5,6 +5,17 @@ import type { ApplicationPort } from "./ports";
 export function createApplicationStub(overrides: Partial<ApplicationPort> = {}): ApplicationPort {
   let actionSequence = 0;
   return {
+    chats: overrides.chats ?? {
+      async prepareTurn(input) {
+        return {
+          history: [],
+          userMessage: { id: "message-user-1", role: "user", content: input.content, status: "completed", createdAt: "2026-07-20T00:00:00.000Z" },
+        };
+      },
+      async completeTurn(input) {
+        return { id: "message-assistant-1", role: "assistant", content: input.content, status: "completed", createdAt: "2026-07-20T00:00:01.000Z" };
+      },
+    },
     content: overrides.content ?? {
       async search() {
         return { items: [] };

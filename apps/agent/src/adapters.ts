@@ -3,6 +3,7 @@ import {
   DomainError,
   createActor,
   createAiActionService,
+  createAiChatService,
   createContentService,
   createKnowledgeService,
   createNoteService,
@@ -21,10 +22,31 @@ export async function loadFoundationAdapters(): Promise<FoundationAdapters> {
   const runtime = createAIRuntime(loadAIRuntimeConfig());
   const content = createContentService();
   const actions = createAiActionService();
+  const chats = createAiChatService();
   const notes = createNoteService();
   const knowledge = createKnowledgeService();
 
   const application: ApplicationPort = {
+    chats: {
+      async prepareTurn(input) {
+        return withDomainErrors(async () => {
+          const turn = await chats.prepareTurn(actor(input.actor), input);
+          return {
+            history: turn.history,
+            userMessage: messageView(turn.userMessage, "user"),
+            ...(turn.cachedAssistant ? { cached: cachedTurn(turn.cachedAssistant) } : {}),
+          };
+        });
+      },
+      async completeTurn(input) {
+        return withDomainErrors(async () => messageView(await chats.completeTurn(actor(input.actor), {
+          chatId: input.chatId,
+          clientRequestId: input.clientRequestId,
+          content: input.content,
+          metadata: { proposals: input.proposals, ...(input.usage ? { usage: input.usage } : {}) },
+        }), "assistant"));
+      },
+    },
     content: {
       async search(agentActor, input) {
         return withDomainErrors(async () => ({
@@ -165,6 +187,28 @@ function proposal(action: Awaited<ReturnType<ReturnType<typeof createAiActionSer
 
 function confirmed(action: { id: string; executionMode: "server" | "client"; clientEffect: unknown }): ConfirmedAction {
   return { id: action.id, status: "confirmed", executionMode: action.executionMode, ...(action.clientEffect ? { clientEffect: action.clientEffect as AgentClientEffect } : {}) };
+}
+
+function messageView<Role extends "user" | "assistant">(message: { id: string; content: string; status: string; createdAt: Date }, role: Role) {
+  return { id: message.id, role, content: message.content, status: message.status, createdAt: message.createdAt.toISOString() };
+}
+
+function cachedTurn(message: { id: string; content: string; status: string; createdAt: Date; metadata: unknown }) {
+  const metadata = typeof message.metadata === "object" && message.metadata !== null && !Array.isArray(message.metadata)
+    ? message.metadata as Record<string, unknown>
+    : {};
+  return {
+    assistantMessage: messageView(message, "assistant"),
+    ...(Array.isArray(metadata.proposals) ? { proposals: metadata.proposals as AgentActionProposal[] } : {}),
+    ...(isUsage(metadata.usage) ? { usage: metadata.usage } : {}),
+  };
+}
+
+function isUsage(value: unknown): value is { inputTokens?: number; outputTokens?: number } {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const usage = value as Record<string, unknown>;
+  return (usage.inputTokens === undefined || typeof usage.inputTokens === "number")
+    && (usage.outputTokens === undefined || typeof usage.outputTokens === "number");
 }
 
 function parseResourceUri(uri: string) {

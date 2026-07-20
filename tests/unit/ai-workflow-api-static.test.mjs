@@ -24,3 +24,27 @@ test("Related APIs expose persistent and temporary Heads Up queries", () => {
   assert.match(query, /queryRelated/);
   assert.doesNotMatch(`${related}\n${query}`, /AISidebar|deep-insight/);
 });
+
+test("note writes enqueue versioned embedding work that chains into relations and insight", () => {
+  const createRoute = read("apps/web/src/app/api/notes/route.ts");
+  const updateRoute = read("apps/web/src/app/api/notes/[id]/route.ts");
+  const enqueue = read("apps/web/src/lib/ai-run-enqueue.ts");
+  for (const route of [createRoute, updateRoute]) {
+    assert.match(route, /enqueueNoteRuns/);
+    assert.match(route, /inputVersion:/);
+  }
+  assert.match(enqueue, /kind:\s*"embedding"/);
+  assert.match(enqueue, /targetType:\s*"note"/);
+});
+
+test("live workflow evaluation uses Langfuse tracing and fails incomplete runs", () => {
+  const live = read("apps/ai-workflows/evals/live.ts");
+  const evaluation = read("apps/ai-workflows/evals/summary-eval.ts");
+  assert.match(live, /LangfuseClient/);
+  assert.match(live, /LangfuseSpanProcessor/);
+  assert.match(live, /NodeSDK/);
+  assert.match(live, /telemetry\.shutdown/);
+  assert.match(live, /hasLiveEvalRegression/);
+  assert.match(evaluation, /expectedItemCount === 0/);
+  assert.doesNotMatch(live, /requires the Foundation AI Runtime/);
+});

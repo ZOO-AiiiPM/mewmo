@@ -114,6 +114,7 @@ export function createAiRunService(options: { prisma?: PrismaClient } = {}) {
           create: { userId: run.userId, targetType: run.targetType, targetId: run.targetId, inputVersion: input.expectedVersion, embedding: input.embedding, dimensions: input.dimensions, model: input.model },
           update: { inputVersion: input.expectedVersion, embedding: input.embedding, dimensions: input.dimensions, model: input.model },
         });
+        await enqueueFollowup(tx, run, "relation", input.expectedVersion, 5);
         return { count: 1, output: { dimensions: input.dimensions, model: input.model } };
       });
     },
@@ -134,6 +135,9 @@ export function createAiRunService(options: { prisma?: PrismaClient } = {}) {
             score: relation.score,
             ...(relation.reason === undefined ? {} : { reason: relation.reason }),
           })) });
+        }
+        if (run.targetType === "note") {
+          await enqueueFollowup(tx, run, "note_insight", input.expectedVersion, 1);
         }
         return { count: 1, output: { relationCount: input.relations.length } };
       });
@@ -306,6 +310,29 @@ async function requireRunningRun(db: Pick<PrismaClient, "aiRun"> | Prisma.Transa
 function defaultRunKey(input: EnqueueAiRunDto) {
   const source = [input.kind, input.targetType, input.targetId, input.inputVersion, input.inputHash ?? ""].join(":");
   return createHash("sha256").update(source).digest("hex");
+}
+
+function enqueueFollowup(
+  tx: Prisma.TransactionClient,
+  run: AiRun,
+  kind: "relation" | "note_insight",
+  inputVersion: number,
+  priority: number,
+) {
+  const idempotencyKey = `${kind}:${run.targetType}:${run.targetId}:v${inputVersion}`;
+  return tx.aiRun.upsert({
+    where: { userId_idempotencyKey: { userId: run.userId, idempotencyKey } },
+    create: {
+      userId: run.userId,
+      kind,
+      targetType: run.targetType,
+      targetId: run.targetId,
+      inputVersion,
+      idempotencyKey,
+      priority,
+    },
+    update: {},
+  });
 }
 
 function safeError(error: unknown) {

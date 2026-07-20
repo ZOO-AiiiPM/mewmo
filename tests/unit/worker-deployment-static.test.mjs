@@ -98,8 +98,12 @@ test("Worker secrets stay outside Git and Docker build context", () => {
   assert.doesNotMatch(envExample, /^FEED_CRON_SECRET=/m);
   assert.doesNotMatch(envExample, /^FEED_REFRESH_BASE_URL=/m);
   assert.doesNotMatch(envExample, /postgresql:\/\/[^\s]*@/);
-  assert.match(envExample, /^FEED_INGESTION_ADAPTER_MODULE=$/m);
-  assert.match(envExample, /^AI_WORKFLOWS_ADAPTER_MODULE=$/m);
+  assert.doesNotMatch(envExample, /^FEED_INGESTION_ADAPTER_MODULE=$/m);
+  assert.doesNotMatch(envExample, /^AI_WORKFLOWS_ADAPTER_MODULE=$/m);
+  assert.match(envExample, /^AI_MODEL_SUMMARY=$/m);
+  assert.match(envExample, /^AI_MODEL_EMBEDDING=$/m);
+  assert.match(envExample, /^AI_MODEL_RECOMMENDATION=$/m);
+  assert.match(envExample, /^AI_MODEL_NOTE_INSIGHT=$/m);
 });
 
 test("Worker runbook documents deploy, logs, updates, and rollback", () => {

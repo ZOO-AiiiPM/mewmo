@@ -66,6 +66,7 @@ function buildMessages(context: AgentRequestContext): ModelMessage[] {
     : JSON.stringify({ kind: "mewmo_page_context", targetType: null });
 
   return [
+    ...context.history.map((message) => ({ role: message.role, content: message.content }) satisfies ModelMessage),
     {
       role: "user",
       content: [

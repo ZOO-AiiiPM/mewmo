@@ -1,21 +1,21 @@
 import type { AIEnvironment, AIRuntimeConfig, ModelPurpose } from "./types";
 
-const purposes: Array<[ModelPurpose, string]> = [
-  ["agent.chat", "AI_MODEL_AGENT_CHAT"],
-  ["agent.deep_insight", "AI_MODEL_DEEP_INSIGHT"],
-  ["workflow.summary", "AI_MODEL_SUMMARY"],
-  ["workflow.recommendation", "AI_MODEL_RECOMMENDATION"],
-  ["workflow.embedding", "AI_MODEL_EMBEDDING"],
-  ["workflow.note_insight", "AI_MODEL_NOTE_INSIGHT"],
-  ["eval.judge", "AI_MODEL_EVAL_JUDGE"],
+const purposes: Array<[ModelPurpose, string[]]> = [
+  ["agent.chat", ["AI_MODEL_AGENT_CHAT", "AI_CHAT_MODEL"]],
+  ["agent.deep_insight", ["AI_MODEL_DEEP_INSIGHT", "AI_MODEL_AGENT_CHAT", "AI_CHAT_MODEL"]],
+  ["workflow.summary", ["AI_MODEL_SUMMARY", "AI_SUMMARY_MODEL"]],
+  ["workflow.recommendation", ["AI_MODEL_RECOMMENDATION", "AI_MODEL_AGENT_CHAT", "AI_CHAT_MODEL"]],
+  ["workflow.embedding", ["AI_MODEL_EMBEDDING", "AI_EMBEDDING_MODEL"]],
+  ["workflow.note_insight", ["AI_MODEL_NOTE_INSIGHT", "AI_MODEL_AGENT_CHAT", "AI_CHAT_MODEL"]],
+  ["eval.judge", ["AI_MODEL_EVAL_JUDGE", "AI_MODEL_DEEP_INSIGHT", "AI_MODEL_AGENT_CHAT", "AI_CHAT_MODEL"]],
 ];
 
 export function loadAIRuntimeConfig(input: AIEnvironment = process.env): AIRuntimeConfig {
   const provider = parseProvider(input.AI_PROVIDER);
   const providerName = "primary";
   const models: AIRuntimeConfig["models"] = {};
-  for (const [purpose, name] of purposes) {
-    const model = input[name]?.trim();
+  for (const [purpose, names] of purposes) {
+    const model = names.map((name) => input[name]?.trim()).find(Boolean);
     if (model) models[purpose] = { provider: providerName, model };
   }
   return {

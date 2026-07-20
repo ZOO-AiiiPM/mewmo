@@ -29,7 +29,11 @@ export async function POST(
     requestAgentServer(session.user.id, `/v1/actions/${encodeURIComponent(id)}/${command}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(parsed.data),
+      body: JSON.stringify(
+        command === "cancel"
+          ? {}
+          : { executionMode: parsed.data.executionMode ?? "server" },
+      ),
     }),
   );
 }

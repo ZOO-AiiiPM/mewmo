@@ -34,10 +34,38 @@ describe("Agent HTTP server", () => {
     });
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({
-      userMessage: { clientRequestId: "request-1", content: "hello" },
-      assistantMessage: { role: "assistant", content: "ok" },
+      userMessage: { id: "message-user-1", role: "user", content: "hello", status: "completed", createdAt: "2026-07-20T00:00:00.000Z" },
+      assistantMessage: { id: "message-assistant-1", role: "assistant", content: "ok", status: "completed", createdAt: "2026-07-20T00:00:01.000Z" },
     });
-    expect(run).toHaveBeenCalledWith(expect.objectContaining({ actor: TEST_ACTOR }));
+    expect(run).toHaveBeenCalledWith(expect.objectContaining({ actor: TEST_ACTOR, history: [] }));
+  });
+
+  it("returns the persisted response for an idempotent retry without calling the model", async () => {
+    const run = vi.fn();
+    const application = createApplicationStub({
+      chats: {
+        prepareTurn: vi.fn(async () => ({
+          history: [{ role: "user" as const, content: "earlier" }],
+          userMessage: { id: "message-user-1", role: "user" as const, content: "hello", status: "completed", createdAt: "2026-07-20T00:00:00.000Z" },
+          cached: {
+            assistantMessage: { id: "message-assistant-1", role: "assistant" as const, content: "cached", status: "completed", createdAt: "2026-07-20T00:00:01.000Z" },
+            usage: { inputTokens: 10, outputTokens: 2 },
+          },
+        })),
+        completeTurn: vi.fn(),
+      },
+    });
+    const app = buildAgentServer({ config, runtime: { run }, application });
+    const token = await signIdentityForTest(TEST_ACTOR, identityOptions());
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/chats/chat-1/messages",
+      headers: { authorization: `Bearer ${token}` },
+      payload: validMessage(),
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ assistantMessage: { content: "cached" }, usage: { inputTokens: 10 } });
+    expect(run).not.toHaveBeenCalled();
   });
 
   it("keeps a client edit confirmed until the Web reports its save result", async () => {

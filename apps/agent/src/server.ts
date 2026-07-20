@@ -35,10 +35,27 @@ export function buildAgentServer(dependencies: AgentServerDependencies): Fastify
 
   app.post<{ Params: { chatId: string } }>("/v1/chats/:chatId/messages", async (request) => {
     const body = sendMessageBodySchema.parse(request.body);
-    const result = await dependencies.runtime.run({ actor: request.agentActor, chatId: request.params.chatId, request: body });
+    const turn = await dependencies.application.chats.prepareTurn({
+      actor: request.agentActor,
+      chatId: request.params.chatId,
+      clientRequestId: body.clientRequestId,
+      content: body.content,
+    });
+    if (turn.cached) {
+      return { userMessage: turn.userMessage, ...turn.cached } satisfies AgentMessageResponse;
+    }
+    const result = await dependencies.runtime.run({ actor: request.agentActor, chatId: request.params.chatId, history: turn.history, request: body });
+    const assistantMessage = await dependencies.application.chats.completeTurn({
+      actor: request.agentActor,
+      chatId: request.params.chatId,
+      clientRequestId: body.clientRequestId,
+      content: result.text,
+      proposals: result.proposals,
+      ...(result.usage ? { usage: result.usage } : {}),
+    });
     return {
-      userMessage: { clientRequestId: body.clientRequestId, content: body.content },
-      assistantMessage: { role: "assistant", content: result.text },
+      userMessage: turn.userMessage,
+      assistantMessage,
       ...(result.proposals.length > 0 ? { proposals: result.proposals } : {}),
       ...(result.usage ? { usage: result.usage } : {}),
     } satisfies AgentMessageResponse;

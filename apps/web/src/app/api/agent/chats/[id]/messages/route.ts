@@ -16,11 +16,27 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const { id } = await params;
+  const context = parsed.data.context;
+  if (context?.resource.type === "knowledge_base") {
+    return NextResponse.json(agentError("invalid_request", "Agent 暂不支持将知识库本身作为对话正文上下文。", false), { status: 400 });
+  }
+  const upstreamBody = {
+    clientRequestId: parsed.data.clientRequestId,
+    content: parsed.data.content,
+    skill: parsed.data.skillId === "deep-insight" ? "deep-insight" : "general",
+    context: context
+      ? {
+          targetType: context.resource.type,
+          targetId: context.resource.id,
+          ...(context.draft ? { draft: context.draft } : {}),
+        }
+      : null,
+  };
   return proxyAgentResponse(
     requestAgentServer(session.user.id, `/v1/chats/${encodeURIComponent(id)}/messages`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(parsed.data),
+      body: JSON.stringify(upstreamBody),
     }),
   );
 }

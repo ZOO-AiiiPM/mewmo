@@ -67,6 +67,30 @@ export interface ActionPort {
 }
 
 export interface ApplicationPort {
+  chats: {
+    prepareTurn(input: {
+      actor: AgentActor;
+      chatId: string;
+      clientRequestId: string;
+      content: string;
+    }): Promise<{
+      history: Array<{ role: "user" | "assistant"; content: string }>;
+      userMessage: { id: string; role: "user"; content: string; status: string; createdAt: string };
+      cached?: {
+        assistantMessage: { id: string; role: "assistant"; content: string; status: string; createdAt: string };
+        proposals?: AgentActionProposal[];
+        usage?: { inputTokens?: number; outputTokens?: number };
+      };
+    }>;
+    completeTurn(input: {
+      actor: AgentActor;
+      chatId: string;
+      clientRequestId: string;
+      content: string;
+      proposals: AgentActionProposal[];
+      usage?: { inputTokens?: number; outputTokens?: number };
+    }): Promise<{ id: string; role: "assistant"; content: string; status: string; createdAt: string }>;
+  };
   content: {
     search(actor: AgentActor, input: ContentSearchInput): Promise<ContentSearchResult>;
     read(actor: AgentActor, resourceUri: string, maxChars: number): Promise<ContentReadResult>;
@@ -81,6 +105,7 @@ export interface AgentModelPort {
 export interface AgentRequestContext {
   actor: AgentActor;
   chatId: string;
+  history: Array<{ role: "user" | "assistant"; content: string }>;
   request: SendMessageBody;
 }
 
