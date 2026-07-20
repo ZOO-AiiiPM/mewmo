@@ -88,7 +88,31 @@ importers:
         specifier: 4.3.1
         version: 4.3.1
 
+  apps/ai-workflows:
+    dependencies:
+      tsx:
+        specifier: 4.22.4
+        version: 4.22.4
+      zod:
+        specifier: 4.3.0
+        version: 4.3.0
+
   apps/extension: {}
+
+  apps/feed-ingestion:
+    dependencies:
+      '@mewmo/content':
+        specifier: workspace:*
+        version: link:../../packages/content
+      '@mewmo/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@mewmo/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      tsx:
+        specifier: 4.22.4
+        version: 4.22.4
 
   apps/web:
     dependencies:
@@ -104,9 +128,6 @@ importers:
       '@mewmo/db':
         specifier: workspace:*
         version: link:../../packages/db
-      '@mewmo/queue':
-        specifier: workspace:*
-        version: link:../../packages/queue
       '@mewmo/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -168,30 +189,6 @@ importers:
       tailwindcss:
         specifier: 4.3.1
         version: 4.3.1
-
-  apps/worker:
-    dependencies:
-      '@mewmo/ai':
-        specifier: workspace:*
-        version: link:../../packages/ai
-      '@mewmo/content':
-        specifier: workspace:*
-        version: link:../../packages/content
-      '@mewmo/db':
-        specifier: workspace:*
-        version: link:../../packages/db
-      '@mewmo/queue':
-        specifier: workspace:*
-        version: link:../../packages/queue
-      '@mewmo/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
-      bullmq:
-        specifier: 5.79.1
-        version: 5.79.1
-      tsx:
-        specifier: 4.22.4
-        version: 4.22.4
 
   packages/ai: {}
 

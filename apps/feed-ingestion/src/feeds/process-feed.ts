@@ -1,7 +1,6 @@
 import { fetchFeedDocument, type ParsedFeedEntry } from "@mewmo/content";
 import { createFeedEntriesRepository, getPrisma } from "@mewmo/db";
 
-import { findRssEntryByUrl } from "./feed-entry-content";
 import { processFeedEntry, type ProcessFeedEntryInput } from "./process-feed-entry";
 
 export interface FeedCronRecord {
@@ -34,15 +33,33 @@ interface FeedEntryRepository {
       author?: string;
       publishedAt?: Date;
     },
-  ): Promise<{ created: boolean; entry: unknown }>;
+  ): Promise<{ created: boolean; entry: { id: string; version: number } }>;
+}
+
+export interface AiRunEnqueueInput {
+  userId: string;
+  kind: "summary" | "embedding";
+  targetType: "feed_entry";
+  targetId: string;
+  inputVersion: number;
+  priority?: number;
+  idempotencyKey: string;
+}
+
+export interface AiRunEnqueuePort {
+  enqueue(input: AiRunEnqueueInput): Promise<unknown>;
 }
 
 interface ProcessFeedDependencies {
   prisma?: FeedCronPrisma;
   entryRepository?: FeedEntryRepository;
   fetchFeed?: (url: string) => Promise<ParsedFeedEntry[]>;
-  findPendingEntries?: (userId: string, feedId: string) => Promise<Array<{ id: string; url: string }>>;
   processEntry?: (input: ProcessFeedEntryInput) => Promise<unknown>;
+  aiRuns?: AiRunEnqueuePort;
+  findEntriesNeedingAiRuns?: (
+    userId: string,
+    feedId: string,
+  ) => Promise<Array<{ id: string; version: number }>>;
   now?: () => Date;
 }
 
@@ -56,15 +73,17 @@ export async function processFeed(
   dependencies: ProcessFeedDependencies = {},
 ): Promise<ProcessFeedResult> {
   const prisma = dependencies.prisma ?? (getPrisma() as unknown as FeedCronPrisma);
-  const entryRepository = dependencies.entryRepository ?? createFeedEntriesRepository();
+  const entryRepository = dependencies.entryRepository ?? (createFeedEntriesRepository() as unknown as FeedEntryRepository);
   const fetchFeed = dependencies.fetchFeed ?? fetchFeedDocument;
-  const findPendingEntries = dependencies.findPendingEntries ?? (async (userId, feedId) =>
+  const processEntry = dependencies.processEntry ?? processFeedEntry;
+  const aiRuns = dependencies.aiRuns;
+  const findEntriesNeedingAiRuns = dependencies.findEntriesNeedingAiRuns ?? (async (userId, feedId) =>
     getPrisma().feedEntry.findMany({
       where: { userId, feedId, deletedAt: null, summary: null },
-      select: { id: true, url: true },
+      select: { id: true, version: true },
       orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+      take: 100,
     }));
-  const processEntry = dependencies.processEntry ?? processFeedEntry;
   const now = dependencies.now ?? (() => new Date());
   const startedAt = now();
 
@@ -106,23 +125,36 @@ export async function processFeed(
           ...(sourceEntry.publishedAt ? { publishedAt: sourceEntry.publishedAt } : {}),
         });
         if (result.created) created += 1;
-
+        const processed = await processEntry({
+          userId: feed.userId,
+          entryId: result.entry.id,
+          rss: sourceEntry,
+        }) as { status?: string; entryId?: string; userId?: string; version?: number };
+        if (processed.status === "ok" && processed.entryId && processed.userId && processed.version) {
+          if (!aiRuns) throw new Error("AI Run enqueue adapter is required");
+          await enqueueArticleWorkflows(aiRuns, {
+            userId: processed.userId,
+            entryId: processed.entryId,
+            version: processed.version,
+          });
+        }
       } catch (error) {
         failures.push(error instanceof Error ? error.message : "Feed entry processing failed");
       }
     }
 
-    const pendingEntries = await findPendingEntries(feed.userId, feed.id);
-    for (const pendingEntry of pendingEntries) {
-      try {
-        const rss = findRssEntryByUrl(entries, pendingEntry.url);
-        await processEntry({
-          userId: feed.userId,
-          entryId: pendingEntry.id,
-          ...(rss ? { rss } : {}),
-        });
-      } catch (error) {
-        failures.push(error instanceof Error ? error.message : "Feed AI summary failed");
+    if (aiRuns) {
+      const pendingAiRuns = await findEntriesNeedingAiRuns(feed.userId, feed.id);
+      for (const entry of pendingAiRuns) {
+        try {
+          await enqueueArticleWorkflows(aiRuns, {
+            userId: feed.userId,
+            entryId: entry.id,
+            version: entry.version,
+          });
+        } catch (error) {
+          failures.push(error instanceof Error ? error.message : "AI Run enqueue failed");
+        }
       }
     }
 
@@ -179,6 +211,21 @@ export async function processFeed(
     }
     return { status: "error", upserted: 0, created: 0, failed: 1, error: message };
   }
+}
+
+export async function enqueueArticleWorkflows(
+  aiRuns: AiRunEnqueuePort,
+  input: { userId: string; entryId: string; version: number },
+) {
+  await Promise.all(["summary", "embedding"].map((kind) => aiRuns.enqueue({
+    userId: input.userId,
+    kind: kind as "summary" | "embedding",
+    targetType: "feed_entry",
+    targetId: input.entryId,
+    inputVersion: input.version,
+    priority: kind === "summary" ? 20 : 10,
+    idempotencyKey: `${kind}:feed_entry:${input.entryId}:v${input.version}`,
+  })));
 }
 
 export function selectUnseenFeedEntries(entries: ParsedFeedEntry[], feed: Pick<FeedCronRecord, "lastSeenEntryUrl" | "lastFetchedAt">) {

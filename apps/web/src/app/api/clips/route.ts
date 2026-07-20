@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { getPrisma, Prisma } from "@mewmo/db";
-import { addSummaryJob, withTimeout } from "@mewmo/queue";
 import { createClipSchema, normalizeClipUrlIdentity } from "@mewmo/shared";
 
 import { auth } from "../../../lib/auth";
 import { fetchClipFromUrl } from "../../../lib/clip-fetch";
+import { enqueueArticleRuns } from "../../../lib/ai-run-enqueue";
 import { attachServerTiming, createServerTiming } from "../../../lib/server-timing";
 
 const clipListSelect = {
@@ -24,8 +24,6 @@ const clipListSelect = {
   createdAt: true,
   updatedAt: true,
 } satisfies Prisma.ClipSelect;
-
-const SUMMARY_QUEUE_TIMEOUT_MS = 3_000;
 
 function isUniqueConstraintError(error: unknown): error is { code: "P2002" } {
   return typeof error === "object" && error !== null && "code" in error && error.code === "P2002";
@@ -55,22 +53,11 @@ function sourceData(fetched: Awaited<ReturnType<typeof fetchClipFromUrl>>) {
   };
 }
 
-async function enqueueSummary(userId: string, clipId: string) {
+async function enqueueWorkflows(userId: string, clip: { id: string; version: number }) {
   try {
-    await withTimeout(
-      addSummaryJob(
-        { userId, targetId: clipId, targetType: "clip" },
-        {
-          jobId: `summary-clip-${clipId}`,
-          removeOnComplete: true,
-          removeOnFail: true,
-        },
-      ),
-      SUMMARY_QUEUE_TIMEOUT_MS,
-      `Summary queue timed out for ${clipId}`,
-    );
+    await enqueueArticleRuns({ userId, targetType: "clip", targetId: clip.id, inputVersion: clip.version });
   } catch (error) {
-    console.error("Failed to enqueue clip summary job", error);
+    console.error("Failed to enqueue clip AI workflows", error);
   }
 }
 
@@ -135,7 +122,7 @@ export async function POST(request: Request) {
         fetchedAt: new Date(),
       },
     });
-    await enqueueSummary(userId, clip.id);
+    await enqueueWorkflows(userId, clip);
     return NextResponse.json({ ...clip, existing: false }, { status: 201 });
   } catch (error) {
     if (!isUniqueConstraintError(error)) throw error;
@@ -157,7 +144,7 @@ export async function POST(request: Request) {
         version: { increment: 1 },
       },
     });
-    await enqueueSummary(userId, restored.id);
+    await enqueueWorkflows(userId, restored);
     return NextResponse.json({ ...restored, existing: true });
   }
 }

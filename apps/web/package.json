@@ -14,7 +14,6 @@
     "@mewmo/auth": "workspace:*",
     "@mewmo/content": "workspace:*",
     "@mewmo/db": "workspace:*",
-    "@mewmo/queue": "workspace:*",
     "@mewmo/shared": "workspace:*",
     "@mewmo/storage": "workspace:*",
     "@mewmo/ui": "workspace:*",

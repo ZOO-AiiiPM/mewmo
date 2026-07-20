@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-test("favoriting a feed entry reuses the shared summary producer", () => {
+test("favoriting a feed entry queues versioned AI workflows", () => {
   const route = readFileSync("apps/web/src/app/api/feed-entries/[id]/favorite/route.ts", "utf8");
 
-  assert.match(route, /import \{ addSummaryJob \} from "@mewmo\/queue"/);
-  assert.match(route, /await addSummaryJob\(/);
-  assert.doesNotMatch(route, /createQueueHelpers/);
+  assert.match(route, /enqueueArticleRuns/);
+  assert.match(route, /inputVersion:\s*clip\.version/);
+  assert.doesNotMatch(route, /@mewmo\/queue|addSummaryJob|createQueueHelpers/);
 });

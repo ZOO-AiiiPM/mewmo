@@ -8,6 +8,7 @@ const entry = {
   title: "RSS title",
   url: "https://example.com/article",
   content: "saved content",
+  version: 4,
   excerpt: "saved excerpt",
   author: null,
   publishedAt: null,
@@ -18,13 +19,11 @@ describe("processFeedEntry", () => {
   const findFirst = vi.fn();
   const updateMany = vi.fn();
   const fetchArticle = vi.fn();
-  const summarize = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
     findFirst.mockResolvedValue(entry);
     updateMany.mockResolvedValue({ count: 1 });
-    summarize.mockResolvedValue("Mewmo AI result");
   });
 
   function run(content: string) {
@@ -37,21 +36,23 @@ describe("processFeedEntry", () => {
       {
         prisma: { feedEntry: { findFirst, updateMany } },
         fetchArticle,
-        summarize,
       },
     );
   }
 
-  it("uses full RSS directly and writes the AI result in the same Cron run", async () => {
+  it("uses full RSS directly and returns the new content version without calling AI", async () => {
     const fullRss = `<p>${"RSS正文".repeat(180)}</p>`;
     const result = await run(fullRss);
 
     expect(fetchArticle).not.toHaveBeenCalled();
-    expect(summarize).toHaveBeenCalledWith(expect.objectContaining({ content: fullRss }));
-    expect(updateMany).toHaveBeenLastCalledWith(expect.objectContaining({
-      data: { summary: "Mewmo AI result", version: { increment: 1 } },
-    }));
-    expect(result).toEqual({ status: "ok", entryId: "entry-1", usedWebpage: false });
+    expect(updateMany).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({
+      status: "ok",
+      entryId: "entry-1",
+      userId: "user-1",
+      version: 5,
+      usedWebpage: false,
+    });
   });
 
   it("uses a valid fuller webpage before calling AI", async () => {
@@ -60,9 +61,8 @@ describe("processFeedEntry", () => {
 
     await run("RSS short body");
 
-    expect(summarize).toHaveBeenCalledWith(expect.objectContaining({
-      title: "Publisher title",
-      content: webContent,
+    expect(updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ title: "Publisher title", content: webContent }),
     }));
   });
 
@@ -74,18 +74,16 @@ describe("processFeedEntry", () => {
 
     await run("RSS short body");
 
-    expect(summarize).toHaveBeenCalledWith(expect.objectContaining({
-      title: "RSS title",
-      content: "RSS short body",
+    expect(updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ title: "RSS title", content: "RSS short body" }),
     }));
   });
 
-  it("leaves summary null when AI fails so the next Cron can retry", async () => {
-    summarize.mockRejectedValue(new Error("AI unavailable"));
-
-    await expect(run("RSS short body")).rejects.toThrow("AI unavailable");
-    expect(updateMany).not.toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ summary: expect.any(String) }),
-    }));
+  it("does not update when the content version changed concurrently", async () => {
+    updateMany.mockResolvedValue({ count: 0 });
+    await expect(run("RSS short body")).resolves.toEqual({
+      status: "skipped",
+      reason: "version_changed",
+    });
   });
 });
