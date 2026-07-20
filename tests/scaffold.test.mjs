@@ -46,6 +46,8 @@ test("root package exposes required workspace scripts", () => {
     assert.equal(typeof pkg.scripts[script], "string", `missing root script: ${script}`);
   }
   assert.equal(pkg.scripts.test, "pnpm test:unit");
+  assert.match(pkg.scripts["test:unit"], /vitest run --dir tests\/unit/);
+  assert.match(pkg.scripts["test:unit"], /--exclude '\*\*\/\*\.mjs'/);
   assert.match(pkg.scripts.verify, /pnpm lint/);
   assert.match(pkg.scripts.verify, /pnpm test:unit/);
   assert.match(pkg.scripts.verify, /pnpm test:theme/);
