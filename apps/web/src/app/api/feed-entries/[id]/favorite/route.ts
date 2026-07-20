@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@mewmo/db";
-import { createQueueHelpers } from "@mewmo/queue";
+import { addSummaryJob } from "@mewmo/queue";
 
 import { auth } from "../../../../../lib/auth";
 
@@ -56,7 +56,7 @@ export async function POST(
   });
 
   try {
-    await createQueueHelpers().addSummaryJob({
+    await addSummaryJob({
       userId: session.user.id,
       targetId: clip.id,
       targetType: "clip",

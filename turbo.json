@@ -34,7 +34,8 @@
     "FEED_SEARCH_ENDPOINT",
     "FEED_SEARCH_API_KEY",
     "FEED_REFRESH_BASE_URL",
-    "FEED_CRON_SECRET"
+    "FEED_CRON_SECRET",
+    "FEED_REFRESH_SCHEDULER"
   ],
   "tasks": {
     "dev": {
