@@ -16,6 +16,7 @@ import { FloatingMenuButton, FloatingMenuLink, PopoverMenu } from "../../../comp
 import { useToast } from "../../../components/ui/ToastProvider";
 import { clipPreviewText, formatClipListTime } from "../../../lib/clip-card";
 import { submitFeedAddBatch } from "../../../lib/feed-add-batch";
+import { submitFeedAddRequest } from "../../../lib/feed-add-request";
 import { selectAllFeedUrls, toggleFeedUrl, type FeedAddOutcomeStatus } from "../../../lib/feed-add-selection";
 import { buildFeedCardMeta, buildFeedReaderMeta } from "../../../lib/feed-display";
 import { getFeedAddToast, getFeedEmptyState } from "../../../lib/feed-status";
@@ -703,52 +704,50 @@ function AddFeedModal({
     setSaving(true);
     showToast(`正在添加 ${candidates.length} 个订阅...`, "loading");
 
-    const batch = await submitFeedAddBatch(candidates, async (candidate) => {
-        const response = await fetch("/api/feeds", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+    try {
+      const batch = await submitFeedAddBatch(candidates, async (candidate) =>
+        submitFeedAddRequest<FeedSource>({
             url: candidate.url,
             type,
             title: candidate.title,
             description: candidate.description,
             favicon: candidate.favicon,
             initialEntryLimit,
-          }),
-        });
-        if (!response.ok) throw new Error("add");
-        return (await response.json()) as FeedSource;
-    });
-    const { outcomes, persistedFeeds, savedFeeds, failedUrls: failed } = batch;
+        }),
+      );
+      const { outcomes, persistedFeeds, savedFeeds, failedUrls: failed } = batch;
 
-    setAddOutcomes(outcomes);
-    setSelectedUrls(failed);
+      setAddOutcomes(outcomes);
+      setSelectedUrls(failed);
 
-    if (candidates.length === 1 && persistedFeeds.length === 1 && failed.length === 0) {
-      const feed = persistedFeeds[0]!;
-      setSaving(false);
-      setSelectedUrls([]);
-      onAdded([feed], true);
-      const toast = getFeedAddToast(feed);
-      showToast(toast.text, toast.type);
-      return;
-    }
-
-    setSaving(false);
-    onAdded(persistedFeeds, failed.length === 0);
-
-    if (failed.length > 0) {
-      showToast(`已保存 ${savedFeeds.length} 个，${failed.length} 个添加失败，可重试`, "error");
-    } else if (savedFeeds.length === 1) {
-      const toast = getFeedAddToast(savedFeeds[0]!);
-      showToast(toast.text, toast.type);
-    } else {
-      const initialFailures = savedFeeds.filter((feed) => feed.initialFetch?.status === "error").length;
-      if (initialFailures > 0) {
-        showToast(`已保存 ${savedFeeds.length} 个订阅，${initialFailures} 个首次读取失败，可重试`, "error");
-      } else {
-        showToast(`已处理 ${savedFeeds.length} 个订阅，定时更新会继续补全`, "success");
+      if (candidates.length === 1 && persistedFeeds.length === 1 && failed.length === 0) {
+        const feed = persistedFeeds[0]!;
+        setSelectedUrls([]);
+        onAdded([feed], true);
+        const toast = getFeedAddToast(feed);
+        showToast(toast.text, toast.type);
+        return;
       }
+
+      onAdded(persistedFeeds, failed.length === 0);
+
+      if (failed.length > 0) {
+        showToast(`已保存 ${savedFeeds.length} 个，${failed.length} 个添加失败，可重试`, "error");
+      } else if (savedFeeds.length === 1) {
+        const toast = getFeedAddToast(savedFeeds[0]!);
+        showToast(toast.text, toast.type);
+      } else {
+        const initialFailures = savedFeeds.filter((feed) => feed.initialFetch?.status === "error").length;
+        if (initialFailures > 0) {
+          showToast(`已保存 ${savedFeeds.length} 个订阅，${initialFailures} 个首次读取失败，可重试`, "error");
+        } else {
+          showToast(`已处理 ${savedFeeds.length} 个订阅，定时更新会继续补全`, "success");
+        }
+      }
+    } catch {
+      showToast("添加订阅失败，请稍后重试", "error");
+    } finally {
+      setSaving(false);
     }
   };
 
