@@ -19,9 +19,10 @@ test("Worker deployment files exist", () => {
   }
 });
 
-test("Worker image installs the monorepo and starts the production runtime", () => {
+test("Background image installs the monorepo for one-shot commands", () => {
   const dockerfile = read("deploy/worker/Dockerfile");
-  const workerPackage = JSON.parse(read("apps/worker/package.json"));
+  const feedPackage = JSON.parse(read("apps/feed-ingestion/package.json"));
+  const workflowPackage = JSON.parse(read("apps/ai-workflows/package.json"));
 
   assert.match(dockerfile, /FROM node:22-bookworm-slim/);
   assert.match(dockerfile, /apt-get install -y --no-install-recommends openssl/);
@@ -38,15 +39,15 @@ test("Worker image installs the monorepo and starts the production runtime", () 
   assert.match(dockerfile, /--mount=type=cache,id=mewmo-pnpm,target=\/pnpm\/store/);
   assert.match(dockerfile, /pnpm install --frozen-lockfile --network-concurrency=4/);
   assert.match(dockerfile, /pnpm --filter @mewmo\/db db:generate/);
-  assert.match(dockerfile, /CMD \["pnpm", "--filter", "@mewmo\/worker", "start"\]/);
-  assert.equal(workerPackage.scripts.start, "tsx src/index.ts");
-  assert.equal(workerPackage.dependencies.tsx, "4.22.4");
+  assert.match(dockerfile, /CMD \["pnpm", "--filter", "@mewmo\/feed-ingestion", "cron:feeds"\]/);
+  assert.equal(feedPackage.scripts["cron:feeds"], "tsx src/commands/run-scheduled.ts");
+  assert.equal(workflowPackage.scripts["cron:ai"], "tsx src/commands/run-due.ts");
 });
 
 test("Feed Cron deployment command reaches runtime environment validation", () => {
   const result = spawnSync(
     process.execPath,
-    ["apps/worker/node_modules/tsx/dist/cli.mjs", "apps/worker/src/feed-cron.ts"],
+    ["apps/feed-ingestion/node_modules/tsx/dist/cli.mjs", "apps/feed-ingestion/src/commands/run-scheduled.ts"],
     {
       cwd: process.cwd(),
       encoding: "utf8",
@@ -57,7 +58,7 @@ test("Feed Cron deployment command reaches runtime environment validation", () =
 
   assert.notEqual(result.status, 0);
   assert.doesNotMatch(output, /Top-level await is currently not supported/);
-  assert.match(output, /Invalid Worker environment/);
+  assert.match(output, /Invalid Feed Ingestion environment/);
 });
 
 test("Worker Compose service has no public port and owns restart behavior", () => {
@@ -66,9 +67,8 @@ test("Worker Compose service has no public port and owns restart behavior", () =
   assert.match(compose, /image:\s+\$\{WORKER_IMAGE:-mewmo-worker:local\}/);
   assert.doesNotMatch(compose, /^\s*build:/m);
   assert.match(compose, /\$\{WORKER_ENV_FILE:-\.env\.worker\}/);
-  assert.match(compose, /restart:\s+unless-stopped/);
+  assert.doesNotMatch(compose, /restart:\s+unless-stopped/);
   assert.match(compose, /init:\s+true/);
-  assert.match(compose, /stop_grace_period:\s+30s/);
   assert.match(compose, /mem_limit:\s+512m/);
   assert.match(compose, /mem_reservation:\s+128m/);
   assert.match(compose, /cpus:\s+0\.50/);
@@ -77,8 +77,9 @@ test("Worker Compose service has no public port and owns restart behavior", () =
   assert.match(compose, /max-size:\s+["']10m["']/);
   assert.match(compose, /max-file:\s+["']3["']/);
   assert.doesNotMatch(compose, /^\s*ports:/m);
-  assert.match(compose, /feed-cron:[\s\S]*profiles:\s*\["cron"\]/);
-  assert.match(compose, /command:\s*\["pnpm",\s*"--filter",\s*"@mewmo\/worker",\s*"cron:feeds"\]/);
+  assert.match(compose, /feed-ingestion:[\s\S]*profiles:\s*\["cron"\]/);
+  assert.match(compose, /command:\s*\["pnpm",\s*"--filter",\s*"@mewmo\/feed-ingestion",\s*"cron:feeds"\]/);
+  assert.match(compose, /ai-workflows:[\s\S]*command:\s*\["pnpm",\s*"--filter",\s*"@mewmo\/ai-workflows",\s*"cron:ai"\]/);
 });
 
 test("Worker secrets stay outside Git and Docker build context", () => {
@@ -93,11 +94,12 @@ test("Worker secrets stay outside Git and Docker build context", () => {
   assert.match(gitignore, /^!\/\.dockerignore$/m);
   assert.match(gitignore, /^deploy\/worker\/\.env\.worker$/m);
   assert.match(envExample, /^DATABASE_URL=$/m);
-  assert.match(envExample, /^REDIS_URL=$/m);
+  assert.doesNotMatch(envExample, /^REDIS_URL=$/m);
   assert.doesNotMatch(envExample, /^FEED_CRON_SECRET=/m);
   assert.doesNotMatch(envExample, /^FEED_REFRESH_BASE_URL=/m);
   assert.doesNotMatch(envExample, /postgresql:\/\/[^\s]*@/);
-  assert.doesNotMatch(envExample, /rediss:\/\/[^\s]*@/);
+  assert.match(envExample, /^FEED_INGESTION_ADAPTER_MODULE=$/m);
+  assert.match(envExample, /^AI_WORKFLOWS_ADAPTER_MODULE=$/m);
 });
 
 test("Worker runbook documents deploy, logs, updates, and rollback", () => {
@@ -109,12 +111,10 @@ test("Worker runbook documents deploy, logs, updates, and rollback", () => {
   assert.match(readme, /docker save .*gzip.*ssh/);
   assert.match(readme, /docker compose -f compose\.yml config --quiet/);
   assert.doesNotMatch(readme, /docker compose -f compose\.yml config\s*$/m);
-  assert.match(readme, /docker compose -f compose\.yml up -d/);
-  assert.doesNotMatch(readme, /docker compose .*up -d --build/);
-  assert.match(readme, /docker compose -f compose\.yml logs -f worker/);
+  assert.doesNotMatch(readme, /docker compose -f compose\.yml up -d/);
   assert.match(readme, /docker load/);
   assert.match(readme, /docker tag/);
   assert.match(readme, /不需要.*端口/);
-  assert.match(readme, /flock[\s\S]*docker compose -f compose\.yml --profile cron run --rm feed-cron/);
-  assert.match(readme, /先.*注释.*crontab[\s\S]*再.*旧镜像/);
+  assert.match(readme, /flock[\s\S]*docker compose -f compose\.yml --profile cron run --rm feed-ingestion/);
+  assert.match(readme, /flock[\s\S]*docker compose -f compose\.yml --profile cron run --rm ai-workflows/);
 });

@@ -1,4 +1,3 @@
-import { summarizeArticle, type ArticleSummaryInput } from "@mewmo/ai";
 import { fetchArticleFromUrl, type ExtractedArticle } from "@mewmo/content";
 import { getPrisma } from "@mewmo/db";
 
@@ -21,6 +20,7 @@ interface FeedEntryRecord {
   title: string;
   url: string;
   content: string;
+  version: number;
   excerpt: string | null;
   author: string | null;
   publishedAt: Date | null;
@@ -36,7 +36,6 @@ export interface ProcessFeedEntryInput {
 interface ProcessFeedEntryDependencies {
   prisma?: FeedEntryPrisma;
   fetchArticle?: (url: string) => Promise<ExtractedArticle>;
-  summarize?: (input: ArticleSummaryInput) => Promise<string>;
 }
 
 export async function processFeedEntry(
@@ -45,9 +44,8 @@ export async function processFeedEntry(
 ) {
   const prisma = dependencies.prisma ?? (getPrisma() as unknown as FeedEntryPrisma);
   const fetchArticle = dependencies.fetchArticle ?? fetchArticleFromUrl;
-  const summarize = dependencies.summarize ?? summarizeArticle;
   const entry = (await prisma.feedEntry.findFirst({
-    where: { id: input.entryId, userId: input.userId, deletedAt: null, summary: null },
+    where: { id: input.entryId, userId: input.userId, deletedAt: null },
     include: { feed: { select: { title: true } } },
   })) as FeedEntryRecord | null;
   if (!entry) return { status: "skipped" as const, reason: "target_not_found_or_completed" as const };
@@ -72,7 +70,7 @@ export async function processFeedEntry(
 
   const finalContent = chooseFinalFeedEntryContent(source, webpage);
   const sourceUpdate = await prisma.feedEntry.updateMany({
-    where: { id: entry.id, userId: entry.userId, deletedAt: null, summary: null },
+    where: { id: entry.id, userId: entry.userId, deletedAt: null, version: entry.version },
     data: {
       title: finalContent.title,
       content: finalContent.content,
@@ -83,24 +81,13 @@ export async function processFeedEntry(
       version: { increment: 1 },
     },
   });
-  if (sourceUpdate.count === 0) return { status: "skipped" as const, reason: "target_not_found_or_completed" as const };
-
-  const summary = await summarize({
-    type: "feed_entry",
-    title: finalContent.title,
-    source: entry.feed.title,
-    url: entry.url,
-    content: finalContent.content,
-  });
-  const summaryUpdate = await prisma.feedEntry.updateMany({
-    where: { id: entry.id, userId: entry.userId, deletedAt: null, summary: null },
-    data: { summary, version: { increment: 1 } },
-  });
-  if (summaryUpdate.count === 0) return { status: "skipped" as const, reason: "target_not_found_or_completed" as const };
+  if (sourceUpdate.count === 0) return { status: "skipped" as const, reason: "version_changed" as const };
 
   return {
     status: "ok" as const,
     entryId: entry.id,
+    userId: entry.userId,
+    version: entry.version + 1,
     usedWebpage: finalContent.content !== source.content,
   };
 }

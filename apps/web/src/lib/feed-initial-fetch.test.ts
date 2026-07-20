@@ -18,11 +18,13 @@ describe("fetchInitialFeed", () => {
     const updateMany = vi.fn().mockResolvedValue({ count: 1 });
     const upsertSourceByFeedUrl = vi
       .fn()
-      .mockResolvedValue({ created: true, entry: { id: "entry-1" } });
+      .mockResolvedValue({ created: true, entry: { id: "entry-1", version: 1 } });
+    const enqueueWorkflows = vi.fn().mockResolvedValue([]);
 
     const result = await fetchInitialFeed("user-1", feed, {
       prisma: { feed: { updateMany } },
       entryRepository: { upsertSourceByFeedUrl },
+      enqueueWorkflows,
       fetchFeed: vi.fn().mockResolvedValue([
         {
           title: "Newest",
@@ -50,6 +52,12 @@ describe("fetchInitialFeed", () => {
       completedAt,
     });
     expect(upsertSourceByFeedUrl).toHaveBeenCalledTimes(1);
+    expect(enqueueWorkflows).toHaveBeenCalledWith({
+      userId: "user-1",
+      targetType: "feed_entry",
+      targetId: "entry-1",
+      inputVersion: 1,
+    });
     expect(updateMany).toHaveBeenLastCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -67,6 +75,7 @@ describe("fetchInitialFeed", () => {
     const result = await fetchInitialFeed("user-1", feed, {
       prisma: { feed: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) } },
       entryRepository: { upsertSourceByFeedUrl: vi.fn() },
+      enqueueWorkflows: vi.fn(),
       fetchFeed,
       limit: 5,
     });
@@ -91,8 +100,9 @@ describe("fetchInitialFeed", () => {
       entryRepository: {
         upsertSourceByFeedUrl: vi
           .fn()
-          .mockResolvedValue({ created: true, entry: { id: "entry-1" } }),
+          .mockResolvedValue({ created: true, entry: { id: "entry-1", version: 1 } }),
       },
+      enqueueWorkflows: vi.fn().mockResolvedValue([]),
       fetchFeed: vi
         .fn()
         .mockResolvedValue([
@@ -115,6 +125,7 @@ describe("fetchInitialFeed", () => {
     const result = await fetchInitialFeed("user-1", feed, {
       prisma: { feed: { updateMany } },
       entryRepository: { upsertSourceByFeedUrl: vi.fn() },
+      enqueueWorkflows: vi.fn(),
       fetchFeed: vi.fn().mockRejectedValue(new Error("Feed fetch timed out")),
       now: () => completedAt,
     });
@@ -136,5 +147,24 @@ describe("fetchInitialFeed", () => {
         }),
       }),
     );
+  });
+
+  it("keeps imported entries when workflow enqueue is temporarily unavailable", async () => {
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const result = await fetchInitialFeed("user-1", feed, {
+      prisma: { feed: { updateMany } },
+      entryRepository: {
+        upsertSourceByFeedUrl: vi.fn().mockResolvedValue({
+          created: true,
+          entry: { id: "entry-1", version: 1 },
+        }),
+      },
+      enqueueWorkflows: vi.fn().mockRejectedValue(new Error("AiRun unavailable")),
+      fetchFeed: vi.fn().mockResolvedValue([
+        { title: "One", url: "https://example.com/one", content: "Body" },
+      ]),
+    });
+    expect(result.status).toBe("success");
+    expect(result.created).toBe(1);
   });
 });

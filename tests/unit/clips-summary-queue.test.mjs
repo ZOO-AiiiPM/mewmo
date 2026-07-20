@@ -4,8 +4,9 @@ import { readFileSync } from "node:fs";
 
 const route = readFileSync("apps/web/src/app/api/clips/[id]/route.ts", "utf8");
 
-test("completed synchronous clip extraction enqueues a summary job", () => {
-  assert.match(route, /fetchClipFromUrl\(clip\.url\)[\s\S]*enqueueSummary/,
-    "summary generation should start only after synchronous extraction stores readable content");
-  assert.match(route, /addSummaryJob\([\s\S]*userId,\s*targetId:\s*clipId,\s*targetType:\s*"clip"/s);
+test("completed synchronous clip extraction enqueues persistent AI runs", () => {
+  assert.match(route, /fetchClipFromUrl\(clip\.url\)[\s\S]*enqueueWorkflows/,
+    "AI workflows should start only after readable content is stored");
+  assert.match(route, /enqueueArticleRuns\(\{[\s\S]*targetType:\s*"clip"[\s\S]*inputVersion:\s*clip\.version/s);
+  assert.doesNotMatch(route, /addSummaryJob|@mewmo\/queue/);
 });

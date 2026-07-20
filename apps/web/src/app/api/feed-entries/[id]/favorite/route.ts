@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@mewmo/db";
-import { addSummaryJob } from "@mewmo/queue";
 
 import { auth } from "../../../../../lib/auth";
+import { enqueueArticleRuns } from "../../../../../lib/ai-run-enqueue";
 
 export async function POST(
   _request: Request,
@@ -56,13 +56,14 @@ export async function POST(
   });
 
   try {
-    await addSummaryJob({
+    await enqueueArticleRuns({
       userId: session.user.id,
-      targetId: clip.id,
       targetType: "clip",
+      targetId: clip.id,
+      inputVersion: clip.version,
     });
   } catch (error) {
-    console.error("Failed to enqueue feed clip summary job", error);
+    console.error("Failed to enqueue feed clip AI workflows", error);
   }
 
   return NextResponse.json(

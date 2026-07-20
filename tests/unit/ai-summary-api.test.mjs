@@ -9,18 +9,17 @@ const feedsPagePath = "apps/web/src/app/(app)/feeds/page.tsx";
 
 const read = (path) => readFileSync(path, "utf8");
 
-test("AI summary API only summarizes saved clips and feed entries", () => {
+test("AI summary API asynchronously queues saved clips and feed entries", () => {
   assert.ok(existsSync(routePath), "summary route should exist");
   const route = read(routePath);
 
-  assert.match(route, /summarizeArticle/, "route should call the product article summarizer");
-  assert.doesNotMatch(route, /summarizeContent/, "route should not use the legacy summary alias");
+  assert.match(route, /enqueueSummaryRun/, "route should create a persistent workflow run");
+  assert.doesNotMatch(route, /summarizeArticle|summarizeContent/, "Web must not wait for the model");
   assert.match(route, /targetType:\s*z\.enum\(\["clip",\s*"feed_entry"\]\)/, "route should reject notes");
   assert.match(route, /auth\(\)/, "route should require the current user session");
-  assert.match(route, /deletedAt:\s*null/, "route should scope reads and writes to active rows");
-  assert.match(route, /prisma\.clip\.updateMany/, "clip summaries should be written back safely");
-  assert.match(route, /prisma\.feedEntry\.updateMany/, "feed entry summaries should be written back safely");
-  assert.match(route, /version:\s*\{\s*increment:\s*1\s*\}/, "summary writes should bump sync version");
+  assert.match(route, /deletedAt:\s*null/, "route should scope reads to active rows");
+  assert.match(route, /status:\s*202/, "manual regeneration should return immediately");
+  assert.match(route, /runId:\s*run\.id/, "the client receives a durable run id");
 });
 
 test("AI sidebar requests real summaries for the current saved article", () => {

@@ -2,6 +2,7 @@ import { createFeedsRepository, type DueFeedForRefresh } from "@mewmo/db";
 
 import {
   processFeed,
+  type AiRunEnqueuePort,
   type FeedCronRecord,
   type ProcessFeedResult,
 } from "./process-feed";
@@ -17,6 +18,7 @@ interface RunFeedCronDependencies {
   processFeed?: (
     feed: FeedCronRecord,
   ) => Promise<Pick<ProcessFeedResult, "status">>;
+  aiRuns?: AiRunEnqueuePort;
   now?: Date;
 }
 
@@ -33,7 +35,9 @@ export async function runFeedCron(
 ): Promise<FeedCronResult> {
   const feedsRepository =
     dependencies.feedsRepository ?? createFeedsRepository();
-  const runFeed = dependencies.processFeed ?? processFeed;
+  const runFeed = dependencies.processFeed ?? ((feed) => processFeed(feed, {
+    ...(dependencies.aiRuns ? { aiRuns: dependencies.aiRuns } : {}),
+  }));
   const now = dependencies.now ?? new Date();
   const feeds: FeedCronRecord[] = await feedsRepository.findDueForRefresh(
     now,

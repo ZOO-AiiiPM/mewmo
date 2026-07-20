@@ -21,8 +21,9 @@ const feed: FeedCronRecord = {
 describe("processFeed", () => {
   const updateMany = vi.fn();
   const upsertSourceByFeedUrl = vi.fn();
-  const findPendingEntries = vi.fn();
   const processEntry = vi.fn();
+  const enqueue = vi.fn();
+  const findEntriesNeedingAiRuns = vi.fn();
   const fetchFeed = vi.fn();
 
   beforeEach(() => {
@@ -45,10 +46,11 @@ describe("processFeed", () => {
     ]);
     upsertSourceByFeedUrl.mockResolvedValue({
       created: true,
-      entry: { id: "entry-1" },
+      entry: { id: "entry-1", version: 1 },
     });
-    findPendingEntries.mockResolvedValue([{ id: "entry-1", url: "https://example.com/new" }]);
-    processEntry.mockResolvedValue({ status: "ok" });
+    processEntry.mockResolvedValue({ status: "ok", entryId: "entry-1", userId: "user-1", version: 2 });
+    enqueue.mockResolvedValue({ id: "run-1" });
+    findEntriesNeedingAiRuns.mockResolvedValue([]);
   });
 
   function dependencies() {
@@ -56,13 +58,14 @@ describe("processFeed", () => {
       prisma: { feed: { updateMany } },
       entryRepository: { upsertSourceByFeedUrl },
       fetchFeed,
-      findPendingEntries,
       processEntry,
+      aiRuns: { enqueue },
+      findEntriesNeedingAiRuns,
       now: () => startedAt,
     };
   }
 
-  it("imports only entries before the saved cursor and summarizes them in the same Cron run", async () => {
+  it("imports only entries before the saved cursor and queues AI workflows", async () => {
     const result = await processFeed(feed, dependencies());
 
     expect(result).toEqual({
@@ -87,6 +90,15 @@ describe("processFeed", () => {
         rss: expect.objectContaining({ title: "New RSS title", content: "New RSS body" }),
       }),
     );
+    expect(enqueue).toHaveBeenCalledTimes(2);
+    expect(enqueue).toHaveBeenCalledWith(expect.objectContaining({
+      kind: "summary",
+      targetType: "feed_entry",
+      targetId: "entry-1",
+      inputVersion: 2,
+      idempotencyKey: "summary:feed_entry:entry-1:v2",
+    }));
+    expect(enqueue).toHaveBeenCalledWith(expect.objectContaining({ kind: "embedding" }));
   });
 
   it("processes every newly published entry instead of a fixed ten", async () => {
@@ -110,12 +122,12 @@ describe("processFeed", () => {
     upsertSourceByFeedUrl.mockImplementation(
       async (_userId, input: { url: string }) => ({
         created: true,
-        entry: { id: input.url },
+        entry: { id: input.url, version: 1 },
       }),
     );
-    findPendingEntries.mockResolvedValue(
-      newEntries.map((entry) => ({ id: entry.url, url: entry.url })),
-    );
+    processEntry.mockImplementation(async ({ entryId }) => ({
+      status: "ok", entryId, userId: "user-1", version: 2,
+    }));
 
     const result = await processFeed(feed, dependencies());
 
@@ -129,27 +141,8 @@ describe("processFeed", () => {
     expect(processEntry).toHaveBeenCalledTimes(12);
   });
 
-  it("summarizes initial-import entries on the next Cron without importing older history", async () => {
-    fetchFeed.mockResolvedValue([
-      { title: "Cursor", url: feed.lastSeenEntryUrl, content: "Cursor body" },
-      { title: "Excluded old", url: "https://example.com/excluded", content: "Old body" },
-    ]);
-    findPendingEntries.mockResolvedValue([
-      { id: "initial-entry", url: feed.lastSeenEntryUrl },
-    ]);
-
-    const result = await processFeed(feed, dependencies());
-
-    expect(result.upserted).toBe(0);
-    expect(upsertSourceByFeedUrl).not.toHaveBeenCalled();
-    expect(processEntry).toHaveBeenCalledWith(expect.objectContaining({
-      entryId: "initial-entry",
-      rss: expect.objectContaining({ title: "Cursor" }),
-    }));
-  });
-
-  it("marks the feed partial when AI fails and leaves it for the next Cron retry", async () => {
-    processEntry.mockRejectedValue(new Error("AI unavailable"));
+  it("marks the feed partial when queuing workflows fails without losing the entry", async () => {
+    enqueue.mockRejectedValue(new Error("AI Run unavailable"));
 
     const result = await processFeed(feed, dependencies());
 
@@ -157,8 +150,26 @@ describe("processFeed", () => {
     expect(updateMany).toHaveBeenLastCalledWith(expect.objectContaining({
       data: expect.objectContaining({
         lastFetchStatus: "partial",
-        lastFetchError: "AI unavailable",
+        lastFetchError: "AI Run unavailable",
       }),
+    }));
+  });
+
+  it("recreates missing AI Runs after a prior enqueue failure advanced the feed cursor", async () => {
+    fetchFeed.mockResolvedValue([
+      { title: "Cursor", url: feed.lastSeenEntryUrl, content: "Already imported" },
+    ]);
+    findEntriesNeedingAiRuns.mockResolvedValue([{ id: "entry-missed", version: 3 }]);
+
+    const result = await processFeed(feed, dependencies());
+
+    expect(result.status).toBe("success");
+    expect(upsertSourceByFeedUrl).not.toHaveBeenCalled();
+    expect(enqueue).toHaveBeenCalledWith(expect.objectContaining({
+      kind: "summary",
+      targetId: "entry-missed",
+      inputVersion: 3,
+      idempotencyKey: "summary:feed_entry:entry-missed:v3",
     }));
   });
 
