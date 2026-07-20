@@ -1,5 +1,5 @@
 {
-  "name": "@mewmo/ai",
+  "name": "@mewmo/application",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -14,8 +14,7 @@
     "test": "vitest src"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "4.0.16",
-    "@ai-sdk/openai": "4.0.16",
-    "ai": "7.0.31"
+    "@mewmo/db": "workspace:*",
+    "@mewmo/shared": "workspace:*"
   }
 }
