@@ -4,35 +4,65 @@ import test from "node:test";
 
 const read = (path) => readFileSync(path, "utf8");
 
-test("agent chat API persists chats, messages, and context attachments", () => {
-  const chatsRoute = "apps/web/src/app/api/agent/chats/route.ts";
-  const chatRoute = "apps/web/src/app/api/agent/chats/[id]/route.ts";
-  const messagesRoute = "apps/web/src/app/api/agent/chats/[id]/messages/route.ts";
+test("agent browser API is an authenticated BFF with explicit service degradation", () => {
+  const messagePath = "apps/web/src/app/api/agent/chats/[id]/messages/route.ts";
+  const actionPath = "apps/web/src/app/api/agent/actions/[id]/[command]/route.ts";
+  const resultPath = "apps/web/src/app/api/agent/actions/[id]/result/route.ts";
+  const clientPath = "apps/web/src/lib/agent-server-client.ts";
 
-  assert.ok(existsSync(chatsRoute), "chat collection route should exist");
-  assert.ok(existsSync(chatRoute), "chat detail route should exist");
-  assert.ok(existsSync(messagesRoute), "chat message route should exist");
+  for (const path of [messagePath, actionPath, resultPath, clientPath]) {
+    assert.ok(existsSync(path), `${path} should exist`);
+  }
 
-  const chats = read(chatsRoute);
-  const detail = read(chatRoute);
-  const messages = read(messagesRoute);
+  const messages = read(messagePath);
+  const actions = read(actionPath);
+  const contract = read("apps/web/src/lib/agent-contract.ts");
+  const client = read(clientPath);
 
-  assert.match(chats, /auth\(\)/, "chat list/create should require auth");
-  assert.match(chats, /findOrCreateDefault/, "chat create should support the default mewmo chat");
-  assert.match(detail, /findById\(session\.user\.id,\s*id\)/, "chat detail should be user-scoped");
-  assert.match(messages, /generateAgentReply/, "message route should call the agent runtime");
-  assert.match(messages, /addMessage\(id,\s*\{[\s\S]*role:\s*"user"/, "message route should persist user messages");
-  assert.match(messages, /addContextAttachment/, "message route should persist current-content context attachments");
-  assert.match(messages, /updateMessage\(id,\s*String\(assistantMessage\.id\)/, "message route should update assistant placeholder");
-  assert.match(messages, /resolveAgentContext/, "message route should resolve context server-side");
+  assert.match(messages, /auth\(\)/);
+  assert.match(messages, /agentMessageRequestSchema\.safeParse/);
+  assert.match(messages, /requestAgentServer\(session\.user\.id/);
+  assert.match(messages, /\/v1\/chats\/\$\{encodeURIComponent\(id\)\}\/messages/);
+  assert.doesNotMatch(messages, /generateAgentReply|getPrisma|contentSnapshot/);
+  assert.match(actions, /\["confirm", "cancel", "retry"\]/);
+  assert.match(contract, /executionMode/);
+  assert.match(client, /AGENT_SERVER_URL/);
+  assert.match(client, /AGENT_INTERNAL_SECRET/);
+  assert.match(client, /Authorization: `Bearer \$\{createAgentIdentityToken/);
+  assert.match(client, /agent_not_configured/);
+  assert.doesNotMatch(client, /NEXT_PUBLIC_/);
 });
 
-test("AI sidebar chat tab uses persisted agent chats instead of placeholder copy", () => {
-  const sidebar = read("apps/web/src/components/shell/AISidebar.tsx");
+test("chat history strips context snapshots and leaves a pagination contract", () => {
+  const collection = read("apps/web/src/app/api/agent/chats/route.ts");
+  const detail = read("apps/web/src/app/api/agent/chats/[id]/route.ts");
 
-  assert.match(sidebar, /\/api\/agent\/chats/, "sidebar should load or create persisted chats");
-  assert.match(sidebar, /\/api\/agent\/chats\/\$\{chat\.id\}\/messages/, "sidebar should send messages to the agent API");
-  assert.match(sidebar, /context:\s*context\s*\?/, "sidebar should pass current context identity when available");
-  assert.doesNotMatch(sidebar, /对话流还没有接入/, "sidebar should not render placeholder chat copy");
-  assert.doesNotMatch(sidebar, /AI 暂未接入/, "sidebar input should no longer be disabled placeholder copy");
+  assert.match(collection, /toChatView/);
+  assert.match(collection, /pageInfo:\s*\{ nextCursor: null \}/);
+  assert.doesNotMatch(collection, /contextAttachments:/);
+  assert.match(detail, /pageInfo:\s*\{ nextCursor: null \}/);
+  assert.doesNotMatch(detail, /contextAttachments/);
+});
+
+test("AI sidebar supports draft context, Deep Insight, proposals, and idempotent retry", () => {
+  const sidebar = read("apps/web/src/components/shell/AISidebar.tsx");
+  const notePage = read("apps/web/src/app/(app)/notes/[slug]/NoteEditorPage.tsx");
+
+  assert.match(sidebar, /requestedSkill/);
+  assert.match(sidebar, /deep-insight/);
+  assert.match(sidebar, /context\.draft/);
+  assert.match(sidebar, /clientRequestId/);
+  assert.match(sidebar, /performSend\(failedSend\)/, "retry should reuse the same clientRequestId");
+  assert.match(sidebar, /data\.userMessage\.id \?\? localUserId/, "runtime responses may omit persistence ids");
+  assert.match(sidebar, /ProposalCard/);
+  assert.match(sidebar, /executionMode:\s*"client"/);
+  assert.match(sidebar, /\/api\/agent\/actions\/\$\{proposal\.id\}\/\$\{name\}/);
+  assert.match(sidebar, /\/api\/agent\/actions\/\$\{actionId\}\/result/);
+  assert.doesNotMatch(sidebar, /RELATED_PLACEHOLDERS|The Rise of the AI-Native Note App/);
+
+  assert.match(notePage, /draft:\s*\{/);
+  assert.match(notePage, /applyDraftPatch/);
+  assert.match(notePage, /queueNoteDraftSync/);
+  assert.match(notePage, /subscribeNoteDraftSync/);
+  assert.match(notePage, /setAgentEditorRevision/);
 });

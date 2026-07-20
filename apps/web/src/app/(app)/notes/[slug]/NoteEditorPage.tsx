@@ -55,7 +55,12 @@ import {
   setCachedWorkspaceSelection,
   updateCachedWorkspaceItem,
 } from "../../../../lib/workspace-data-cache";
+import { useWorkspaceAccountId } from "../../../../lib/workspace-account";
 import { workspaceResourceKeys } from "../../../../lib/workspace-resource-keys";
+import {
+  queueNoteDraftSync,
+  subscribeNoteDraftSync,
+} from "../../../../components/editor/note-draft-sync";
 import "../../../../components/editor/editor-theme.css";
 
 const NoteEditor = dynamic(
@@ -108,6 +113,7 @@ export function NoteEditorPage({
 }: NoteEditorPageProps) {
   const { showToast } = useToast();
   const { setContentContext } = useAISidebarContext();
+  const userId = useWorkspaceAccountId();
   const listRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const previousSelectedNoteRef = useRef<{ id: string; slug: string } | null>(null);
@@ -134,6 +140,7 @@ export function NoteEditorPage({
   const [listCollapsed, setListCollapsed] = useState(false);
   const [isLoading, setIsLoading] = useState(!cachedNotes && initialNotes.length === 0);
   const [loadError, setLoadError] = useState("");
+  const [agentEditorRevision, setAgentEditorRevision] = useState(0);
   const selectedNote = useMemo(() => {
     if (selectedSlug) {
       const selected = notes.find((item) => item.slug === selectedSlug);
@@ -350,16 +357,74 @@ export function NoteEditorPage({
       return;
     }
 
+    const currentNote = selectedNote;
     setContentContext({
       kind: "note",
-      id: selectedNote.id,
-      title: selectedNote.title,
+      id: currentNote.id,
+      title: currentNote.title,
       sourceLabel: "笔记",
-      summary: selectedNote.summary,
+      summary: currentNote.summary,
+      draft: {
+        baseVersion: currentNote.version ?? 0,
+        title: currentNote.title,
+        content: currentNote.content ?? "",
+      },
+      applyDraftPatch: async (patch) => {
+        if (patch.noteId !== currentNote.id) throw new Error("当前打开的笔记已经变化");
+        if ((currentNote.version ?? 0) !== patch.baseVersion) throw new Error("笔记版本已变化，请重新生成操作预览");
+
+        const nextTitle = patch.title ?? currentNote.title;
+        const nextContent = patch.content ?? currentNote.content ?? "";
+        const updatedAt = Date.now();
+
+        setNotes((items) => items.map((item) => item.id === currentNote.id
+          ? { ...item, title: nextTitle, content: nextContent }
+          : item));
+        updateCachedWorkspaceItem<NoteListItem>("notes", currentNote.id, (item) => ({
+          ...item,
+          title: nextTitle,
+          content: nextContent,
+        }));
+        setAgentEditorRevision((revision) => revision + 1);
+        queueNoteDraftSync({
+          userId,
+          noteId: currentNote.id,
+          title: nextTitle,
+          content: nextContent,
+          serverVersion: patch.baseVersion,
+          updatedAt,
+        });
+        const savePromise = new Promise<{ version?: number }>((resolve, reject) => {
+          let unsubscribe = () => {};
+          const timeout = window.setTimeout(() => {
+            unsubscribe();
+            reject(new Error("笔记保存超时，本地草稿仍已保留"));
+          }, 20_000);
+          unsubscribe = subscribeNoteDraftSync(userId, currentNote.id, (snapshot) => {
+            if (snapshot.status === "saved") {
+              window.clearTimeout(timeout);
+              unsubscribe();
+              resolve(snapshot.serverVersion === undefined ? {} : { version: snapshot.serverVersion });
+            } else if (snapshot.status === "error") {
+              window.clearTimeout(timeout);
+              unsubscribe();
+              reject(new Error(snapshot.message));
+            }
+          });
+        });
+        const result = await savePromise;
+        const savedVersion = result.version;
+        if (savedVersion !== undefined) {
+          setNotes((items) => items.map((item) => item.id === currentNote.id
+            ? { ...item, version: savedVersion }
+            : item));
+        }
+        return result;
+      },
     });
 
     return () => setContentContext(null);
-  }, [selectedNote, setContentContext]);
+  }, [selectedNote, setContentContext, userId]);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -629,7 +694,7 @@ export function NoteEditorPage({
               </div>
             ) : (
               <NoteEditor
-                key={selectedNote.id}
+                key={`${selectedNote.id}:${agentEditorRevision}`}
                 noteId={selectedNote.id}
                 initialTitle={selectedNote.title}
                 initialSummary={selectedNote.summary}
