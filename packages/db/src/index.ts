@@ -10,3 +10,4 @@ export * from "./repositories/note-shares";
 export * from "./repositories/notes";
 export * from "./repositories/tags";
 export * from "./repositories/trash";
+export type { AiRun } from "@prisma/client";
