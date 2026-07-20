@@ -4,7 +4,7 @@ import test from "node:test";
 
 const read = (path) => readFileSync(path, "utf8");
 
-test("web runtime starts the feed refresh scheduler when only the Next server is running", () => {
+test("web runtime exposes an opt-in feed refresh scheduler fallback", () => {
   const instrumentation = read("apps/web/src/instrumentation.ts");
   const runtime = read("apps/web/src/lib/feed-refresh-runtime.ts");
 
@@ -20,8 +20,8 @@ test("web runtime starts the feed refresh scheduler when only the Next server is
   );
   assert.match(
     runtime,
-    /FEED_REFRESH_SCHEDULER[\s\S]*off/,
-    "scheduler should keep an environment escape hatch for deployments that run a separate worker",
+    /if\s*\(\s*schedulerMode\s*!==\s*["']on["']\s*\)\s*return/,
+    "the worker is authoritative, so the web fallback must require explicit opt-in",
   );
   assert.match(
     runtime,

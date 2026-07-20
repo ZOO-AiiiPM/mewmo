@@ -1,21 +1,28 @@
 import { createQueueHelpers } from "./queues";
 
+let queueHelpers: ReturnType<typeof createQueueHelpers> | undefined;
+
+function getQueueHelpers() {
+  queueHelpers ??= createQueueHelpers();
+  return queueHelpers;
+}
+
 export function addTagJob(...args: Parameters<ReturnType<typeof createQueueHelpers>["addTagJob"]>) {
-  return createQueueHelpers().addTagJob(...args);
+  return getQueueHelpers().addTagJob(...args);
 }
 
 export function addSummaryJob(...args: Parameters<ReturnType<typeof createQueueHelpers>["addSummaryJob"]>) {
-  return createQueueHelpers().addSummaryJob(...args);
+  return getQueueHelpers().addSummaryJob(...args);
 }
 
 export function addFeedFetchJob(...args: Parameters<ReturnType<typeof createQueueHelpers>["addFeedFetchJob"]>) {
-  return createQueueHelpers().addFeedFetchJob(...args);
+  return getQueueHelpers().addFeedFetchJob(...args);
 }
 
 export function addClipFetchJob(...args: Parameters<ReturnType<typeof createQueueHelpers>["addClipFetchJob"]>) {
-  return createQueueHelpers().addClipFetchJob(...args);
+  return getQueueHelpers().addClipFetchJob(...args);
 }
 
 export function addEmbeddingJob(...args: Parameters<ReturnType<typeof createQueueHelpers>["addEmbeddingJob"]>) {
-  return createQueueHelpers().addEmbeddingJob(...args);
+  return getQueueHelpers().addEmbeddingJob(...args);
 }

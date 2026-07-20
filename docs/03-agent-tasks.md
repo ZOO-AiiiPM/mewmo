@@ -44,12 +44,10 @@
    - `tooling/tailwind/` — Tailwind 4 配置
    - `tooling/prettier/` — Prettier 配置
 
-4. **`docker/docker-compose.yml`**：
-   - PostgreSQL 15（port 5432，user: mewmo，db: mewmo_dev）
-   - Redis 7（port 6379）
+4. ~~本地 `docker/docker-compose.yml`（已移除）~~：数据库用 Neon Postgres、缓存用 Upstash Redis，不再本地起容器。
 
 5. **环境变量**：
-   - `.env.example`（DATABASE_URL, REDIS_URL, NEXTAUTH_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, OPENAI_API_KEY, ANTHROPIC_API_KEY, R2_ENDPOINT, R2_ACCESS_KEY, R2_SECRET_KEY, RESEND_API_KEY）
+   - 环境变量清单（不再提供本地 `.env.example`，统一在各平台 dashboard 配置）：DATABASE_URL(Neon)、REDIS_URL(Upstash)、NEXTAUTH_SECRET、GOOGLE_CLIENT_ID/SECRET、OPENAI/ANTHROPIC_API_KEY、R2_*、RESEND_API_KEY
    - `.gitignore`（node_modules, .env.local, .next, dist, .turbo, prisma/*.db）
 
 6. **验证根 scripts 能跑**：
@@ -57,14 +55,14 @@
    - `pnpm dev` 能启动（web 显示 Next.js 页面，agent 打印 ready）
    - `pnpm lint` 通过
    - `pnpm build` 通过
-   - `docker compose up -d` 能起 Postgres + Redis
+   - 各平台 dashboard 已配好 env（Neon/Upstash/Vercel），`pnpm dev` 能直连云端服务
 
 ### 验收标准
 
 - [ ] `pnpm install` 零报错
-- [ ] `pnpm dev` 同时启动 web（localhost:3000）+ worker
+- [ ] `pnpm dev` 能启动 web + worker（连接云端 Neon/Upstash）
 - [ ] `pnpm lint && pnpm build` 通过
-- [ ] Docker Compose Postgres + Redis 能连接
+- [ ] 云端 Neon/Upstash 连接正常（非本地 Docker）
 - [ ] 所有 package 之间 `@mewmo/xxx` 引用能 resolve
 
 ---
@@ -136,7 +134,7 @@
 
 ### 验收标准
 
-- [ ] `pnpm db:push` 成功推 schema 到本地 Docker Postgres
+- [ ] `pnpm db:push` 成功推 schema 到 Neon Postgres（或本地直连 Neon）
 - [ ] `pnpm db:generate` 生成 Prisma Client
 - [ ] repository 基本 CRUD 测试通过
 - [ ] Auth.js 邮箱注册 + 登录流程能跑通（localhost 测试）
@@ -273,13 +271,13 @@ Week 4:  验收 + 修 bug + 部署上线
 | 服务 | 平台 | 配置 |
 |------|------|------|
 | Web | Vercel | 连接 GitHub repo，root = `apps/web` |
-| Worker | Railway | Docker，root = `apps/worker` |
+| Worker | 用户自有服务器 | Mac 构建 `linux/amd64` 镜像后导入，使用 `compose.yml` 常驻运行且不开放公网端口 |
 | PostgreSQL | Neon | 创建 project，拿 connection string |
 | Redis | Upstash | 创建 database，拿 REDIS_URL |
 | 文件存储 | Cloudflare R2 | 创建 bucket `mewmo-files` |
 | 邮件 | Resend | 注册拿 API key |
 
-环境变量统一配在各平台的 dashboard，本地开发用 `.env.local`。
+Web 环境变量配在各平台 dashboard；Worker 密钥只写入服务器的 `deploy/worker/.env.worker`，该文件不进入 Git 和 Docker 镜像。如需本地调试，可选 `.env.local` 覆盖，但不再有本地 Docker 数据库。
 
 ---
 
@@ -290,9 +288,9 @@ Week 4:  验收 + 修 bug + 部署上线
 
 ### 产出清单
 
-1. **`README.md` Getting Started 段**：
+1. **入门指引（staging）**：
    ```
-   git clone → cp .env.example .env.local → docker compose up -d → pnpm install → pnpm dev
+   git clone → pnpm install → pnpm dev（连接云端 Neon/Upstash，env 由各平台 dashboard 注入）
    ```
    标注哪些 env 变量用共享 staging 值（NEXTAUTH_SECRET、DATABASE_URL staging），哪些需要各自申请（GOOGLE_CLIENT_ID 等 OAuth）。
 
@@ -312,32 +310,15 @@ Week 4:  验收 + 修 bug + 部署上线
    - Upstash Redis = staging 共用
    - 团队成员可以访问 staging URL 查看最新 main 效果
 
-5. **`.env.example` 增加注释分组**：
-   ```env
-   # === 本地开发（docker compose 自动起） ===
-   DATABASE_URL=postgresql://mewmo:mewmo@localhost:5432/mewmo_dev
-   REDIS_URL=redis://localhost:6379
-
-   # === 共享 staging（PR Preview 自动注入，本地不需要填） ===
-   # NEON_DATABASE_URL=（Vercel Integration 自动设置）
-
-   # === 各自申请（每个开发者自己的） ===
-   GOOGLE_CLIENT_ID=
-   GOOGLE_CLIENT_SECRET=
-
-   # === 团队共享（找 zoo 拿） ===
-   NEXTAUTH_SECRET=
-   OPENAI_API_KEY=
-   ANTHROPIC_API_KEY=
-   R2_ENDPOINT=
-   R2_ACCESS_KEY=
-   R2_SECRET_KEY=
-   RESEND_API_KEY=
-   ```
+5. **环境变量分组（配在各平台 dashboard，不再有本地 `.env.example`）**：
+   - 本地开发（docker compose 自动起）→ **已移除**：数据库用 Neon、缓存用 Upstash
+   - 共享 staging（PR Preview 自动注入，本地不需要填）：NEON_DATABASE_URL（Vercel Integration 自动设置）
+   - 各自申请（每个开发者自己的）：GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET
+   - 团队共享（找 zoo 拿）：NEXTAUTH_SECRET / OPENAI_API_KEY / ANTHROPIC_API_KEY / R2_* / RESEND_API_KEY
 
 ### 验收标准
 
-- [ ] 新成员 clone 后按 README 4 步能跑起 localhost:3000
+- [ ] 新成员 clone 后按 staging 指引能跑起（连接云端服务，而非 localhost:3000）
 - [ ] PR 推上去 → Vercel 自动部署 Preview → PR comment 里有链接
 - [ ] Preview 环境用独立数据库分支，不污染 staging 数据
 - [ ] `main` 分支持续部署到 staging URL，团队可访问

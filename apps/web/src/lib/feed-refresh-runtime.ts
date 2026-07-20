@@ -29,7 +29,8 @@ async function runWebFeedRefreshOnce(state: FeedRefreshSchedulerState) {
 }
 
 export function startWebFeedRefreshScheduler() {
-  if (process.env.FEED_REFRESH_SCHEDULER === "off") return;
+  const schedulerMode = process.env.FEED_REFRESH_SCHEDULER;
+  if (schedulerMode !== "on") return;
   if (globalForFeedRefresh.mewmoFeedRefreshScheduler) return;
 
   const state: FeedRefreshSchedulerState = {
