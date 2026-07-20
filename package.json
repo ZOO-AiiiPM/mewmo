@@ -7,7 +7,7 @@
     "build": "turbo run build",
     "lint": "turbo run lint",
     "test": "pnpm test:unit",
-    "test:unit": "tsx --test tests/*.test.mjs tests/unit/*.test.mjs && vitest run tests/unit/*.test.ts && turbo run test",
+    "test:unit": "tsx --test tests/*.test.mjs tests/unit/*.test.mjs && vitest run --dir tests/unit --exclude '**/*.mjs' && turbo run test",
     "test:integration": "tsx tooling/run-api-integration-tests.mjs",
     "test:theme": "node tooling/check-theme-colors.mjs",
     "verify": "pnpm lint && pnpm test:unit && pnpm test:theme && pnpm build",
