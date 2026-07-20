@@ -901,20 +901,10 @@ test("workspace shell preserves prototype AI rail proportions and resizer", () =
     /mewmo-ai-rail__state/,
     "mewmo rail header should not show a secondary helper text under the title",
   );
-  assert.match(
+  assert.doesNotMatch(
     aiSidebar,
-    /createPortal\([\s\S]*mewmo-ai-related-modal[\s\S]*document\.body/,
-    "related items should open a main-window detail dialog through a body portal",
-  );
-  assert.match(
-    css,
-    /\.mewmo-ai-related-modal__body\s*\{[\s\S]*overflow-y:\s*auto/,
-    "related detail body should scroll independently so full content remains readable",
-  );
-  assert.match(
-    css,
-    /\.mewmo-ai-related-modal\s*\{[\s\S]*position:\s*fixed/,
-    "related detail dialog should cover the main window instead of being clipped to the AI rail",
+    /RELATED_PLACEHOLDERS|mewmo-ai-related-modal|createPortal/,
+    "the Agent rail must not present fixed related-content examples as real recommendations",
   );
   assert.match(
     css,
