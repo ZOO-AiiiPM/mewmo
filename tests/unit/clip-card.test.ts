@@ -61,6 +61,17 @@ describe("clip card helpers", () => {
     ).toHaveLength(240);
   });
 
+  it("removes entity-encoded HTML tags without replacing the source preview with AI summary", () => {
+    expect(
+      clipPreviewText({
+        url: "https://example.com",
+        summary: "AI summary must remain a fallback",
+        excerpt: "&lt;p&gt;正文第一段&lt;/p&gt;&lt;blockquote&gt;引用内容&lt;/blockquote&gt;",
+        content: "",
+      }),
+    ).toBe("正文第一段\n引用内容");
+  });
+
   it("formats clip times by recency buckets", () => {
     expect(formatClipListTime("2026-07-06T01:05:00.000+08:00", now)).toBe("01:05");
     expect(formatClipListTime("2026-07-05T22:15:00.000+08:00", now)).toBe("昨天 22:15");

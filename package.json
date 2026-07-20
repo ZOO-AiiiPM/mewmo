@@ -14,7 +14,9 @@
     "db:push": "pnpm --filter @mewmo/db db:push",
     "db:generate": "pnpm --filter @mewmo/db db:generate",
     "onboarding:cleanup": "tsx packages/db/scripts/cleanup-prototype-onboarding.ts",
-    "onboarding:cleanup:apply": "tsx packages/db/scripts/cleanup-prototype-onboarding.ts --apply"
+    "onboarding:cleanup:apply": "tsx packages/db/scripts/cleanup-prototype-onboarding.ts --apply",
+    "titles:cleanup": "tsx tooling/run-external-title-backfill.ts",
+    "titles:cleanup:apply": "tsx tooling/run-external-title-backfill.ts --apply"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.3.1",

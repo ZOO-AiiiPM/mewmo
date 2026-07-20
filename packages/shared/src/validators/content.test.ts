@@ -31,6 +31,16 @@ describe("content validators", () => {
 
   it("requires valid feed urls", () => {
     expect(() => createFeedSchema.parse({ url: "not-a-url", title: "Bad" })).toThrow();
+    expect(() => createFeedSchema.parse({ url: "file:///etc/passwd", title: "Bad" })).toThrow();
+    expect(() => updateFeedSchema.parse({ url: "ftp://example.com/feed.xml" })).toThrow();
+  });
+
+  it("rejects clip and feed fetch URLs containing credentials", () => {
+    expect(() => createClipSchema.parse({
+      url: "https://user:password@example.com/article",
+      title: "Bad",
+    })).toThrow();
+    expect(() => updateClipSchema.parse({ url: "https://user@example.com/article" })).toThrow();
   });
 
   it("defaults feeds to article type and accepts media feeds", () => {
@@ -41,6 +51,18 @@ describe("content validators", () => {
       updateFeedSchema.parse({ type: "media" }).type,
     ).toBe("media");
     expect(() => createFeedSchema.parse({ url: "https://example.com/feed.xml", title: "Example", type: "book" })).toThrow();
+  });
+
+  it("accepts only the supported initial feed entry limits and defaults to ten", () => {
+    const base = { url: "https://example.com/feed.xml", title: "Example" };
+
+    expect(createFeedSchema.parse(base).initialEntryLimit).toBe(10);
+    for (const initialEntryLimit of [5, 10, 20, 50]) {
+      expect(createFeedSchema.parse({ ...base, initialEntryLimit }).initialEntryLimit).toBe(initialEntryLimit);
+    }
+    for (const initialEntryLimit of [0, 7, 15, 100]) {
+      expect(() => createFeedSchema.parse({ ...base, initialEntryLimit })).toThrow();
+    }
   });
 
   it("requires update notes to include at least one mutable field", () => {

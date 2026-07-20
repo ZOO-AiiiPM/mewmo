@@ -19,6 +19,7 @@ const email = `integration-${randomUUID()}@mewmo.test`;
 const password = "integration-test-password";
 const baseUrl = `http://127.0.0.1:${webPort}`;
 const fixtureUrl = `http://127.0.0.1:${fixturePort}/article`;
+const fixtureOrigin = new URL(fixtureUrl).origin;
 const env = {
   ...process.env,
   DATABASE_URL:
@@ -34,6 +35,7 @@ const env = {
   GOOGLE_CLIENT_SECRET:
     process.env.GOOGLE_CLIENT_SECRET ?? "integration-google-secret",
   OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? "integration-openai-key",
+  OPENAI_BASE_URL: process.env.OPENAI_BASE_URL ?? `${fixtureOrigin}/v1`,
   AI_SUMMARY_MODEL: process.env.AI_SUMMARY_MODEL ?? "integration-summary-model",
   R2_ENDPOINT:
     process.env.R2_ENDPOINT ?? "https://integration.r2.cloudflarestorage.com",
@@ -130,13 +132,35 @@ async function waitForHttp(url, timeoutMs = 60_000) {
 function startFixtureServer() {
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? "/", fixtureUrl);
-    if (url.searchParams.has("rss")) {
-      response.writeHead(200, { "content-type": "application/rss+xml; charset=utf-8" });
-      response.end(`<?xml version="1.0"?><rss version="2.0"><channel><title>Integration Feed</title><link>${fixtureUrl}</link><description>Fixture</description><item><title>Fixture Entry</title><link>${fixtureUrl}</link><guid>fixture-entry</guid><description>Fixture body</description></item></channel></rss>`);
-      return;
-    }
-    response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-    response.end("<!doctype html><html><head><title>Example Article</title></head><body><article><p>Readable body</p></article></body></html>");
+    const respond = () => {
+      if (url.pathname === "/v1/chat/completions") {
+        response.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+        response.end(JSON.stringify({ choices: [{ message: { content: "Integration Mewmo AI summary" } }] }));
+        return;
+      }
+      if (url.searchParams.has("rss")) {
+        if (url.searchParams.get("fail") === "1") {
+          response.writeHead(503, { "content-type": "text/plain; charset=utf-8" });
+          response.end("fixture feed unavailable");
+          return;
+        }
+        const itemCount = Math.min(Math.max(Number.parseInt(url.searchParams.get("items") ?? "1", 10) || 1, 1), 60);
+        const start = Math.max(Number.parseInt(url.searchParams.get("start") ?? "1", 10) || 1, 1);
+        const items = Array.from({ length: itemCount }, (_, index) => {
+          const articleNumber = start + index;
+          const suffix = index === 0 ? "" : ` ${index + 1}`;
+          return `<item><title>Fixture Entry${suffix}</title><link>${fixtureUrl}?article=${articleNumber}</link><guid>fixture-entry-${articleNumber}</guid><description>Fixture body ${articleNumber}</description></item>`;
+        }).join("");
+        response.writeHead(200, { "content-type": "application/rss+xml; charset=utf-8" });
+        response.end(`<?xml version="1.0"?><rss version="2.0"><channel><title>Integration Feed</title><link>${fixtureUrl}</link><description>Fixture</description>${items}</channel></rss>`);
+        return;
+      }
+      response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      response.end("<!doctype html><html><head><title>Example Article</title></head><body><article><p>Readable body</p></article></body></html>");
+    };
+    const delayMs = Math.min(Number.parseInt(url.searchParams.get("delay") ?? "0", 10) || 0, 1_000);
+    if (delayMs > 0) setTimeout(respond, delayMs);
+    else respond();
   });
   return new Promise((resolve, reject) => {
     server.once("error", reject);

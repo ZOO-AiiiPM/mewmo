@@ -278,6 +278,18 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
     };
   }, [feedDrawer]);
 
+  useEffect(() => {
+    const syncFeedSources = (event: Event) => {
+      const detail = (event as CustomEvent<{ type?: FeedType }>).detail;
+      if (!feedDrawer || detail?.type !== feedDrawer) return;
+      const cachedFeeds = getCachedFeedSources<SidebarFeed>(feedDrawer);
+      if (cachedFeeds) setFeeds(cachedFeeds);
+    };
+
+    window.addEventListener("mewmo:feed-sources-changed", syncFeedSources);
+    return () => window.removeEventListener("mewmo:feed-sources-changed", syncFeedSources);
+  }, [feedDrawer]);
+
   const openFeedType = (type: FeedType) => {
     const meta = feedTypes.find((item) => item.type === type);
     setKnowledgeDrawer(null);
@@ -561,13 +573,9 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
     showToast("检查该订阅更新...", "loading");
     setFeedMenuId(null);
     const response = await fetch(`/api/feeds/${feed.id}/refresh`, { method: "POST" }).catch(() => null);
-    const data = (await response?.json().catch(() => null)) as { created?: number } | null;
-    if (response?.ok && (data?.created ?? 0) > 0) {
-      showToast(`已抓取 ${data?.created ?? 0} 篇新文章`, "success");
-      window.dispatchEvent(new CustomEvent("mewmo:feed-refreshed", { detail: { feedId: feed.id, type: feed.type } }));
-    } else if (response?.ok) {
-      showToast("已检查该订阅，暂无新文章", "success");
-      window.dispatchEvent(new CustomEvent("mewmo:feed-refreshed", { detail: { feedId: feed.id, type: feed.type } }));
+    const data = (await response?.json().catch(() => null)) as { queued?: boolean } | null;
+    if (response?.ok && data?.queued) {
+      showToast("已安排更新，后台将在一分钟内处理", "success");
     } else {
       showToast("检查订阅更新失败", "error");
     }

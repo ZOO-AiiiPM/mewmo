@@ -5,7 +5,7 @@ import { z } from "zod";
 import { auth } from "../../../../../lib/auth";
 import { attachServerTiming, createServerTiming } from "../../../../../lib/server-timing";
 
-const trashKindSchema = z.enum(["note", "clip", "feed", "knowledge_base"]);
+const trashKindSchema = z.enum(["note", "clip", "knowledge_base"]);
 
 interface TrashItemRouteParams {
   kind: string;

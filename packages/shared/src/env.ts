@@ -40,9 +40,6 @@ const workerEnvSchema = z
     NODE_ENV: z.enum(["development", "test", "production"]).optional(),
     DATABASE_URL: z.string().min(1),
     REDIS_URL: z.string().min(1),
-    NEXTAUTH_URL: optionalUrl,
-    FEED_REFRESH_BASE_URL: optionalUrl,
-    FEED_CRON_SECRET: optionalNonEmptyString,
     AI_PROVIDER: z.enum(["openai", "anthropic", "custom"]).optional(),
     OPENAI_API_KEY: optionalNonEmptyString,
     OPENAI_BASE_URL: optionalUrl,
@@ -53,27 +50,11 @@ const workerEnvSchema = z
     AI_SUMMARY_MODEL: optionalNonEmptyString,
   })
   .superRefine((env, ctx) => {
-    if (!env.FEED_REFRESH_BASE_URL && !env.NEXTAUTH_URL) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["FEED_REFRESH_BASE_URL"],
-        message: "FEED_REFRESH_BASE_URL or NEXTAUTH_URL is required for the Worker",
-      });
-    }
-
     if (!env.AI_SUMMARY_MODEL) {
       ctx.addIssue({
         code: "custom",
         path: ["AI_SUMMARY_MODEL"],
         message: "AI_SUMMARY_MODEL is required for the Worker",
-      });
-    }
-
-    if (env.NODE_ENV === "production" && !env.FEED_CRON_SECRET) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["FEED_CRON_SECRET"],
-        message: "FEED_CRON_SECRET is required for the production Worker",
       });
     }
 
@@ -93,11 +74,7 @@ const workerEnvSchema = z
         message: `${key} is required for the configured AI provider`,
       });
     }
-  })
-  .transform((env) => ({
-    ...env,
-    FEED_REFRESH_BASE_URL: env.FEED_REFRESH_BASE_URL ?? env.NEXTAUTH_URL!,
-  }));
+  });
 
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
@@ -132,8 +109,6 @@ const envSchema = z.object({
   EMAIL_FROM: z.string().min(1),
   FEED_SEARCH_ENDPOINT: z.string().url().optional(),
   FEED_SEARCH_API_KEY: z.string().min(1).optional(),
-  FEED_REFRESH_BASE_URL: z.string().url().optional(),
-  FEED_CRON_SECRET: z.string().min(1).optional(),
 }).superRefine((env, ctx) => {
   const aiProvider = env.AI_PROVIDER ?? "openai";
   const requiredAIKeys: RequiredAIEnvKey[] =

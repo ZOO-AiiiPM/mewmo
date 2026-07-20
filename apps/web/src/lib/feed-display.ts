@@ -57,13 +57,8 @@ export function buildFeedCardMeta(
 
 export function buildFeedReaderMeta({
   entry,
-  words,
-  minutes,
 }: {
   entry: FeedDisplayEntry;
-  selectedFeedId?: string | null | undefined;
-  words: number;
-  minutes: number;
 }): string[] {
   return compactMeta([
     entry.author,
@@ -73,8 +68,6 @@ export function buildFeedReaderMeta({
       feedTitle: entry.feed.title,
     }),
     entry.publishedAt ?? entry.createdAt,
-    `${words} 字`,
-    `预计 ${minutes} 分钟`,
   ]);
 }
 

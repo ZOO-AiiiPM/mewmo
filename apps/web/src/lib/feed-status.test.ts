@@ -3,26 +3,20 @@ import { describe, expect, it } from "vitest";
 import { getFeedAddToast, getFeedEmptyState, isFeedSyncActive } from "./feed-status";
 
 describe("feed status copy", () => {
-  it("explains queued creation and queue submission failures", () => {
-    expect(getFeedAddToast({ existing: false, queued: true })).toEqual({
-      text: "已添加订阅，正在后台同步",
+  it("explains immediate initial fetch results without exposing queue details", () => {
+    expect(getFeedAddToast({ existing: false, initialFetch: { status: "success", fetched: 5, requested: 5 } })).toEqual({
+      text: "已导入 5 篇，后台正在补全正文与 AI 总结",
       type: "success",
     });
-    expect(getFeedAddToast({ existing: false, queued: false })).toEqual({
-      text: "已添加订阅，后台同步启动失败",
+    expect(getFeedAddToast({ existing: false, initialFetch: { status: "success", fetched: 3, requested: 5 } })).toEqual({
+      text: "已导入 3 篇（源当前仅提供 3 篇），后台正在补全正文与 AI 总结",
+      type: "success",
+    });
+    expect(getFeedAddToast({ existing: false, initialFetch: { status: "error" } })).toEqual({
+      text: "首次读取失败，请稍后重试",
       type: "error",
     });
-    expect(
-      getFeedAddToast({
-        existing: false,
-        queued: false,
-        backgroundStarted: true,
-      }),
-    ).toEqual({
-      text: "已添加订阅，正在后台同步",
-      type: "success",
-    });
-    expect(getFeedAddToast({ existing: true, queued: false })).toEqual({
+    expect(getFeedAddToast({ existing: true })).toEqual({
       text: "该订阅已经添加过",
       type: "success",
     });

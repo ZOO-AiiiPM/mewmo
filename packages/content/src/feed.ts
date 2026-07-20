@@ -1,10 +1,13 @@
 import { XMLParser } from "fast-xml-parser";
 
+import { fetchOutbound, type ResolvedAddress } from "./outbound";
+import { normalizeExternalTitle } from "./title";
+
 export interface ParsedFeedEntry {
   title: string;
   url: string;
   content: string;
-  summary?: string;
+  excerpt?: string;
   author?: string;
   publishedAt?: Date;
 }
@@ -17,6 +20,39 @@ const parser = new XMLParser({
   textNodeName: "#text",
   trimValues: true,
 });
+
+const DEFAULT_FEED_FETCH_TIMEOUT_MS = 15_000;
+
+export interface FetchFeedDocumentOptions {
+  fetchFeed?: typeof fetch;
+  lookupHost?: (hostname: string) => Promise<ResolvedAddress[]>;
+  timeoutMs?: number;
+  allowedPrivateOrigins?: string[];
+}
+
+export async function fetchFeedDocument(
+  url: string,
+  options: FetchFeedDocumentOptions = {},
+): Promise<ParsedFeedEntry[]> {
+  const response = await fetchOutbound(url, {
+    signal: AbortSignal.timeout(options.timeoutMs ?? DEFAULT_FEED_FETCH_TIMEOUT_MS),
+    headers: {
+      accept: "application/rss+xml,application/atom+xml,application/xml,text/xml,*/*;q=0.8",
+      "user-agent":
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36",
+    },
+  }, {
+    ...(options.fetchFeed ? { fetchImpl: options.fetchFeed } : {}),
+    ...(options.lookupHost ? { lookupHost: options.lookupHost } : {}),
+    ...(options.allowedPrivateOrigins ? { allowedPrivateOrigins: options.allowedPrivateOrigins } : {}),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Feed fetch failed: ${response.status} ${response.statusText}`);
+  }
+
+  return parseFeedXml(await response.text());
+}
 
 function asArray<T>(value: T | T[] | undefined): T[] {
   if (value === undefined) return [];
@@ -34,9 +70,9 @@ function textValue(value: unknown): string {
 
 function decodeXmlText(value: string) {
   return value
-    .replace(/&#34;/g, "\"")
+    .replace(/&#34;/g, '"')
     .replace(/&#39;/g, "'")
-    .replace(/&quot;/g, "\"")
+    .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'")
     .replace(/&amp;/g, "&");
 }
@@ -49,7 +85,7 @@ function dateValue(value: unknown): Date | undefined {
 }
 
 function optionalFields(fields: {
-  summary?: string | undefined;
+  excerpt?: string | undefined;
   author?: string | undefined;
   publishedAt?: Date | undefined;
 }) {
@@ -80,14 +116,14 @@ export function parseFeedXml(xml: string, limit = Number.POSITIVE_INFINITY): Par
       .slice(0, limit)
       .map((item) => {
         const rssItem = item as Record<string, unknown>;
-        const summary = textValue(rssItem.description) || undefined;
+        const excerpt = textValue(rssItem.description) || undefined;
         const author = textValue(rssItem.author) || textValue(rssItem["dc:creator"]) || undefined;
         const publishedAt = dateValue(rssItem.pubDate);
         return {
-          title: textValue(rssItem.title),
+          title: normalizeExternalTitle(textValue(rssItem.title)),
           url: textValue(rssItem.link),
           content: textValue(rssItem["content:encoded"]) || textValue(rssItem.description),
-          ...optionalFields({ summary, author, publishedAt }),
+          ...optionalFields({ excerpt, author, publishedAt }),
         };
       })
       .filter((entry) => entry.title && entry.url);
@@ -98,14 +134,14 @@ export function parseFeedXml(xml: string, limit = Number.POSITIVE_INFINITY): Par
       .slice(0, limit)
       .map((item) => {
         const atomEntry = item as Record<string, unknown>;
-        const summary = textValue(atomEntry.summary) || undefined;
+        const excerpt = textValue(atomEntry.summary) || undefined;
         const author = textValue((atomEntry.author as { name?: unknown } | undefined)?.name) || undefined;
         const publishedAt = dateValue(atomEntry.published) ?? dateValue(atomEntry.updated);
         return {
-          title: textValue(atomEntry.title),
+          title: normalizeExternalTitle(textValue(atomEntry.title)),
           url: atomLinkValue(atomEntry.link),
           content: textValue(atomEntry.content) || textValue(atomEntry.summary),
-          ...optionalFields({ summary, author, publishedAt }),
+          ...optionalFields({ excerpt, author, publishedAt }),
         };
       })
       .filter((entry) => entry.title && entry.url);

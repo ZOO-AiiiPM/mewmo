@@ -4,7 +4,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 import { ClipContentRenderer } from "../../../components/clips/ClipContentRenderer";
-import { FeedArticleMenu } from "../../../components/shell/FeedArticleMenu";
+import { CardActionMenu } from "../../../components/shell/CardActionMenu";
 import { ListColumn } from "../../../components/shell/ListColumn";
 import { PrototypeIcon, type PrototypeIconName } from "../../../components/shell/PrototypeIcon";
 import { useAISidebarContext } from "../../../components/shell/AISidebar";
@@ -16,10 +16,10 @@ import { FloatingMenuButton, FloatingMenuLink, PopoverMenu } from "../../../comp
 import { useToast } from "../../../components/ui/ToastProvider";
 import { clipPreviewText, formatClipListTime } from "../../../lib/clip-card";
 import { submitFeedAddBatch } from "../../../lib/feed-add-batch";
+import { submitFeedAddRequest } from "../../../lib/feed-add-request";
 import { selectAllFeedUrls, toggleFeedUrl, type FeedAddOutcomeStatus } from "../../../lib/feed-add-selection";
 import { buildFeedCardMeta, buildFeedReaderMeta } from "../../../lib/feed-display";
-import { FEED_ENTRY_REQUEST_TIMEOUT_MS, waitForFirstFeedEntry } from "../../../lib/feed-first-entry";
-import { getFeedAddToast, getFeedEmptyState, isFeedSyncActive } from "../../../lib/feed-status";
+import { getFeedAddToast, getFeedEmptyState } from "../../../lib/feed-status";
 import { proxiedImageUrl } from "../../../lib/image-proxy";
 import { buildHtmlToc } from "../../../lib/note-toc";
 import {
@@ -49,6 +49,9 @@ const feedTypes: Array<{
 ];
 
 const MODAL_EXIT_MS = 160;
+const INITIAL_FEED_LIMITS = [5, 10, 20, 50] as const;
+const DEFAULT_INITIAL_FEED_LIMIT = 10;
+type InitialFeedLimit = (typeof INITIAL_FEED_LIMITS)[number];
 
 interface FeedSource {
   id: string;
@@ -64,8 +67,13 @@ interface FeedSource {
   lastFetchCount?: number;
   lastFetchStartedAt?: string | null;
   existing?: boolean;
-  queued?: boolean;
-  backgroundStarted?: boolean;
+  initialFetch?: {
+    status: "success" | "error";
+    fetched: number;
+    created: number;
+    requested: number;
+    error?: string;
+  };
 }
 
 interface FeedEntry {
@@ -129,8 +137,8 @@ export default function FeedsPage() {
   const [loading, setLoading] = useState(() => initialEntries === null);
   const [feedsLoaded, setFeedsLoaded] = useState(() => initialFeeds !== null);
   const [error, setError] = useState("");
-  const [syncNow, setSyncNow] = useState(() => Date.now());
   const [swapKey, setSwapKey] = useState(`${type}:${feedId ?? "all"}`);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const feedsRequestRef = useRef(0);
   const entriesRequestRef = useRef(0);
   const effectiveFeedId = feedId ?? feeds[0]?.id ?? null;
@@ -160,8 +168,8 @@ export default function FeedsPage() {
   const selectedEntryToc = useMemo(() => buildHtmlToc(selectedEntry?.content ?? ""), [selectedEntry?.content]);
   const { setContentContext } = useAISidebarContext();
   const emptyState = useMemo(
-    () => getFeedEmptyState({ feedId: effectiveFeedId, selectedFeed, feedsLoaded, now: new Date(syncNow) }),
-    [effectiveFeedId, feedsLoaded, selectedFeed, syncNow],
+    () => getFeedEmptyState({ feedId: effectiveFeedId, selectedFeed, feedsLoaded }),
+    [effectiveFeedId, feedsLoaded, selectedFeed],
   );
 
   const updateParams = useCallback(
@@ -278,28 +286,6 @@ export default function FeedsPage() {
   }, [effectiveFeedId, loadEntries, type]);
 
   useEffect(() => {
-    const status = selectedFeed?.lastFetchStatus;
-    const startedAt = selectedFeed?.lastFetchStartedAt;
-    const isActive = () => isFeedSyncActive(status, startedAt, new Date());
-    if (!isActive()) {
-      setSyncNow(Date.now());
-      return;
-    }
-
-    const timer = window.setInterval(() => {
-      const now = Date.now();
-      setSyncNow(now);
-      if (!isFeedSyncActive(status, startedAt, new Date(now))) {
-        window.clearInterval(timer);
-        return;
-      }
-      void Promise.all([loadFeeds(), loadEntries()]);
-    }, 1000);
-
-    return () => window.clearInterval(timer);
-  }, [loadEntries, loadFeeds, selectedFeed?.lastFetchStartedAt, selectedFeed?.lastFetchStatus]);
-
-  useEffect(() => {
     const refreshAfterSourceUpdate = (event: Event) => {
       const detail = (event as CustomEvent<{ feedId?: string; type?: FeedType }>).detail;
       if (detail?.type !== type) return;
@@ -366,23 +352,22 @@ export default function FeedsPage() {
         checked?: number;
       } | null;
       if (!response.ok || (effectiveFeedId && !data?.queued)) throw new Error("refresh");
-      showToast("已开始后台同步", "success");
+      showToast("已安排更新，后台定时任务会处理", "success");
       await Promise.all([loadFeeds(), loadEntries()]);
     } catch {
       showToast("检查订阅更新失败", "error");
     }
   }, [effectiveFeedId, isDeferredType, loadEntries, loadFeeds, showToast, type]);
 
-  const favoriteSelectedEntry = useCallback(async () => {
-    if (!selectedEntry) return;
-    if (selectedEntry.isFavorited) {
+  const favoriteEntry = useCallback(async (entry: FeedEntry) => {
+    if (entry.isFavorited) {
       showToast("已收藏", "success");
       return;
     }
 
     showToast("正在收藏...", "loading");
     try {
-      const response = await fetch(`/api/feed-entries/${selectedEntry.id}/favorite`, {
+      const response = await fetch(`/api/feed-entries/${entry.id}/favorite`, {
         method: "POST",
       });
       const data = (await response.json().catch(() => null)) as {
@@ -391,22 +376,22 @@ export default function FeedsPage() {
         clip?: { id: string };
       } | null;
       if (!response.ok || !data?.isFavorited) throw new Error("favorite");
-      setEntries((current) => current.map((entry) => (entry.id === selectedEntry.id ? { ...entry, isFavorited: true } : entry)));
-      updateCachedFeedEntry<FeedEntry>(selectedEntry.feedId, selectedEntry.id, (entry) => ({
-        ...entry,
+      setEntries((current) => current.map((item) => (item.id === entry.id ? { ...item, isFavorited: true } : item)));
+      updateCachedFeedEntry<FeedEntry>(entry.feedId, entry.id, (cachedEntry) => ({
+        ...cachedEntry,
         isFavorited: true,
       }));
       showToast(data.created ? "已保存到剪藏" : "已收藏", "success");
     } catch {
       showToast("收藏失败，请稍后再试", "error");
     }
-  }, [selectedEntry, showToast]);
+  }, [showToast]);
 
-  const copySelectedEntryLink = useCallback(() => {
-    if (!selectedEntry?.url) return;
-    void navigator.clipboard?.writeText(selectedEntry.url);
+  const copyEntryLink = useCallback((entry: FeedEntry) => {
+    if (!entry.url) return;
+    void navigator.clipboard?.writeText(entry.url);
     showToast("已复制原文链接", "success");
-  }, [selectedEntry?.url, showToast]);
+  }, [showToast]);
 
   const quickSwitch = (
     <>
@@ -450,14 +435,6 @@ export default function FeedsPage() {
             <PrototypeIcon name="plus" size={17} />
           </button>
         }
-        overflowAction={
-          <FeedArticleMenu
-            disabled={!selectedEntry}
-            favoriteActive={Boolean(selectedEntry?.isFavorited)}
-            onFavorite={() => void favoriteSelectedEntry()}
-            onCopyLink={copySelectedEntryLink}
-          />
-        }
       >
         <div key={swapKey} className="mewmo-list-stack mewmo-feed-list-swap">
           {isDeferredType ? (
@@ -478,8 +455,12 @@ export default function FeedsPage() {
             visibleEntries.map((entry) => {
               const entryDate = entry.publishedAt ?? entry.createdAt;
               const meta = buildFeedCardMeta(entry, effectiveFeedId);
+              const menuOpen = openMenuId === entry.id;
               return (
-                <article key={entry.id} className="mewmo-list-card-wrap">
+                <article
+                  key={entry.id}
+                  className={`mewmo-list-card-wrap ${menuOpen ? "mewmo-list-card-wrap--menu-open" : ""}`}
+                >
                   <button
                     type="button"
                     className={`mewmo-list-card mewmo-list-card--button mewmo-feed-entry-card ${selectedEntry?.id === entry.id ? "mewmo-list-card--selected" : ""}`}
@@ -512,6 +493,15 @@ export default function FeedsPage() {
                       </span>
                     )}
                   </button>
+                  <CardActionMenu
+                    kind="feed"
+                    open={menuOpen}
+                    ariaLabel="订阅文章操作"
+                    favoriteActive={Boolean(entry.isFavorited)}
+                    onOpenChange={(open) => setOpenMenuId(open ? entry.id : null)}
+                    onFavorite={() => void favoriteEntry(entry)}
+                    onCopyLink={() => copyEntryLink(entry)}
+                  />
                 </article>
               );
             })
@@ -526,8 +516,8 @@ export default function FeedsPage() {
           onTitleClick={scrollToTop}
           menuKind="feed"
           favoriteActive={Boolean(selectedEntry?.isFavorited)}
-          onFavorite={() => void favoriteSelectedEntry()}
-          onCopyLink={copySelectedEntryLink}
+          onFavorite={selectedEntry ? () => void favoriteEntry(selectedEntry) : undefined}
+          onCopyLink={selectedEntry ? () => copyEntryLink(selectedEntry) : undefined}
         />
         <ReaderToc
           items={selectedEntryToc}
@@ -538,7 +528,7 @@ export default function FeedsPage() {
         />
         <div ref={scrollRef} className="mewmo-reader-scroll">
           {selectedEntry ? (
-            <FeedReader entry={selectedEntry} selectedFeedId={effectiveFeedId} />
+            <FeedReader entry={selectedEntry} />
           ) : (
             <article className="mewmo-document mewmo-document--empty">
               <h1>{isDeferredType ? `${currentType.label}订阅待开发` : "选择一篇订阅条目"}</h1>
@@ -559,6 +549,11 @@ export default function FeedsPage() {
             const cachedSources = getCachedFeedSources<FeedSource>(feed.type) ?? [];
             setCachedFeedSources(feed.type, [feed, ...cachedSources.filter((source) => source.id !== feed.id)]);
             clearCachedFeedEntries(feed.id);
+            window.dispatchEvent(
+              new CustomEvent("mewmo:feed-sources-changed", {
+                detail: { type: feed.type },
+              }),
+            );
           }
           void loadFeeds();
           void loadEntries();
@@ -574,17 +569,9 @@ export default function FeedsPage() {
   );
 }
 
-function FeedReader({ entry, selectedFeedId }: { entry: FeedEntry; selectedFeedId?: string | null }) {
-  const content = plainText(entry.content);
+function FeedReader({ entry }: { entry: FeedEntry }) {
   const sourceDate = entry.publishedAt ?? entry.createdAt;
-  const words = countWords(content);
-  const minutes = Math.max(1, Math.ceil(words / 420));
-  const meta = buildFeedReaderMeta({
-    entry,
-    selectedFeedId,
-    words,
-    minutes,
-  }).map((item) => (item === sourceDate ? formatDate(item) : item));
+  const meta = buildFeedReaderMeta({ entry }).map((item) => (item === sourceDate ? formatDate(item) : item));
 
   return (
     <article className="mewmo-document mewmo-feed-reader mewmo-feed-doc">
@@ -638,7 +625,10 @@ function AddFeedModal({
   const [searched, setSearched] = useState(false);
   const [autoType, setAutoType] = useState(autoDetectType);
   const [categoryMenuOpen, setCategoryMenuOpen] = useState(false);
+  const [initialEntryLimit, setInitialEntryLimit] = useState<InitialFeedLimit>(DEFAULT_INITIAL_FEED_LIMIT);
+  const [limitMenuOpen, setLimitMenuOpen] = useState(false);
   const categoryButtonRef = useRef<HTMLButtonElement>(null);
+  const limitButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (open) {
@@ -671,6 +661,8 @@ function AddFeedModal({
     setAutoType(autoDetectType);
     setSearched(false);
     setCategoryMenuOpen(false);
+    setInitialEntryLimit(DEFAULT_INITIAL_FEED_LIMIT);
+    setLimitMenuOpen(false);
   }, [autoDetectType, initialType, open]);
 
   if (!mounted) return null;
@@ -715,58 +707,50 @@ function AddFeedModal({
     setSaving(true);
     showToast(`正在添加 ${candidates.length} 个订阅...`, "loading");
 
-    const batch = await submitFeedAddBatch(candidates, async (candidate) => {
-        const response = await fetch("/api/feeds", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+    try {
+      const batch = await submitFeedAddBatch(candidates, async (candidate) =>
+        submitFeedAddRequest<FeedSource>({
             url: candidate.url,
             type,
             title: candidate.title,
             description: candidate.description,
             favicon: candidate.favicon,
-          }),
-        });
-        if (!response.ok) throw new Error("add");
-        return (await response.json()) as FeedSource;
-    });
-    const { outcomes, persistedFeeds, savedFeeds, failedUrls: failed } = batch;
+            initialEntryLimit,
+        }),
+      );
+      const { outcomes, persistedFeeds, savedFeeds, failedUrls: failed } = batch;
 
-    setAddOutcomes(outcomes);
-    setSelectedUrls(failed);
+      setAddOutcomes(outcomes);
+      setSelectedUrls(failed);
 
-    if (candidates.length === 1 && persistedFeeds.length === 1 && failed.length === 0) {
-      const feed = persistedFeeds[0]!;
-      onAdded([feed], false);
-      const firstArticleReady =
-        feed.existing && !feed.backgroundStarted
-          ? true
-          : await waitForFirstFeedEntry(feed, 15_000, { requestTimeoutMs: FEED_ENTRY_REQUEST_TIMEOUT_MS });
-      setSaving(false);
-      if (!firstArticleReady) {
-        setAddOutcomes({ [feed.url]: "failed" });
-        setSelectedUrls([feed.url]);
-        onAdded([feed], false);
-        showToast("订阅已保存，但首篇文章同步超时，可重试", "error");
+      if (candidates.length === 1 && persistedFeeds.length === 1 && failed.length === 0) {
+        const feed = persistedFeeds[0]!;
+        setSelectedUrls([]);
+        onAdded([feed], true);
+        const toast = getFeedAddToast(feed);
+        showToast(toast.text, toast.type);
         return;
       }
-      setSelectedUrls([]);
-      onAdded([feed], true);
-      const toast = getFeedAddToast(feed);
-      showToast(toast.text, toast.type);
-      return;
-    }
 
-    setSaving(false);
-    onAdded(persistedFeeds, failed.length === 0);
+      onAdded(persistedFeeds, failed.length === 0);
 
-    if (failed.length > 0) {
-      showToast(`已保存 ${savedFeeds.length} 个，${failed.length} 个添加失败，可重试`, "error");
-    } else if (savedFeeds.length === 1) {
-      const toast = getFeedAddToast(savedFeeds[0]!);
-      showToast(toast.text, toast.type);
-    } else {
-      showToast(`已处理 ${savedFeeds.length} 个订阅，正在后台同步`, "success");
+      if (failed.length > 0) {
+        showToast(`已保存 ${savedFeeds.length} 个，${failed.length} 个添加失败，可重试`, "error");
+      } else if (savedFeeds.length === 1) {
+        const toast = getFeedAddToast(savedFeeds[0]!);
+        showToast(toast.text, toast.type);
+      } else {
+        const initialFailures = savedFeeds.filter((feed) => feed.initialFetch?.status === "error").length;
+        if (initialFailures > 0) {
+          showToast(`已保存 ${savedFeeds.length} 个订阅，${initialFailures} 个首次读取失败，可重试`, "error");
+        } else {
+          showToast(`已处理 ${savedFeeds.length} 个订阅，定时更新会继续补全`, "success");
+        }
+      }
+    } catch {
+      showToast("添加订阅失败，请稍后重试", "error");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -835,6 +819,7 @@ function AddFeedModal({
                     onChange={() => {
                       setSelectedUrls((current) => toggleFeedUrl(current, result.url));
                       setCategoryMenuOpen(false);
+                      setLimitMenuOpen(false);
                       if (autoType && result.type && !feedTypes.find((item) => item.type === result.type)?.deferred) {
                         setType(result.type);
                       }
@@ -868,43 +853,89 @@ function AddFeedModal({
 
         {selectedUrls.length > 0 && (
           <div className="addfeed__catrow">
-            <span className="addfeed__catlabel">订阅至</span>
-            <div className={`afr-catsel ${categoryMenuOpen ? "open" : ""}`} aria-label="订阅分类">
-              <button
-                ref={categoryButtonRef}
-                type="button"
-                className="afr-catsel__btn"
-                onClick={() => setCategoryMenuOpen((value) => !value)}
-                aria-expanded={categoryMenuOpen}
-              >
-                <PrototypeIcon name={selectedType.icon} size={15} className="afr-catsel__ic" />
-                <span className="afr-catsel__cur">{selectedType.label}</span>
-                <PrototypeIcon name="caret" size={12} />
-              </button>
-              <PopoverMenu
-                open={categoryMenuOpen}
-                anchorRef={categoryButtonRef}
-                onOpenChange={setCategoryMenuOpen}
-                align="start"
-                className="mewmo-card-menu afr-catsel__menu mewmo-addfeed-category-menu"
-              >
-                {feedTypes.map((item) => (
-                  <FloatingMenuButton
-                    key={item.type}
-                    icon={item.icon}
-                    checked={type === item.type}
-                    disabled={Boolean(item.deferred)}
-                    onClick={() => {
-                      if (item.deferred) return;
-                      setAutoType(false);
-                      setType(item.type);
-                      setCategoryMenuOpen(false);
-                    }}
-                  >
-                    {item.deferred ? `${item.label} · 待开发` : item.label}
-                  </FloatingMenuButton>
-                ))}
-              </PopoverMenu>
+            <div className="addfeed__catsetting">
+              <span className="addfeed__catlabel">订阅至</span>
+              <div className={`afr-catsel ${categoryMenuOpen ? "open" : ""}`} aria-label="订阅分类">
+                <button
+                  ref={categoryButtonRef}
+                  type="button"
+                  className="afr-catsel__btn"
+                  onClick={() => {
+                    setLimitMenuOpen(false);
+                    setCategoryMenuOpen((value) => !value);
+                  }}
+                  aria-expanded={categoryMenuOpen}
+                >
+                  <PrototypeIcon name={selectedType.icon} size={15} className="afr-catsel__ic" />
+                  <span className="afr-catsel__cur">{selectedType.label}</span>
+                  <PrototypeIcon name="caret" size={12} />
+                </button>
+                <PopoverMenu
+                  open={categoryMenuOpen}
+                  anchorRef={categoryButtonRef}
+                  onOpenChange={setCategoryMenuOpen}
+                  align="start"
+                  className="mewmo-card-menu afr-catsel__menu mewmo-addfeed-category-menu"
+                >
+                  {feedTypes.map((item) => (
+                    <FloatingMenuButton
+                      key={item.type}
+                      icon={item.icon}
+                      checked={type === item.type}
+                      disabled={Boolean(item.deferred)}
+                      onClick={() => {
+                        if (item.deferred) return;
+                        setAutoType(false);
+                        setType(item.type);
+                        setCategoryMenuOpen(false);
+                      }}
+                    >
+                      {item.deferred ? `${item.label} · 待开发` : item.label}
+                    </FloatingMenuButton>
+                  ))}
+                </PopoverMenu>
+              </div>
+            </div>
+            <div className="addfeed__catsetting">
+              <span className="addfeed__catlabel">首次导入</span>
+              <div className={`afr-catsel ${limitMenuOpen ? "open" : ""}`} aria-label="首次导入数量">
+                <button
+                  ref={limitButtonRef}
+                  type="button"
+                  className="afr-catsel__btn afr-catsel__btn--limit"
+                  onClick={() => {
+                    setCategoryMenuOpen(false);
+                    setLimitMenuOpen((value) => !value);
+                  }}
+                  aria-expanded={limitMenuOpen}
+                  aria-label={`首次导入 ${initialEntryLimit} 篇`}
+                >
+                  <PrototypeIcon name="list" size={15} className="afr-catsel__ic" />
+                  <span className="afr-catsel__cur">{initialEntryLimit} 篇</span>
+                  <PrototypeIcon name="caret" size={12} />
+                </button>
+                <PopoverMenu
+                  open={limitMenuOpen}
+                  anchorRef={limitButtonRef}
+                  onOpenChange={setLimitMenuOpen}
+                  align="start"
+                  className="mewmo-card-menu afr-catsel__menu mewmo-addfeed-limit-menu"
+                >
+                  {INITIAL_FEED_LIMITS.map((limit) => (
+                    <FloatingMenuButton
+                      key={limit}
+                      icon="list"
+                      checked={initialEntryLimit === limit}
+                      onClick={() => {
+                        setInitialEntryLimit(limit);
+                        setLimitMenuOpen(false);
+                      }}
+                    >
+                      {limit} 篇
+                    </FloatingMenuButton>
+                  ))}
+                </PopoverMenu>
+              </div>
             </div>
           </div>
         )}
@@ -953,22 +984,6 @@ function parseFeedType(value: string | null): FeedType | null {
   return feedTypes.some((item) => item.type === value) ? (value as FeedType) : null;
 }
 
-function plainText(value: string | null | undefined) {
-  if (!value) return "";
-  return value
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 function formatDate(value: string | null | undefined) {
   if (!value) return "无日期";
   return new Date(value).toLocaleString("zh-CN", {
@@ -977,14 +992,4 @@ function formatDate(value: string | null | undefined) {
     hour: "2-digit",
     minute: "2-digit",
   });
-}
-
-function countWords(value: string) {
-  const cjk = value.match(/[\u4e00-\u9fff]/g)?.length ?? 0;
-  const latin = value
-    .replace(/[\u4e00-\u9fff]/g, " ")
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean).length;
-  return cjk + latin;
 }

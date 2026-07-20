@@ -19,6 +19,6 @@ test("trash mutations update their owner cache and invalidate dependent lists", 
   assert.match(page, /invalidateWorkspaceResourcePrefix\("knowledge:contents:"\)/);
   assert.match(page, /invalidateWorkspaceResource\(workspaceResourceKeys\.notesList\(\)\)/);
   assert.match(page, /invalidateWorkspaceResource\(workspaceResourceKeys\.clipsList\(\)\)/);
-  assert.match(page, /invalidateWorkspaceResourcePrefix\("feeds:sources:"\)/);
   assert.match(page, /invalidateWorkspaceResource\(workspaceResourceKeys\.knowledgeBases\(\)\)/);
+  assert.doesNotMatch(page, /feeds:sources:/, "subscriptions are permanently deleted and never restored from trash");
 });

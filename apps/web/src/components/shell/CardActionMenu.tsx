@@ -4,15 +4,17 @@ import { useRef } from "react";
 import { PopoverMenu } from "../ui/FloatingMenu";
 import { PrototypeIcon } from "./PrototypeIcon";
 
-type CardActionKind = "notes" | "clips";
+type CardActionKind = "notes" | "clips" | "feed";
 
 interface CardActionMenuProps {
   kind: CardActionKind;
   open: boolean;
   ariaLabel: string;
   pinned?: boolean;
+  favoriteActive?: boolean;
   onOpenChange: (open: boolean) => void;
-  onDelete: () => void;
+  onDelete?: () => void;
+  onFavorite?: () => void;
   onTogglePin?: () => void;
   onShare?: () => void;
   onExport?: () => void;
@@ -26,8 +28,10 @@ export function CardActionMenu({
   open,
   ariaLabel,
   pinned = false,
+  favoriteActive = false,
   onOpenChange,
   onDelete,
+  onFavorite,
   onTogglePin,
   onShare,
   onExport,
@@ -50,7 +54,26 @@ export function CardActionMenu({
       boundary="main"
       className="mewmo-card-menu"
     >
-      {kind === "notes" ? (
+      {kind === "feed" ? (
+        <>
+          <button
+            type="button"
+            className="mewmo-card-menu__item"
+            onClick={() => run(onFavorite)}
+          >
+            <span className="mewmo-card-menu__icon"><PrototypeIcon name="bookmark" size={16} dual /></span>
+            <span>{favoriteActive ? "已收藏" : "收藏"}</span>
+          </button>
+          <button
+            type="button"
+            className="mewmo-card-menu__item"
+            onClick={() => run(onCopyLink)}
+          >
+            <span className="mewmo-card-menu__icon"><PrototypeIcon name="copy" size={16} /></span>
+            <span>复制链接</span>
+          </button>
+        </>
+      ) : kind === "notes" ? (
         <>
           <button
             type="button"

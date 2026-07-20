@@ -98,6 +98,18 @@ describe("discoverFeeds", () => {
     expect(feed?.title).toBe('“产品设计” – 精选… © 2026');
   });
 
+  it("normalizes repeatedly escaped entities in discovered titles", async () => {
+    const fetchFeed = vi.fn().mockResolvedValue(
+      xmlResponse(
+        "<rss><channel><title>产品设计 &amp;amp;#8211; 精选 &amp; Research</title></channel></rss>",
+      ),
+    );
+
+    const [feed] = await discoverFeeds("https://example.com/feed.xml", { fetchFeed });
+
+    expect(feed?.title).toBe("产品设计 – 精选 & Research");
+  });
+
   it("decodes numeric entities in website feed-link titles", async () => {
     const fetchFeed = vi.fn().mockResolvedValue(
       htmlResponse(

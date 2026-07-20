@@ -33,3 +33,16 @@ test("subscription mutations keep the per-source cache consistent", () => {
   assert.match(sidebar, /setCachedFeedSources\(\s*feed\.type/);
   assert.match(sidebar, /clearCachedFeedEntries\(feed\.id\)/);
 });
+
+test("adding a subscription notifies the mounted sidebar immediately", () => {
+  assert.match(
+    feedsPage,
+    /onAdded=\{[\s\S]*setCachedFeedSources[\s\S]*mewmo:feed-sources-changed/,
+    "the add callback should publish a source-list change after updating the shared cache",
+  );
+  assert.match(
+    sidebar,
+    /const syncFeedSources[\s\S]*getCachedFeedSources<SidebarFeed>[\s\S]*setFeeds[\s\S]*addEventListener\("mewmo:feed-sources-changed"/,
+    "the mounted sidebar should apply the changed source cache without a browser refresh",
+  );
+});

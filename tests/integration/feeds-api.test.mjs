@@ -4,6 +4,10 @@
  */
 import assert from "node:assert/strict";
 import test from "node:test";
+import { fetchFeedDocument } from "../../packages/content/src/index.ts";
+import { getPrisma } from "../../packages/db/src/client.ts";
+import { processFeed } from "../../apps/worker/src/feeds/process-feed.ts";
+import { runFeedCron } from "../../apps/worker/src/feeds/run-feed-cron.ts";
 import {
   API_BASE as BASE,
   API_TEST_ARTICLE_URL,
@@ -14,6 +18,7 @@ import {
 let cookies = "";
 let createdFeedId = "";
 let createdEntryId = "";
+let createdFeedUrl = "";
 
 async function login() {
   const res = await fetch(`${BASE}/api/login`, {
@@ -36,26 +41,15 @@ function authedFetch(path, opts = {}) {
   });
 }
 
-async function waitForFeedEntries(feedId, timeoutMs = 15_000) {
-  const startedAt = Date.now();
-  while (Date.now() - startedAt < timeoutMs) {
-    const res = await authedFetch(`/api/feeds/${feedId}/entries`);
-    assert.equal(res.status, 200);
-    const entries = await res.json();
-    if (entries.length > 0) return entries;
-    await new Promise((resolve) => setTimeout(resolve, 250));
-  }
-  return [];
-}
-
 test("Feeds API", async (t) => {
   await login();
 
   await t.test("POST /api/feeds creates a feed", async () => {
+    createdFeedUrl = `${API_TEST_ARTICLE_URL}?rss=${Date.now()}`;
     const res = await authedFetch("/api/feeds", {
       method: "POST",
       body: JSON.stringify({
-        url: `${API_TEST_ARTICLE_URL}?rss=${Date.now()}`,
+        url: createdFeedUrl,
         title: "Test Feed from TDD",
         description: "Created by feeds API smoke test",
       }),
@@ -64,6 +58,7 @@ test("Feeds API", async (t) => {
     const feed = await res.json();
     assert.ok(feed.id, "should have an id");
     assert.equal(feed.title, "Test Feed from TDD");
+    assert.equal(feed.initialFetch.status, "success");
     createdFeedId = feed.id;
   });
 
@@ -75,11 +70,122 @@ test("Feeds API", async (t) => {
     assert.ok(feeds.some((feed) => feed.id === createdFeedId), "created feed should be listed");
   });
 
-  await t.test("response-after first fetch stores the first entry promptly", async () => {
-    const entries = await waitForFeedEntries(createdFeedId);
-    assert.ok(entries.length > 0, "the first feed entry should appear without waiting for the 60-second scheduler");
+  await t.test("the synchronous create response has already stored the first entry", async () => {
+    const res = await authedFetch(`/api/feeds/${createdFeedId}/entries`);
+    assert.equal(res.status, 200);
+    const entries = await res.json();
+    assert.ok(entries.length > 0, "the first feed entry should exist when create returns");
     assert.equal(entries[0].title, "Fixture Entry");
     createdEntryId = entries[0]?.id ?? "";
+  });
+
+  await t.test("Cron does not immediately refill history excluded by the initial import", async () => {
+    const result = await runFeedCron();
+    assert.equal(result.selected, 0);
+  });
+
+  await t.test("initialEntryLimit stores only the requested first five entries", async () => {
+    const res = await authedFetch("/api/feeds", {
+      method: "POST",
+      body: JSON.stringify({
+        url: `${API_TEST_ARTICLE_URL}?rss=${Date.now()}&items=12`,
+        title: "Five-entry feed",
+        initialEntryLimit: 5,
+      }),
+    });
+    assert.equal(res.status, 201);
+    const feed = await res.json();
+    assert.equal(feed.initialFetch.fetched, 5);
+    assert.equal(feed.initialFetch.created, 5);
+
+    const entriesRes = await authedFetch(`/api/feeds/${feed.id}/entries`);
+    assert.equal(entriesRes.status, 200);
+    assert.equal((await entriesRes.json()).length, 5);
+
+    const feedRecord = await getPrisma().feed.findUniqueOrThrow({ where: { id: feed.id } });
+    const allowedPrivateOrigins = [new URL(API_TEST_ARTICLE_URL).origin];
+    const cronResult = await processFeed(feedRecord, {
+      fetchFeed: (url) => fetchFeedDocument(url, { allowedPrivateOrigins }),
+    });
+    assert.equal(cronResult.upserted, 0, "Cron must stop at the initial cursor instead of importing the other seven old entries");
+    const afterCron = await authedFetch(`/api/feeds/${feed.id}/entries`);
+    const entriesAfterCron = await afterCron.json();
+    assert.equal(entriesAfterCron.length, 5);
+    assert.ok(entriesAfterCron.every((entry) => entry.summary === "Integration Mewmo AI summary"));
+    assert.equal((await authedFetch(`/api/feeds/${feed.id}`, { method: "DELETE" })).status, 200);
+  });
+
+  await t.test("initialEntryLimit can import more than the previous fixed ten", async () => {
+    const res = await authedFetch("/api/feeds", {
+      method: "POST",
+      body: JSON.stringify({
+        url: `${API_TEST_ARTICLE_URL}?rss=${Date.now()}&items=12`,
+        title: "Twenty-entry limit feed",
+        initialEntryLimit: 20,
+      }),
+    });
+    assert.equal(res.status, 201);
+    const feed = await res.json();
+    assert.equal(feed.initialFetch.fetched, 12);
+    assert.equal(feed.initialFetch.created, 12);
+    assert.equal((await authedFetch(`/api/feeds/${feed.id}`, { method: "DELETE" })).status, 200);
+  });
+
+  await t.test("one Cron refresh imports all twelve entries newer than the saved cursor", async () => {
+    const initialUrl = `${API_TEST_ARTICLE_URL}?rss=${Date.now()}&items=1&start=13`;
+    const res = await authedFetch("/api/feeds", {
+      method: "POST",
+      body: JSON.stringify({
+        url: initialUrl,
+        title: "Incremental feed",
+        initialEntryLimit: 5,
+      }),
+    });
+    assert.equal(res.status, 201);
+    const feed = await res.json();
+    const nextUrl = `${API_TEST_ARTICLE_URL}?rss=${Date.now()}&items=13&start=1`;
+    await getPrisma().feed.update({ where: { id: feed.id }, data: { url: nextUrl } });
+    const feedRecord = await getPrisma().feed.findUniqueOrThrow({ where: { id: feed.id } });
+    const allowedPrivateOrigins = [new URL(API_TEST_ARTICLE_URL).origin];
+
+    const result = await processFeed(feedRecord, {
+      fetchFeed: (url) => fetchFeedDocument(url, { allowedPrivateOrigins }),
+    });
+
+    assert.equal(result.upserted, 12);
+    assert.equal(result.created, 12);
+    assert.equal(await getPrisma().feedEntry.count({ where: { feedId: feed.id } }), 13);
+    assert.equal(await getPrisma().feedEntry.count({
+      where: { feedId: feed.id, summary: "Integration Mewmo AI summary" },
+    }), 13);
+    assert.equal((await authedFetch(`/api/feeds/${feed.id}`, { method: "DELETE" })).status, 200);
+  });
+
+  await t.test("a failed initial RSS read leaves no half-created subscription", async () => {
+    const failedUrl = `${API_TEST_ARTICLE_URL}?rss=${Date.now()}&fail=1`;
+    const res = await authedFetch("/api/feeds", {
+      method: "POST",
+      body: JSON.stringify({
+        url: failedUrl,
+        title: "Unavailable feed",
+        initialEntryLimit: 5,
+      }),
+    });
+
+    assert.equal(res.status, 502);
+    assert.equal(await getPrisma().feed.count({ where: { url: failedUrl } }), 0);
+  });
+
+  await t.test("unsupported initialEntryLimit values are rejected", async () => {
+    const res = await authedFetch("/api/feeds", {
+      method: "POST",
+      body: JSON.stringify({
+        url: `${API_TEST_ARTICLE_URL}?rss=${Date.now()}&items=12`,
+        title: "Invalid limit feed",
+        initialEntryLimit: 7,
+      }),
+    });
+    assert.equal(res.status, 400);
   });
 
   await t.test("PATCH /api/feed-entries/[id] can mark read/unread when an entry exists", async () => {
@@ -102,10 +208,50 @@ test("Feeds API", async (t) => {
     assert.equal((await unreadRes.json()).readAt, null);
   });
 
-  await t.test("DELETE /api/feeds/[id] soft-deletes", async () => {
+  await t.test("DELETE /api/feeds/[id] permanently deletes the feed and entries", async () => {
     const res = await authedFetch(`/api/feeds/${createdFeedId}`, { method: "DELETE" });
     assert.equal(res.status, 200);
     assert.equal((await res.json()).ok, true);
+
+    const prisma = getPrisma();
+    assert.equal(await prisma.feed.findUnique({ where: { id: createdFeedId } }), null);
+    assert.equal(await prisma.feedEntry.count({ where: { feedId: createdFeedId } }), 0);
+  });
+
+  await t.test("the same URL can be subscribed again after permanent deletion", async () => {
+    const res = await authedFetch("/api/feeds", {
+      method: "POST",
+      body: JSON.stringify({
+        url: createdFeedUrl,
+        title: "Re-added Feed",
+        description: "Recreated after permanent deletion",
+      }),
+    });
+    assert.equal(res.status, 201);
+    const feed = await res.json();
+    assert.notEqual(feed.id, createdFeedId);
+    assert.equal(feed.existing, false);
+  });
+
+  await t.test("a legacy soft-deleted row no longer causes a 409", async () => {
+    const staleUrl = `${API_TEST_ARTICLE_URL}?legacy=${Date.now()}`;
+    await getPrisma().feed.create({
+      data: {
+        userId: (await getPrisma().user.findUniqueOrThrow({ where: { email: API_TEST_EMAIL } })).id,
+        url: staleUrl,
+        type: "article",
+        title: "Legacy deleted feed",
+        deletedAt: new Date(),
+      },
+    });
+
+    const res = await authedFetch("/api/feeds", {
+      method: "POST",
+      body: JSON.stringify({ url: staleUrl, title: "Restored as new feed" }),
+    });
+    assert.equal(res.status, 201);
+    const feed = await res.json();
+    assert.equal(feed.existing, false);
   });
 
   await t.test("unauthenticated requests return 401", async () => {

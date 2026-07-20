@@ -19,3 +19,21 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  feed-cron:
+    image: ${WORKER_IMAGE:-mewmo-worker:local}
+    profiles: ["cron"]
+    env_file:
+      - ${WORKER_ENV_FILE:-.env.worker}
+    command: ["pnpm", "--filter", "@mewmo/worker", "cron:feeds"]
+    restart: "no"
+    init: true
+    mem_limit: 512m
+    mem_reservation: 128m
+    cpus: 0.50
+    pids_limit: 128
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

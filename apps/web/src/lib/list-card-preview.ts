@@ -6,6 +6,8 @@ export function normalizeListCardPreview(
   maxLength: number | null = 240,
 ) {
   const normalized = source
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
     .replace(/<script\b[\s\S]*?<\/script>/gi, " ")
     .replace(/<style\b[\s\S]*?<\/style>/gi, " ")
     .replace(/<br\s*\/?>/gi, "\n")
@@ -13,8 +15,6 @@ export function normalizeListCardPreview(
     .replace(/<[^>]+>/g, " ")
     .replace(/&nbsp;/gi, " ")
     .replace(/&amp;/gi, "&")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
     .replace(/&quot;/gi, '"')
     .replace(/&#(?:39|x27);/gi, "'")
     .replace(/\r\n?/g, "\n")

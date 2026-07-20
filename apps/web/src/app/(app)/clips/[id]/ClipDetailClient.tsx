@@ -216,23 +216,6 @@ export function ClipDetailClient({
     return () => window.removeEventListener("popstate", handlePopState);
   }, [clips, visibleClips]);
 
-  useEffect(() => {
-    const fetchStatus = selectedClip?.fetchStatus;
-    if (fetchStatus !== "queued" && fetchStatus !== "fetching") return;
-    const timer = window.setInterval(() => {
-      if (!selectedClip) return;
-      void fetch(`/api/clips/${selectedClip.id}`)
-        .then((response) => response.ok ? response.json() as Promise<ClipListItem> : null)
-        .then((updated) => {
-          if (!updated) return;
-          setCachedWorkspaceDetail("clips", updated);
-          setClips((current) => current.map((entry) => entry.id === updated.id ? updated : entry));
-          setSelectedClip(updated);
-        });
-    }, 1000);
-    return () => window.clearInterval(timer);
-  }, [selectedClip?.fetchStatus, selectedClip?.id]);
-
   async function createClipFromUrl(url: string) {
     const normalizedUrl = normalizeClipUrl(url);
     const domain = getDomain(normalizedUrl);
@@ -255,8 +238,7 @@ export function ClipDetailClient({
     });
     selectClip(created);
     if (created.existing) showToast("该内容之前已剪藏，已打开已有记录", "success");
-    else if (created.queued) showToast("已保存剪藏，正在后台抓取内容", "success");
-    else showToast("已保存剪藏，但后台抓取启动失败，可重试", "error");
+    else showToast("已保存剪藏", "success");
   }
 
   const deleteClip = async (item: ClipListItem) => {
@@ -278,7 +260,6 @@ export function ClipDetailClient({
       const data = (await response.json().catch(() => null)) as {
         clip?: ClipListItem;
         changed?: boolean;
-        queued?: boolean;
       } | null;
       if (!response.ok || !data?.clip) throw new Error("Failed to refresh clip");
       const updatedClip = data.clip;
@@ -290,7 +271,7 @@ export function ClipDetailClient({
       setSelectedClip((current) =>
         current?.id === updatedClip.id ? updatedClip : current,
       );
-      showToast(data.queued ? "已开始后台抓取" : data.changed ? "已拉取最新内容" : "已是最新", "success");
+      showToast(data.changed ? "已拉取最新内容" : "已是最新", "success");
     } catch {
       showToast("检查更新失败", "error");
     }

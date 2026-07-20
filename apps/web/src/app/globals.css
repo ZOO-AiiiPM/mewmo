@@ -2005,6 +2005,12 @@ html.light .mewmo-card-menu {
   justify-content: center;
   color: var(--accent);
   pointer-events: none;
+  transition: opacity 0.12s;
+}
+
+.mewmo-list-card-wrap:hover .mewmo-feed-entry-card__favorite,
+.mewmo-list-card-wrap--menu-open .mewmo-feed-entry-card__favorite {
+  opacity: 0;
 }
 
 .mewmo-feed-entry-card__favorite .mewmo-prototype-icon {
@@ -4195,7 +4201,14 @@ html.light .mewmo-popover-card {
 .addfeed__catrow {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 18px;
   margin-bottom: 14px;
+}
+
+.addfeed__catsetting {
+  display: flex;
+  align-items: center;
 }
 
 .addfeed__catlabel {
@@ -4231,6 +4244,10 @@ html.light .afr-catsel__btn {
   border-color: var(--ink-faint);
 }
 
+.afr-catsel__btn--limit {
+  min-width: 92px;
+}
+
 .afr-catsel__cur {
   margin-right: auto;
 }
@@ -4253,6 +4270,11 @@ html.light .afr-catsel__btn {
   min-width: 128px;
 }
 
+.mewmo-addfeed-limit-menu {
+  z-index: 190;
+  min-width: 112px;
+}
+
 .mewmo-addfeed-category-menu .mewmo-floating-menu__item:disabled {
   cursor: default;
   opacity: 0.45;
@@ -4266,6 +4288,14 @@ html.light .afr-catsel__btn {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.addfeed__actions .mewmo-button--primary:disabled {
+  background: var(--s2);
+  color: var(--ink-faint);
+  cursor: not-allowed;
+  opacity: 0.72;
+  box-shadow: none;
 }
 
 .mewmo-feed-modal__spinner {

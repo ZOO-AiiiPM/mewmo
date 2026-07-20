@@ -5,17 +5,18 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
+    "cron:feeds": "tsx src/feed-cron.ts",
     "build": "tsc -p tsconfig.json",
     "lint": "eslint .",
     "test": "vitest src"
   },
   "dependencies": {
     "@mewmo/ai": "workspace:*",
+    "@mewmo/content": "workspace:*",
     "@mewmo/db": "workspace:*",
     "@mewmo/queue": "workspace:*",
     "@mewmo/shared": "workspace:*",
     "bullmq": "5.79.1",
-    "fast-xml-parser": "^5.9.3",
     "tsx": "4.22.4"
   }
 }

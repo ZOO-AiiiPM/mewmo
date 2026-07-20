@@ -5,8 +5,5 @@ export async function register() {
       const { setGlobalDispatcher, ProxyAgent } = await import("undici");
       setGlobalDispatcher(new ProxyAgent(proxy));
     }
-
-    const { startWebFeedRefreshScheduler } = await import("./lib/feed-refresh-runtime");
-    startWebFeedRefreshScheduler();
   }
 }

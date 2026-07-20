@@ -4,54 +4,51 @@ import test from "node:test";
 
 const read = (path) => readFileSync(path, "utf8");
 
-test("feed creation persists status and queues first fetch without synchronous article work", () => {
-  const route = read("apps/web/src/app/api/feeds/[[...parts]]/route.ts");
-  const queueService = read("apps/web/src/lib/feed-queue-service.ts");
-  const client = read("packages/queue/src/client.ts");
-
-  assert.match(queueService, /addFeedFetchJob/, "feed routes should enqueue through the shared queue contract");
-  const afterStart = route.indexOf("after(async () =>");
-  const fetchStart = route.indexOf("await fetchAndStoreFeed");
-  assert.ok(afterStart >= 0 && fetchStart > afterStart, "article collection must run inside the response-after callback, not the request path");
-  assert.match(queueService, /lastFetchStatus:\s*"queued"/, "newly persisted feeds should expose queued status before returning");
-  assert.match(route, /existing:\s*false,\s*queued/, "successful queue submission should be explicit in the response");
-  assert.match(route, /existing:\s*(?:true|false)/, "callers should be able to distinguish existing feeds from new records");
-  assert.match(queueService, /timeout\(addJob\([\s\S]*FEED_QUEUE_TIMEOUT_MS/, "queue submission must have a request-level timeout after persistence");
-  assert.match(route, /if\s*\(queueResult\.fallbackRequired\)[\s\S]*scheduleWebFeedFetch/, "feed creation should start the Web fallback only after queue submission fails");
-  assert.match(route, /claimStatuses:\s*\["error"\][\s\S]*allowStaleTakeover:\s*false/, "Web fallback must claim only the queue failure and never active work");
-  assert.match(route, /lastFetchStatus:\s*queueResult\.status/, "queue response must preserve the actual claimed owner state");
-  assert.match(queueService, /lastFetchStatus:\s*\{ notIn:\s*\["queued", "fetching"\]\s*\}/, "active work must not be reset before queue submission");
-  assert.match(queueService, /lastFetchStatus:\s*"queued",[\s\S]*lastFetchStartedAt:\s*startedAt/, "queue failure writes must be guarded by the attempt lease");
-  assert.doesNotMatch(route, /if \(!queued\)[\s\S]*lastFetchStatus:\s*"queued"/, "queue failure must not be rewritten back to queued");
-  assert.match(client, /maxRetriesPerRequest:\s*\d+/, "HTTP producers must not keep retrying Redis forever when the queue is unavailable");
-});
-
-test("feed refresh routes enqueue work instead of waiting for fetch results", () => {
+test("feed creation awaits a bounded initial RSS fetch without BullMQ", () => {
   const route = read("apps/web/src/app/api/feeds/[[...parts]]/route.ts");
 
-  assert.match(route, /parts\[0\] === "refresh"[\s\S]*enqueueFeedFetch/, "bulk refresh should enqueue each feed");
-  assert.match(route, /parts\[1\] === "refresh"[\s\S]*enqueueFeedFetch/, "single-feed retry should enqueue the selected feed");
-});
-
-test("feed page polls only while the selected source is actively syncing", () => {
-  const page = read("apps/web/src/app/(app)/feeds/page.tsx");
-
-  assert.match(page, /isFeedSyncActive\(status, startedAt[\s\S]*setInterval/, "active first sync should poll feed and entry state");
-  assert.match(page, /selectedFeed\?\.lastFetchStartedAt,/, "polling must restart when the lease timestamp changes");
-  assert.match(page, /setSyncNow|setSyncClock/, "polling must force a render when the lease becomes stale");
-  assert.match(page, /clearInterval/, "polling must stop when the source leaves an active state or the page unmounts");
-});
-
-test("single-source add waits for the first article before closing and times out recoverably", () => {
-  const page = read("apps/web/src/app/(app)/feeds/page.tsx");
-
-  assert.match(page, /waitForFirstFeedEntry/, "single-source creation should wait for the first persisted article");
-  assert.match(page, /waitForFirstFeedEntry\([\s\S]*15_?000/, "first-article waiting must be bounded");
-  assert.match(page, /onAdded\(\[feed\],\s*false\)/, "a persisted feed should be surfaced before the modal closes");
   assert.match(
-    page,
-    /waitForFirstFeedEntry[\s\S]*FEED_ENTRY_REQUEST_TIMEOUT_MS/,
-    "polling transport failures must settle through the bounded timeout instead of escaping",
+    route,
+    /await fetchInitialFeed\(userId,\s*feedRecord,\s*\{[\s\S]*?limit:\s*parsed\.data\.initialEntryLimit,[\s\S]*?\}\)/,
+    "the validated per-add limit should control only the synchronous initial RSS import",
   );
-  assert.match(page, /首篇文章[\s\S]*重试|同步超时[\s\S]*重试/, "first-article timeout must leave a recoverable retry message");
+  assert.doesNotMatch(route, /addFeedFetchJob|enqueueFeedFetch|after\(/);
+  assert.match(route, /initialFetch/);
+  assert.match(route, /existing:\s*false/);
+  assert.match(route, /existing:\s*(?:true|false)/, "callers should be able to distinguish existing feeds from new records");
+});
+
+test("add-feed UI offers 5, 10, 20, and 50 initial entries with ten as the reset default", () => {
+  const page = read("apps/web/src/app/(app)/feeds/page.tsx");
+
+  assert.match(page, /const INITIAL_FEED_LIMITS = \[5,\s*10,\s*20,\s*50\] as const/);
+  assert.match(page, /useState<InitialFeedLimit>\(DEFAULT_INITIAL_FEED_LIMIT\)/);
+  assert.match(page, /setInitialEntryLimit\(DEFAULT_INITIAL_FEED_LIMIT\)/);
+  assert.match(page, /initialEntryLimit,/);
+  assert.match(page, /首次导入/);
+  assert.match(page, /\{initialEntryLimit\} 篇/);
+});
+
+test("feed refresh routes mark database work for the next Cron run", () => {
+  const route = read("apps/web/src/app/api/feeds/[[...parts]]/route.ts");
+
+  assert.match(route, /parts\[0\] === "refresh"[\s\S]*requestFeedRefresh/, "bulk refresh should mark each feed queued");
+  assert.match(route, /parts\[1\] === "refresh"[\s\S]*requestFeedRefresh/, "single-feed retry should mark the selected feed queued");
+  assert.doesNotMatch(route, /enqueueFeedFetch|addFeedFetchJob/);
+});
+
+test("feed page does not poll Cron work in the browser", () => {
+  const page = read("apps/web/src/app/(app)/feeds/page.tsx");
+
+  assert.doesNotMatch(page, /setInterval|waitForFirstFeedEntry/);
+});
+
+test("single-source add trusts the synchronous API result and closes without polling", () => {
+  const page = read("apps/web/src/app/(app)/feeds/page.tsx");
+  const status = read("apps/web/src/lib/feed-status.ts");
+
+  assert.doesNotMatch(page, /waitForFirstFeedEntry|FEED_ENTRY_REQUEST_TIMEOUT_MS/);
+  assert.match(page, /initialFetch/);
+  assert.match(status, /首次读取失败[\s\S]*稍后重试/);
+  assert.match(page, /onAdded\(\[feed\],\s*true\)/);
 });

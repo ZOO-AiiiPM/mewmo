@@ -27,6 +27,8 @@ export interface UpdateFeedEntryInput {
   readAt?: Date | null;
 }
 
+export type UpsertFeedEntrySourceInput = Omit<CreateFeedEntryInput, "summary">;
+
 interface FeedEntriesClient {
   feedEntry: {
     create(args: unknown): Promise<unknown>;
@@ -94,7 +96,30 @@ export function createFeedEntriesRepository(client: unknown = getPrisma()) {
         update: {
           title: input.title,
           content: input.content,
-          summary: input.summary ?? null,
+          ...(input.summary !== undefined ? { summary: input.summary } : {}),
+          coverImage: input.coverImage ?? null,
+          excerpt: input.excerpt ?? null,
+          sourceName: input.sourceName ?? null,
+          author: input.author ?? null,
+          publishedAt: input.publishedAt ?? null,
+          deletedAt: null,
+          version: { increment: 1 },
+        },
+      });
+
+      return { entry, created: !existing };
+    },
+
+    async upsertSourceByFeedUrl(userId: string, input: UpsertFeedEntrySourceInput) {
+      const existing = await db.feedEntry.findFirst({
+        where: { feedId: input.feedId, url: input.url, userId },
+      });
+      const entry = await db.feedEntry.upsert({
+        where: { feedId_url: { feedId: input.feedId, url: input.url } },
+        create: { ...input, summary: null, userId },
+        update: {
+          title: input.title,
+          content: input.content,
           coverImage: input.coverImage ?? null,
           excerpt: input.excerpt ?? null,
           sourceName: input.sourceName ?? null,

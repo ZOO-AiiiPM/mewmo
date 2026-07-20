@@ -11,6 +11,7 @@
   "scripts": {
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
+    "db:ensure-development": "tsx scripts/ensure-development-schema.ts",
     "build": "prisma generate && tsc -p tsconfig.json",
     "lint": "eslint .",
     "test": "vitest"

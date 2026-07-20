@@ -130,7 +130,7 @@ test("feed cards use the shared wrapper so hover and selected separators disappe
 
   assert.match(
     feedsPage,
-    /<article key=\{entry\.id\} className="mewmo-list-card-wrap">[\s\S]*?mewmo-feed-entry-card/,
+    /<article[\s\S]*?key=\{entry\.id\}[\s\S]*?className=\{`mewmo-list-card-wrap[^`]*`\}[\s\S]*?mewmo-feed-entry-card/,
     "feed cards should participate in the shared adjacent-card separator rules",
   );
 });
@@ -167,8 +167,8 @@ test("feed reader favorite action is wired to the real favorite API", () => {
   );
   assert.match(
     feedsPage,
-    /fetch\(`\/api\/feed-entries\/\$\{selectedEntry\.id\}\/favorite`,\s*\{\s*method:\s*"POST"/,
-    "feed favorite action should call the concrete favorite endpoint",
+    /const favoriteEntry = useCallback\(async \(entry: FeedEntry\)[\s\S]*fetch\(`\/api\/feed-entries\/\$\{entry\.id\}\/favorite`,\s*\{\s*method:\s*"POST"/,
+    "feed favorite action should call the endpoint for the concrete card or reader entry",
   );
   assert.match(
     feedsPage,
@@ -218,7 +218,7 @@ test("favorited feed entries show a clip bookmark indicator at the card corner",
   );
 });
 
-test("feed article actions are shared by the list and reader headers", () => {
+test("feed article actions are scoped to cards and the reader toolbar", () => {
   const sharedMenuPath = "apps/web/src/components/shell/FeedArticleMenu.tsx";
   assert.equal(
     existsSync(sharedMenuPath),
@@ -227,6 +227,7 @@ test("feed article actions are shared by the list and reader headers", () => {
   );
 
   const sharedMenu = read(sharedMenuPath);
+  const cardMenu = read("apps/web/src/components/shell/CardActionMenu.tsx");
   const toolbar = read("apps/web/src/components/shell/ReaderToolbar.tsx");
   const listColumn = read("apps/web/src/components/shell/ListColumn.tsx");
   const feedsPage = read("apps/web/src/app/(app)/feeds/page.tsx");
@@ -237,10 +238,16 @@ test("feed article actions are shared by the list and reader headers", () => {
   assert.match(sharedMenu, /onCopyLink\?: \(\(\) => void\) \| undefined/);
   assert.match(toolbar, /menuKind === "feed"[\s\S]*<FeedArticleMenu/);
   assert.match(listColumn, /overflowAction/);
+  assert.match(cardMenu, /type CardActionKind = "notes" \| "clips" \| "feed"/);
   assert.match(
     feedsPage,
-    /overflowAction=\{[\s\S]*?<FeedArticleMenu[\s\S]*?disabled=\{!selectedEntry\}/,
-    "the left article-list header should keep a disabled menu slot until an article is selected",
+    /<CardActionMenu[\s\S]*kind="feed"[\s\S]*favoriteActive=\{Boolean\(entry\.isFavorited\)\}/,
+    "each feed card should own actions for its concrete entry",
+  );
+  assert.doesNotMatch(
+    feedsPage,
+    /overflowAction=\{/,
+    "the feed list header should not expose actions for an unrelated selected article",
   );
 
   const css = read("apps/web/src/app/globals.css");

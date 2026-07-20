@@ -4,6 +4,7 @@
  */
 import assert from "node:assert/strict";
 import test from "node:test";
+import { getPrisma } from "../../packages/db/src/client.ts";
 import {
   API_BASE as BASE,
   API_TEST_ARTICLE_URL,
@@ -38,8 +39,6 @@ function authedFetch(path, opts = {}) {
 const clipPayload = {
   url: API_TEST_ARTICLE_URL,
   title: "Example Article",
-  content: "<p>Readable body</p>",
-  summary: "Readable body",
 };
 
 test("Clips API", async (t) => {
@@ -50,6 +49,16 @@ test("Clips API", async (t) => {
     assert.equal(res.status, 401);
   });
 
+  await t.test("private URLs outside the exact fixture origin are blocked", async () => {
+    const res = await authedFetch("/api/clips", {
+      method: "POST",
+      body: JSON.stringify({ url: "http://127.0.0.1:9/private", title: "Blocked" }),
+    });
+
+    assert.equal(res.status, 502);
+    assert.match((await res.json()).error, /blocked address/);
+  });
+
   await t.test("POST /api/clips creates a clip", async () => {
     const startedAt = Date.now();
     const res = await authedFetch("/api/clips", {
@@ -57,14 +66,16 @@ test("Clips API", async (t) => {
       body: JSON.stringify(clipPayload),
     });
     assert.equal(res.status, 201);
-    assert.ok(Date.now() - startedAt < 2000, "clip persistence should not wait for remote extraction");
+    assert.ok(Date.now() - startedAt < 15_000, "clip extraction should stay inside the request boundary");
     const clip = await res.json();
     assert.ok(clip.id, "should have an id");
     createdClipId = clip.id;
     assert.equal(clip.url, clipPayload.url);
-    assert.equal(clip.title, clipPayload.title);
+    assert.equal(clip.title, "Example Article");
     assert.match(clip.content, /Readable body/);
-    assert.equal(clip.summary, clipPayload.summary);
+    assert.equal(clip.summary, null);
+    assert.match(clip.excerpt, /Readable body/);
+    assert.equal(clip.fetchStatus, "success");
     assert.equal(clip.version, 1);
   });
 
@@ -119,6 +130,29 @@ test("Clips API", async (t) => {
       body: JSON.stringify({}),
     });
     assert.equal(res.status, 400);
+  });
+
+  await t.test("concurrent refreshes allow only one active lease", async () => {
+    const updateUrl = await authedFetch(`/api/clips/${createdClipId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ url: `${API_TEST_ARTICLE_URL}?delay=250` }),
+    });
+    assert.equal(updateUrl.status, 200);
+
+    const firstRefresh = authedFetch(`/api/clips/${createdClipId}`, { method: "POST" });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    await getPrisma().clip.update({
+      where: { id: createdClipId },
+      data: { summary: "AI completed during refresh", version: { increment: 1 } },
+    });
+    const secondRefresh = authedFetch(`/api/clips/${createdClipId}`, { method: "POST" });
+    const responses = await Promise.all([firstRefresh, secondRefresh]);
+
+    assert.deepEqual(responses.map((response) => response.status).sort(), [200, 409]);
+    const refreshed = await getPrisma().clip.findUniqueOrThrow({ where: { id: createdClipId } });
+    assert.equal(refreshed.fetchStatus, "success");
+    assert.equal(refreshed.fetchStartedAt, null);
+    assert.equal(refreshed.summary, "AI completed during refresh");
   });
 
   await t.test("DELETE /api/clips/[id] soft-deletes", async () => {

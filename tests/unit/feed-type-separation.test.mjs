@@ -19,7 +19,7 @@ test("feed article and media categories stay independent", () => {
   );
   assert.match(
     feedsRoute,
-    /where:\s*\{\s*url:\s*parsed\.data\.url,\s*userId:\s*session\.user\.id,\s*type:\s*parsed\.data\.type,\s*deletedAt:\s*null\s*\}/,
+    /where:\s*\{\s*url:\s*parsed\.data\.url,\s*userId,\s*type:\s*parsed\.data\.type,\s*deletedAt:\s*null\s*\}/,
     "duplicate feed lookup should be scoped by type",
   );
   assert.match(
