@@ -57,7 +57,7 @@ export function AISidebar({ open, onOpenChange }: { open: boolean; onOpenChange:
     <aside className={`mewmo-ai-rail ${open ? "mewmo-ai-rail--open" : ""}`} aria-hidden={!open}>
       <div className="mewmo-ai-rail__head">
         <div className="mewmo-ai-rail__mark" aria-hidden="true"><PrototypeIcon name="mewmo-logo" size={18} /></div>
-        <div><div className="mewmo-ai-rail__name">mewmo agent</div></div>
+        <div><div className="mewmo-ai-rail__name">mewmo</div></div>
         <button type="button" className="mewmo-icon-button" onClick={() => onOpenChange(false)} aria-label="关闭 mewmo">
           <PrototypeIcon name="close" size={19} className="mewmo-icon-close" />
         </button>
