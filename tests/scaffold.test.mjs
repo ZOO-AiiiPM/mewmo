@@ -7,8 +7,6 @@ const rootFiles = [
   "pnpm-workspace.yaml",
   "turbo.json",
   "tsconfig.json",
-  ".env.example",
-  "docker/docker-compose.yml",
   "tooling/eslint/index.mjs",
   "tooling/typescript/base.json",
   "tooling/tailwind/postcss.config.mjs",

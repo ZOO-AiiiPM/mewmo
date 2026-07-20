@@ -9,7 +9,8 @@ test("API integration tests own services, fixtures, identity, and cleanup", () =
   const env = read("tests/integration/api-test-env.mjs");
   const clipTest = read("tests/integration/clips-api.test.mjs");
 
-  assert.match(harness, /docker\/docker-compose\.yml/);
+  assert.match(harness, /run\(["']docker["'],\s*\[\s*["']run["']/);
+  assert.doesNotMatch(harness, /docker\/docker-compose\.yml/);
   assert.match(harness, /pnpm db:push/);
   assert.match(harness, /pnpm --filter @mewmo\/web dev/);
   assert.match(harness, /waitForHttp/);

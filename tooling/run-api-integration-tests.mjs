@@ -9,7 +9,9 @@ const webPort = process.env.API_TEST_PORT ?? "3100";
 const fixturePort = process.env.API_TEST_FIXTURE_PORT ?? "3101";
 const postgresPort = process.env.API_TEST_POSTGRES_PORT ?? "55432";
 const redisPort = process.env.API_TEST_REDIS_PORT ?? "56379";
-const composeProject = `mewmo-integration-${process.pid}`;
+const resourcePrefix = `mewmo-integration-${process.pid}`;
+const postgresContainer = `${resourcePrefix}-postgres`;
+const redisContainer = `${resourcePrefix}-redis`;
 const nextDistDir = `.next-integration-${process.pid}`;
 const nextEnvPath = new URL("../apps/web/next-env.d.ts", import.meta.url);
 const originalNextEnv = readFileSync(nextEnvPath, "utf8");
@@ -32,6 +34,7 @@ const env = {
   GOOGLE_CLIENT_SECRET:
     process.env.GOOGLE_CLIENT_SECRET ?? "integration-google-secret",
   OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? "integration-openai-key",
+  AI_SUMMARY_MODEL: process.env.AI_SUMMARY_MODEL ?? "integration-summary-model",
   R2_ENDPOINT:
     process.env.R2_ENDPOINT ?? "https://integration.r2.cloudflarestorage.com",
   R2_ACCESS_KEY: process.env.R2_ACCESS_KEY ?? "integration-r2-access",
@@ -65,6 +68,49 @@ function run(command, args) {
       else reject(new Error(`${command} ${args.join(" ")} exited ${code}`));
     });
   });
+}
+
+function runCapture(command, args) {
+  return new Promise((resolve, reject) => {
+    const child = spawnCommand(command, args, {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
+    child.once("error", reject);
+    child.once("exit", (code) => {
+      if (code === 0) resolve(stdout);
+      else {
+        reject(new Error(`${command} ${args.join(" ")} exited ${code}: ${stderr.trim()}`));
+      }
+    });
+  });
+}
+
+async function waitForContainerHealthy(name, timeoutMs = 60_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const status = (
+      await runCapture("docker", [
+        "inspect",
+        "--format",
+        "{{.State.Health.Status}}",
+        name,
+      ])
+    ).trim();
+    if (status === "healthy") return;
+    if (status === "unhealthy") {
+      throw new Error(`Integration container ${name} became unhealthy`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error(`Timed out waiting for integration container ${name}`);
 }
 
 async function waitForHttp(url, timeoutMs = 60_000) {
@@ -149,16 +195,48 @@ async function main() {
   let accountCreated = false;
   try {
     await run("docker", [
-      "compose",
-      "-p",
-      composeProject,
-      "-f",
-      "docker/docker-compose.yml",
-      "up",
-      "-d",
-      "--wait",
-      "postgres",
-      "redis",
+      "run",
+      "--detach",
+      "--name",
+      postgresContainer,
+      "--publish",
+      `127.0.0.1:${postgresPort}:5432`,
+      "--env",
+      "POSTGRES_USER=mewmo",
+      "--env",
+      "POSTGRES_PASSWORD=mewmo",
+      "--env",
+      "POSTGRES_DB=mewmo_dev",
+      "--health-cmd",
+      "pg_isready -U mewmo -d mewmo_dev",
+      "--health-interval",
+      "1s",
+      "--health-timeout",
+      "5s",
+      "--health-retries",
+      "30",
+      "postgres:15",
+    ]);
+    await run("docker", [
+      "run",
+      "--detach",
+      "--name",
+      redisContainer,
+      "--publish",
+      `127.0.0.1:${redisPort}:6379`,
+      "--health-cmd",
+      "redis-cli ping",
+      "--health-interval",
+      "1s",
+      "--health-timeout",
+      "5s",
+      "--health-retries",
+      "30",
+      "redis:7",
+    ]);
+    await Promise.all([
+      waitForContainerHealthy(postgresContainer),
+      waitForContainerHealthy(redisContainer),
     ]);
     await run("pnpm", ["db:generate"]);
     await run("pnpm", ["db:push"]); // pnpm db:push
@@ -194,18 +272,13 @@ async function main() {
       console.error("Failed to remove integration Next output", error);
     });
     writeFileSync(nextEnvPath, originalNextEnv);
-    await run("docker", [
-      "compose",
-      "-p",
-      composeProject,
-      "-f",
-      "docker/docker-compose.yml",
-      "down",
-      "--volumes",
-      "--remove-orphans",
-    ]).catch((error) => {
-      console.error("Failed to remove integration containers", error);
-    });
+    await Promise.all(
+      [postgresContainer, redisContainer].map((container) =>
+        run("docker", ["rm", "--force", "--volumes", container]).catch((error) => {
+          console.error(`Failed to remove integration container ${container}`, error);
+        }),
+      ),
+    );
   }
 }
 
