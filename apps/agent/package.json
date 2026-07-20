@@ -11,6 +11,8 @@
     "test": "vitest run src evals --exclude 'dist/**'"
   },
   "dependencies": {
+    "@mewmo/ai": "workspace:*",
+    "@mewmo/application": "workspace:*",
     "ai": "7.0.31",
     "fastify": "5.10.0",
     "jose": "6.2.3",

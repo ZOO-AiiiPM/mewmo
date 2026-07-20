@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@mewmo/content": "workspace:*",
+    "@mewmo/application": "workspace:*",
     "@mewmo/db": "workspace:*",
     "@mewmo/shared": "workspace:*",
     "tsx": "4.22.4"

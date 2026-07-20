@@ -23,6 +23,12 @@ export interface RelationResult {
   reason?: string;
 }
 
+export interface NoteInsightResult {
+  kind: "completeness" | "duplicate_viewpoint" | "viewpoint_change";
+  content: string;
+  data?: unknown;
+}
+
 export function createAiRunService(options: { prisma?: PrismaClient } = {}) {
   const db = options.prisma ?? getPrisma();
   return {
@@ -75,10 +81,21 @@ export function createAiRunService(options: { prisma?: PrismaClient } = {}) {
 
     async getInput(run: AiRun) {
       const where = { id: run.targetId, userId: run.userId, deletedAt: null };
-      const select = { id: true, title: true, content: true, version: true, summary: true };
-      if (run.targetType === "note") return db.note.findFirst({ where, select });
-      if (run.targetType === "clip") return db.clip.findFirst({ where, select });
-      return db.feedEntry.findFirst({ where, select });
+      if (run.targetType === "note") {
+        const target = await db.note.findFirst({ where, select: { id: true, title: true, content: true, version: true, summary: true } });
+        if (!target) return null;
+        if (run.kind === "relation") return { ...target, candidates: await relationCandidates(db, run) };
+        if (run.kind === "note_insight") return { ...target, related: await insightEvidence(db, run) };
+        return target;
+      }
+      if (run.targetType === "clip") {
+        const target = await db.clip.findFirst({ where, select: { id: true, title: true, content: true, version: true, summary: true, sourceName: true, url: true } });
+        if (!target) return null;
+        return run.kind === "relation" ? { ...target, candidates: await relationCandidates(db, run) } : target;
+      }
+      const target = await db.feedEntry.findFirst({ where, select: { id: true, title: true, content: true, version: true, summary: true, sourceName: true, url: true } });
+      if (!target) return null;
+      return run.kind === "relation" ? { ...target, candidates: await relationCandidates(db, run) } : target;
     },
 
     completeSummary(input: CompleteBase & { summary: string }) {
@@ -122,18 +139,51 @@ export function createAiRunService(options: { prisma?: PrismaClient } = {}) {
       });
     },
 
-    completeNoteInsight(input: CompleteBase & { insight: { kind: "completeness" | "duplicate_viewpoint" | "viewpoint_change"; content: string; data?: unknown } }) {
+    completeNoteInsight(input: CompleteBase & ({ insight: NoteInsightResult } | { insights: NoteInsightResult[] })) {
       return completeTarget(db, input, "note_insight", async (tx, run) => {
         if (run.targetType !== "note") throw new DomainError("invalid_state", "note insight target must be a note");
         const current = await tx.note.findFirst({ where: { id: run.targetId, userId: run.userId, deletedAt: null }, select: { version: true } });
         if (!current || current.version !== input.expectedVersion) return { count: 0, output: null };
-        await tx.noteInsight.upsert({
-          where: { userId_noteId_kind: { userId: run.userId, noteId: run.targetId, kind: input.insight.kind } },
-          create: { userId: run.userId, noteId: run.targetId, inputVersion: input.expectedVersion, kind: input.insight.kind, content: input.insight.content, ...(input.insight.data === undefined ? {} : { data: input.insight.data as never }) },
-          update: { inputVersion: input.expectedVersion, content: input.insight.content, ...(input.insight.data === undefined ? {} : { data: input.insight.data as never }) },
-        });
-        return { count: 1, output: { kind: input.insight.kind } };
+        const insights = "insights" in input ? input.insights : [input.insight];
+        for (const insight of insights) {
+          await tx.noteInsight.upsert({
+            where: { userId_noteId_kind: { userId: run.userId, noteId: run.targetId, kind: insight.kind } },
+            create: { userId: run.userId, noteId: run.targetId, inputVersion: input.expectedVersion, kind: insight.kind, content: insight.content, ...(insight.data === undefined ? {} : { data: insight.data as never }) },
+            update: { inputVersion: input.expectedVersion, content: insight.content, ...(insight.data === undefined ? {} : { data: insight.data as never }) },
+          });
+        }
+        return { count: 1, output: { insightCount: insights.length } };
       });
+    },
+
+    getRun(input: { userId: string; runId: string }) {
+      return db.aiRun.findFirst({ where: { id: input.runId, userId: input.userId } });
+    },
+
+    async retryRun(input: { userId: string; runId: string; now?: Date }) {
+      const result = await db.aiRun.updateMany({
+        where: { id: input.runId, userId: input.userId, status: "failed" },
+        data: { status: "queued", attempts: 0, availableAt: input.now ?? new Date(), completedAt: null, errorCode: null, errorMessage: null, workerId: null, leaseExpiresAt: null },
+      });
+      if (result.count !== 1) throw new DomainError("invalid_state", "only an owned failed AI run can be retried");
+      return db.aiRun.findFirstOrThrow({ where: { id: input.runId, userId: input.userId } });
+    },
+
+    getRelated(input: { userId: string; targetType: "note" | "clip" | "feed_entry"; targetId: string }) {
+      return db.contentRelation.findMany({
+        where: { userId: input.userId, sourceType: input.targetType, sourceId: input.targetId },
+        orderBy: { score: "desc" },
+        take: 20,
+      });
+    },
+
+    async queryRelated(input: { userId: string; embedding: number[]; limit: number }) {
+      const rows = await db.contentEmbedding.findMany({ where: { userId: input.userId }, orderBy: { updatedAt: "desc" }, take: 500 });
+      return rows
+        .map((row) => ({ targetType: row.targetType, targetId: row.targetId, inputVersion: row.inputVersion, model: row.model, score: cosine(input.embedding, jsonVector(row.embedding)) }))
+        .filter((row) => Number.isFinite(row.score))
+        .sort((left, right) => right.score - left.score)
+        .slice(0, Math.min(Math.max(input.limit, 1), 20));
     },
 
     async retryOrFail(input: { runId: string; workerId: string; error: unknown; now?: Date; maxAttempts?: number }) {
@@ -165,6 +215,54 @@ export function createAiRunService(options: { prisma?: PrismaClient } = {}) {
       return db.aiRun.findUniqueOrThrow({ where: { id: input.runId } });
     },
   };
+}
+
+async function relationCandidates(db: PrismaClient, run: AiRun) {
+  const source = await db.contentEmbedding.findFirst({ where: { userId: run.userId, targetType: run.targetType, targetId: run.targetId } });
+  if (!source) return [];
+  const vector = jsonVector(source.embedding);
+  const rows = await db.contentEmbedding.findMany({ where: { userId: run.userId, NOT: { targetType: run.targetType, targetId: run.targetId } }, orderBy: { updatedAt: "desc" }, take: 500 });
+  return rows.map((row) => ({ targetType: row.targetType, targetId: row.targetId, targetVersion: row.inputVersion, similarity: cosine(vector, jsonVector(row.embedding)) }))
+    .filter((row) => Number.isFinite(row.similarity) && row.similarity > 0)
+    .sort((left, right) => right.similarity - left.similarity)
+    .slice(0, 50);
+}
+
+async function insightEvidence(db: PrismaClient, run: AiRun) {
+  const relations = await db.contentRelation.findMany({ where: { userId: run.userId, sourceType: "note", sourceId: run.targetId }, orderBy: { score: "desc" }, take: 10 });
+  const evidence = [];
+  for (const relation of relations) {
+    const target = await findEvidenceTarget(db, run.userId, relation.targetType, relation.targetId);
+    if (target) evidence.push({ targetType: relation.targetType, targetId: relation.targetId, title: target.title, excerpt: target.content.slice(0, 500) });
+  }
+  return evidence;
+}
+
+function findEvidenceTarget(db: PrismaClient, userId: string, type: "note" | "clip" | "feed_entry", id: string) {
+  const where = { id, userId, deletedAt: null };
+  const select = { title: true, content: true };
+  if (type === "note") return db.note.findFirst({ where, select });
+  if (type === "clip") return db.clip.findFirst({ where, select });
+  return db.feedEntry.findFirst({ where, select });
+}
+
+function jsonVector(value: unknown): number[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "number") ? value : [];
+}
+
+function cosine(left: number[], right: number[]) {
+  if (!left.length || left.length !== right.length) return Number.NEGATIVE_INFINITY;
+  let dot = 0;
+  let leftNorm = 0;
+  let rightNorm = 0;
+  for (let index = 0; index < left.length; index += 1) {
+    const a = left[index] ?? 0;
+    const b = right[index] ?? 0;
+    dot += a * b;
+    leftNorm += a * a;
+    rightNorm += b * b;
+  }
+  return leftNorm && rightNorm ? dot / Math.sqrt(leftNorm * rightNorm) : Number.NEGATIVE_INFINITY;
 }
 
 async function completeTarget(

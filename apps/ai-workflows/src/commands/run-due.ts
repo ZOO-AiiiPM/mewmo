@@ -1,22 +1,10 @@
 import { hostname } from "node:os";
 
-import type { AiWorkflowRuntimePorts } from "../runtime";
+import { createAiWorkflowRuntimePorts } from "../adapters";
 import { runAiWorkflowsOnce } from "../runtime";
 
-export interface WorkflowAdapterModule {
-  createAiWorkflowRuntimePorts(): Promise<AiWorkflowRuntimePorts> | AiWorkflowRuntimePorts;
-}
-
 async function main() {
-  const adapterPath = process.env.AI_WORKFLOWS_ADAPTER_MODULE?.trim();
-  if (!adapterPath) {
-    throw new Error("AI_WORKFLOWS_ADAPTER_MODULE is required until the Foundation adapter is integrated");
-  }
-  const adapter = await import(adapterPath) as Partial<WorkflowAdapterModule>;
-  if (typeof adapter.createAiWorkflowRuntimePorts !== "function") {
-    throw new Error("Workflow adapter must export createAiWorkflowRuntimePorts()");
-  }
-  const ports = await adapter.createAiWorkflowRuntimePorts();
+  const ports = createAiWorkflowRuntimePorts();
   const result = await runAiWorkflowsOnce(ports, {
     workerId: `${hostname()}:${process.pid}`,
     limit: numberEnv("AI_WORKFLOW_BATCH_LIMIT", 10),

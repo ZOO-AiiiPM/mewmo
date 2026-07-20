@@ -18,10 +18,6 @@ interface AiRunEnqueueService {
   }): Promise<EnqueuedAiRun>;
 }
 
-interface ApplicationAdapterModule {
-  createWebAiRunService(): Promise<AiRunEnqueueService> | AiRunEnqueueService;
-}
-
 let servicePromise: Promise<AiRunEnqueueService> | undefined;
 
 export function enqueueSummaryRun(input: {
@@ -66,11 +62,6 @@ async function getService() {
 }
 
 async function loadService(): Promise<AiRunEnqueueService> {
-  const moduleName = process.env.APPLICATION_ADAPTER_MODULE?.trim();
-  if (!moduleName) throw new Error("APPLICATION_ADAPTER_MODULE is required for AI workflow enqueue");
-  const adapter = await import(/* webpackIgnore: true */ moduleName) as Partial<ApplicationAdapterModule>;
-  if (typeof adapter.createWebAiRunService !== "function") {
-    throw new Error("Application adapter must export createWebAiRunService()");
-  }
-  return adapter.createWebAiRunService();
+  const { createAiRunService } = await import("@mewmo/application");
+  return createAiRunService();
 }

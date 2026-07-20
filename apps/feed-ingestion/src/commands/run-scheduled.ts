@@ -1,25 +1,14 @@
 import { loadFeedIngestionEnv } from "../env";
 import type { AiRunEnqueuePort } from "../feeds/process-feed";
-
-interface FeedIngestionAdapterModule {
-  createFeedIngestionAiRunPort(): Promise<AiRunEnqueuePort> | AiRunEnqueuePort;
-}
+import { createAiRunService } from "@mewmo/application";
 
 async function main() {
   loadFeedIngestionEnv();
-  const adapterPath = process.env.FEED_INGESTION_ADAPTER_MODULE?.trim();
-  if (!adapterPath) {
-    throw new Error("FEED_INGESTION_ADAPTER_MODULE is required until the Foundation adapter is integrated");
-  }
-  const [{ getPrisma }, { runFeedCron }, adapter] = await Promise.all([
+  const [{ getPrisma }, { runFeedCron }] = await Promise.all([
     import("@mewmo/db"),
     import("../feeds/run-feed-cron"),
-    import(adapterPath) as Promise<Partial<FeedIngestionAdapterModule>>,
   ]);
-  if (typeof adapter.createFeedIngestionAiRunPort !== "function") {
-    throw new Error("Feed ingestion adapter must export createFeedIngestionAiRunPort()");
-  }
-  const aiRuns = await adapter.createFeedIngestionAiRunPort();
+  const aiRuns: AiRunEnqueuePort = createAiRunService();
 
   try {
     const result = await runFeedCron({ aiRuns });
