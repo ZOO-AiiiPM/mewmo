@@ -1,34 +1,28 @@
 import { createAiChatsRepository } from "@mewmo/db";
 import { NextResponse } from "next/server";
-import { z } from "zod";
-
 import { auth } from "../../../../lib/auth";
-
-const createChatSchema = z.object({
-  title: z.string().trim().min(1).max(80).optional(),
-  default: z.boolean().optional(),
-});
+import { agentChatCreateSchema, agentError } from "../../../../lib/agent-contract";
 
 export async function GET() {
   const session = await auth();
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(agentError("unauthorized", "请先登录。", false), { status: 401 });
   }
 
   const repo = createAiChatsRepository();
   const chats = await repo.findByUserId(session.user.id);
-  return NextResponse.json({ chats });
+  return NextResponse.json({ chats: Array.isArray(chats) ? chats.map(toChatView) : [], pageInfo: { nextCursor: null } });
 }
 
 export async function POST(request: Request) {
   const session = await auth();
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(agentError("unauthorized", "请先登录。", false), { status: 401 });
   }
 
-  const parsed = createChatSchema.safeParse(await request.json().catch(() => ({})));
+  const parsed = agentChatCreateSchema.safeParse(await request.json().catch(() => ({})));
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+    return NextResponse.json(agentError("invalid_request", "会话参数无效。", false), { status: 400 });
   }
 
   const repo = createAiChatsRepository();
@@ -36,5 +30,30 @@ export async function POST(request: Request) {
     ? await repo.findOrCreateDefault(session.user.id)
     : await repo.create(session.user.id, { title: parsed.data.title ?? "新会话" });
 
-  return NextResponse.json({ chat }, { status: parsed.data.default ? 200 : 201 });
+  return NextResponse.json({ chat: toChatView(chat) }, { status: parsed.data.default ? 200 : 201 });
+}
+
+function toChatView(value: unknown) {
+  const chat = value as {
+    id?: unknown;
+    title?: unknown;
+    createdAt?: unknown;
+    updatedAt?: unknown;
+    messages?: Array<{ id: string; role: string; content: string; status?: string; createdAt?: unknown }>;
+  };
+  return {
+    id: chat.id,
+    title: chat.title,
+    createdAt: chat.createdAt,
+    updatedAt: chat.updatedAt,
+    messages: Array.isArray(chat.messages)
+      ? chat.messages.map((message) => ({
+          id: message.id,
+          role: message.role,
+          content: message.content,
+          status: message.status,
+          createdAt: message.createdAt,
+        }))
+      : [],
+  };
 }
