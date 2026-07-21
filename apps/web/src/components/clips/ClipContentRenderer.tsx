@@ -7,6 +7,8 @@ import {
   isNeutralInlineColor,
   sanitizeClipHtml,
 } from "../../lib/clip-content";
+import { useSkeletonGate } from "../../lib/use-skeleton-gate";
+import { ReaderContentSkeleton } from "../shell/ReaderContentSkeleton";
 
 interface ClipContentRendererProps {
   html: string;
@@ -28,6 +30,9 @@ export function ClipContentRenderer({
       proxyImages: true,
     });
   }, [html, sourceUrl]);
+
+  const waiting = loading && !contentHtml;
+  const { ready, progress } = useSkeletonGate(waiting);
 
   useEffect(() => {
     const root = contentRef.current;
@@ -77,13 +82,8 @@ export function ClipContentRenderer({
     };
   }, [contentKey, contentHtml]);
 
-  if (loading && !contentHtml) {
-    return (
-      <div className="mewmo-empty-state" aria-live="polite">
-        <span className="mewmo-spinner" aria-hidden="true" />
-        <p>正在加载正文...</p>
-      </div>
-    );
+  if (!ready) {
+    return <ReaderContentSkeleton active progress={progress} label="正在加载正文" />;
   }
 
   if (!contentHtml) {
@@ -92,6 +92,7 @@ export function ClipContentRenderer({
 
   return (
     <div
+      key={contentKey}
       ref={contentRef}
       className="mewmo-clip-prose"
       dangerouslySetInnerHTML={{ __html: contentHtml }}

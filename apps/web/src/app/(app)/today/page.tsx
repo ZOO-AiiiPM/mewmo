@@ -5,7 +5,10 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { ListColumn } from "../../../components/shell/ListColumn";
 import { PrototypeIcon, type PrototypeIconName } from "../../../components/shell/PrototypeIcon";
 import { ReaderBackToTopButton } from "../../../components/shell/ReaderBackToTopButton";
+import { ListContentSkeleton } from "../../../components/shell/ListContentSkeleton";
+import { ReaderContentSkeleton } from "../../../components/shell/ReaderContentSkeleton";
 import { ReaderToolbar } from "../../../components/shell/ReaderToolbar";
+import { useSkeletonGate } from "../../../lib/use-skeleton-gate";
 import { useReaderToolbarTitleVisibility } from "../../../components/shell/useReaderToolbarTitleVisibility";
 import { FloatingMenuButton } from "../../../components/ui/FloatingMenu";
 import { useToast } from "../../../components/ui/ToastProvider";
@@ -33,12 +36,7 @@ const NoteEditor = dynamic(
     })),
   {
     ssr: false,
-    loading: () => (
-      <div className="mewmo-empty-state">
-        <span className="mewmo-spinner" aria-hidden="true" />
-        <p>正在加载编辑器...</p>
-      </div>
-    ),
+    loading: () => <ReaderContentSkeleton active progress={0.55} label="正在加载编辑器" />,
   },
 );
 
@@ -208,6 +206,12 @@ export default function TodayPage() {
     readerRef: scrollRef,
     restoreKey: loading ? "loading" : "ready",
   });
+  const listGate = useSkeletonGate(loading);
+  const noteDetailWaiting =
+    selected?.type === "note" &&
+    typeof selected.content !== "string" &&
+    !selectedDetailError;
+  const noteDetailGate = useSkeletonGate(Boolean(noteDetailWaiting));
 
   const visibleItems = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -226,7 +230,6 @@ export default function TodayPage() {
   const detailRequest = selectedListItem ? todayDetailRequest(selectedListItem) : null;
   const {
     data: selectedDetail,
-    initialLoading: selectedDetailLoading,
     error: selectedDetailError,
     update: updateSelectedDetail,
   } = useWorkspaceResource<TodayDetail | null>({
@@ -358,11 +361,13 @@ export default function TodayPage() {
           </button>
         }
       >
-        {loading ? (
-          <div className="mewmo-list-empty">
-            <span className="mewmo-spinner" aria-hidden="true" />
-            <p>正在加载今天...</p>
-          </div>
+        {!listGate.ready ? (
+          <ListContentSkeleton
+            active
+            variant="mixed"
+            progress={listGate.progress}
+            label="正在加载今天"
+          />
         ) : error && items.length === 0 ? (
           <div className="mewmo-list-empty">
             <PrototypeIcon name="empty" size={36} />
@@ -452,35 +457,47 @@ export default function TodayPage() {
                 onTitleChange={updateSelectedNoteTitle}
                 embedded
               />
-            ) : (
+            ) : selectedDetailError ? (
               <div className="mewmo-empty-state">
-                {selectedDetailLoading && <span className="mewmo-spinner" aria-hidden="true" />}
-                <p>{selectedDetailError || "正在加载笔记..."}</p>
+                <p>{selectedDetailError}</p>
               </div>
-            )
-          ) : (
+            ) : !noteDetailGate.ready ? (
+              <ReaderContentSkeleton
+                active
+                showTitle
+                progress={noteDetailGate.progress}
+                label="正在加载笔记"
+              />
+            ) : null
+          ) : selected ? (
             <article className="mewmo-document mewmo-document--empty">
-              <h1>{selected?.title ?? "今天"}</h1>
-              {selected ? (
-              <>
-                <div className="mewmo-doc-meta">
-                  <span>{typeLabels[selected.type]}</span>
-                  {selectedSource && (
-                    <span>
-                      <b aria-hidden="true">·</b>
-                      {selectedSource}
-                    </span>
-                  )}
+              <h1>{selected.title}</h1>
+              <div className="mewmo-doc-meta">
+                <span>{typeLabels[selected.type]}</span>
+                {selectedSource && (
                   <span>
                     <b aria-hidden="true">·</b>
-                    {metaTime(selected)}
+                    {selectedSource}
                   </span>
-                </div>
-                <p>{selectedPreview || "这条内容暂时没有摘要。"}</p>
-              </>
-              ) : (
-                <p>今天创建的笔记、收藏的剪藏和订阅更新会出现在这里。</p>
-              )}
+                )}
+                <span>
+                  <b aria-hidden="true">·</b>
+                  {metaTime(selected)}
+                </span>
+              </div>
+              <p>{selectedPreview || "这条内容暂时没有摘要。"}</p>
+            </article>
+          ) : !listGate.ready ? (
+            <ReaderContentSkeleton
+              active
+              showTitle
+              progress={listGate.progress}
+              label="正在加载今天"
+            />
+          ) : (
+            <article className="mewmo-document mewmo-document--empty">
+              <h1>今天</h1>
+              <p>今天创建的笔记、收藏的剪藏和订阅更新会出现在这里。</p>
             </article>
           )}
         </div>

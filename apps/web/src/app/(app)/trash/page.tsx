@@ -3,9 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ClipContentRenderer } from "../../../components/clips/ClipContentRenderer";
 import { ReaderBackToTopButton } from "../../../components/shell/ReaderBackToTopButton";
+import { ListContentSkeleton } from "../../../components/shell/ListContentSkeleton";
+import { ReaderContentSkeleton } from "../../../components/shell/ReaderContentSkeleton";
 import { ListColumn } from "../../../components/shell/ListColumn";
 import { PrototypeIcon, type PrototypeIconName } from "../../../components/shell/PrototypeIcon";
 import { ReaderToolbar } from "../../../components/shell/ReaderToolbar";
+import { useSkeletonGate } from "../../../lib/use-skeleton-gate";
 import { useReaderToolbarTitleVisibility } from "../../../components/shell/useReaderToolbarTitleVisibility";
 import { SharedNoteMarkdown } from "../../../components/share/SharedNoteMarkdown";
 import { ConfirmDialog } from "../../../components/ui/ConfirmDialog";
@@ -291,15 +294,19 @@ export default function TrashPage() {
   const detailIsLoading = Boolean(
     selectedListItem && loadingDetailKey === itemKey(selectedListItem),
   );
+  const listGate = useSkeletonGate(isLoading);
+  const detailGate = useSkeletonGate(detailIsLoading && !selectedDetail);
 
   return (
     <div className="mewmo-workspace">
       <ListColumn title="废纸篓" searchPlaceholder="搜索废纸篓..." onSearchChange={setQuery}>
-        {isLoading ? (
-          <div className="mewmo-list-empty">
-            <span className="mewmo-spinner" aria-hidden="true" />
-            <p>正在加载废纸篓...</p>
-          </div>
+        {!listGate.ready ? (
+          <ListContentSkeleton
+            active
+            variant="media"
+            progress={listGate.progress}
+            label="正在加载废纸篓"
+          />
         ) : error && items.length === 0 ? (
           <div className="mewmo-list-empty">
             <PrototypeIcon name="empty" size={36} />
@@ -379,10 +386,14 @@ export default function TrashPage() {
           }
         />
         <div ref={scrollRef} className="mewmo-reader-scroll">
-          {detailIsLoading && !selectedDetail ? (
-            <article className="mewmo-document mewmo-document--empty">
-              <span className="mewmo-spinner" aria-hidden="true" />
-              <p>正在加载内容...</p>
+          {!detailGate.ready ? (
+            <article className="mewmo-document mewmo-document--clip">
+              <ReaderContentSkeleton
+                active
+                showTitle
+                progress={detailGate.progress}
+                label="正在加载内容"
+              />
             </article>
           ) : detailError && !selectedDetail ? (
             <article className="mewmo-document mewmo-document--empty">

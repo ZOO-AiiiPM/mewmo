@@ -51,7 +51,7 @@ export function AppShell({ children, user }: AppShellProps) {
   const [aiResizing, setAiResizing] = useState(false);
   const [aiFabBottom, setAiFabBottom] = useState(AI_FAB_DEFAULT_BOTTOM);
   const [aiFabDragging, setAiFabDragging] = useState(false);
-  const [navigationPending, setNavigationPending] = useState(false);
+
 
   const clearSidebarPeekTimer = useCallback(() => {
     if (sidebarPeekTimer.current === null) return;
@@ -170,7 +170,7 @@ export function AppShell({ children, user }: AppShellProps) {
 
   return (
     <WorkspaceAccountProvider userId={user?.id}>
-      <WorkspaceNavigationProvider onPendingChange={setNavigationPending}>
+      <WorkspaceNavigationProvider>
         <div
           ref={shellRef}
           className={[
@@ -179,7 +179,6 @@ export function AppShell({ children, user }: AppShellProps) {
             sidebarPeek ? "mewmo-shell--sidebar-peek" : "",
             aiOpen ? "mewmo-shell--ai-open" : "",
             aiResizing ? "mewmo-shell--ai-resizing" : "",
-            navigationPending ? "mewmo-shell--navigation-pending" : "",
           ]
             .filter(Boolean)
             .join(" ")}
@@ -190,10 +189,6 @@ export function AppShell({ children, user }: AppShellProps) {
             } as CSSProperties
           }
         >
-          <div
-            className="mewmo-workspace-navigation-progress"
-            aria-hidden={!navigationPending}
-          />
           <Sidebar
             user={user}
             collapsed={sidebarCollapsed}

@@ -17,8 +17,11 @@ import {
   PrototypeIcon,
 } from "../../../../components/shell/PrototypeIcon";
 import { ReaderBackToTopButton } from "../../../../components/shell/ReaderBackToTopButton";
+import { ListContentSkeleton } from "../../../../components/shell/ListContentSkeleton";
+import { ReaderContentSkeleton } from "../../../../components/shell/ReaderContentSkeleton";
 import { ReaderToolbar } from "../../../../components/shell/ReaderToolbar";
 import { ReaderToc } from "../../../../components/shell/ReaderToc";
+import { useSkeletonGate } from "../../../../lib/use-skeleton-gate";
 import {
   useReaderToolbarTitleVisibility,
 } from "../../../../components/shell/useReaderToolbarTitleVisibility";
@@ -70,12 +73,7 @@ const NoteEditor = dynamic(
     })),
   {
     ssr: false,
-    loading: () => (
-      <div className="mewmo-empty-state">
-        <span className="mewmo-spinner" aria-hidden="true" />
-        <p>正在加载编辑器...</p>
-      </div>
-    ),
+    loading: () => <ReaderContentSkeleton active progress={0.55} label="正在加载编辑器" />,
   },
 );
 
@@ -148,6 +146,9 @@ export function NoteEditorPage({
     }
     return notes[0] ?? null;
   }, [notes, selectedSlug]);
+  const listGate = useSkeletonGate(isLoading);
+  const noteDetailWaiting = Boolean(selectedNote && selectedNote.content === undefined);
+  const noteDetailGate = useSkeletonGate(noteDetailWaiting);
 
   const loadNoteDetail = useCallback((item: NoteListItem) => {
     const cachedDetail = getCachedWorkspaceDetail<NoteListItem>("notes", item.id);
@@ -562,11 +563,13 @@ export function NoteEditorPage({
           </button>
         }
       >
-        {isLoading ? (
-          <div className="mewmo-list-empty">
-            <span className="mewmo-spinner" aria-hidden="true" />
-            <p>正在加载笔记...</p>
-          </div>
+        {!listGate.ready ? (
+          <ListContentSkeleton
+            active
+            variant="text"
+            progress={listGate.progress}
+            label="正在加载笔记"
+          />
         ) : loadError && notes.length === 0 ? (
           <div className="mewmo-list-empty">
             <PrototypeIcon name="empty" size={36} />
@@ -689,11 +692,13 @@ export function NoteEditorPage({
           className="mewmo-reader-scroll mewmo-reader-scroll--editor"
         >
           {selectedNote ? (
-            selectedNote.content === undefined ? (
-              <div className="mewmo-empty-state">
-                <span className="mewmo-spinner" aria-hidden="true" />
-                <p>正在加载笔记...</p>
-              </div>
+            selectedNote.content === undefined || !noteDetailGate.ready ? (
+              <ReaderContentSkeleton
+                active
+                showTitle
+                progress={noteDetailGate.progress}
+                label="正在加载笔记"
+              />
             ) : (
               <NoteEditor
                 key={`${selectedNote.id}:${agentEditorRevision}`}
@@ -701,14 +706,21 @@ export function NoteEditorPage({
                 initialTitle={selectedNote.title}
                 initialSummary={selectedNote.summary}
                 initialContent={selectedNote.content}
-                    updatedAt={selectedNote.updatedAt}
-                    serverVersion={selectedNote.version}
+                updatedAt={selectedNote.updatedAt}
+                serverVersion={selectedNote.version}
                 autoFocusTitle={selectedNote.title === "Untitled" && !selectedNote.content.trim()}
                 onContentChange={updateSelectedNoteContent}
                 onTitleChange={updateSelectedNoteTitle}
                 embedded
               />
             )
+          ) : !listGate.ready ? (
+            <ReaderContentSkeleton
+              active
+              showTitle
+              progress={listGate.progress}
+              label="正在加载笔记"
+            />
           ) : (
             <article className="mewmo-document mewmo-document--empty">
               <h1>选择一条笔记</h1>

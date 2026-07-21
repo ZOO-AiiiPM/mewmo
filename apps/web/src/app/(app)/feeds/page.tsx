@@ -6,11 +6,14 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { ClipContentRenderer } from "../../../components/clips/ClipContentRenderer";
 import { CardActionMenu } from "../../../components/shell/CardActionMenu";
 import { ListColumn } from "../../../components/shell/ListColumn";
+import { ListContentSkeleton } from "../../../components/shell/ListContentSkeleton";
 import { PrototypeIcon, type PrototypeIconName } from "../../../components/shell/PrototypeIcon";
 import { useAISidebarContext } from "../../../components/shell/AISidebar";
 import { ReaderBackToTopButton } from "../../../components/shell/ReaderBackToTopButton";
+import { ReaderContentSkeleton } from "../../../components/shell/ReaderContentSkeleton";
 import { ReaderToolbar } from "../../../components/shell/ReaderToolbar";
 import { ReaderToc } from "../../../components/shell/ReaderToc";
+import { useSkeletonGate } from "../../../lib/use-skeleton-gate";
 import { useReaderToolbarTitleVisibility } from "../../../components/shell/useReaderToolbarTitleVisibility";
 import { FloatingMenuButton, FloatingMenuLink, PopoverMenu } from "../../../components/ui/FloatingMenu";
 import { useToast } from "../../../components/ui/ToastProvider";
@@ -166,6 +169,7 @@ export default function FeedsPage() {
     restoreKey: loading ? "loading" : "ready",
   });
   const selectedEntryToc = useMemo(() => buildHtmlToc(selectedEntry?.content ?? ""), [selectedEntry?.content]);
+  const feedLoadGate = useSkeletonGate(loading || !feedsLoaded);
   const { setContentContext } = useAISidebarContext();
   const emptyState = useMemo(
     () => getFeedEmptyState({ feedId: effectiveFeedId, selectedFeed, feedsLoaded }),
@@ -441,8 +445,13 @@ export default function FeedsPage() {
             <FeedPlaceholder icon={currentType.icon} title={`${currentType.label}订阅还在路上`} />
           ) : error ? (
             <p className="mewmo-list-card text-coral">{error}</p>
-          ) : loading ? (
-            <p className="mewmo-list-card">正在检查订阅条目...</p>
+          ) : !feedLoadGate.ready ? (
+            <ListContentSkeleton
+              active
+              variant="media"
+              progress={feedLoadGate.progress}
+              label="正在加载订阅"
+            />
           ) : visibleEntries.length === 0 ? (
             <FeedPlaceholder
               icon="rss"
@@ -531,6 +540,15 @@ export default function FeedsPage() {
         <div ref={scrollRef} className="mewmo-reader-scroll">
           {selectedEntry ? (
             <FeedReader entry={selectedEntry} />
+          ) : !feedLoadGate.ready ? (
+            <article className="mewmo-document mewmo-document--clip">
+              <ReaderContentSkeleton
+                active
+                showTitle
+                progress={feedLoadGate.progress}
+                label="正在加载订阅内容"
+              />
+            </article>
           ) : (
             <article className="mewmo-document mewmo-document--empty">
               <h1>{isDeferredType ? `${currentType.label}订阅待开发` : "选择一篇订阅条目"}</h1>
