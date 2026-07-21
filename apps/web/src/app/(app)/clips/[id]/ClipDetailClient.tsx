@@ -5,6 +5,7 @@ import { ClipContentRenderer } from "../../../../components/clips/ClipContentRen
 import { CardActionMenu } from "../../../../components/shell/CardActionMenu";
 import { ListColumn } from "../../../../components/shell/ListColumn";
 import { ReaderBackToTopButton } from "../../../../components/shell/ReaderBackToTopButton";
+import { ReaderContentSkeleton } from "../../../../components/shell/ReaderContentSkeleton";
 import { ReaderToolbar } from "../../../../components/shell/ReaderToolbar";
 import { ReaderToc } from "../../../../components/shell/ReaderToc";
 import {
@@ -349,6 +350,7 @@ export function ClipDetailClient({
                   onRefresh={() => void refreshClip(item)}
                   onCopyLink={() => void copyClipUrl(item)}
                   href={item.url}
+                  moveToKnowledgeTarget={{ kind: "clip", clipId: item.id, title: item.title }}
                 />
               </article>
             );
@@ -367,6 +369,7 @@ export function ClipDetailClient({
           onDelete={selectedClip ? () => void deleteClip(selectedClip) : undefined}
           onRefresh={selectedClip ? () => void refreshClip(selectedClip) : undefined}
           onCopyLink={selectedClip ? () => void copyClipUrl(selectedClip) : undefined}
+          moveToKnowledgeTarget={selectedClip ? { kind: "clip", clipId: selectedClip.id, title: selectedClip.title } : undefined}
         />
         <ReaderToc
           items={toc}
@@ -379,31 +382,38 @@ export function ClipDetailClient({
           {selectedClip ? (
             <article className="mewmo-document mewmo-document--clip">
               <h1>{selectedClip.title}</h1>
-              <div className="mewmo-doc-meta">
-                {articleMetaItems(selectedClip).map((item, index) => (
-                  <span key={`${item}-${index}`}>
-                    {index > 0 && <b aria-hidden="true">·</b>}
-                    {item}
-                  </span>
-                ))}
-                <span>
-                  <b aria-hidden="true">·</b>
-                  <a
-                    className="mewmo-doc-meta__link"
-                    href={selectedClip.url}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    原文
-                  </a>
-                </span>
-              </div>
-              <ClipContentRenderer
-                html={selectedClip.content ?? ""}
-                sourceUrl={selectedClip.url}
-                contentKey={selectedClip.id}
-                loading={isSelectedClipLoading || selectedClip.fetchStatus === "queued" || selectedClip.fetchStatus === "fetching"}
-              />
+              {(isSelectedClipLoading || selectedClip.fetchStatus === "queued" || selectedClip.fetchStatus === "fetching") &&
+              !selectedClip.content ? (
+                <ReaderContentSkeleton active showTitle={false} label="正在加载正文" />
+              ) : (
+                <>
+                  <div className="mewmo-doc-meta">
+                    {articleMetaItems(selectedClip).map((item, index) => (
+                      <span key={`${item}-${index}`}>
+                        {index > 0 && <b aria-hidden="true">·</b>}
+                        {item}
+                      </span>
+                    ))}
+                    <span>
+                      <b aria-hidden="true">·</b>
+                      <a
+                        className="mewmo-doc-meta__link"
+                        href={selectedClip.url}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        原文
+                      </a>
+                    </span>
+                  </div>
+                  <ClipContentRenderer
+                    html={selectedClip.content ?? ""}
+                    sourceUrl={selectedClip.url}
+                    contentKey={selectedClip.id}
+                    loading={isSelectedClipLoading || selectedClip.fetchStatus === "queued" || selectedClip.fetchStatus === "fetching"}
+                  />
+                </>
+              )}
             </article>
           ) : (
             <article className="mewmo-document mewmo-document--empty">

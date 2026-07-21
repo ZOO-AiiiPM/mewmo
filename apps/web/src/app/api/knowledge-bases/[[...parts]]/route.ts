@@ -9,6 +9,9 @@ import {
 } from "@mewmo/shared";
 import {
   KnowledgeFolderDepthError,
+  KnowledgeImportDuplicateError,
+  KnowledgeImportSourceError,
+  KnowledgeImportTargetError,
   createKnowledgeBasesRepository,
 } from "@mewmo/db";
 
@@ -131,6 +134,12 @@ export async function POST(request: Request, { params }: { params: Promise<Knowl
   } catch (error) {
     if (error instanceof KnowledgeFolderDepthError) {
       return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    if (error instanceof KnowledgeImportDuplicateError) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
+    if (error instanceof KnowledgeImportSourceError || error instanceof KnowledgeImportTargetError) {
+      return notFound();
     }
     throw error;
   }

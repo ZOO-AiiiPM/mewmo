@@ -7,6 +7,7 @@ import {
   isNeutralInlineColor,
   sanitizeClipHtml,
 } from "../../lib/clip-content";
+import { ReaderContentSkeleton } from "../shell/ReaderContentSkeleton";
 
 interface ClipContentRendererProps {
   html: string;
@@ -78,12 +79,7 @@ export function ClipContentRenderer({
   }, [contentKey, contentHtml]);
 
   if (loading && !contentHtml) {
-    return (
-      <div className="mewmo-empty-state" aria-live="polite">
-        <span className="mewmo-spinner" aria-hidden="true" />
-        <p>正在加载正文...</p>
-      </div>
-    );
+    return <ReaderContentSkeleton active showTitle={false} label="正在加载正文" />;
   }
 
   if (!contentHtml) {
@@ -92,6 +88,7 @@ export function ClipContentRenderer({
 
   return (
     <div
+      key={contentKey}
       ref={contentRef}
       className="mewmo-clip-prose"
       dangerouslySetInnerHTML={{ __html: contentHtml }}

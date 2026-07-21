@@ -317,15 +317,6 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
     setOpenMenu(null);
   };
 
-  const reloadKnowledgeBases = async () => {
-    const data = await loadWorkspaceResource(workspaceResourceKeys.knowledgeBases(), async () => {
-      const response = await fetch("/api/knowledge-bases");
-      if (!response.ok) throw new Error("Failed to load knowledge bases");
-      return (await response.json()) as SidebarKnowledgeBase[];
-    });
-    setKnowledgeBases(Array.isArray(data) ? data : []);
-  };
-
   const loadKnowledgeTree = async (base: SidebarKnowledgeBase) => {
     const key = workspaceResourceKeys.knowledgeTree(base.id);
     const cachedTree = getWorkspaceResource<SidebarKnowledgeTree>(key)?.value ?? null;
@@ -755,13 +746,7 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
             </FloatingMenuButton>
           }
         >
-          {knowledgeBases.length === 0 ? (
-            <>
-              <SidebarButton icon="book" label="产品设计" onClick={() => void reloadKnowledgeBases()} muted />
-              <SidebarButton icon="book" label="技术笔记" onClick={() => void reloadKnowledgeBases()} muted />
-            </>
-          ) : (
-            knowledgeBases.map((base) => (
+          {knowledgeBases.map((base) => (
               <div key={base.id} className="mewmo-knowledge-base-row">
                 <button
                   type="button"
@@ -800,8 +785,7 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
                   </FloatingMenuButton>
                 </FloatingMenu>
               </div>
-            ))
-          )}
+            ))}
         </SidebarGroup>
 
         <SidebarGroup
@@ -1710,15 +1694,17 @@ function SidebarLink({
   active?: boolean;
   badge?: string | undefined;
 }) {
-  const { beginNavigation } = useWorkspaceNavigation();
+  const { beginNavigation, pendingHref } = useWorkspaceNavigation();
+  const pending = pendingHref === href;
   return (
     <Link
       href={href}
       scroll={false}
-      className={`mewmo-nav-row mewmo-nav-row--sub ${active ? "mewmo-nav-row--active" : ""}`}
+      className={`mewmo-nav-row mewmo-nav-row--sub ${active ? "mewmo-nav-row--active" : ""} ${pending ? "mewmo-nav-row--pending" : ""}`}
       onClick={() => beginNavigation(href)}
+      aria-busy={pending}
     >
-      <span className="mewmo-nav-row__icon"><PrototypeIcon name={icon} dual filled={Boolean(active)} /></span>
+      <span className="mewmo-nav-row__icon"><PrototypeIcon name={icon} dual filled={Boolean(active || pending)} /></span>
       <span className="mewmo-nav-row__label">{label}</span>
       {badge && <span className="mewmo-nav-row__badge">{badge}</span>}
     </Link>

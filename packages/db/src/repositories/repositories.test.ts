@@ -5,6 +5,9 @@ import { createFeedEntriesRepository } from "./feed-entries";
 import { createFeedsRepository } from "./feeds";
 import {
   KnowledgeFolderDepthError,
+  KnowledgeImportDuplicateError,
+  KnowledgeImportSourceError,
+  KnowledgeImportTargetError,
   createKnowledgeBasesRepository,
 } from "./knowledge-bases";
 import { createNotesRepository } from "./notes";
@@ -408,7 +411,14 @@ describe("repositories", () => {
 
   it("imports selected clips into a knowledge folder as user-owned items", async () => {
     const create = vi.fn().mockResolvedValue({ id: "kb-item-1" });
-    const repo = createKnowledgeBasesRepository({ knowledgeItem: { create } });
+    const folderFindFirst = vi.fn().mockResolvedValue({ id: "folder-1" });
+    const clipFindFirst = vi.fn().mockResolvedValue({ id: "clip-1" });
+    const itemFindMany = vi.fn().mockResolvedValue([]);
+    const repo = createKnowledgeBasesRepository({
+      clip: { findFirst: clipFindFirst },
+      knowledgeFolder: { findFirst: folderFindFirst },
+      knowledgeItem: { create, findMany: itemFindMany },
+    });
 
     await repo.importItems("user-1", "kb-1", {
       folderId: "folder-1",
@@ -425,6 +435,71 @@ describe("repositories", () => {
         userId: "user-1",
       },
     });
+    expect(folderFindFirst).toHaveBeenCalledWith({
+      where: { id: "folder-1", knowledgeBaseId: "kb-1", userId: "user-1", deletedAt: null },
+      select: { id: true },
+    });
+    expect(clipFindFirst).toHaveBeenCalledWith({
+      where: { id: "clip-1", userId: "user-1", deletedAt: null },
+      select: { id: true },
+    });
+    expect(itemFindMany).toHaveBeenCalledWith({
+      where: {
+        knowledgeBaseId: "kb-1",
+        folderId: "folder-1",
+        clipId: "clip-1",
+        userId: "user-1",
+        deletedAt: null,
+      },
+      select: { clipId: true },
+      take: 1,
+    });
+  });
+
+  it("rejects imports into a folder outside the target knowledge base", async () => {
+    const create = vi.fn();
+    const repo = createKnowledgeBasesRepository({
+      knowledgeFolder: { findFirst: vi.fn().mockResolvedValue(null) },
+      knowledgeItem: { create },
+    });
+
+    await expect(
+      repo.importItems("user-1", "kb-1", {
+        folderId: "other-folder",
+        items: [{ kind: "note", noteId: "note-1" }],
+      }),
+    ).rejects.toBeInstanceOf(KnowledgeImportTargetError);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("rejects importing another user's source content", async () => {
+    const create = vi.fn();
+    const repo = createKnowledgeBasesRepository({
+      note: { findFirst: vi.fn().mockResolvedValue(null) },
+      knowledgeItem: { create },
+    });
+
+    await expect(
+      repo.importItems("user-1", "kb-1", {
+        items: [{ kind: "note", noteId: "note-other-user" }],
+      }),
+    ).rejects.toBeInstanceOf(KnowledgeImportSourceError);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("rejects duplicate content in the same knowledge directory", async () => {
+    const create = vi.fn();
+    const repo = createKnowledgeBasesRepository({
+      feedEntry: { findFirst: vi.fn().mockResolvedValue({ id: "entry-1" }) },
+      knowledgeItem: { create, findMany: vi.fn().mockResolvedValue([{ feedEntryId: "entry-1" }]) },
+    });
+
+    await expect(
+      repo.importItems("user-1", "kb-1", {
+        items: [{ kind: "feed_entry", feedEntryId: "entry-1" }],
+      }),
+    ).rejects.toBeInstanceOf(KnowledgeImportDuplicateError);
+    expect(create).not.toHaveBeenCalled();
   });
 
   it("creates local knowledge assets with prototype list position", async () => {

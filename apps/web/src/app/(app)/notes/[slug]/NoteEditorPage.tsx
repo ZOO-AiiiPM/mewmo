@@ -17,6 +17,8 @@ import {
   PrototypeIcon,
 } from "../../../../components/shell/PrototypeIcon";
 import { ReaderBackToTopButton } from "../../../../components/shell/ReaderBackToTopButton";
+import { ListContentSkeleton } from "../../../../components/shell/ListContentSkeleton";
+import { ReaderContentSkeleton } from "../../../../components/shell/ReaderContentSkeleton";
 import { ReaderToolbar } from "../../../../components/shell/ReaderToolbar";
 import { ReaderToc } from "../../../../components/shell/ReaderToc";
 import {
@@ -70,12 +72,7 @@ const NoteEditor = dynamic(
     })),
   {
     ssr: false,
-    loading: () => (
-      <div className="mewmo-empty-state">
-        <span className="mewmo-spinner" aria-hidden="true" />
-        <p>正在加载编辑器...</p>
-      </div>
-    ),
+    loading: () => <ReaderContentSkeleton active label="正在加载编辑器" />,
   },
 );
 
@@ -148,7 +145,6 @@ export function NoteEditorPage({
     }
     return notes[0] ?? null;
   }, [notes, selectedSlug]);
-
   const loadNoteDetail = useCallback((item: NoteListItem) => {
     const cachedDetail = getCachedWorkspaceDetail<NoteListItem>("notes", item.id);
     if (cachedDetail && isWorkspaceDetailFresh("notes", item)) {
@@ -563,10 +559,7 @@ export function NoteEditorPage({
         }
       >
         {isLoading ? (
-          <div className="mewmo-list-empty">
-            <span className="mewmo-spinner" aria-hidden="true" />
-            <p>正在加载笔记...</p>
-          </div>
+          <ListContentSkeleton active variant="text" label="正在加载笔记" />
         ) : loadError && notes.length === 0 ? (
           <div className="mewmo-list-empty">
             <PrototypeIcon name="empty" size={36} />
@@ -649,6 +642,7 @@ export function NoteEditorPage({
                   onTogglePin={() => void togglePin(item)}
                   onShare={() => void shareNote(item)}
                   onExport={() => showToast("已导出 Markdown 文件", "success")}
+                  moveToKnowledgeTarget={{ kind: "note", noteId: item.id, title: item.title }}
                 />
               </article>
             );
@@ -675,6 +669,7 @@ export function NoteEditorPage({
               : undefined
           }
           onExport={selectedNote ? () => showToast("已导出 Markdown 文件", "success") : undefined}
+          moveToKnowledgeTarget={selectedNote ? { kind: "note", noteId: selectedNote.id, title: selectedNote.title } : undefined}
         />
         <ReaderToc
           items={toc}
@@ -688,10 +683,7 @@ export function NoteEditorPage({
         >
           {selectedNote ? (
             selectedNote.content === undefined ? (
-              <div className="mewmo-empty-state">
-                <span className="mewmo-spinner" aria-hidden="true" />
-                <p>正在加载笔记...</p>
-              </div>
+              <ReaderContentSkeleton active showTitle label="正在加载笔记" />
             ) : (
               <NoteEditor
                 key={`${selectedNote.id}:${agentEditorRevision}`}
@@ -699,14 +691,16 @@ export function NoteEditorPage({
                 initialTitle={selectedNote.title}
                 initialSummary={selectedNote.summary}
                 initialContent={selectedNote.content}
-                    updatedAt={selectedNote.updatedAt}
-                    serverVersion={selectedNote.version}
+                updatedAt={selectedNote.updatedAt}
+                serverVersion={selectedNote.version}
                 autoFocusTitle={selectedNote.title === "Untitled" && !selectedNote.content.trim()}
                 onContentChange={updateSelectedNoteContent}
                 onTitleChange={updateSelectedNoteTitle}
                 embedded
               />
             )
+          ) : isLoading ? (
+            <ReaderContentSkeleton active showTitle label="正在加载笔记" />
           ) : (
             <article className="mewmo-document mewmo-document--empty">
               <h1>选择一条笔记</h1>

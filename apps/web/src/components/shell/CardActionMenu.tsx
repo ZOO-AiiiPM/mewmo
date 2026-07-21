@@ -1,6 +1,10 @@
 "use client";
 
 import { useRef } from "react";
+import {
+  MoveToKnowledgeMenuItem,
+  type MoveToKnowledgeTarget,
+} from "../knowledge/MoveToKnowledgeMenuItem";
 import { PopoverMenu } from "../ui/FloatingMenu";
 import { PrototypeIcon } from "./PrototypeIcon";
 
@@ -21,6 +25,7 @@ interface CardActionMenuProps {
   onRefresh?: () => void;
   onCopyLink?: () => void;
   href?: string;
+  moveToKnowledgeTarget?: MoveToKnowledgeTarget | undefined;
 }
 
 export function CardActionMenu({
@@ -38,6 +43,7 @@ export function CardActionMenu({
   onRefresh,
   onCopyLink,
   href,
+  moveToKnowledgeTarget,
 }: CardActionMenuProps) {
   const buttonRef = useRef<HTMLButtonElement>(null);
 
@@ -61,7 +67,9 @@ export function CardActionMenu({
             className="mewmo-card-menu__item"
             onClick={() => run(onFavorite)}
           >
-            <span className="mewmo-card-menu__icon"><PrototypeIcon name="bookmark" size={16} dual /></span>
+            <span className="mewmo-card-menu__icon">
+              <PrototypeIcon name="bookmark" size={16} dual />
+            </span>
             <span>{favoriteActive ? "已收藏" : "收藏"}</span>
           </button>
           <button
@@ -69,7 +77,9 @@ export function CardActionMenu({
             className="mewmo-card-menu__item"
             onClick={() => run(onCopyLink)}
           >
-            <span className="mewmo-card-menu__icon"><PrototypeIcon name="copy" size={16} /></span>
+            <span className="mewmo-card-menu__icon">
+              <PrototypeIcon name="copy" size={16} />
+            </span>
             <span>复制链接</span>
           </button>
         </>
@@ -80,7 +90,9 @@ export function CardActionMenu({
             className="mewmo-card-menu__item mewmo-card-menu__item--danger"
             onClick={() => run(onDelete)}
           >
-            <span className="mewmo-card-menu__icon"><PrototypeIcon name="trash" size={16} /></span>
+            <span className="mewmo-card-menu__icon">
+              <PrototypeIcon name="trash" size={16} />
+            </span>
             <span>删除</span>
           </button>
           <button
@@ -88,7 +100,9 @@ export function CardActionMenu({
             className="mewmo-card-menu__item"
             onClick={() => run(onTogglePin)}
           >
-            <span className="mewmo-card-menu__icon"><PrototypeIcon name="pin" size={16} /></span>
+            <span className="mewmo-card-menu__icon">
+              <PrototypeIcon name="pin" size={16} />
+            </span>
             <span>{pinned ? "取消置顶" : "置顶"}</span>
           </button>
           <button
@@ -96,7 +110,9 @@ export function CardActionMenu({
             className="mewmo-card-menu__item"
             onClick={() => run(onShare)}
           >
-            <span className="mewmo-card-menu__icon"><PrototypeIcon name="share" size={16} /></span>
+            <span className="mewmo-card-menu__icon">
+              <PrototypeIcon name="share" size={16} />
+            </span>
             <span>分享</span>
           </button>
           <button
@@ -104,7 +120,9 @@ export function CardActionMenu({
             className="mewmo-card-menu__item"
             onClick={() => run(onExport)}
           >
-            <span className="mewmo-card-menu__icon"><PrototypeIcon name="export" size={16} /></span>
+            <span className="mewmo-card-menu__icon">
+              <PrototypeIcon name="export" size={16} />
+            </span>
             <span>导出</span>
           </button>
         </>
@@ -115,7 +133,9 @@ export function CardActionMenu({
             className="mewmo-card-menu__item mewmo-card-menu__item--danger"
             onClick={() => run(onDelete)}
           >
-            <span className="mewmo-card-menu__icon"><PrototypeIcon name="trash" size={16} /></span>
+            <span className="mewmo-card-menu__icon">
+              <PrototypeIcon name="trash" size={16} />
+            </span>
             <span>删除</span>
           </button>
           <button
@@ -123,7 +143,9 @@ export function CardActionMenu({
             className="mewmo-card-menu__item"
             onClick={() => run(onRefresh)}
           >
-            <span className="mewmo-card-menu__icon"><PrototypeIcon name="sync" size={16} /></span>
+            <span className="mewmo-card-menu__icon">
+              <PrototypeIcon name="sync" size={16} />
+            </span>
             <span>刷新</span>
           </button>
           <button
@@ -131,7 +153,9 @@ export function CardActionMenu({
             className="mewmo-card-menu__item"
             onClick={() => run(onCopyLink)}
           >
-            <span className="mewmo-card-menu__icon"><PrototypeIcon name="copy" size={16} /></span>
+            <span className="mewmo-card-menu__icon">
+              <PrototypeIcon name="copy" size={16} />
+            </span>
             <span>复制链接</span>
           </button>
           <a
@@ -141,10 +165,15 @@ export function CardActionMenu({
             rel="noreferrer"
             onClick={() => onOpenChange(false)}
           >
-            <span className="mewmo-card-menu__icon"><PrototypeIcon name="external" size={16} /></span>
+            <span className="mewmo-card-menu__icon">
+              <PrototypeIcon name="external" size={16} />
+            </span>
             <span>浏览器打开</span>
           </a>
         </>
+      )}
+      {moveToKnowledgeTarget && (
+        <MoveToKnowledgeMenuItem target={moveToKnowledgeTarget} />
       )}
     </PopoverMenu>
   );

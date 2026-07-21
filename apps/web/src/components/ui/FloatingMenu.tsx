@@ -226,6 +226,10 @@ export function FloatingMenu(props: PopoverMenuProps) {
   return <PopoverMenu {...props} />;
 }
 
+export function useFloatingMenuClose() {
+  return useContext(FloatingMenuCloseContext);
+}
+
 function FloatingMenuIcon({ icon }: { icon: PrototypeIconName }) {
   return (
     <span className="mewmo-floating-menu__icon">

@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ClipContentRenderer } from "../../../components/clips/ClipContentRenderer";
 import { ReaderBackToTopButton } from "../../../components/shell/ReaderBackToTopButton";
+import { ListContentSkeleton } from "../../../components/shell/ListContentSkeleton";
+import { ReaderContentSkeleton } from "../../../components/shell/ReaderContentSkeleton";
 import { ListColumn } from "../../../components/shell/ListColumn";
 import { PrototypeIcon, type PrototypeIconName } from "../../../components/shell/PrototypeIcon";
 import { ReaderToolbar } from "../../../components/shell/ReaderToolbar";
@@ -291,15 +293,11 @@ export default function TrashPage() {
   const detailIsLoading = Boolean(
     selectedListItem && loadingDetailKey === itemKey(selectedListItem),
   );
-
   return (
     <div className="mewmo-workspace">
       <ListColumn title="废纸篓" searchPlaceholder="搜索废纸篓..." onSearchChange={setQuery}>
         {isLoading ? (
-          <div className="mewmo-list-empty">
-            <span className="mewmo-spinner" aria-hidden="true" />
-            <p>正在加载废纸篓...</p>
-          </div>
+          <ListContentSkeleton active variant="mixed" label="正在加载废纸篓" />
         ) : error && items.length === 0 ? (
           <div className="mewmo-list-empty">
             <PrototypeIcon name="empty" size={36} />
@@ -380,9 +378,8 @@ export default function TrashPage() {
         />
         <div ref={scrollRef} className="mewmo-reader-scroll">
           {detailIsLoading && !selectedDetail ? (
-            <article className="mewmo-document mewmo-document--empty">
-              <span className="mewmo-spinner" aria-hidden="true" />
-              <p>正在加载内容...</p>
+            <article className="mewmo-document mewmo-document--clip">
+              <ReaderContentSkeleton active showTitle label="正在加载内容" />
             </article>
           ) : detailError && !selectedDetail ? (
             <article className="mewmo-document mewmo-document--empty">
