@@ -2,6 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import {
+  MoveToKnowledgeMenuItem,
+  type MoveToKnowledgeTarget,
+} from "../knowledge/MoveToKnowledgeMenuItem";
 import { PopoverMenu } from "../ui/FloatingMenu";
 import { PrototypeIcon } from "./PrototypeIcon";
 
@@ -10,6 +14,7 @@ interface FeedArticleMenuProps {
   favoriteActive?: boolean;
   onFavorite?: (() => void) | undefined;
   onCopyLink?: (() => void) | undefined;
+  moveToKnowledgeTarget?: MoveToKnowledgeTarget | undefined;
 }
 
 export function FeedArticleMenu({
@@ -17,6 +22,7 @@ export function FeedArticleMenu({
   favoriteActive = false,
   onFavorite,
   onCopyLink,
+  moveToKnowledgeTarget,
 }: FeedArticleMenuProps) {
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -53,6 +59,9 @@ export function FeedArticleMenu({
         boundary="main"
         className="mewmo-card-menu mewmo-reader-menu"
       >
+        {moveToKnowledgeTarget && (
+          <MoveToKnowledgeMenuItem target={moveToKnowledgeTarget} />
+        )}
         <button
           type="button"
           className="mewmo-card-menu__item"

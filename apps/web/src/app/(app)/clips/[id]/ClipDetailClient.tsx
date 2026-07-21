@@ -349,6 +349,7 @@ export function ClipDetailClient({
                   onRefresh={() => void refreshClip(item)}
                   onCopyLink={() => void copyClipUrl(item)}
                   href={item.url}
+                  moveToKnowledgeTarget={{ kind: "clip", clipId: item.id, title: item.title }}
                 />
               </article>
             );
@@ -367,6 +368,7 @@ export function ClipDetailClient({
           onDelete={selectedClip ? () => void deleteClip(selectedClip) : undefined}
           onRefresh={selectedClip ? () => void refreshClip(selectedClip) : undefined}
           onCopyLink={selectedClip ? () => void copyClipUrl(selectedClip) : undefined}
+          moveToKnowledgeTarget={selectedClip ? { kind: "clip", clipId: selectedClip.id, title: selectedClip.title } : undefined}
         />
         <ReaderToc
           items={toc}

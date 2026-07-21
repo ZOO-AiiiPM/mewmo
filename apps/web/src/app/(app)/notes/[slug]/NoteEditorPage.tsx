@@ -649,6 +649,7 @@ export function NoteEditorPage({
                   onTogglePin={() => void togglePin(item)}
                   onShare={() => void shareNote(item)}
                   onExport={() => showToast("已导出 Markdown 文件", "success")}
+                  moveToKnowledgeTarget={{ kind: "note", noteId: item.id, title: item.title }}
                 />
               </article>
             );
@@ -675,6 +676,7 @@ export function NoteEditorPage({
               : undefined
           }
           onExport={selectedNote ? () => showToast("已导出 Markdown 文件", "success") : undefined}
+          moveToKnowledgeTarget={selectedNote ? { kind: "note", noteId: selectedNote.id, title: selectedNote.title } : undefined}
         />
         <ReaderToc
           items={toc}

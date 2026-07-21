@@ -5211,6 +5211,68 @@ html.light .acct-submenu {
   opacity: 0.55;
 }
 
+.mewmo-knowledge-cascade {
+  width: min(210px, calc(100vw - 24px));
+}
+
+.mewmo-knowledge-cascade--destinations {
+  max-height: min(360px, calc(100vh - 24px));
+  overflow-y: auto;
+}
+
+.mewmo-knowledge-cascade__label {
+  margin: 0;
+  padding: 5px 10px 4px;
+  color: var(--ink-faint);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.mewmo-knowledge-cascade__row {
+  display: flex;
+  width: 100%;
+  min-height: 30px;
+  align-items: center;
+  gap: 9px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink);
+  padding-top: 7px;
+  padding-right: 10px;
+  padding-bottom: 7px;
+  text-align: left;
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.mewmo-knowledge-cascade__row > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mewmo-knowledge-cascade__row:hover,
+.mewmo-knowledge-cascade__row:focus-visible {
+  background: var(--hover);
+  outline: none;
+}
+
+.mewmo-knowledge-cascade__row:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.mewmo-knowledge-cascade__status {
+  margin: 0;
+  padding: 7px 10px;
+  color: var(--ink-faint);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .mewmo-marketing-page {
   --canvas: #232327;
   --raised: #2e2f34;
