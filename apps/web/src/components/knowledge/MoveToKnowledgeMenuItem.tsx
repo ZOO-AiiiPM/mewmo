@@ -1,15 +1,6 @@
 "use client";
 
-import {
-  cloneElement,
-  isValidElement,
-  useCallback,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-  type Ref,
-} from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   buildKnowledgeFolderTree,
   type KnowledgeFolderNode,
@@ -41,80 +32,15 @@ interface KnowledgeTreeResponse extends KnowledgeBaseOption {
 
 type LoadState = "idle" | "loading" | "error" | "ready";
 
-function FloatingSubmenu({
-  label,
-  icon,
-  children,
-  onOpen,
-}: {
-  label: string;
-  icon: "library";
-  children: ReactNode;
-  onOpen?: () => void;
-}) {
-  const itemRef = useRef<HTMLDivElement>(null);
-  const submenuRef = useRef<HTMLDivElement>(null);
-  const [placement, setPlacement] = useState({ left: false, up: false });
+type View =
+  | { kind: "bases" }
+  | { kind: "folders"; baseId: string; baseTitle: string };
 
-  const openSubmenu = useCallback(() => {
-    const item = itemRef.current;
-    const submenu = submenuRef.current;
-    if (!item || !submenu || typeof window === "undefined") return;
-
-    const itemRect = item.getBoundingClientRect();
-    const submenuRect = submenu.getBoundingClientRect();
-    const submenuWidth = submenuRect.width || submenu.offsetWidth;
-    const submenuHeight = submenuRect.height || submenu.offsetHeight;
-    const gutter = 8;
-    const left = itemRect.right + 4 + submenuWidth + gutter > window.innerWidth;
-    const up = itemRect.top - 6 + submenuHeight + gutter > window.innerHeight;
-
-    setPlacement((current) =>
-      current.left === left && current.up === up ? current : { left, up },
-    );
-    onOpen?.();
-  }, [onOpen]);
-
-  const submenu = isValidElement(children)
-    ? cloneElement(children, { ref: submenuRef } as {
-        ref: Ref<HTMLDivElement>;
-      })
-    : children;
-
-  return (
-    <div
-      ref={itemRef}
-      className={`mewmo-floating-menu__item acct-menu__item acct-menu__has-sub ${placement.left ? "acct-menu__has-sub--left" : ""} ${placement.up ? "acct-menu__has-sub--up" : ""}`}
-      role="menuitem"
-      tabIndex={0}
-      aria-haspopup="menu"
-      onMouseEnter={openSubmenu}
-      onFocus={openSubmenu}
-      onClick={(event) => {
-        if ((event.target as Element).closest(".acct-submenu")) return;
-        itemRef.current?.focus();
-        openSubmenu();
-      }}
-      onKeyDown={(event) => {
-        if (event.target !== event.currentTarget || event.key !== "ArrowRight")
-          return;
-        event.preventDefault();
-        openSubmenu();
-        submenuRef.current
-          ?.querySelector<HTMLElement>(
-            "button:not(:disabled), [role='menuitem'][tabindex='0']",
-          )
-          ?.focus();
-      }}
-    >
-      <span className="mewmo-floating-menu__icon">
-        <PrototypeIcon name={icon} size={16} />
-      </span>
-      <span>{label}</span>
-      <PrototypeIcon name="caret" size={12} className="acct-chev" />
-      {submenu}
-    </div>
-  );
+function reflowPopover() {
+  if (typeof window === "undefined") return;
+  window.requestAnimationFrame(() => {
+    window.dispatchEvent(new Event("resize"));
+  });
 }
 
 export function MoveToKnowledgeMenuItem({
@@ -124,6 +50,8 @@ export function MoveToKnowledgeMenuItem({
 }) {
   const { showToast } = useToast();
   const closeMenu = useFloatingMenuClose();
+  const [expanded, setExpanded] = useState(false);
+  const [view, setView] = useState<View>({ kind: "bases" });
   const [bases, setBases] = useState<KnowledgeBaseOption[]>([]);
   const [basesState, setBasesState] = useState<LoadState>("idle");
   const [foldersByBase, setFoldersByBase] = useState<
@@ -133,6 +61,10 @@ export function MoveToKnowledgeMenuItem({
     {},
   );
   const [submittingTarget, setSubmittingTarget] = useState("");
+
+  useEffect(() => {
+    if (expanded) reflowPopover();
+  }, [expanded, view, basesState, folderStates]);
 
   const loadBases = useCallback(async () => {
     if (basesState === "loading" || basesState === "ready") return;
@@ -171,6 +103,22 @@ export function MoveToKnowledgeMenuItem({
     [folderStates, showToast],
   );
 
+  const openCard = () => {
+    setExpanded(true);
+    setView({ kind: "bases" });
+    void loadBases();
+  };
+
+  const collapseCard = () => {
+    setExpanded(false);
+    setView({ kind: "bases" });
+  };
+
+  const openFolders = (base: KnowledgeBaseOption) => {
+    setView({ kind: "folders", baseId: base.id, baseTitle: base.title });
+    void loadFolders(base.id);
+  };
+
   const move = async (baseId: string, folderId: string | null) => {
     const destination = `${baseId}:${folderId ?? "root"}`;
     if (submittingTarget) return;
@@ -208,88 +156,151 @@ export function MoveToKnowledgeMenuItem({
     }
   };
 
+  if (!expanded) {
+    return (
+      <button
+        type="button"
+        className="mewmo-card-menu__item"
+        aria-haspopup="dialog"
+        aria-expanded={false}
+        onClick={openCard}
+      >
+        <span className="mewmo-card-menu__icon">
+          <PrototypeIcon name="library" size={16} dual />
+        </span>
+        <span>移动到知识库</span>
+      </button>
+    );
+  }
+
+  const folderState =
+    view.kind === "folders" ? (folderStates[view.baseId] ?? "idle") : "idle";
+  const flatFolders =
+    view.kind === "folders"
+      ? flattenFolders(foldersByBase[view.baseId] ?? [])
+      : [];
+
   return (
-    <FloatingSubmenu
-      label="移动到知识库"
-      icon="library"
-      onOpen={() => void loadBases()}
+    <div
+      className="mewmo-move-knowledge-card"
+      role="dialog"
+      aria-label="移动到知识库"
     >
-      <div
-        className="acct-submenu mewmo-knowledge-cascade"
-        role="menu"
-        aria-label="知识库"
-      >
-        <p className="mewmo-knowledge-cascade__label">知识库</p>
-        {basesState === "loading" && <MenuStatus text="正在加载..." />}
-        {basesState === "error" && <MenuStatus text="加载失败，再次展开重试" />}
-        {basesState === "ready" && bases.length === 0 && (
-          <MenuStatus text="暂无知识库" />
+      <div className="mewmo-move-knowledge-card__head">
+        {view.kind === "folders" ? (
+          <button
+            type="button"
+            className="mewmo-move-knowledge-card__nav"
+            onClick={() => setView({ kind: "bases" })}
+            aria-label="返回知识库列表"
+          >
+            <PrototypeIcon name="chev-left" size={16} />
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="mewmo-move-knowledge-card__nav"
+            onClick={collapseCard}
+            aria-label="收起"
+          >
+            <PrototypeIcon name="chev-left" size={16} />
+          </button>
         )}
-        {bases.map((base) => (
-          <KnowledgeBaseMenu
-            key={base.id}
-            base={base}
-            folders={foldersByBase[base.id] ?? []}
-            state={folderStates[base.id] ?? "idle"}
-            submittingTarget={submittingTarget}
-            onOpen={() => void loadFolders(base.id)}
-            onMove={(folderId) => void move(base.id, folderId)}
-          />
-        ))}
+        <p className="mewmo-move-knowledge-card__title">
+          {view.kind === "folders" ? view.baseTitle : "移动到知识库"}
+        </p>
       </div>
-    </FloatingSubmenu>
-  );
-}
 
-function KnowledgeBaseMenu({
-  base,
-  folders,
-  state,
-  submittingTarget,
-  onOpen,
-  onMove,
-}: {
-  base: KnowledgeBaseOption;
-  folders: KnowledgeFolderNode[];
-  state: LoadState;
-  submittingTarget: string;
-  onOpen: () => void;
-  onMove: (folderId: string | null) => void;
-}) {
-  const flatFolders = useMemo(() => flattenFolders(folders), [folders]);
-
-  return (
-    <FloatingSubmenu label={base.title} icon="library" onOpen={onOpen}>
-      <div
-        className="acct-submenu mewmo-knowledge-cascade mewmo-knowledge-cascade--destinations"
-        role="menu"
-        aria-label="文件夹"
-      >
-        <p className="mewmo-knowledge-cascade__label">文件夹</p>
-        <DestinationRow
-          label="知识库根级"
-          depth={0}
-          busy={submittingTarget === `${base.id}:root`}
-          disabled={Boolean(submittingTarget)}
-          onClick={() => onMove(null)}
-        />
-        {state === "loading" && <MenuStatus text="正在加载..." />}
-        {state === "error" && <MenuStatus text="加载失败，再次展开重试" />}
-        {state === "ready" && flatFolders.length === 0 && (
-          <MenuStatus text="暂无其他文件夹" />
+      <div className="mewmo-move-knowledge-card__body">
+        {view.kind === "bases" ? (
+          <>
+            <p className="mewmo-move-knowledge-card__label">选择知识库</p>
+            {basesState === "loading" && <MenuStatus text="正在加载..." />}
+            {basesState === "error" && (
+              <button
+                type="button"
+                className="mewmo-move-knowledge-card__row"
+                onClick={() => {
+                  setBasesState("idle");
+                  void loadBases();
+                }}
+              >
+                <span>加载失败，点击重试</span>
+              </button>
+            )}
+            {basesState === "ready" && bases.length === 0 && (
+              <MenuStatus text="暂无知识库，请先创建一个" />
+            )}
+            {bases.map((base) => (
+              <button
+                key={base.id}
+                type="button"
+                className="mewmo-move-knowledge-card__row"
+                onClick={() => openFolders(base)}
+              >
+                <span className="mewmo-card-menu__icon">
+                  <PrototypeIcon name="library" size={16} dual />
+                </span>
+                <span>{base.title}</span>
+                <PrototypeIcon
+                  name="caret"
+                  size={12}
+                  className="mewmo-move-knowledge-card__chev"
+                />
+              </button>
+            ))}
+          </>
+        ) : (
+          <>
+            <p className="mewmo-move-knowledge-card__label">选择文件夹</p>
+            <button
+              type="button"
+              className="mewmo-move-knowledge-card__row"
+              disabled={Boolean(submittingTarget)}
+              onClick={() => void move(view.baseId, null)}
+            >
+              <span className="mewmo-card-menu__icon">
+                <PrototypeIcon name="library" size={16} dual />
+              </span>
+              <span>
+                {submittingTarget === `${view.baseId}:root`
+                  ? "移动中..."
+                  : "知识库根级"}
+              </span>
+            </button>
+            {folderState === "loading" && <MenuStatus text="正在加载..." />}
+            {folderState === "error" && (
+              <button
+                type="button"
+                className="mewmo-move-knowledge-card__row"
+                onClick={() => {
+                  setFolderStates((current) => ({
+                    ...current,
+                    [view.baseId]: "idle",
+                  }));
+                  void loadFolders(view.baseId);
+                }}
+              >
+                <span>加载失败，点击重试</span>
+              </button>
+            )}
+            {folderState === "ready" && flatFolders.length === 0 && (
+              <MenuStatus text="暂无其他文件夹" />
+            )}
+            {flatFolders.map((folder) => (
+              <DestinationRow
+                key={folder.id}
+                label={folder.name}
+                depth={folder.depth}
+                busy={submittingTarget === `${view.baseId}:${folder.id}`}
+                disabled={Boolean(submittingTarget)}
+                onClick={() => void move(view.baseId, folder.id)}
+              />
+            ))}
+          </>
         )}
-        {flatFolders.map((folder) => (
-          <DestinationRow
-            key={folder.id}
-            label={folder.name}
-            depth={folder.depth + 1}
-            busy={submittingTarget === `${base.id}:${folder.id}`}
-            disabled={Boolean(submittingTarget)}
-            onClick={() => onMove(folder.id)}
-          />
-        ))}
       </div>
-    </FloatingSubmenu>
+    </div>
   );
 }
 
@@ -309,12 +320,12 @@ function DestinationRow({
   return (
     <button
       type="button"
-      className="mewmo-knowledge-cascade__row"
+      className="mewmo-move-knowledge-card__row"
       style={{ paddingLeft: 10 + depth * 12 }}
       onClick={onClick}
       disabled={disabled}
     >
-      <span className="mewmo-floating-menu__icon">
+      <span className="mewmo-card-menu__icon">
         <PrototypeIcon name="folder" size={16} dual />
       </span>
       <span>{busy ? "移动中..." : label}</span>
@@ -323,7 +334,7 @@ function DestinationRow({
 }
 
 function MenuStatus({ text }: { text: string }) {
-  return <p className="mewmo-knowledge-cascade__status">{text}</p>;
+  return <p className="mewmo-move-knowledge-card__status">{text}</p>;
 }
 
 function flattenFolders(folders: KnowledgeFolderNode[]): KnowledgeFolderNode[] {
