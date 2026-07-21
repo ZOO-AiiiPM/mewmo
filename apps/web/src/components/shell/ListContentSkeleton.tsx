@@ -1,16 +1,11 @@
 "use client";
 
-import type { CSSProperties } from "react";
-import { useDeferredVisibility } from "../../lib/use-deferred-visibility";
-
 export type ListSkeletonVariant = "text" | "media" | "mixed";
 
 interface ListContentSkeletonProps {
   active?: boolean;
   label?: string;
   count?: number;
-  /** Shared 0–1 progress for one continuous left→right sweep. */
-  progress?: number;
   /** text: notes-like; media: clip/feed with cover; mixed: today/knowledge */
   variant?: ListSkeletonVariant;
 }
@@ -31,17 +26,14 @@ function cardMediaKind(
 export function ListContentSkeleton({
   active = true,
   label = "正在加载列表",
-  count = 5,
-  progress = 0,
+  count = 6,
   variant = "text",
 }: ListContentSkeletonProps) {
-  const visible = useDeferredVisibility(active);
-  if (!visible) return null;
+  if (!active) return null;
 
   return (
     <div
-      className={`mewmo-list-content-skeleton mewmo-list-content-skeleton--${variant} mewmo-skeleton-sweep`}
-      style={{ "--skeleton-p": String(progress) } as CSSProperties}
+      className={`mewmo-list-content-skeleton mewmo-list-content-skeleton--${variant}`}
       aria-busy="true"
       aria-label={label}
     >
@@ -50,11 +42,17 @@ export function ListContentSkeleton({
         return (
           <div
             key={index}
-            className={`mewmo-list-content-skeleton__card${media === "cover" ? " mewmo-list-content-skeleton__card--cover" : ""}`}
+            className={`mewmo-list-content-skeleton__card${
+              media === "cover"
+                ? " mewmo-list-content-skeleton__card--cover"
+                : media === "thumbs"
+                  ? " mewmo-list-content-skeleton__card--thumbs"
+                  : ""
+            }`}
           >
             <span className="mewmo-skeleton-block mewmo-list-content-skeleton__title" />
-            <span className="mewmo-skeleton-block mewmo-list-content-skeleton__line" />
-            <span className="mewmo-skeleton-block mewmo-list-content-skeleton__line mewmo-list-content-skeleton__line--mid" />
+            <span className="mewmo-skeleton-block mewmo-list-content-skeleton__preview" />
+            <span className="mewmo-skeleton-block mewmo-list-content-skeleton__preview mewmo-list-content-skeleton__preview--short" />
             {media === "cover" ? (
               <span className="mewmo-skeleton-block mewmo-list-content-skeleton__cover" />
             ) : null}
@@ -62,10 +60,13 @@ export function ListContentSkeleton({
               <div className="mewmo-list-content-skeleton__thumbs" aria-hidden="true">
                 <span className="mewmo-skeleton-block mewmo-list-content-skeleton__thumb" />
                 <span className="mewmo-skeleton-block mewmo-list-content-skeleton__thumb" />
-                <span className="mewmo-skeleton-block mewmo-list-content-skeleton__thumb" />
               </div>
             ) : null}
-            <span className="mewmo-skeleton-block mewmo-list-content-skeleton__meta" />
+            <div className="mewmo-list-content-skeleton__meta-row" aria-hidden="true">
+              <span className="mewmo-skeleton-block mewmo-list-content-skeleton__meta mewmo-list-content-skeleton__meta--icon" />
+              <span className="mewmo-skeleton-block mewmo-list-content-skeleton__meta mewmo-list-content-skeleton__meta--source" />
+              <span className="mewmo-skeleton-block mewmo-list-content-skeleton__meta mewmo-list-content-skeleton__meta--time" />
+            </div>
           </div>
         );
       })}

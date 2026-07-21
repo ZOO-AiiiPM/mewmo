@@ -8,7 +8,6 @@ import { ReaderContentSkeleton } from "../../../components/shell/ReaderContentSk
 import { ListColumn } from "../../../components/shell/ListColumn";
 import { PrototypeIcon, type PrototypeIconName } from "../../../components/shell/PrototypeIcon";
 import { ReaderToolbar } from "../../../components/shell/ReaderToolbar";
-import { useSkeletonGate } from "../../../lib/use-skeleton-gate";
 import { useReaderToolbarTitleVisibility } from "../../../components/shell/useReaderToolbarTitleVisibility";
 import { SharedNoteMarkdown } from "../../../components/share/SharedNoteMarkdown";
 import { ConfirmDialog } from "../../../components/ui/ConfirmDialog";
@@ -294,19 +293,11 @@ export default function TrashPage() {
   const detailIsLoading = Boolean(
     selectedListItem && loadingDetailKey === itemKey(selectedListItem),
   );
-  const listGate = useSkeletonGate(isLoading);
-  const detailGate = useSkeletonGate(detailIsLoading && !selectedDetail);
-
   return (
     <div className="mewmo-workspace">
       <ListColumn title="废纸篓" searchPlaceholder="搜索废纸篓..." onSearchChange={setQuery}>
-        {!listGate.ready ? (
-          <ListContentSkeleton
-            active
-            variant="media"
-            progress={listGate.progress}
-            label="正在加载废纸篓"
-          />
+        {isLoading ? (
+          <ListContentSkeleton active variant="media" label="正在加载废纸篓" />
         ) : error && items.length === 0 ? (
           <div className="mewmo-list-empty">
             <PrototypeIcon name="empty" size={36} />
@@ -386,14 +377,9 @@ export default function TrashPage() {
           }
         />
         <div ref={scrollRef} className="mewmo-reader-scroll">
-          {!detailGate.ready ? (
+          {detailIsLoading && !selectedDetail ? (
             <article className="mewmo-document mewmo-document--clip">
-              <ReaderContentSkeleton
-                active
-                showTitle
-                progress={detailGate.progress}
-                label="正在加载内容"
-              />
+              <ReaderContentSkeleton active showTitle label="正在加载内容" />
             </article>
           ) : detailError && !selectedDetail ? (
             <article className="mewmo-document mewmo-document--empty">

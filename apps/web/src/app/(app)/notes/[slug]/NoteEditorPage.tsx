@@ -21,7 +21,6 @@ import { ListContentSkeleton } from "../../../../components/shell/ListContentSke
 import { ReaderContentSkeleton } from "../../../../components/shell/ReaderContentSkeleton";
 import { ReaderToolbar } from "../../../../components/shell/ReaderToolbar";
 import { ReaderToc } from "../../../../components/shell/ReaderToc";
-import { useSkeletonGate } from "../../../../lib/use-skeleton-gate";
 import {
   useReaderToolbarTitleVisibility,
 } from "../../../../components/shell/useReaderToolbarTitleVisibility";
@@ -73,7 +72,7 @@ const NoteEditor = dynamic(
     })),
   {
     ssr: false,
-    loading: () => <ReaderContentSkeleton active progress={0.55} label="正在加载编辑器" />,
+    loading: () => <ReaderContentSkeleton active label="正在加载编辑器" />,
   },
 );
 
@@ -146,10 +145,6 @@ export function NoteEditorPage({
     }
     return notes[0] ?? null;
   }, [notes, selectedSlug]);
-  const listGate = useSkeletonGate(isLoading);
-  const noteDetailWaiting = Boolean(selectedNote && selectedNote.content === undefined);
-  const noteDetailGate = useSkeletonGate(noteDetailWaiting);
-
   const loadNoteDetail = useCallback((item: NoteListItem) => {
     const cachedDetail = getCachedWorkspaceDetail<NoteListItem>("notes", item.id);
     if (cachedDetail && isWorkspaceDetailFresh("notes", item)) {
@@ -563,13 +558,8 @@ export function NoteEditorPage({
           </button>
         }
       >
-        {!listGate.ready ? (
-          <ListContentSkeleton
-            active
-            variant="text"
-            progress={listGate.progress}
-            label="正在加载笔记"
-          />
+        {isLoading ? (
+          <ListContentSkeleton active variant="text" label="正在加载笔记" />
         ) : loadError && notes.length === 0 ? (
           <div className="mewmo-list-empty">
             <PrototypeIcon name="empty" size={36} />
@@ -692,13 +682,8 @@ export function NoteEditorPage({
           className="mewmo-reader-scroll mewmo-reader-scroll--editor"
         >
           {selectedNote ? (
-            selectedNote.content === undefined || !noteDetailGate.ready ? (
-              <ReaderContentSkeleton
-                active
-                showTitle
-                progress={noteDetailGate.progress}
-                label="正在加载笔记"
-              />
+            selectedNote.content === undefined ? (
+              <ReaderContentSkeleton active showTitle label="正在加载笔记" />
             ) : (
               <NoteEditor
                 key={`${selectedNote.id}:${agentEditorRevision}`}
@@ -714,13 +699,8 @@ export function NoteEditorPage({
                 embedded
               />
             )
-          ) : !listGate.ready ? (
-            <ReaderContentSkeleton
-              active
-              showTitle
-              progress={listGate.progress}
-              label="正在加载笔记"
-            />
+          ) : isLoading ? (
+            <ReaderContentSkeleton active showTitle label="正在加载笔记" />
           ) : (
             <article className="mewmo-document mewmo-document--empty">
               <h1>选择一条笔记</h1>

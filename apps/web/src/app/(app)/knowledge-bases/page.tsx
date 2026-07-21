@@ -16,7 +16,6 @@ import { ListContentSkeleton } from "../../../components/shell/ListContentSkelet
 import { ReaderContentSkeleton } from "../../../components/shell/ReaderContentSkeleton";
 import { ReaderToc } from "../../../components/shell/ReaderToc";
 import { ReaderToolbar } from "../../../components/shell/ReaderToolbar";
-import { useSkeletonGate } from "../../../lib/use-skeleton-gate";
 import {
   useReaderToolbarTitleVisibility,
 } from "../../../components/shell/useReaderToolbarTitleVisibility";
@@ -59,7 +58,7 @@ const NoteEditor = dynamic(
     })),
   {
     ssr: false,
-    loading: () => <ReaderContentSkeleton active progress={0.55} label="正在加载编辑器" />,
+    loading: () => <ReaderContentSkeleton active label="正在加载编辑器" />,
   },
 );
 
@@ -315,7 +314,6 @@ export default function KnowledgeBasesPage() {
       : ".mewmo-clip-prose h1, .mewmo-clip-prose h2, .mewmo-clip-prose h3";
   const selectedSourceUrl = selectedItem ? knowledgeItemSourceUrl(selectedItem) : null;
   const { toolbarTitleVisible } = useReaderToolbarTitleVisibility({ scrollRef });
-  const listGate = useSkeletonGate(loading);
   const quickSwitch = (
     <>
       {knowledgeFilters.map((item) => (
@@ -594,13 +592,8 @@ export default function KnowledgeBasesPage() {
           </div>
         }
       >
-        {!listGate.ready ? (
-          <ListContentSkeleton
-            active
-            variant="mixed"
-            progress={listGate.progress}
-            label="正在加载知识库"
-          />
+        {loading ? (
+          <ListContentSkeleton active variant="mixed" label="正在加载知识库" />
         ) : error && items.length === 0 ? (
           <div className="mewmo-list-empty">
             <PrototypeIcon name="empty" size={36} />
@@ -731,9 +724,8 @@ export default function KnowledgeBasesPage() {
             item={selectedItem}
             card={selectedCard}
             title={listTitle}
-            loading={selectedDetailLoading || !listGate.ready}
+            loading={selectedDetailLoading}
             error={selectedDetailError}
-            listProgress={listGate.progress}
             onNoteContentChange={updateSelectedNoteContent}
             onNoteTitleChange={updateSelectedNoteTitle}
           />
@@ -806,7 +798,6 @@ function KnowledgeReader({
   title,
   loading,
   error,
-  listProgress,
   onNoteContentChange,
   onNoteTitleChange,
 }: {
@@ -815,28 +806,14 @@ function KnowledgeReader({
   title: string;
   loading: boolean;
   error: string;
-  listProgress: number;
   onNoteContentChange: (content: string) => void;
   onNoteTitleChange: (title: string) => void;
 }) {
-  const bodyWaiting =
-    Boolean(item && card) &&
-    ((item?.kind === "note" && typeof item.note?.content !== "string") ||
-      (item?.kind === "clip" && typeof item.clip?.content !== "string") ||
-      (item?.kind === "feed_entry" && typeof item.feedEntry?.content !== "string"));
-  const emptyWaiting = (!item || !card) && loading;
-  const bodyGate = useSkeletonGate(Boolean(bodyWaiting || emptyWaiting));
-
   if (!item || !card) {
-    if (!bodyGate.ready) {
+    if (loading) {
       return (
         <article className="mewmo-document mewmo-document--clip">
-          <ReaderContentSkeleton
-            active
-            showTitle
-            progress={emptyWaiting ? bodyGate.progress : listProgress}
-            label="正在加载内容"
-          />
+          <ReaderContentSkeleton active showTitle label="正在加载内容" />
         </article>
       );
     }
@@ -851,12 +828,7 @@ function KnowledgeReader({
   if (item.kind === "note" && item.note) {
     if (typeof item.note.content !== "string") {
       return (
-        <KnowledgeBodyLoading
-          loading={loading}
-          error={error}
-          progress={bodyGate.progress}
-          ready={bodyGate.ready}
-        />
+        <KnowledgeBodyLoading loading={loading} error={error} />
       );
     }
     return (
@@ -894,12 +866,7 @@ function KnowledgeReader({
   if (item.kind === "clip" && item.clip) {
     if (typeof item.clip.content !== "string") {
       return (
-        <KnowledgeBodyLoading
-          loading={loading}
-          error={error}
-          progress={bodyGate.progress}
-          ready={bodyGate.ready}
-        />
+        <KnowledgeBodyLoading loading={loading} error={error} />
       );
     }
     return (
@@ -914,12 +881,7 @@ function KnowledgeReader({
   if (item.kind === "feed_entry" && item.feedEntry) {
     if (typeof item.feedEntry.content !== "string") {
       return (
-        <KnowledgeBodyLoading
-          loading={loading}
-          error={error}
-          progress={bodyGate.progress}
-          ready={bodyGate.ready}
-        />
+        <KnowledgeBodyLoading loading={loading} error={error} />
       );
     }
     return (
@@ -950,17 +912,7 @@ function KnowledgeReader({
   );
 }
 
-function KnowledgeBodyLoading({
-  loading,
-  error,
-  progress,
-  ready,
-}: {
-  loading: boolean;
-  error: string;
-  progress: number;
-  ready: boolean;
-}) {
+function KnowledgeBodyLoading({ loading, error }: { loading: boolean; error: string }) {
   if (error) {
     return (
       <article className="mewmo-document mewmo-document--empty">
@@ -969,11 +921,9 @@ function KnowledgeBodyLoading({
     );
   }
 
-  if (ready && !loading) return null;
-
   return (
     <article className="mewmo-document mewmo-document--clip">
-      <ReaderContentSkeleton active showTitle progress={progress} label="正在加载内容" />
+      <ReaderContentSkeleton active={loading} showTitle label="正在加载内容" />
     </article>
   );
 }

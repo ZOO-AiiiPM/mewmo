@@ -16,18 +16,21 @@ test("workspace navigation exposes an immediate pending target and shared route 
   assert.match(shell, /WorkspaceNavigationProvider/);
   assert.doesNotMatch(shell, /mewmo-workspace-navigation-progress/);
   assert.doesNotMatch(css, /mewmo-workspace-navigation-progress/);
-  assert.match(routeLoading, /mewmo-skeleton-block/);
-  assert.match(routeLoading, /mewmo-workspace-route-loading__card-title/);
-  assert.match(css, /\.mewmo-skeleton-sweep/);
-  assert.match(css, /@keyframes mewmo-skeleton-extend/);
+  assert.match(routeLoading, /mewmo-list-column/);
+  assert.match(routeLoading, /mewmo-reader-surface/);
+  assert.match(routeLoading, /ListContentSkeleton/);
+  assert.match(routeLoading, /ReaderContentSkeleton/);
+  assert.match(css, /@keyframes mewmo-skeleton-breath/);
+  assert.match(css, /\.mewmo-list-content-skeleton__card[\s\S]{0,120}border:\s*0/);
+  assert.match(css, /\.mewmo-list-content-skeleton__preview/);
+  assert.match(css, /\.mewmo-reader-content-skeleton[\s\S]{0,180}min-height:\s*calc\(100vh/);
   assert.doesNotMatch(
     css,
-    /mewmo-skeleton-shimmer|mewmo-skeleton-breath|mewmo-reader-content-enter/,
+    /mewmo-skeleton-shimmer|mewmo-skeleton-extend|mewmo-skeleton-sweep|mewmo-route-skeleton-sweep|mewmo-reader-content-enter/,
   );
-  assert.doesNotMatch(css, /\.mewmo-skeleton-block[\s\S]{0,240}infinite/);
   assert.ok(existsSync("apps/web/src/components/shell/ReaderContentSkeleton.tsx"));
   assert.ok(existsSync("apps/web/src/components/shell/ListContentSkeleton.tsx"));
-  assert.ok(existsSync("apps/web/src/lib/use-skeleton-gate.ts"));
+  assert.ok(!existsSync("apps/web/src/lib/use-skeleton-gate.ts"));
 });
 
 test("workspace navigation records click-to-route-commit timing", () => {

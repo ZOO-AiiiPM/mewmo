@@ -15,7 +15,6 @@ import { PrototypeIcon } from "../../../components/shell/PrototypeIcon";
 import { ReaderBackToTopButton } from "../../../components/shell/ReaderBackToTopButton";
 import { ReaderContentSkeleton } from "../../../components/shell/ReaderContentSkeleton";
 import { ReaderToolbar } from "../../../components/shell/ReaderToolbar";
-import { useSkeletonGate } from "../../../lib/use-skeleton-gate";
 import {
   useReaderToolbarTitleVisibility,
 } from "../../../components/shell/useReaderToolbarTitleVisibility";
@@ -335,16 +334,6 @@ export default function ClipsPage() {
     scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   };
   const isSelectedClipLoading = loadingClipId === previewClip?.id;
-  const listGate = useSkeletonGate(isLoading);
-  const clipBodyWaiting = Boolean(
-    selectedClip &&
-      (isSelectedClipLoading ||
-        selectedClip.fetchStatus === "queued" ||
-        selectedClip.fetchStatus === "fetching") &&
-      !selectedClip.content,
-  );
-  const clipBodyGate = useSkeletonGate(clipBodyWaiting);
-
   return (
     <div
       className={`mewmo-workspace ${listCollapsed ? "mewmo-workspace--list-collapsed" : ""}`}
@@ -356,13 +345,8 @@ export default function ClipsPage() {
         onSearchChange={setQuery}
         onSubmitClipUrl={createClipFromUrl}
       >
-        {!listGate.ready ? (
-          <ListContentSkeleton
-            active
-            variant="media"
-            progress={listGate.progress}
-            label="正在加载剪藏"
-          />
+        {isLoading ? (
+          <ListContentSkeleton active variant="media" label="正在加载剪藏" />
         ) : error ? (
           <div className="mewmo-list-empty">
             <PrototypeIcon name="empty" size={36} />
@@ -482,12 +466,9 @@ export default function ClipsPage() {
           {selectedClip ? (
             <article className="mewmo-document mewmo-document--clip">
               <h1>{selectedClip.title}</h1>
-              {!clipBodyGate.ready ? (
-                <ReaderContentSkeleton
-                  active
-                  progress={clipBodyGate.progress}
-                  label="正在加载正文"
-                />
+              {(isSelectedClipLoading || selectedClip.fetchStatus === "queued" || selectedClip.fetchStatus === "fetching") &&
+              !selectedClip.content ? (
+                <ReaderContentSkeleton active label="正在加载正文" />
               ) : (
                 <>
                   <div className="mewmo-doc-meta">
@@ -518,14 +499,9 @@ export default function ClipsPage() {
                 </>
               )}
             </article>
-          ) : !listGate.ready ? (
+          ) : isLoading ? (
             <article className="mewmo-document mewmo-document--clip">
-              <ReaderContentSkeleton
-                active
-                showTitle
-                progress={listGate.progress}
-                label="正在加载剪藏"
-              />
+              <ReaderContentSkeleton active showTitle label="正在加载剪藏" />
             </article>
           ) : (
             <article className="mewmo-document mewmo-document--empty">

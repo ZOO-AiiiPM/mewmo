@@ -8,7 +8,6 @@ import { ReaderBackToTopButton } from "../../../components/shell/ReaderBackToTop
 import { ListContentSkeleton } from "../../../components/shell/ListContentSkeleton";
 import { ReaderContentSkeleton } from "../../../components/shell/ReaderContentSkeleton";
 import { ReaderToolbar } from "../../../components/shell/ReaderToolbar";
-import { useSkeletonGate } from "../../../lib/use-skeleton-gate";
 import { useReaderToolbarTitleVisibility } from "../../../components/shell/useReaderToolbarTitleVisibility";
 import { FloatingMenuButton } from "../../../components/ui/FloatingMenu";
 import { useToast } from "../../../components/ui/ToastProvider";
@@ -36,7 +35,7 @@ const NoteEditor = dynamic(
     })),
   {
     ssr: false,
-    loading: () => <ReaderContentSkeleton active progress={0.55} label="正在加载编辑器" />,
+    loading: () => <ReaderContentSkeleton active label="正在加载编辑器" />,
   },
 );
 
@@ -206,13 +205,6 @@ export default function TodayPage() {
     readerRef: scrollRef,
     restoreKey: loading ? "loading" : "ready",
   });
-  const listGate = useSkeletonGate(loading);
-  const noteDetailWaiting =
-    selected?.type === "note" &&
-    typeof selected.content !== "string" &&
-    !selectedDetailError;
-  const noteDetailGate = useSkeletonGate(Boolean(noteDetailWaiting));
-
   const visibleItems = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     return [...items]
@@ -361,13 +353,8 @@ export default function TodayPage() {
           </button>
         }
       >
-        {!listGate.ready ? (
-          <ListContentSkeleton
-            active
-            variant="mixed"
-            progress={listGate.progress}
-            label="正在加载今天"
-          />
+        {loading ? (
+          <ListContentSkeleton active variant="mixed" label="正在加载今天" />
         ) : error && items.length === 0 ? (
           <div className="mewmo-list-empty">
             <PrototypeIcon name="empty" size={36} />
@@ -461,14 +448,9 @@ export default function TodayPage() {
               <div className="mewmo-empty-state">
                 <p>{selectedDetailError}</p>
               </div>
-            ) : !noteDetailGate.ready ? (
-              <ReaderContentSkeleton
-                active
-                showTitle
-                progress={noteDetailGate.progress}
-                label="正在加载笔记"
-              />
-            ) : null
+            ) : (
+              <ReaderContentSkeleton active showTitle label="正在加载笔记" />
+            )
           ) : selected ? (
             <article className="mewmo-document mewmo-document--empty">
               <h1>{selected.title}</h1>
@@ -487,13 +469,8 @@ export default function TodayPage() {
               </div>
               <p>{selectedPreview || "这条内容暂时没有摘要。"}</p>
             </article>
-          ) : !listGate.ready ? (
-            <ReaderContentSkeleton
-              active
-              showTitle
-              progress={listGate.progress}
-              label="正在加载今天"
-            />
+          ) : loading ? (
+            <ReaderContentSkeleton active showTitle label="正在加载今天" />
           ) : (
             <article className="mewmo-document mewmo-document--empty">
               <h1>今天</h1>
