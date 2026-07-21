@@ -30,4 +30,4 @@ ENV NODE_ENV=production
 
 USER node
 
-CMD ["pnpm", "--filter", "@mewmo/worker", "start"]
+CMD ["pnpm", "--filter", "@mewmo/feed-ingestion", "cron:feeds"]

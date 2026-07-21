@@ -34,6 +34,11 @@ model User {
   knowledgeFolders KnowledgeFolder[]
   knowledgeItems KnowledgeItem[]
   noteShares     NoteShare[]
+  aiActions      AiAction[]
+  aiRuns         AiRun[]
+  contentEmbeddings ContentEmbedding[]
+  contentRelations  ContentRelation[]
+  noteInsights      NoteInsight[]
 
   @@map("users")
 }
@@ -239,19 +244,21 @@ model AiChat {
 }
 
 model AiMessage {
-  id        String        @id @default(cuid())
-  chatId    String        @map("chat_id")
-  role      AiMessageRole
-  content   String
-  status    AiMessageStatus @default(completed)
-  metadata  Json?
-  version   Int           @default(1)
-  createdAt DateTime      @default(now()) @map("created_at")
-  deletedAt DateTime?     @map("deleted_at")
+  id              String          @id @default(cuid())
+  chatId          String          @map("chat_id")
+  clientRequestId String?         @map("client_request_id")
+  role            AiMessageRole
+  content         String
+  status          AiMessageStatus @default(completed)
+  metadata        Json?
+  version         Int             @default(1)
+  createdAt       DateTime        @default(now()) @map("created_at")
+  deletedAt       DateTime?       @map("deleted_at")
 
   chat AiChat @relation(fields: [chatId], references: [id], onDelete: Cascade)
   contextAttachments AiContextAttachment[]
 
+  @@unique([chatId, clientRequestId, role], name: "chat_turn_role")
   @@index([chatId, deletedAt, createdAt])
   @@map("ai_messages")
 }
@@ -275,6 +282,124 @@ model AiContextAttachment {
   @@index([targetType, targetId])
   @@index([userId, createdAt])
   @@map("ai_context_attachments")
+}
+
+model AiAction {
+  id               String           @id @default(cuid())
+  userId           String           @map("user_id")
+  toolName         String           @map("tool_name")
+  input            Json
+  preview          Json
+  riskLevel        AiActionRiskLevel @default(write) @map("risk_level")
+  executionMode    AiActionExecutionMode @default(server) @map("execution_mode")
+  clientEffect     Json?             @map("client_effect")
+  status           AiActionStatus    @default(proposed)
+  expectedVersion  Int?             @map("expected_version")
+  idempotencyKey   String           @map("idempotency_key")
+  result           Json?
+  errorCode        String?          @map("error_code")
+  errorMessage     String?          @map("error_message")
+  confirmedAt      DateTime?        @map("confirmed_at")
+  executionStartedAt DateTime?      @map("execution_started_at")
+  completedAt      DateTime?        @map("completed_at")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, idempotencyKey])
+  @@index([userId, status, createdAt])
+  @@map("ai_actions")
+}
+
+model AiRun {
+  id               String       @id @default(cuid())
+  userId           String       @map("user_id")
+  kind             AiRunKind
+  targetType       AiTargetType @map("target_type")
+  targetId         String       @map("target_id")
+  inputVersion     Int          @map("input_version")
+  inputHash        String?      @map("input_hash")
+  idempotencyKey   String       @map("idempotency_key")
+  priority         Int          @default(0)
+  status           AiRunStatus  @default(queued)
+  attempts         Int          @default(0)
+  availableAt      DateTime     @default(now()) @map("available_at")
+  workerId         String?      @map("worker_id")
+  leaseExpiresAt   DateTime?    @map("lease_expires_at")
+  startedAt        DateTime?    @map("started_at")
+  completedAt      DateTime?    @map("completed_at")
+  output           Json?
+  errorCode        String?      @map("error_code")
+  errorMessage     String?      @map("error_message")
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, idempotencyKey])
+  @@index([status, availableAt, priority, createdAt])
+  @@index([userId, targetType, targetId, createdAt])
+  @@index([workerId, leaseExpiresAt])
+  @@map("ai_runs")
+}
+
+model ContentEmbedding {
+  id           String       @id @default(cuid())
+  userId       String       @map("user_id")
+  targetType   AiTargetType @map("target_type")
+  targetId     String       @map("target_id")
+  inputVersion Int          @map("input_version")
+  model        String
+  dimensions   Int
+  embedding    Json
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, targetType, targetId])
+  @@index([userId, targetType, inputVersion])
+  @@map("content_embeddings")
+}
+
+model ContentRelation {
+  id            String       @id @default(cuid())
+  userId        String       @map("user_id")
+  sourceType    AiTargetType @map("source_type")
+  sourceId      String       @map("source_id")
+  sourceVersion Int          @map("source_version")
+  targetType    AiTargetType @map("target_type")
+  targetId      String       @map("target_id")
+  score         Float
+  reason        String?
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, sourceType, sourceId, targetType, targetId])
+  @@index([userId, sourceType, sourceId, score])
+  @@index([userId, targetType, targetId])
+  @@map("content_relations")
+}
+
+model NoteInsight {
+  id           String          @id @default(cuid())
+  userId       String          @map("user_id")
+  noteId       String          @map("note_id")
+  inputVersion Int             @map("input_version")
+  kind         NoteInsightKind
+  content      String
+  data         Json?
+  createdAt    DateTime        @default(now()) @map("created_at")
+  updatedAt    DateTime        @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, noteId, kind])
+  @@index([userId, noteId, inputVersion])
+  @@map("note_insights")
 }
 
 model Tag {
@@ -424,6 +549,52 @@ enum AiMessageStatus {
   completed
   failed
   cancelled
+}
+
+enum AiActionRiskLevel {
+  write
+  destructive
+}
+
+enum AiActionExecutionMode {
+  server
+  client
+}
+
+enum AiActionStatus {
+  proposed
+  confirmed
+  executing
+  succeeded
+  failed
+  cancelled
+}
+
+enum AiRunKind {
+  summary
+  embedding
+  relation
+  note_insight
+}
+
+enum AiRunStatus {
+  queued
+  running
+  succeeded
+  failed
+  superseded
+}
+
+enum AiTargetType {
+  note
+  clip
+  feed_entry
+}
+
+enum NoteInsightKind {
+  completeness
+  duplicate_viewpoint
+  viewpoint_change
 }
 
 enum AiContextTargetType {

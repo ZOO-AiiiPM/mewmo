@@ -1,0 +1,20 @@
+{
+  "name": "@mewmo/feed-ingestion",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "tsx watch src/commands/run-scheduled.ts",
+    "start": "tsx src/commands/run-scheduled.ts",
+    "cron:feeds": "tsx src/commands/run-scheduled.ts",
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint .",
+    "test": "vitest src"
+  },
+  "dependencies": {
+    "@mewmo/content": "workspace:*",
+    "@mewmo/application": "workspace:*",
+    "@mewmo/db": "workspace:*",
+    "@mewmo/shared": "workspace:*",
+    "tsx": "4.22.4"
+  }
+}

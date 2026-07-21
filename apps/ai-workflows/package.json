@@ -1,0 +1,27 @@
+{
+  "name": "@mewmo/ai-workflows",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "cron:ai": "tsx src/commands/run-due.ts",
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint .",
+    "test": "vitest run src evals --exclude 'dist/**'",
+    "eval:offline": "vitest run evals/offline.test.ts",
+    "eval:live": "tsx evals/live.ts"
+  },
+  "dependencies": {
+    "@mewmo/ai": "workspace:*",
+    "@mewmo/application": "workspace:*",
+    "tsx": "4.22.4",
+    "zod": "4.3.0"
+  },
+  "devDependencies": {
+    "@langfuse/client": "5.9.1",
+    "@langfuse/otel": "5.9.1",
+    "@langfuse/tracing": "5.9.1",
+    "@opentelemetry/api": "1.9.0",
+    "@opentelemetry/sdk-node": "0.220.0"
+  }
+}

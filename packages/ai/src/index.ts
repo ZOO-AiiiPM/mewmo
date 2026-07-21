@@ -28,3 +28,19 @@ export type {
 
 export { buildArticleSummaryUserPrompt as buildSummaryUserPrompt } from "./summaries/article";
 export { summarizeArticle as summarizeContent } from "./summaries/article";
+export { createAIRuntime, createFakeAIRuntime, loadAIRuntimeConfig } from "./runtime";
+export type {
+  AIRuntime,
+  AIRuntimeConfig,
+  AIEnvironment,
+  EmbedInput,
+  EmbeddingResult,
+  FakeAIRuntimeOptions,
+  GenerateObjectInput,
+  GenerateTextInput,
+  ModelDefinition,
+  ModelPurpose,
+  ObjectGenerationResult,
+  ProviderDefinition,
+  TextGenerationResult,
+} from "./runtime";

@@ -24,7 +24,8 @@ test("clip creation fetches content before persistence without a Clip queue", ()
   assert.match(route, /normalizedUrl/);
   assert.match(route, /summary:\s*null/);
   assert.match(route, /fetchStatus:\s*"success"/);
-  assert.match(route, /addSummaryJob/);
+  assert.match(route, /enqueueArticleRuns/);
+  assert.doesNotMatch(route, /@mewmo\/queue|addSummaryJob/);
   assert.match(route, /existing:\s*false/);
   assert.match(route, /P2002[\s\S]*existing:\s*true/,
     "database uniqueness races should return the existing Clip");
@@ -43,13 +44,14 @@ test("clip refresh is synchronous, authenticated, and preserves the AI summary",
   assert.match(route, /fetchStartedAt:\s*null/);
   assert.doesNotMatch(route, /version:\s*claimVersion/);
   assert.match(route, /status:\s*409/);
-  assert.match(route, /addSummaryJob/);
+  assert.match(route, /enqueueArticleRuns/);
+  assert.doesNotMatch(route, /@mewmo\/queue|addSummaryJob/);
   assert.doesNotMatch(route, /summary:\s*fetched\.summary/, "source refresh must preserve the existing AI summary");
 });
 
-test("Worker does not start a clip fetch worker", () => {
-  const runtime = read("apps/worker/src/runtime.ts");
-  assert.doesNotMatch(runtime, /createClipWorker/);
+test("Feed ingestion has no persistent Clip or AI worker runtime", () => {
+  const packageJson = read("apps/feed-ingestion/package.json");
+  assert.doesNotMatch(packageJson, /bullmq|@mewmo\/queue|@mewmo\/ai/);
 });
 
 test("shared clip URL input awaits persistence and prevents duplicate submission", () => {

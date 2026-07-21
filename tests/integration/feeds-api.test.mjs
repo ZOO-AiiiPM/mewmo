@@ -6,8 +6,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { fetchFeedDocument } from "../../packages/content/src/index.ts";
 import { getPrisma } from "../../packages/db/src/client.ts";
-import { processFeed } from "../../apps/worker/src/feeds/process-feed.ts";
-import { runFeedCron } from "../../apps/worker/src/feeds/run-feed-cron.ts";
+import { processFeed } from "../../apps/feed-ingestion/src/feeds/process-feed.ts";
+import { runFeedCron } from "../../apps/feed-ingestion/src/feeds/run-feed-cron.ts";
 import {
   API_BASE as BASE,
   API_TEST_ARTICLE_URL,

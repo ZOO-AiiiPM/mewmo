@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@mewmo/db";
-import { addSummaryJob, withTimeout } from "@mewmo/queue";
 import { normalizeClipUrlIdentity, updateClipSchema } from "@mewmo/shared";
 import { auth } from "../../../../lib/auth";
 import { fetchClipFromUrl } from "../../../../lib/clip-fetch";
+import { enqueueArticleRuns } from "../../../../lib/ai-run-enqueue";
 import { attachServerTiming, createServerTiming } from "../../../../lib/server-timing";
 
 interface RefreshClipData {
@@ -59,7 +59,6 @@ function hasClipChanged(
   );
 }
 
-const SUMMARY_QUEUE_TIMEOUT_MS = 3_000;
 const CLIP_REFRESH_LEASE_MS = 5 * 60_000;
 
 function isTimeoutError(error: unknown) {
@@ -76,22 +75,11 @@ function refreshConflict(reason: "already_running" | "lease_lost") {
   );
 }
 
-async function enqueueSummary(userId: string, clipId: string) {
+async function enqueueWorkflows(userId: string, clip: { id: string; version: number }) {
   try {
-    await withTimeout(
-      addSummaryJob(
-        { userId, targetId: clipId, targetType: "clip" },
-        {
-          jobId: `summary-clip-${clipId}`,
-          removeOnComplete: true,
-          removeOnFail: true,
-        },
-      ),
-      SUMMARY_QUEUE_TIMEOUT_MS,
-      `Summary queue timed out for ${clipId}`,
-    );
+    await enqueueArticleRuns({ userId, targetType: "clip", targetId: clip.id, inputVersion: clip.version });
   } catch (error) {
-    console.error("Failed to enqueue clip summary job", error);
+    console.error("Failed to enqueue clip AI workflows", error);
   }
 }
 
@@ -230,7 +218,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
 
     const updated = await prisma.clip.findFirst({ where: { id, userId, deletedAt: null } });
     if (!updated) return refreshConflict("lease_lost");
-    await enqueueSummary(userId, clip.id);
+    await enqueueWorkflows(userId, updated);
     return NextResponse.json({ status: "success", clip: updated, changed: hasClipChanged(clip, data) });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not refresh clip";

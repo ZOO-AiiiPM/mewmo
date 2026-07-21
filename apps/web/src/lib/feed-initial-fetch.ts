@@ -3,6 +3,7 @@ import { createFeedEntriesRepository, getPrisma } from "@mewmo/db";
 
 import { normalizeFeedEntryContent } from "./feed-content";
 import { integrationFixtureOrigins } from "./content-fetch-runtime";
+import { enqueueArticleRuns } from "./ai-run-enqueue";
 
 export const DEFAULT_INITIAL_FEED_LIMIT = 10;
 
@@ -36,7 +37,7 @@ interface InitialFeedEntryRepository {
       author?: string;
       publishedAt?: Date;
     },
-  ): Promise<{ created: boolean; entry: unknown }>;
+  ): Promise<{ created: boolean; entry: { id: string; version: number } }>;
 }
 
 interface FetchInitialFeedDependencies {
@@ -45,6 +46,7 @@ interface FetchInitialFeedDependencies {
   fetchFeed?: (url: string) => Promise<ParsedFeedEntry[]>;
   now?: () => Date;
   limit?: number;
+  enqueueWorkflows?: typeof enqueueArticleRuns;
 }
 
 export interface InitialFeedFetchResult {
@@ -63,7 +65,8 @@ export async function fetchInitialFeed(
   dependencies: FetchInitialFeedDependencies = {},
 ): Promise<InitialFeedFetchResult> {
   const prisma = dependencies.prisma ?? (getPrisma() as unknown as InitialFeedPrisma);
-  const entryRepository = dependencies.entryRepository ?? createFeedEntriesRepository();
+  const entryRepository = dependencies.entryRepository ?? (createFeedEntriesRepository() as unknown as InitialFeedEntryRepository);
+  const enqueueWorkflows = dependencies.enqueueWorkflows ?? enqueueArticleRuns;
   const allowedPrivateOrigins = integrationFixtureOrigins();
   const fetchFeed = dependencies.fetchFeed ?? ((url: string) => fetchFeedDocument(url, {
     ...(allowedPrivateOrigins ? { allowedPrivateOrigins } : {}),
@@ -115,6 +118,16 @@ export async function fetchInitialFeed(
         ...(entry.publishedAt ? { publishedAt: entry.publishedAt } : {}),
       });
       if (result.created) created += 1;
+      try {
+        await enqueueWorkflows({
+          userId,
+          targetType: "feed_entry",
+          targetId: result.entry.id,
+          inputVersion: result.entry.version,
+        });
+      } catch (error) {
+        console.error("Failed to enqueue initial FeedEntry AI workflows", error);
+      }
     }
 
     const completedAt = now();

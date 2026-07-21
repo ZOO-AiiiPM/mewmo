@@ -192,8 +192,8 @@ test("feed reader favorite action is wired to the real favorite API", () => {
   );
   assert.match(
     route,
-    /addSummaryJob\(\{[\s\S]*targetType:\s*"clip"/,
-    "new clips created from feed favorites should enter the clip summary flow",
+    /enqueueArticleRuns\(\{[\s\S]*targetType:\s*"clip"[\s\S]*inputVersion:\s*clip\.version/,
+    "new clips created from feed favorites should enter versioned AI workflows",
   );
 });
 

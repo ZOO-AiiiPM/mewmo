@@ -32,3 +32,4 @@
 .env*.local
 .vercel
 deploy/worker/.env.worker
+deploy/agent/.env.agent
