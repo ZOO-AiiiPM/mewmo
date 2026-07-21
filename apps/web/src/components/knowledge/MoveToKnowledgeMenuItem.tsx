@@ -32,16 +32,7 @@ interface KnowledgeTreeResponse extends KnowledgeBaseOption {
 
 type LoadState = "idle" | "loading" | "error" | "ready";
 
-type View =
-  | { kind: "bases" }
-  | { kind: "folders"; baseId: string; baseTitle: string };
-
-function reflowPopover() {
-  if (typeof window === "undefined") return;
-  window.requestAnimationFrame(() => {
-    window.dispatchEvent(new Event("resize"));
-  });
-}
+const MODAL_EXIT_MS = 160;
 
 export function MoveToKnowledgeMenuItem({
   target,
@@ -50,42 +41,66 @@ export function MoveToKnowledgeMenuItem({
 }) {
   const { showToast } = useToast();
   const closeMenu = useFloatingMenuClose();
-  const [expanded, setExpanded] = useState(false);
-  const [view, setView] = useState<View>({ kind: "bases" });
+  const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const [bases, setBases] = useState<KnowledgeBaseOption[]>([]);
   const [basesState, setBasesState] = useState<LoadState>("idle");
+  const [selectedBaseId, setSelectedBaseId] = useState("");
   const [foldersByBase, setFoldersByBase] = useState<
     Record<string, KnowledgeFolderNode[]>
   >({});
   const [folderStates, setFolderStates] = useState<Record<string, LoadState>>(
     {},
   );
-  const [submittingTarget, setSubmittingTarget] = useState("");
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (expanded) reflowPopover();
-  }, [expanded, view, basesState, folderStates]);
+    if (open) {
+      setMounted(true);
+      return;
+    }
+    const timer = window.setTimeout(() => setMounted(false), MODAL_EXIT_MS);
+    return () => window.clearTimeout(timer);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [open]);
 
   const loadBases = useCallback(async () => {
-    if (basesState === "loading" || basesState === "ready") return;
     setBasesState("loading");
     try {
       const response = await fetch("/api/knowledge-bases");
       if (!response.ok) throw new Error("load");
       const data = (await response.json()) as KnowledgeBaseOption[];
-      setBases(Array.isArray(data) ? data : []);
+      const list = Array.isArray(data) ? data : [];
+      setBases(list);
       setBasesState("ready");
+      setSelectedBaseId((current) => current || list[0]?.id || "");
     } catch {
       setBasesState("error");
       showToast("知识库加载失败，请稍后再试。", "error");
     }
-  }, [basesState, showToast]);
+  }, [showToast]);
 
   const loadFolders = useCallback(
-    async (baseId: string) => {
-      const state = folderStates[baseId] ?? "idle";
-      if (state === "loading" || state === "ready") return;
-      setFolderStates((current) => ({ ...current, [baseId]: "loading" }));
+    async (baseId: string, force = false) => {
+      let shouldLoad = true;
+      setFolderStates((current) => {
+        const state = current[baseId] ?? "idle";
+        if (!force && (state === "loading" || state === "ready")) {
+          shouldLoad = false;
+          return current;
+        }
+        return { ...current, [baseId]: "loading" };
+      });
+      if (!shouldLoad) return;
       try {
         const response = await fetch(`/api/knowledge-bases/${baseId}`);
         if (!response.ok) throw new Error("load");
@@ -100,29 +115,35 @@ export function MoveToKnowledgeMenuItem({
         showToast("文件夹加载失败，请稍后再试。", "error");
       }
     },
-    [folderStates, showToast],
+    [showToast],
   );
 
-  const openCard = () => {
-    setExpanded(true);
-    setView({ kind: "bases" });
+  useEffect(() => {
+    if (!open) return;
     void loadBases();
+  }, [open, loadBases]);
+
+  useEffect(() => {
+    if (!open || !selectedBaseId) return;
+    setSelectedFolderId(null);
+    void loadFolders(selectedBaseId);
+  }, [open, selectedBaseId, loadFolders]);
+
+  const openModal = () => {
+    closeMenu?.();
+    setOpen(true);
+    setSelectedFolderId(null);
+    setSubmitting(false);
   };
 
-  const collapseCard = () => {
-    setExpanded(false);
-    setView({ kind: "bases" });
+  const closeModal = () => {
+    if (submitting) return;
+    setOpen(false);
   };
 
-  const openFolders = (base: KnowledgeBaseOption) => {
-    setView({ kind: "folders", baseId: base.id, baseTitle: base.title });
-    void loadFolders(base.id);
-  };
-
-  const move = async (baseId: string, folderId: string | null) => {
-    const destination = `${baseId}:${folderId ?? "root"}`;
-    if (submittingTarget) return;
-    setSubmittingTarget(destination);
+  const move = async () => {
+    if (!selectedBaseId || submitting) return;
+    setSubmitting(true);
     showToast("正在移动...", "loading");
 
     const item =
@@ -134,11 +155,14 @@ export function MoveToKnowledgeMenuItem({
 
     try {
       const response = await fetch(
-        `/api/knowledge-bases/${baseId}/items/import`,
+        `/api/knowledge-bases/${selectedBaseId}/items/import`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ folderId, items: [item] }),
+          body: JSON.stringify({
+            folderId: selectedFolderId,
+            items: [item],
+          }),
         },
       );
       if (response.status === 409) {
@@ -146,195 +170,193 @@ export function MoveToKnowledgeMenuItem({
         return;
       }
       if (!response.ok) throw new Error("move");
-      invalidateWorkspaceResourcePrefix(`knowledge:contents:${baseId}:`);
+      invalidateWorkspaceResourcePrefix(`knowledge:contents:${selectedBaseId}:`);
       showToast("已移动到知识库", "success");
-      closeMenu?.();
+      setOpen(false);
     } catch {
       showToast("移动失败，请稍后再试。", "error");
     } finally {
-      setSubmittingTarget("");
+      setSubmitting(false);
     }
   };
 
-  if (!expanded) {
-    return (
+  const folderState = selectedBaseId
+    ? (folderStates[selectedBaseId] ?? "idle")
+    : "idle";
+  const flatFolders = selectedBaseId
+    ? flattenFolders(foldersByBase[selectedBaseId] ?? [])
+    : [];
+  const canSubmit =
+    Boolean(selectedBaseId) &&
+    basesState === "ready" &&
+    bases.length > 0 &&
+    !submitting;
+
+  return (
+    <>
       <button
         type="button"
         className="mewmo-card-menu__item"
         aria-haspopup="dialog"
-        aria-expanded={false}
-        onClick={openCard}
+        onClick={openModal}
       >
         <span className="mewmo-card-menu__icon">
           <PrototypeIcon name="library" size={16} dual />
         </span>
         <span>移动到知识库</span>
       </button>
-    );
-  }
 
-  const folderState =
-    view.kind === "folders" ? (folderStates[view.baseId] ?? "idle") : "idle";
-  const flatFolders =
-    view.kind === "folders"
-      ? flattenFolders(foldersByBase[view.baseId] ?? [])
-      : [];
-
-  return (
-    <div
-      className="mewmo-move-knowledge-card"
-      role="dialog"
-      aria-label="移动到知识库"
-    >
-      <div className="mewmo-move-knowledge-card__head">
-        {view.kind === "folders" ? (
+      {mounted && (
+        <div
+          className="mewmo-move-knowledge"
+          data-state={open ? "open" : "closed"}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="mewmo-move-knowledge-title"
+        >
           <button
             type="button"
-            className="mewmo-move-knowledge-card__nav"
-            onClick={() => setView({ kind: "bases" })}
-            aria-label="返回知识库列表"
-          >
-            <PrototypeIcon name="chev-left" size={16} />
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="mewmo-move-knowledge-card__nav"
-            onClick={collapseCard}
-            aria-label="收起"
-          >
-            <PrototypeIcon name="chev-left" size={16} />
-          </button>
-        )}
-        <p className="mewmo-move-knowledge-card__title">
-          {view.kind === "folders" ? view.baseTitle : "移动到知识库"}
-        </p>
-      </div>
+            className="mewmo-move-knowledge__scrim"
+            aria-label="关闭"
+            onClick={closeModal}
+          />
+          <section className="mewmo-move-knowledge__panel">
+            <div className="mewmo-move-knowledge__head">
+              <h2 id="mewmo-move-knowledge-title">移动到知识库</h2>
+              <button
+                type="button"
+                className="mewmo-move-knowledge__close"
+                aria-label="关闭"
+                onClick={closeModal}
+              >
+                <PrototypeIcon name="close" size={19} className="mewmo-icon-close" />
+              </button>
+            </div>
 
-      <div className="mewmo-move-knowledge-card__body">
-        {view.kind === "bases" ? (
-          <>
-            <p className="mewmo-move-knowledge-card__label">选择知识库</p>
-            {basesState === "loading" && <MenuStatus text="正在加载..." />}
-            {basesState === "error" && (
+            <p className="mewmo-move-knowledge__source">
+              将「{target.title || "未命名内容"}」加入目标知识库
+            </p>
+
+            <div className="mewmo-move-knowledge__body">
+              <div className="mewmo-move-knowledge__column">
+                <p className="mewmo-move-knowledge__label">知识库</p>
+                <div className="mewmo-move-knowledge__list" aria-label="知识库">
+                  {basesState === "loading" && (
+                    <p className="mewmo-move-knowledge__status">正在加载...</p>
+                  )}
+                  {basesState === "error" && (
+                    <button
+                      type="button"
+                      className="mewmo-move-knowledge__row"
+                      onClick={() => {
+                        setBasesState("idle");
+                        void loadBases();
+                      }}
+                    >
+                      加载失败，点击重试
+                    </button>
+                  )}
+                  {basesState === "ready" && bases.length === 0 && (
+                    <p className="mewmo-move-knowledge__status">
+                      暂无知识库，请先创建一个
+                    </p>
+                  )}
+                  {bases.map((base) => (
+                    <button
+                      key={base.id}
+                      type="button"
+                      className={`mewmo-move-knowledge__row ${selectedBaseId === base.id ? "mewmo-move-knowledge__row--active" : ""}`}
+                      onClick={() => setSelectedBaseId(base.id)}
+                    >
+                      <span className="mewmo-card-menu__icon">
+                        <PrototypeIcon name="library" size={16} dual />
+                      </span>
+                      <span>{base.title}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mewmo-move-knowledge__column">
+                <p className="mewmo-move-knowledge__label">文件夹</p>
+                <div className="mewmo-move-knowledge__list" aria-label="文件夹">
+                  {!selectedBaseId && (
+                    <p className="mewmo-move-knowledge__status">请先选择知识库</p>
+                  )}
+                  {selectedBaseId && (
+                    <>
+                      <button
+                        type="button"
+                        className={`mewmo-move-knowledge__row ${selectedFolderId === null ? "mewmo-move-knowledge__row--active" : ""}`}
+                        onClick={() => setSelectedFolderId(null)}
+                      >
+                        <span className="mewmo-card-menu__icon">
+                          <PrototypeIcon name="library" size={16} dual />
+                        </span>
+                        <span>知识库根级</span>
+                      </button>
+                      {folderState === "loading" && (
+                        <p className="mewmo-move-knowledge__status">正在加载...</p>
+                      )}
+                      {folderState === "error" && (
+                        <button
+                          type="button"
+                          className="mewmo-move-knowledge__row"
+                          onClick={() => {
+                            void loadFolders(selectedBaseId, true);
+                          }}
+                        >
+                          加载失败，点击重试
+                        </button>
+                      )}
+                      {folderState === "ready" && flatFolders.length === 0 && (
+                        <p className="mewmo-move-knowledge__status">
+                          暂无其他文件夹
+                        </p>
+                      )}
+                      {flatFolders.map((folder) => (
+                        <button
+                          key={folder.id}
+                          type="button"
+                          className={`mewmo-move-knowledge__row ${selectedFolderId === folder.id ? "mewmo-move-knowledge__row--active" : ""}`}
+                          style={{ paddingLeft: 12 + folder.depth * 14 }}
+                          onClick={() => setSelectedFolderId(folder.id)}
+                        >
+                          <span className="mewmo-card-menu__icon">
+                            <PrototypeIcon name="folder" size={16} dual />
+                          </span>
+                          <span>{folder.name}</span>
+                        </button>
+                      ))}
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="mewmo-move-knowledge__actions">
               <button
                 type="button"
-                className="mewmo-move-knowledge-card__row"
-                onClick={() => {
-                  setBasesState("idle");
-                  void loadBases();
-                }}
+                className="mewmo-button mewmo-button--ghost"
+                onClick={closeModal}
+                disabled={submitting}
               >
-                <span>加载失败，点击重试</span>
+                取消
               </button>
-            )}
-            {basesState === "ready" && bases.length === 0 && (
-              <MenuStatus text="暂无知识库，请先创建一个" />
-            )}
-            {bases.map((base) => (
-              <button
-                key={base.id}
-                type="button"
-                className="mewmo-move-knowledge-card__row"
-                onClick={() => openFolders(base)}
-              >
-                <span className="mewmo-card-menu__icon">
-                  <PrototypeIcon name="library" size={16} dual />
-                </span>
-                <span>{base.title}</span>
-                <PrototypeIcon
-                  name="caret"
-                  size={12}
-                  className="mewmo-move-knowledge-card__chev"
-                />
-              </button>
-            ))}
-          </>
-        ) : (
-          <>
-            <p className="mewmo-move-knowledge-card__label">选择文件夹</p>
-            <button
-              type="button"
-              className="mewmo-move-knowledge-card__row"
-              disabled={Boolean(submittingTarget)}
-              onClick={() => void move(view.baseId, null)}
-            >
-              <span className="mewmo-card-menu__icon">
-                <PrototypeIcon name="library" size={16} dual />
-              </span>
-              <span>
-                {submittingTarget === `${view.baseId}:root`
-                  ? "移动中..."
-                  : "知识库根级"}
-              </span>
-            </button>
-            {folderState === "loading" && <MenuStatus text="正在加载..." />}
-            {folderState === "error" && (
               <button
                 type="button"
-                className="mewmo-move-knowledge-card__row"
-                onClick={() => {
-                  setFolderStates((current) => ({
-                    ...current,
-                    [view.baseId]: "idle",
-                  }));
-                  void loadFolders(view.baseId);
-                }}
+                className="mewmo-button"
+                onClick={() => void move()}
+                disabled={!canSubmit}
               >
-                <span>加载失败，点击重试</span>
+                {submitting ? "移动中..." : "移动"}
               </button>
-            )}
-            {folderState === "ready" && flatFolders.length === 0 && (
-              <MenuStatus text="暂无其他文件夹" />
-            )}
-            {flatFolders.map((folder) => (
-              <DestinationRow
-                key={folder.id}
-                label={folder.name}
-                depth={folder.depth}
-                busy={submittingTarget === `${view.baseId}:${folder.id}`}
-                disabled={Boolean(submittingTarget)}
-                onClick={() => void move(view.baseId, folder.id)}
-              />
-            ))}
-          </>
-        )}
-      </div>
-    </div>
+            </div>
+          </section>
+        </div>
+      )}
+    </>
   );
-}
-
-function DestinationRow({
-  label,
-  depth,
-  busy,
-  disabled,
-  onClick,
-}: {
-  label: string;
-  depth: number;
-  busy: boolean;
-  disabled: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      className="mewmo-move-knowledge-card__row"
-      style={{ paddingLeft: 10 + depth * 12 }}
-      onClick={onClick}
-      disabled={disabled}
-    >
-      <span className="mewmo-card-menu__icon">
-        <PrototypeIcon name="folder" size={16} dual />
-      </span>
-      <span>{busy ? "移动中..." : label}</span>
-    </button>
-  );
-}
-
-function MenuStatus({ text }: { text: string }) {
-  return <p className="mewmo-move-knowledge-card__status">{text}</p>;
 }
 
 function flattenFolders(folders: KnowledgeFolderNode[]): KnowledgeFolderNode[] {
