@@ -32,24 +32,28 @@ test("content menus share the move-to-knowledge workflow", () => {
   assert.doesNotMatch(appLayout, /MoveToKnowledgeProvider/);
   assert.match(
     menuItem,
-    /`\/api\/knowledge-bases\/\$\{baseId\}\/items\/import`/,
+    /`\/api\/knowledge-bases\/\$\{selectedBaseId\}\/items\/import`/,
   );
   assert.match(menuItem, /response\.status === 409/);
   assert.match(menuItem, /这条内容已经在目标文件夹中/);
   assert.match(menuItem, />移动到知识库</);
-  assert.match(menuItem, /mewmo-move-knowledge-card/);
-  assert.match(menuItem, /aria-label="移动到知识库"/);
-  assert.match(menuItem, /选择知识库/);
-  assert.match(menuItem, /选择文件夹/);
+  assert.match(menuItem, /mewmo-move-knowledge/);
+  assert.match(menuItem, /aria-modal="true"/);
+  assert.match(menuItem, /mewmo-move-knowledge__panel/);
+  assert.match(menuItem, /aria-label="知识库"/);
+  assert.match(menuItem, /aria-label="文件夹"/);
   assert.match(menuItem, /知识库根级/);
-  assert.match(menuItem, /setExpanded\(true\)/);
+  assert.match(menuItem, /closeMenu\?\.\(\)/);
+  assert.match(menuItem, /setOpen\(true\)/);
   assert.doesNotMatch(menuItem, /onMouseEnter/);
   assert.doesNotMatch(menuItem, /acct-submenu/);
-  assert.doesNotMatch(menuItem, /FloatingSubmenu/);
+  assert.doesNotMatch(menuItem, /mewmo-move-knowledge-card/);
   assert.doesNotMatch(menuItem, /<select/);
   assert.doesNotMatch(menuItem, /目录/);
-  assert.match(css, /\.mewmo-move-knowledge-card/);
-  assert.match(css, /\.mewmo-card-menu:has\(\.mewmo-move-knowledge-card\)/);
+  assert.match(css, /\.mewmo-move-knowledge__/);
+  assert.match(css, /\.mewmo-move-knowledge__panel/);
+  assert.match(css, /\.mewmo-move-knowledge__scrim/);
+  assert.doesNotMatch(css, /\.mewmo-move-knowledge-card/);
   assert.doesNotMatch(css, /\.mewmo-knowledge-cascade/);
 
   for (const menu of [cardMenu, readerToolbar, feedMenu]) {
