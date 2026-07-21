@@ -4,29 +4,29 @@ import test from "node:test";
 
 const read = (path) => readFileSync(path, "utf8");
 
-test("workspace navigation exposes an immediate pending target and shared route skeleton", () => {
+test("workspace navigation keeps the current page and exposes only lightweight pending feedback", () => {
   const sidebar = read("apps/web/src/components/shell/Sidebar.tsx");
   const shell = read("apps/web/src/components/shell/AppShell.tsx");
-  const routeLoading = read("apps/web/src/components/shell/WorkspaceRouteLoading.tsx");
   const css = read("apps/web/src/app/globals.css");
 
-  assert.ok(existsSync("apps/web/src/app/(app)/loading.tsx"));
-  assert.ok(existsSync("apps/web/src/components/shell/WorkspaceRouteLoading.tsx"));
+  assert.ok(!existsSync("apps/web/src/app/(app)/loading.tsx"));
+  assert.ok(!existsSync("apps/web/src/components/shell/WorkspaceRouteLoading.tsx"));
   assert.match(sidebar, /beginNavigation/);
+  assert.match(sidebar, /pendingHref === href/);
+  assert.match(sidebar, /mewmo-nav-row--pending/);
+  assert.match(sidebar, /aria-busy=\{pending\}/);
   assert.match(shell, /WorkspaceNavigationProvider/);
   assert.doesNotMatch(shell, /mewmo-workspace-navigation-progress/);
   assert.doesNotMatch(css, /mewmo-workspace-navigation-progress/);
-  assert.match(routeLoading, /mewmo-list-column/);
-  assert.match(routeLoading, /mewmo-reader-surface/);
-  assert.match(routeLoading, /ListContentSkeleton/);
-  assert.match(routeLoading, /ReaderContentSkeleton/);
-  assert.match(css, /@keyframes mewmo-skeleton-breath/);
-  assert.match(css, /\.mewmo-list-content-skeleton__card[\s\S]{0,120}border:\s*0/);
-  assert.match(css, /\.mewmo-list-content-skeleton__preview/);
+  assert.doesNotMatch(css, /mewmo-workspace-route-loading/);
+  assert.match(css, /\.mewmo-nav-row--pending/);
+  assert.match(css, /@keyframes mewmo-skeleton-sweep/);
+  assert.match(css, /\.mewmo-list-card--skeleton/);
+  assert.match(css, /\.mewmo-list-card-skeleton__preview/);
   assert.match(css, /\.mewmo-reader-content-skeleton[\s\S]{0,180}min-height:\s*calc\(100vh/);
   assert.doesNotMatch(
     css,
-    /mewmo-skeleton-shimmer|mewmo-skeleton-extend|mewmo-skeleton-sweep|mewmo-route-skeleton-sweep|mewmo-reader-content-enter/,
+    /mewmo-skeleton-breath|mewmo-skeleton-shimmer|mewmo-skeleton-extend|mewmo-route-skeleton-sweep|mewmo-reader-content-enter/,
   );
   assert.ok(existsSync("apps/web/src/components/shell/ReaderContentSkeleton.tsx"));
   assert.ok(existsSync("apps/web/src/components/shell/ListContentSkeleton.tsx"));

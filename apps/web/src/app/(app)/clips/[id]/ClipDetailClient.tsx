@@ -384,7 +384,7 @@ export function ClipDetailClient({
               <h1>{selectedClip.title}</h1>
               {(isSelectedClipLoading || selectedClip.fetchStatus === "queued" || selectedClip.fetchStatus === "fetching") &&
               !selectedClip.content ? (
-                <ReaderContentSkeleton active label="正在加载正文" />
+                <ReaderContentSkeleton active showTitle={false} label="正在加载正文" />
               ) : (
                 <>
                   <div className="mewmo-doc-meta">

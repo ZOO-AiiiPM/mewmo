@@ -1694,15 +1694,17 @@ function SidebarLink({
   active?: boolean;
   badge?: string | undefined;
 }) {
-  const { beginNavigation } = useWorkspaceNavigation();
+  const { beginNavigation, pendingHref } = useWorkspaceNavigation();
+  const pending = pendingHref === href;
   return (
     <Link
       href={href}
       scroll={false}
-      className={`mewmo-nav-row mewmo-nav-row--sub ${active ? "mewmo-nav-row--active" : ""}`}
+      className={`mewmo-nav-row mewmo-nav-row--sub ${active ? "mewmo-nav-row--active" : ""} ${pending ? "mewmo-nav-row--pending" : ""}`}
       onClick={() => beginNavigation(href)}
+      aria-busy={pending}
     >
-      <span className="mewmo-nav-row__icon"><PrototypeIcon name={icon} dual filled={Boolean(active)} /></span>
+      <span className="mewmo-nav-row__icon"><PrototypeIcon name={icon} dual filled={Boolean(active || pending)} /></span>
       <span className="mewmo-nav-row__label">{label}</span>
       {badge && <span className="mewmo-nav-row__badge">{badge}</span>}
     </Link>

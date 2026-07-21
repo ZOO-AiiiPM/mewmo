@@ -222,6 +222,7 @@ export default function TodayPage() {
   const detailRequest = selectedListItem ? todayDetailRequest(selectedListItem) : null;
   const {
     data: selectedDetail,
+    initialLoading: selectedDetailLoading,
     error: selectedDetailError,
     update: updateSelectedDetail,
   } = useWorkspaceResource<TodayDetail | null>({
@@ -448,8 +449,12 @@ export default function TodayPage() {
               <div className="mewmo-empty-state">
                 <p>{selectedDetailError}</p>
               </div>
-            ) : (
+            ) : selectedDetailLoading ? (
               <ReaderContentSkeleton active showTitle label="正在加载笔记" />
+            ) : (
+              <div className="mewmo-empty-state">
+                <p>暂无正文内容</p>
+              </div>
             )
           ) : selected ? (
             <article className="mewmo-document mewmo-document--empty">

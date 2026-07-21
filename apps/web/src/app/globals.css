@@ -560,19 +560,46 @@ button {
 }
 
 .mewmo-skeleton-block {
-  /* Always fully opaque so the dark page/list panel never shows through as a second layer. */
+  --skeleton-base: color-mix(in srgb, var(--raised) 42%, var(--hover) 58%);
+  --skeleton-highlight: color-mix(in srgb, var(--raised) 72%, var(--ink) 28%);
+  position: relative;
   display: block;
+  overflow: hidden;
   border-radius: 8px;
-  background: color-mix(in srgb, var(--raised) 42%, var(--hover) 58%);
-  animation: mewmo-skeleton-breath 1.6s ease-in-out infinite alternate;
+  background: var(--skeleton-base);
 }
 
-@keyframes mewmo-skeleton-breath {
-  from {
-    filter: brightness(0.9);
+.mewmo-skeleton-block::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -64%;
+  width: 64%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--skeleton-highlight) 50%,
+    transparent 100%
+  );
+  content: "";
+  opacity: 0.5;
+  pointer-events: none;
+  transform: translate3d(0, 0, 0);
+  animation: mewmo-skeleton-sweep 1.7s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+html.light .mewmo-skeleton-block {
+  --skeleton-base: color-mix(in srgb, var(--raised) 58%, var(--line) 42%);
+  --skeleton-highlight: var(--raised);
+}
+
+@keyframes mewmo-skeleton-sweep {
+  0% {
+    transform: translate3d(0, 0, 0);
   }
-  to {
-    filter: brightness(1.12);
+  68%,
+  100% {
+    transform: translate3d(260%, 0, 0);
   }
 }
 
@@ -584,7 +611,15 @@ button {
   width: min(100%, 680px);
   min-height: calc(100vh - 140px);
   margin: 0 auto;
-  padding: 32px 0 48px;
+  padding: 32px 36px 48px;
+}
+
+.mewmo-document > .mewmo-reader-content-skeleton,
+.mewmo-clip-prose > .mewmo-reader-content-skeleton {
+  width: 100%;
+  min-height: calc(100vh - 260px);
+  margin: 0;
+  padding: 0 0 18px;
 }
 
 .mewmo-reader-content-skeleton__title {
@@ -639,132 +674,72 @@ button {
   margin: 4px 0 2px;
 }
 
-/* List skeleton mirrors real list cards: title, 2-line preview, optional media, meta row. */
+/* Skeleton cards use the real list-card geometry; only their inner ink is replaced. */
 .mewmo-list-content-skeleton {
   display: flex;
   flex-direction: column;
-  gap: 0;
   padding: 0 0 16px;
+  pointer-events: none;
 }
 
-.mewmo-list-content-skeleton__card {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  padding: 13px;
-  border: 0;
-  border-top: 1px solid color-mix(in srgb, var(--line) 65%, transparent);
+.mewmo-list-card--skeleton {
+  cursor: default;
+}
+
+.mewmo-list-content-skeleton .mewmo-list-card--skeleton:hover {
+  border-top-color: color-mix(in srgb, var(--line) 65%, transparent);
   border-radius: 0;
   background: transparent;
 }
 
-.mewmo-list-content-skeleton__card:first-child {
-  border-top-color: transparent;
-}
-
-.mewmo-list-content-skeleton__card .mewmo-skeleton-block {
+.mewmo-list-card--skeleton .mewmo-skeleton-block {
   border-radius: 6px;
 }
 
-.mewmo-list-content-skeleton__title {
+.mewmo-list-card-skeleton__title {
+  display: block;
   width: 72%;
   height: 15px;
-  border-radius: 5px;
+  flex: none;
 }
 
-.mewmo-list-content-skeleton__preview {
+.mewmo-list-card-skeleton__preview {
+  display: grid;
+  height: 38px;
+  grid-template-rows: repeat(2, 1fr);
+  margin-top: 5px;
+}
+
+.mewmo-list-card-skeleton__line {
   width: 100%;
-  height: 12px;
-  margin-top: 8px;
-  border-radius: 5px;
+  height: 11px;
+  align-self: center;
 }
 
-.mewmo-list-content-skeleton__preview--short {
+.mewmo-list-card-skeleton__line--short {
   width: 68%;
-  margin-top: 6px;
 }
 
-.mewmo-list-content-skeleton__meta-row {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  min-width: 0;
-  margin-top: 11px;
-  padding-right: 34px;
-}
-
-.mewmo-list-content-skeleton__meta {
+.mewmo-list-card-skeleton__meta .mewmo-skeleton-block {
   height: 11px;
   border-radius: 999px;
 }
 
-.mewmo-list-content-skeleton__meta--icon {
+.mewmo-list-card-skeleton__source-icon {
   width: 15px;
   height: 15px;
   border-radius: 4px;
   flex: none;
 }
 
-.mewmo-list-content-skeleton__meta--source {
+.mewmo-list-card-skeleton__source {
   width: 88px;
   flex: none;
 }
 
-.mewmo-list-content-skeleton__meta--time {
+.mewmo-list-card-skeleton__time {
   width: 52px;
   flex: none;
-}
-
-.mewmo-list-content-skeleton__cover {
-  width: 132px;
-  max-width: 100%;
-  height: 76px;
-  border-radius: 8px;
-  margin-top: 10px;
-}
-
-.mewmo-list-content-skeleton__thumbs {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 9px;
-  margin-top: 10px;
-}
-
-.mewmo-list-content-skeleton__thumb {
-  width: 100%;
-  aspect-ratio: 1.85;
-  height: auto;
-  min-height: 48px;
-  border-radius: 9px;
-}
-
-/* Route loading reuses real list/reader chrome so canvas never peeks as a second layer. */
-.mewmo-workspace-route-loading {
-  height: 100%;
-  min-height: 100vh;
-}
-
-.mewmo-workspace-route-loading__heading {
-  width: 72px;
-  height: 18px;
-  border-radius: 6px;
-}
-
-.mewmo-workspace-route-loading__bar-action {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  flex: none;
-}
-
-.mewmo-workspace-route-loading__toolbar-title {
-  width: 120px;
-  height: 16px;
-  border-radius: 6px;
-}
-
-.mewmo-workspace-route-loading .mewmo-reader-scroll {
-  padding-top: 56px;
 }
 
 .mewmo-shell--ai-open {
@@ -792,8 +767,7 @@ button {
   background: var(--canvas);
 }
 
-.mewmo-shell__main:has(.mewmo-workspace),
-.mewmo-shell__main:has(.mewmo-workspace-route-loading) {
+.mewmo-shell__main:has(.mewmo-workspace) {
   /* Workspace panels paint the surface; avoid a bare canvas flash under them. */
   background: transparent;
 }
@@ -968,6 +942,10 @@ html.light .mewmo-sidebar {
   border-radius: 3px;
   background: var(--accent);
   content: "";
+}
+
+.mewmo-nav-row--pending {
+  background: var(--selected);
 }
 
 .mewmo-nav-row--muted {

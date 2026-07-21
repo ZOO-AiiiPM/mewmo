@@ -297,7 +297,7 @@ export default function TrashPage() {
     <div className="mewmo-workspace">
       <ListColumn title="废纸篓" searchPlaceholder="搜索废纸篓..." onSearchChange={setQuery}>
         {isLoading ? (
-          <ListContentSkeleton active variant="media" label="正在加载废纸篓" />
+          <ListContentSkeleton active variant="mixed" label="正在加载废纸篓" />
         ) : error && items.length === 0 ? (
           <div className="mewmo-list-empty">
             <PrototypeIcon name="empty" size={36} />

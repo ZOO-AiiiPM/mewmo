@@ -1,26 +1,27 @@
-"use client";
-
 export type ListSkeletonVariant = "text" | "media" | "mixed";
 
 interface ListContentSkeletonProps {
   active?: boolean;
   label?: string;
   count?: number;
-  /** text: notes-like; media: clip/feed with cover; mixed: today/knowledge */
+  /** text: notes; media: clips/feeds; mixed: today/knowledge/trash */
   variant?: ListSkeletonVariant;
 }
+
+type SkeletonMedia = "none" | "cover" | "thumbs";
+
+const mediaPatterns: Record<ListSkeletonVariant, readonly SkeletonMedia[]> = {
+  text: ["none", "none", "thumbs", "none", "none", "none"],
+  media: ["cover", "none", "cover", "none", "none", "cover"],
+  mixed: ["none", "cover", "thumbs", "none", "cover", "none"],
+};
 
 function cardMediaKind(
   variant: ListSkeletonVariant,
   index: number,
-): "none" | "cover" | "thumbs" {
-  if (variant === "media") return "cover";
-  if (variant === "mixed") {
-    if (index % 3 === 0) return "cover";
-    if (index % 3 === 1) return "thumbs";
-    return "none";
-  }
-  return index % 4 === 1 ? "thumbs" : "none";
+): SkeletonMedia {
+  const pattern = mediaPatterns[variant];
+  return pattern[index % pattern.length] ?? "none";
 }
 
 export function ListContentSkeleton({
@@ -34,38 +35,50 @@ export function ListContentSkeleton({
   return (
     <div
       className={`mewmo-list-content-skeleton mewmo-list-content-skeleton--${variant}`}
+      role="status"
       aria-busy="true"
       aria-label={label}
     >
       {Array.from({ length: count }, (_, index) => {
         const media = cardMediaKind(variant, index);
+        const showsSourceIcon = variant !== "text";
+
         return (
-          <div
-            key={index}
-            className={`mewmo-list-content-skeleton__card${
-              media === "cover"
-                ? " mewmo-list-content-skeleton__card--cover"
-                : media === "thumbs"
-                  ? " mewmo-list-content-skeleton__card--thumbs"
-                  : ""
-            }`}
-          >
-            <span className="mewmo-skeleton-block mewmo-list-content-skeleton__title" />
-            <span className="mewmo-skeleton-block mewmo-list-content-skeleton__preview" />
-            <span className="mewmo-skeleton-block mewmo-list-content-skeleton__preview mewmo-list-content-skeleton__preview--short" />
-            {media === "cover" ? (
-              <span className="mewmo-skeleton-block mewmo-list-content-skeleton__cover" />
-            ) : null}
-            {media === "thumbs" ? (
-              <div className="mewmo-list-content-skeleton__thumbs" aria-hidden="true">
-                <span className="mewmo-skeleton-block mewmo-list-content-skeleton__thumb" />
-                <span className="mewmo-skeleton-block mewmo-list-content-skeleton__thumb" />
+          <div key={index} className="mewmo-list-card-wrap" aria-hidden="true">
+            <div className="mewmo-list-card mewmo-list-card--skeleton">
+              <div className="mewmo-list-card__title">
+                <i className="mewmo-skeleton-block mewmo-list-card-skeleton__title" />
               </div>
-            ) : null}
-            <div className="mewmo-list-content-skeleton__meta-row" aria-hidden="true">
-              <span className="mewmo-skeleton-block mewmo-list-content-skeleton__meta mewmo-list-content-skeleton__meta--icon" />
-              <span className="mewmo-skeleton-block mewmo-list-content-skeleton__meta mewmo-list-content-skeleton__meta--source" />
-              <span className="mewmo-skeleton-block mewmo-list-content-skeleton__meta mewmo-list-content-skeleton__meta--time" />
+
+              <div className="mewmo-list-card-skeleton__preview">
+                <i className="mewmo-skeleton-block mewmo-list-card-skeleton__line" />
+                <i className="mewmo-skeleton-block mewmo-list-card-skeleton__line mewmo-list-card-skeleton__line--short" />
+              </div>
+
+              {media === "cover" ? (
+                <div className="mewmo-list-card__cover mewmo-skeleton-block" />
+              ) : null}
+
+              {media === "thumbs" ? (
+                <div className="mewmo-list-card__thumbs">
+                  <i className="mewmo-list-card__thumb mewmo-skeleton-block" />
+                  <i className="mewmo-list-card__thumb mewmo-skeleton-block" />
+                </div>
+              ) : null}
+
+              <div
+                className={
+                  showsSourceIcon
+                    ? "mewmo-list-card__source mewmo-list-card-skeleton__meta"
+                    : "mewmo-list-card__meta mewmo-list-card-skeleton__meta"
+                }
+              >
+                {showsSourceIcon ? (
+                  <i className="mewmo-skeleton-block mewmo-list-card-skeleton__source-icon" />
+                ) : null}
+                <i className="mewmo-skeleton-block mewmo-list-card-skeleton__source" />
+                <i className="mewmo-skeleton-block mewmo-list-card-skeleton__time" />
+              </div>
             </div>
           </div>
         );

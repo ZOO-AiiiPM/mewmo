@@ -79,7 +79,7 @@ export function ClipContentRenderer({
   }, [contentKey, contentHtml]);
 
   if (loading && !contentHtml) {
-    return <ReaderContentSkeleton active label="正在加载正文" />;
+    return <ReaderContentSkeleton active showTitle={false} label="正在加载正文" />;
   }
 
   if (!contentHtml) {

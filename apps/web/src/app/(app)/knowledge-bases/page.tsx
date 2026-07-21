@@ -921,9 +921,17 @@ function KnowledgeBodyLoading({ loading, error }: { loading: boolean; error: str
     );
   }
 
+  if (!loading) {
+    return (
+      <article className="mewmo-document mewmo-document--empty">
+        <p>暂无正文内容</p>
+      </article>
+    );
+  }
+
   return (
     <article className="mewmo-document mewmo-document--clip">
-      <ReaderContentSkeleton active={loading} showTitle label="正在加载内容" />
+      <ReaderContentSkeleton active showTitle label="正在加载内容" />
     </article>
   );
 }
