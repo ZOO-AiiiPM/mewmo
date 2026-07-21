@@ -85,4 +85,26 @@ describe("classified AI workflows", () => {
       schema: expect.anything(),
     }));
   });
+
+  it("accepts a bare insight array from an OpenAI-compatible structured response", async () => {
+    const ai: AiRuntimePort = {
+      generateText: vi.fn(),
+      embed: vi.fn(),
+      generateObject: vi.fn().mockResolvedValue({
+        value: [{ type: "completeness", message: "补充一个反例。", evidenceTargetIds: [] }],
+        metadata: { profile: "workflow.note-insight", model: "fake-insight" },
+      }),
+    };
+    const result = await runNoteInsightWorkflow({
+      kind: "note_insight",
+      targetType: "note",
+      targetId: "note-1",
+      inputVersion: 3,
+      currentVersion: 3,
+      title: "Current thought",
+      content: "Caching reduces perceived latency.",
+      related: [],
+    }, context(ai));
+    expect(result.insights).toEqual([{ type: "completeness", message: "补充一个反例。", evidenceTargetIds: [] }]);
+  });
 });

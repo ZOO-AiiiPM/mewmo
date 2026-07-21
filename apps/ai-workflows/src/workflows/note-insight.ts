@@ -10,7 +10,11 @@ const noteInsightItemSchema = z.object({
   message: z.string().min(1),
   evidenceTargetIds: z.array(z.string()),
 });
-const generatedNoteInsightsSchema = z.object({ insights: z.array(noteInsightItemSchema).max(6) });
+const insightListSchema = z.array(noteInsightItemSchema).max(6);
+const generatedNoteInsightsSchema = z.union([
+  z.object({ insights: insightListSchema }),
+  insightListSchema.transform((insights) => ({ insights })),
+]);
 type GeneratedNoteInsights = z.infer<typeof generatedNoteInsightsSchema>;
 
 export async function runNoteInsightWorkflow(
