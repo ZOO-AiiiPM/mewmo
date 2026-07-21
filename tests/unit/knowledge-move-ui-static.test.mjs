@@ -56,10 +56,10 @@ test("content menus share the move-to-knowledge workflow", () => {
     assert.match(menu, /<MoveToKnowledgeMenuItem target=/);
   }
 
-  // Move action should appear before other actions (not last).
+  // Move action should appear after other actions (last).
   const cardMoveAt = cardMenu.indexOf("<MoveToKnowledgeMenuItem");
-  const cardDeleteAt = cardMenu.indexOf("删除");
-  assert.ok(cardMoveAt > -1 && cardDeleteAt > -1 && cardMoveAt < cardDeleteAt);
+  const cardExportAt = cardMenu.lastIndexOf("导出");
+  assert.ok(cardMoveAt > -1 && cardExportAt > -1 && cardMoveAt > cardExportAt);
 
   assert.match(notesPage, /moveToKnowledgeTarget=\{\{ kind: "note"/);
   assert.match(clipsPage, /moveToKnowledgeTarget=\{\{ kind: "clip"/);
