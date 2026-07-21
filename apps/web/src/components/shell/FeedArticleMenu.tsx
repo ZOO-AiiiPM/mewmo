@@ -59,9 +59,6 @@ export function FeedArticleMenu({
         boundary="main"
         className="mewmo-card-menu mewmo-reader-menu"
       >
-        {moveToKnowledgeTarget && (
-          <MoveToKnowledgeMenuItem target={moveToKnowledgeTarget} />
-        )}
         <button
           type="button"
           className="mewmo-card-menu__item"
@@ -82,6 +79,9 @@ export function FeedArticleMenu({
           </span>
           <span>复制链接</span>
         </button>
+        {moveToKnowledgeTarget && (
+          <MoveToKnowledgeMenuItem target={moveToKnowledgeTarget} />
+        )}
       </PopoverMenu>
     </div>
   );

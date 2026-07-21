@@ -60,9 +60,6 @@ export function CardActionMenu({
       boundary="main"
       className="mewmo-card-menu"
     >
-      {moveToKnowledgeTarget && (
-        <MoveToKnowledgeMenuItem target={moveToKnowledgeTarget} />
-      )}
       {kind === "feed" ? (
         <>
           <button
@@ -174,6 +171,9 @@ export function CardActionMenu({
             <span>浏览器打开</span>
           </a>
         </>
+      )}
+      {moveToKnowledgeTarget && (
+        <MoveToKnowledgeMenuItem target={moveToKnowledgeTarget} />
       )}
     </PopoverMenu>
   );

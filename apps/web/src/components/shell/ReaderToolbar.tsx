@@ -127,9 +127,6 @@ export function ReaderToolbar({
             >
               {menuKind === "notes" ? (
                 <>
-                  {moveToKnowledgeTarget && (
-                    <MoveToKnowledgeMenuItem target={moveToKnowledgeTarget} />
-                  )}
                   <button
                     type="button"
                     className="mewmo-card-menu__item mewmo-card-menu__item--danger"
@@ -182,12 +179,12 @@ export function ReaderToolbar({
                     </span>
                     <span>导出</span>
                   </button>
-                </>
-              ) : (
-                <>
                   {moveToKnowledgeTarget && (
                     <MoveToKnowledgeMenuItem target={moveToKnowledgeTarget} />
                   )}
+                </>
+              ) : (
+                <>
                   <button
                     type="button"
                     className="mewmo-card-menu__item mewmo-card-menu__item--danger"
@@ -218,6 +215,9 @@ export function ReaderToolbar({
                     </span>
                     <span>复制链接</span>
                   </button>
+                  {moveToKnowledgeTarget && (
+                    <MoveToKnowledgeMenuItem target={moveToKnowledgeTarget} />
+                  )}
                 </>
               )}
             </PopoverMenu>
