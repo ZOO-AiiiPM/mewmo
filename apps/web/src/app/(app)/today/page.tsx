@@ -432,6 +432,7 @@ export default function TodayPage() {
           onCopyContent={
             selected?.type === "note" ? () => void copySelectedNote() : undefined
           }
+          moveToKnowledgeTarget={selected ? todayMoveTarget(selected) : undefined}
         />
         <div
           ref={scrollRef}
@@ -487,4 +488,10 @@ export default function TodayPage() {
       </section>
     </div>
   );
+}
+
+function todayMoveTarget(item: TodayItem) {
+  if (item.type === "note") return { kind: "note" as const, noteId: item.id, title: item.title };
+  if (item.type === "clip") return { kind: "clip" as const, clipId: item.id, title: item.title };
+  return { kind: "feed_entry" as const, feedEntryId: item.id, title: item.title };
 }

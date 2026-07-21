@@ -10,6 +10,27 @@ export class KnowledgeFolderDepthError extends Error {
   }
 }
 
+export class KnowledgeImportTargetError extends Error {
+  constructor() {
+    super("knowledge import target was not found");
+    this.name = "KnowledgeImportTargetError";
+  }
+}
+
+export class KnowledgeImportSourceError extends Error {
+  constructor() {
+    super("knowledge import source was not found");
+    this.name = "KnowledgeImportSourceError";
+  }
+}
+
+export class KnowledgeImportDuplicateError extends Error {
+  constructor() {
+    super("content already exists in this knowledge base");
+    this.name = "KnowledgeImportDuplicateError";
+  }
+}
+
 export interface CreateKnowledgeBaseInput {
   title: string;
   icon?: string;
@@ -72,12 +93,41 @@ interface KnowledgeClient {
     findMany(args: unknown): Promise<unknown>;
     updateMany(args: unknown): Promise<unknown>;
   };
+  note: {
+    findFirst(args: unknown): Promise<unknown>;
+  };
+  clip: {
+    findFirst(args: unknown): Promise<unknown>;
+  };
+  feedEntry: {
+    findFirst(args: unknown): Promise<unknown>;
+  };
 }
 
 function itemCreateData(item: ImportKnowledgeItemInput) {
   if (item.kind === "note") return { kind: item.kind, noteId: item.noteId };
   if (item.kind === "clip") return { kind: item.kind, clipId: item.clipId };
   return { kind: item.kind, feedEntryId: item.feedEntryId };
+}
+
+function itemReferenceWhere(item: ImportKnowledgeItemInput) {
+  if (item.kind === "note") return { noteId: item.noteId };
+  if (item.kind === "clip") return { clipId: item.clipId };
+  return { feedEntryId: item.feedEntryId };
+}
+
+function itemReferenceSelect(item: ImportKnowledgeItemInput) {
+  if (item.kind === "note") return { noteId: true };
+  if (item.kind === "clip") return { clipId: true };
+  return { feedEntryId: true };
+}
+
+async function sourceExists(db: KnowledgeClient, userId: string, item: ImportKnowledgeItemInput) {
+  const id = item.kind === "note" ? item.noteId : item.kind === "clip" ? item.clipId : item.feedEntryId;
+  const where = { id, ...activeByUser(userId) };
+  if (item.kind === "note") return Boolean(await db.note.findFirst({ where, select: { id: true } }));
+  if (item.kind === "clip") return Boolean(await db.clip.findFirst({ where, select: { id: true } }));
+  return Boolean(await db.feedEntry.findFirst({ where, select: { id: true } }));
 }
 
 export function createKnowledgeBasesRepository(client: unknown = getPrisma()) {
@@ -262,6 +312,30 @@ export function createKnowledgeBasesRepository(client: unknown = getPrisma()) {
 
     async importItems(userId: string, knowledgeBaseId: string, input: ImportKnowledgeItemsInput) {
       const folderId = input.folderId ?? null;
+
+      if (folderId) {
+        const folder = await db.knowledgeFolder.findFirst({
+          where: { id: folderId, knowledgeBaseId, ...activeByUser(userId) },
+          select: { id: true },
+        });
+        if (!folder) throw new KnowledgeImportTargetError();
+      }
+
+      for (const item of input.items) {
+        if (!(await sourceExists(db, userId, item))) throw new KnowledgeImportSourceError();
+        const duplicate = (await db.knowledgeItem.findMany({
+          where: {
+            knowledgeBaseId,
+            folderId,
+            ...itemReferenceWhere(item),
+            ...activeByUser(userId),
+          },
+          select: itemReferenceSelect(item),
+          take: 1,
+        })) as unknown[];
+        if (duplicate.length > 0) throw new KnowledgeImportDuplicateError();
+      }
+
       const created = [];
 
       for (const [index, item] of input.items.entries()) {

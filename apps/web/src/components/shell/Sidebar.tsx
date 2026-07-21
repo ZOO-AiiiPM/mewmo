@@ -317,15 +317,6 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
     setOpenMenu(null);
   };
 
-  const reloadKnowledgeBases = async () => {
-    const data = await loadWorkspaceResource(workspaceResourceKeys.knowledgeBases(), async () => {
-      const response = await fetch("/api/knowledge-bases");
-      if (!response.ok) throw new Error("Failed to load knowledge bases");
-      return (await response.json()) as SidebarKnowledgeBase[];
-    });
-    setKnowledgeBases(Array.isArray(data) ? data : []);
-  };
-
   const loadKnowledgeTree = async (base: SidebarKnowledgeBase) => {
     const key = workspaceResourceKeys.knowledgeTree(base.id);
     const cachedTree = getWorkspaceResource<SidebarKnowledgeTree>(key)?.value ?? null;
@@ -755,13 +746,7 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
             </FloatingMenuButton>
           }
         >
-          {knowledgeBases.length === 0 ? (
-            <>
-              <SidebarButton icon="book" label="产品设计" onClick={() => void reloadKnowledgeBases()} muted />
-              <SidebarButton icon="book" label="技术笔记" onClick={() => void reloadKnowledgeBases()} muted />
-            </>
-          ) : (
-            knowledgeBases.map((base) => (
+          {knowledgeBases.map((base) => (
               <div key={base.id} className="mewmo-knowledge-base-row">
                 <button
                   type="button"
@@ -800,8 +785,7 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
                   </FloatingMenuButton>
                 </FloatingMenu>
               </div>
-            ))
-          )}
+            ))}
         </SidebarGroup>
 
         <SidebarGroup

@@ -501,6 +501,7 @@ export default function FeedsPage() {
                     onOpenChange={(open) => setOpenMenuId(open ? entry.id : null)}
                     onFavorite={() => void favoriteEntry(entry)}
                     onCopyLink={() => copyEntryLink(entry)}
+                    moveToKnowledgeTarget={{ kind: "feed_entry", feedEntryId: entry.id, title: entry.title }}
                   />
                 </article>
               );
@@ -518,6 +519,7 @@ export default function FeedsPage() {
           favoriteActive={Boolean(selectedEntry?.isFavorited)}
           onFavorite={selectedEntry ? () => void favoriteEntry(selectedEntry) : undefined}
           onCopyLink={selectedEntry ? () => copyEntryLink(selectedEntry) : undefined}
+          moveToKnowledgeTarget={selectedEntry ? { kind: "feed_entry", feedEntryId: selectedEntry.id, title: selectedEntry.title } : undefined}
         />
         <ReaderToc
           items={selectedEntryToc}

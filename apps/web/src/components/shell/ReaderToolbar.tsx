@@ -2,6 +2,10 @@
 
 import type { ReactNode } from "react";
 import { useRef, useState } from "react";
+import {
+  MoveToKnowledgeMenuItem,
+  type MoveToKnowledgeTarget,
+} from "../knowledge/MoveToKnowledgeMenuItem";
 import { PopoverMenu } from "../ui/FloatingMenu";
 import { FeedArticleMenu } from "./FeedArticleMenu";
 import { PrototypeIcon } from "./PrototypeIcon";
@@ -25,6 +29,7 @@ interface ReaderToolbarProps {
   onCopyLink?: (() => void) | undefined;
   onFavorite?: (() => void) | undefined;
   favoriteActive?: boolean | undefined;
+  moveToKnowledgeTarget?: MoveToKnowledgeTarget | undefined;
 }
 
 export function ReaderToolbar({
@@ -46,6 +51,7 @@ export function ReaderToolbar({
   onCopyLink,
   onFavorite,
   favoriteActive = false,
+  moveToKnowledgeTarget,
 }: ReaderToolbarProps) {
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -95,31 +101,35 @@ export function ReaderToolbar({
             favoriteActive={favoriteActive}
             onFavorite={onFavorite}
             onCopyLink={onCopyLink}
+            moveToKnowledgeTarget={moveToKnowledgeTarget}
           />
         ) : (
           <div className="mewmo-reader-toolbar__menu-wrap" hidden={!showMenu}>
-          <button
-            ref={menuButtonRef}
-            type="button"
-            className={`mewmo-icon-button ${menuOpen ? "mewmo-icon-button--active" : ""}`}
-            onClick={(event) => {
-              event.stopPropagation();
-              setMenuOpen((value) => !value);
-            }}
-            aria-label="更多"
-            aria-expanded={menuOpen}
-          >
-            <PrototypeIcon name="more-vertical" size={20} />
-          </button>
-          <PopoverMenu
-            open={menuOpen}
-            anchorRef={menuButtonRef}
-            onOpenChange={setMenuOpen}
-            boundary="main"
-            className="mewmo-card-menu mewmo-reader-menu"
-          >
+            <button
+              ref={menuButtonRef}
+              type="button"
+              className={`mewmo-icon-button ${menuOpen ? "mewmo-icon-button--active" : ""}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                setMenuOpen((value) => !value);
+              }}
+              aria-label="更多"
+              aria-expanded={menuOpen}
+            >
+              <PrototypeIcon name="more-vertical" size={20} />
+            </button>
+            <PopoverMenu
+              open={menuOpen}
+              anchorRef={menuButtonRef}
+              onOpenChange={setMenuOpen}
+              boundary="main"
+              className="mewmo-card-menu mewmo-reader-menu"
+            >
               {menuKind === "notes" ? (
                 <>
+                  {moveToKnowledgeTarget && (
+                    <MoveToKnowledgeMenuItem target={moveToKnowledgeTarget} />
+                  )}
                   <button
                     type="button"
                     className="mewmo-card-menu__item mewmo-card-menu__item--danger"
@@ -175,6 +185,9 @@ export function ReaderToolbar({
                 </>
               ) : (
                 <>
+                  {moveToKnowledgeTarget && (
+                    <MoveToKnowledgeMenuItem target={moveToKnowledgeTarget} />
+                  )}
                   <button
                     type="button"
                     className="mewmo-card-menu__item mewmo-card-menu__item--danger"
@@ -207,7 +220,7 @@ export function ReaderToolbar({
                   </button>
                 </>
               )}
-          </PopoverMenu>
+            </PopoverMenu>
           </div>
         )}
       </div>
