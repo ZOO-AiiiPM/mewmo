@@ -114,7 +114,10 @@ test("settings route exposes an accessible themed loading state", () => {
   assert.match(loadingSource, /mewmo-account-settings-loading/);
   assert.match(loadingSource, /aria-busy="true"/);
   assert.match(loadingSource, /账户管理/);
+  assert.match(loadingSource, /mewmo-skeleton-block/);
   assert.match(cssSource, /\.mewmo-account-settings-loading[\s\S]*var\(--(?:canvas|s1|raised|ink|ink-soft|line)\)/);
+  assert.match(cssSource, /\.mewmo-skeleton-block::after[\s\S]*mewmo-skeleton-sweep/);
+  assert.doesNotMatch(cssSource, /mewmo-skeleton-breath|mewmo-skeleton-shimmer|mewmo-skeleton-extend/);
 });
 
 test("account settings client renders identity, method chips, and both password modes", () => {

@@ -12,6 +12,8 @@ import {
   type PrototypeIconName,
 } from "../../../components/shell/PrototypeIcon";
 import { ReaderBackToTopButton } from "../../../components/shell/ReaderBackToTopButton";
+import { ListContentSkeleton } from "../../../components/shell/ListContentSkeleton";
+import { ReaderContentSkeleton } from "../../../components/shell/ReaderContentSkeleton";
 import { ReaderToc } from "../../../components/shell/ReaderToc";
 import { ReaderToolbar } from "../../../components/shell/ReaderToolbar";
 import {
@@ -56,12 +58,7 @@ const NoteEditor = dynamic(
     })),
   {
     ssr: false,
-    loading: () => (
-      <div className="mewmo-empty-state">
-        <span className="mewmo-spinner" aria-hidden="true" />
-        <p>正在加载编辑器...</p>
-      </div>
-    ),
+    loading: () => <ReaderContentSkeleton active label="正在加载编辑器" />,
   },
 );
 
@@ -596,10 +593,7 @@ export default function KnowledgeBasesPage() {
         }
       >
         {loading ? (
-          <div className="mewmo-list-empty">
-            <span className="mewmo-spinner" aria-hidden="true" />
-            <p>正在加载知识库...</p>
-          </div>
+          <ListContentSkeleton active variant="mixed" label="正在加载知识库" />
         ) : error && items.length === 0 ? (
           <div className="mewmo-list-empty">
             <PrototypeIcon name="empty" size={36} />
@@ -816,6 +810,13 @@ function KnowledgeReader({
   onNoteTitleChange: (title: string) => void;
 }) {
   if (!item || !card) {
+    if (loading) {
+      return (
+        <article className="mewmo-document mewmo-document--clip">
+          <ReaderContentSkeleton active showTitle label="正在加载内容" />
+        </article>
+      );
+    }
     return (
       <article className="mewmo-document mewmo-document--empty">
         <h1>{title}</h1>
@@ -826,7 +827,9 @@ function KnowledgeReader({
 
   if (item.kind === "note" && item.note) {
     if (typeof item.note.content !== "string") {
-      return <KnowledgeBodyLoading loading={loading} error={error} />;
+      return (
+        <KnowledgeBodyLoading loading={loading} error={error} />
+      );
     }
     return (
       <NoteEditor
@@ -862,7 +865,9 @@ function KnowledgeReader({
 
   if (item.kind === "clip" && item.clip) {
     if (typeof item.clip.content !== "string") {
-      return <KnowledgeBodyLoading loading={loading} error={error} />;
+      return (
+        <KnowledgeBodyLoading loading={loading} error={error} />
+      );
     }
     return (
       <article className="mewmo-document mewmo-document--clip mewmo-document--knowledge">
@@ -875,7 +880,9 @@ function KnowledgeReader({
 
   if (item.kind === "feed_entry" && item.feedEntry) {
     if (typeof item.feedEntry.content !== "string") {
-      return <KnowledgeBodyLoading loading={loading} error={error} />;
+      return (
+        <KnowledgeBodyLoading loading={loading} error={error} />
+      );
     }
     return (
       <article className="mewmo-document mewmo-document--knowledge">
@@ -906,10 +913,25 @@ function KnowledgeReader({
 }
 
 function KnowledgeBodyLoading({ loading, error }: { loading: boolean; error: string }) {
+  if (error) {
+    return (
+      <article className="mewmo-document mewmo-document--empty">
+        <p>{error}</p>
+      </article>
+    );
+  }
+
+  if (!loading) {
+    return (
+      <article className="mewmo-document mewmo-document--empty">
+        <p>暂无正文内容</p>
+      </article>
+    );
+  }
+
   return (
-    <article className="mewmo-document mewmo-document--empty">
-      {loading && <span className="mewmo-spinner" aria-hidden="true" />}
-      <p>{error || "正在加载内容..."}</p>
+    <article className="mewmo-document mewmo-document--clip">
+      <ReaderContentSkeleton active showTitle label="正在加载内容" />
     </article>
   );
 }

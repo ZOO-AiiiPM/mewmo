@@ -10,8 +10,10 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { ClipContentRenderer } from "../../../components/clips/ClipContentRenderer";
 import { CardActionMenu } from "../../../components/shell/CardActionMenu";
 import { ListColumn } from "../../../components/shell/ListColumn";
+import { ListContentSkeleton } from "../../../components/shell/ListContentSkeleton";
 import { PrototypeIcon } from "../../../components/shell/PrototypeIcon";
 import { ReaderBackToTopButton } from "../../../components/shell/ReaderBackToTopButton";
+import { ReaderContentSkeleton } from "../../../components/shell/ReaderContentSkeleton";
 import { ReaderToolbar } from "../../../components/shell/ReaderToolbar";
 import {
   useReaderToolbarTitleVisibility,
@@ -332,7 +334,6 @@ export default function ClipsPage() {
     scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   };
   const isSelectedClipLoading = loadingClipId === previewClip?.id;
-
   return (
     <div
       className={`mewmo-workspace ${listCollapsed ? "mewmo-workspace--list-collapsed" : ""}`}
@@ -345,10 +346,7 @@ export default function ClipsPage() {
         onSubmitClipUrl={createClipFromUrl}
       >
         {isLoading ? (
-          <div className="mewmo-list-empty">
-            <span className="mewmo-spinner" aria-hidden="true" />
-            <p>正在加载剪藏...</p>
-          </div>
+          <ListContentSkeleton active variant="media" label="正在加载剪藏" />
         ) : error ? (
           <div className="mewmo-list-empty">
             <PrototypeIcon name="empty" size={36} />
@@ -465,40 +463,52 @@ export default function ClipsPage() {
           moveToKnowledgeTarget={selectedClip ? { kind: "clip", clipId: selectedClip.id, title: selectedClip.title } : undefined}
         />
         <div ref={scrollRef} className="mewmo-reader-scroll">
-          <article className="mewmo-document mewmo-document--clip">
-            <h1>{selectedClip?.title ?? firstClip?.title ?? "选择一条剪藏"}</h1>
-            {selectedClip ? (
-              <>
-                <div className="mewmo-doc-meta">
-                  {articleMetaItems(selectedClip).map((item, index) => (
-                    <span key={`${item}-${index}`}>
-                      {index > 0 && <b aria-hidden="true">·</b>}
-                      {item}
+          {selectedClip ? (
+            <article className="mewmo-document mewmo-document--clip">
+              <h1>{selectedClip.title}</h1>
+              {(isSelectedClipLoading || selectedClip.fetchStatus === "queued" || selectedClip.fetchStatus === "fetching") &&
+              !selectedClip.content ? (
+                <ReaderContentSkeleton active showTitle={false} label="正在加载正文" />
+              ) : (
+                <>
+                  <div className="mewmo-doc-meta">
+                    {articleMetaItems(selectedClip).map((item, index) => (
+                      <span key={`${item}-${index}`}>
+                        {index > 0 && <b aria-hidden="true">·</b>}
+                        {item}
+                      </span>
+                    ))}
+                    <span>
+                      <b aria-hidden="true">·</b>
+                      <a
+                        className="mewmo-doc-meta__link"
+                        href={selectedClip.url}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        原文
+                      </a>
                     </span>
-                  ))}
-                  <span>
-                    <b aria-hidden="true">·</b>
-                    <a
-                      className="mewmo-doc-meta__link"
-                      href={selectedClip.url}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      原文
-                    </a>
-                  </span>
-                </div>
-                <ClipContentRenderer
-                  html={selectedClip.content ?? ""}
-                  sourceUrl={selectedClip.url}
-                  contentKey={selectedClip.id}
-                  loading={isSelectedClipLoading || selectedClip.fetchStatus === "queued" || selectedClip.fetchStatus === "fetching"}
-                />
-              </>
-            ) : (
+                  </div>
+                  <ClipContentRenderer
+                    html={selectedClip.content ?? ""}
+                    sourceUrl={selectedClip.url}
+                    contentKey={selectedClip.id}
+                    loading={isSelectedClipLoading || selectedClip.fetchStatus === "queued" || selectedClip.fetchStatus === "fetching"}
+                  />
+                </>
+              )}
+            </article>
+          ) : isLoading ? (
+            <article className="mewmo-document mewmo-document--clip">
+              <ReaderContentSkeleton active showTitle label="正在加载剪藏" />
+            </article>
+          ) : (
+            <article className="mewmo-document mewmo-document--empty">
+              <h1>选择一条剪藏</h1>
               <p>保存的文章和网页会在这里打开。</p>
-            )}
-          </article>
+            </article>
+          )}
         </div>
         <ReaderBackToTopButton scrollRef={scrollRef} visible={toolbarTitleVisible} />
       </section>

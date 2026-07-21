@@ -6,9 +6,11 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { ClipContentRenderer } from "../../../components/clips/ClipContentRenderer";
 import { CardActionMenu } from "../../../components/shell/CardActionMenu";
 import { ListColumn } from "../../../components/shell/ListColumn";
+import { ListContentSkeleton } from "../../../components/shell/ListContentSkeleton";
 import { PrototypeIcon, type PrototypeIconName } from "../../../components/shell/PrototypeIcon";
 import { useAISidebarContext } from "../../../components/shell/AISidebar";
 import { ReaderBackToTopButton } from "../../../components/shell/ReaderBackToTopButton";
+import { ReaderContentSkeleton } from "../../../components/shell/ReaderContentSkeleton";
 import { ReaderToolbar } from "../../../components/shell/ReaderToolbar";
 import { ReaderToc } from "../../../components/shell/ReaderToc";
 import { useReaderToolbarTitleVisibility } from "../../../components/shell/useReaderToolbarTitleVisibility";
@@ -442,7 +444,7 @@ export default function FeedsPage() {
           ) : error ? (
             <p className="mewmo-list-card text-coral">{error}</p>
           ) : loading ? (
-            <p className="mewmo-list-card">正在检查订阅条目...</p>
+            <ListContentSkeleton active variant="media" label="正在加载订阅" />
           ) : visibleEntries.length === 0 ? (
             <FeedPlaceholder
               icon="rss"
@@ -531,6 +533,10 @@ export default function FeedsPage() {
         <div ref={scrollRef} className="mewmo-reader-scroll">
           {selectedEntry ? (
             <FeedReader entry={selectedEntry} />
+          ) : loading || !feedsLoaded ? (
+            <article className="mewmo-document mewmo-document--clip">
+              <ReaderContentSkeleton active showTitle label="正在加载订阅内容" />
+            </article>
           ) : (
             <article className="mewmo-document mewmo-document--empty">
               <h1>{isDeferredType ? `${currentType.label}订阅待开发` : "选择一篇订阅条目"}</h1>
