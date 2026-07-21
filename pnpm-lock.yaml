@@ -181,6 +181,9 @@ importers:
       '@mewmo/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@mewmo/email':
+        specifier: workspace:*
+        version: link:../../packages/email
       '@mewmo/shared':
         specifier: workspace:*
         version: link:../../packages/shared

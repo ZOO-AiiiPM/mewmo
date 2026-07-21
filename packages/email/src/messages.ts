@@ -33,8 +33,9 @@ export function createEmailService(client: EmailClient = createEmailClient(), en
       });
     },
 
-    sendPasswordReset(email: string, token: string) {
-      const url = tokenUrl(env.NEXTAUTH_URL, "/reset-password", email, token);
+    sendPasswordReset(email: string, token: string, origin: string) {
+      const url = new URL("/reset-password", origin);
+      url.searchParams.set("token", token);
 
       return client.emails.send({
         from: env.EMAIL_FROM,
@@ -49,5 +50,5 @@ export function createEmailService(client: EmailClient = createEmailClient(), en
 export const sendVerification = (email: string, token: string) =>
   createEmailService().sendVerification(email, token);
 
-export const sendPasswordReset = (email: string, token: string) =>
-  createEmailService().sendPasswordReset(email, token);
+export const sendPasswordReset = (email: string, token: string, origin: string) =>
+  createEmailService().sendPasswordReset(email, token, origin);
