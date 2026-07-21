@@ -2,6 +2,7 @@ import type { LanguageModel } from "ai";
 import type {
   ActionResultBody,
   AgentActionProposal,
+  AgentActionView,
   AgentActor,
   AgentClientEffect,
   SendMessageBody,
@@ -50,20 +51,13 @@ export interface ProposeActionInput {
   clientEffect?: AgentClientEffect;
 }
 
-export interface ConfirmedAction {
-  id: string;
-  status: "confirmed" | "executing" | "succeeded";
-  executionMode: "server" | "client";
-  clientEffect?: AgentClientEffect;
-  result?: unknown;
-}
-
 export interface ActionPort {
   propose(input: ProposeActionInput): Promise<AgentActionProposal>;
-  confirm(input: { actor: AgentActor; actionId: string; executionMode: "server" | "client" }): Promise<ConfirmedAction>;
-  cancel(input: { actor: AgentActor; actionId: string }): Promise<{ id: string; status: "cancelled" }>;
-  retry(input: { actor: AgentActor; actionId: string; executionMode?: "server" | "client" }): Promise<ConfirmedAction>;
-  reportResult(input: { actor: AgentActor; actionId: string } & ActionResultBody): Promise<{ id: string; status: "succeeded" | "failed" }>;
+  get(input: { actor: AgentActor; actionId: string }): Promise<AgentActionView>;
+  confirm(input: { actor: AgentActor; actionId: string; executionMode: "server" | "client" }): Promise<AgentActionView>;
+  cancel(input: { actor: AgentActor; actionId: string }): Promise<AgentActionView>;
+  retry(input: { actor: AgentActor; actionId: string; executionMode: "server" | "client" }): Promise<AgentActionView>;
+  reportResult(input: { actor: AgentActor; actionId: string } & ActionResultBody): Promise<AgentActionView>;
 }
 
 export interface ApplicationPort {

@@ -16,7 +16,7 @@ export function createNoteService(options: { prisma?: PrismaClient } = {}) {
     async create(actor: Actor, command: NoteCreateCommandDto) {
       assertScope(actor.scopes, "notes:write");
       const input = noteCreateCommandSchema.parse(command);
-      await assertConfirmedAgentAction(db, actor, input.actionId, input.idempotencyKey);
+      await assertConfirmedAgentAction(db, actor, input.actionId, input.idempotencyKey, "note_create");
       const slug = input.slug ?? slugify(input.title);
       try {
         return await db.$transaction(async (tx) => {
@@ -33,7 +33,7 @@ export function createNoteService(options: { prisma?: PrismaClient } = {}) {
     async update(actor: Actor, command: NoteUpdateCommandDto) {
       assertScope(actor.scopes, "notes:write");
       const input = noteUpdateCommandSchema.parse(command);
-      await assertConfirmedAgentAction(db, actor, input.actionId, input.idempotencyKey, input.expectedVersion);
+      await assertConfirmedAgentAction(db, actor, input.actionId, input.idempotencyKey, "note_update", input.expectedVersion);
       const patch = {
         ...(input.patch.title === undefined ? {} : { title: input.patch.title }),
         ...(input.patch.content === undefined ? {} : { content: input.patch.content }),
@@ -56,7 +56,7 @@ export function createNoteService(options: { prisma?: PrismaClient } = {}) {
     async moveToTrash(actor: Actor, command: NoteVersionCommandDto) {
       assertScope(actor.scopes, "trash:write");
       const input = noteVersionCommandSchema.parse(command);
-      await assertConfirmedAgentAction(db, actor, input.actionId, input.idempotencyKey, input.expectedVersion);
+      await assertConfirmedAgentAction(db, actor, input.actionId, input.idempotencyKey, "note_move_to_trash", input.expectedVersion);
       const result = await db.note.updateMany({
         where: { id: input.noteId, userId: actor.userId, deletedAt: null, version: input.expectedVersion },
         data: { deletedAt: new Date(), version: { increment: 1 } },
@@ -68,7 +68,7 @@ export function createNoteService(options: { prisma?: PrismaClient } = {}) {
     async restore(actor: Actor, command: NoteVersionCommandDto) {
       assertScope(actor.scopes, "trash:write");
       const input = noteVersionCommandSchema.parse(command);
-      await assertConfirmedAgentAction(db, actor, input.actionId, input.idempotencyKey, input.expectedVersion);
+      await assertConfirmedAgentAction(db, actor, input.actionId, input.idempotencyKey, "note_restore", input.expectedVersion);
       const result = await db.note.updateMany({
         where: { id: input.noteId, userId: actor.userId, deletedAt: { not: null }, version: input.expectedVersion },
         data: { deletedAt: null, version: { increment: 1 } },
@@ -122,15 +122,17 @@ async function assertConfirmedAgentAction(
   actor: Actor,
   actionId: string | undefined,
   idempotencyKey: string,
+  expectedToolName: string,
   expectedVersion?: number,
 ) {
   if (actor.source !== "internal-agent" && actor.source !== "mcp") return;
   if (!actionId) throw new DomainError("confirmation_required", "confirmed action is required for Agent writes");
   const action = await db.aiAction.findFirst({
     where: { id: actionId, userId: actor.userId, idempotencyKey, status: { in: ["confirmed", "executing"] } },
-    select: { expectedVersion: true },
+    select: { expectedVersion: true, toolName: true },
   });
   if (!action) throw new DomainError("confirmation_required", "Agent action is not confirmed");
+  if (action.toolName !== expectedToolName) throw new DomainError("confirmation_required", "confirmed action does not match the requested tool");
   if (expectedVersion !== undefined && action.expectedVersion !== expectedVersion) {
     throw new DomainError("conflict", "confirmed action version does not match command");
   }

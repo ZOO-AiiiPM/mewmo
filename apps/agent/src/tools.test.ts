@@ -58,10 +58,12 @@ describe("Agent tool policy", () => {
       preview: input.preview,
       riskLevel: input.riskLevel,
       status: "proposed" as const,
+      executionMode: "server" as const,
     }));
     const application = createApplicationStub({
       actions: {
         propose,
+        get: vi.fn(),
         confirm: vi.fn(),
         cancel: vi.fn(),
         retry: vi.fn(),

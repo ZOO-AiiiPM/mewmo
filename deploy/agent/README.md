@@ -48,7 +48,7 @@ docker compose -f compose.yml ps
 
 `AI_MODEL_AGENT_CHAT` 和 `AI_MODEL_DEEP_INSIGHT` 可以相同。使用 `AI_PROVIDER=anthropic` 时不能把该 Provider 用于 Workflow Embedding；Embedding 由后台 Cron 的独立模型变量配置。
 
-新 Schema 是 Agent 动作和 Workflow 的运行前提。仓库当前只有 `db:push`，没有 migration；未获得生产数据库变更授权前，不要在生产库执行 Schema push，也不要启动依赖新表的 Agent/Cron。
+新 Schema 是 Agent 动作和 Workflow 的运行前提。当前生产 Neon 已使用 [ai-agent-foundation.sql](../database/ai-agent-foundation.sql) 完成增量发布，并保留旧的 `video_details`、`video_user_highlights` 表；该脚本不会执行删除。新环境可执行 `pnpm db:push`，包含历史遗留表的环境应先执行这份增量脚本，再启动 Agent/Cron。
 
 ## Nginx 反代
 

@@ -26,6 +26,7 @@ export function enqueueSummaryRun(input: {
   targetId: string;
   inputVersion: number;
   manual?: boolean;
+  manualRequestId?: string;
 }) {
   return getService().then((service) => service.enqueue({
     userId: input.userId,
@@ -34,7 +35,9 @@ export function enqueueSummaryRun(input: {
     targetId: input.targetId,
     inputVersion: input.inputVersion,
     priority: input.manual ? 100 : 20,
-    idempotencyKey: `${input.manual ? "manual:" : ""}summary:${input.targetType}:${input.targetId}:v${input.inputVersion}`,
+    idempotencyKey: input.manual
+      ? `manual:summary:${input.targetType}:${input.targetId}:v${input.inputVersion}:${input.manualRequestId ?? crypto.randomUUID()}`
+      : `summary:${input.targetType}:${input.targetId}:v${input.inputVersion}`,
   }));
 }
 

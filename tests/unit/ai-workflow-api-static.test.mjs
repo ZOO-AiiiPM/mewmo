@@ -48,3 +48,18 @@ test("live workflow evaluation uses Langfuse tracing and fails incomplete runs",
   assert.match(evaluation, /expectedItemCount === 0/);
   assert.doesNotMatch(live, /requires the Foundation AI Runtime/);
 });
+
+test("AI workflow UI polls async summaries and exposes related content and note insights", () => {
+  const sidebar = read("apps/web/src/components/shell/AISidebar.tsx");
+  const client = read("apps/web/src/lib/ai-workflow-client.ts");
+  const insights = read("apps/web/src/app/api/ai/insights/route.ts");
+  assert.match(sidebar, /waitForAiRun\(data\.runId\)/);
+  assert.match(sidebar, /\/api\/ai\/related\?targetType=/);
+  assert.match(sidebar, /\/api\/ai\/insights\?noteId=/);
+  assert.match(sidebar, /轻量洞察/);
+  assert.match(sidebar, /相关推荐/);
+  assert.match(client, /status === "succeeded"/);
+  assert.match(client, /status === "failed" \|\| data\.run\.status === "superseded"/);
+  assert.match(insights, /getNoteInsights/);
+  assert.match(insights, /userId: session\.user\.id/);
+});

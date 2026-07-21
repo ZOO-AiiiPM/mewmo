@@ -173,11 +173,23 @@ export function createAiRunService(options: { prisma?: PrismaClient } = {}) {
       return db.aiRun.findFirstOrThrow({ where: { id: input.runId, userId: input.userId } });
     },
 
-    getRelated(input: { userId: string; targetType: "note" | "clip" | "feed_entry"; targetId: string }) {
-      return db.contentRelation.findMany({
+    async getRelated(input: { userId: string; targetType: "note" | "clip" | "feed_entry"; targetId: string }) {
+      return enrichRelations(db, await db.contentRelation.findMany({
         where: { userId: input.userId, sourceType: input.targetType, sourceId: input.targetId },
         orderBy: { score: "desc" },
         take: 20,
+      }), input.userId);
+    },
+
+    async getNoteInsights(input: { userId: string; noteId: string }) {
+      const note = await db.note.findFirst({
+        where: { id: input.noteId, userId: input.userId, deletedAt: null },
+        select: { id: true, version: true },
+      });
+      if (!note) return null;
+      return db.noteInsight.findMany({
+        where: { userId: input.userId, noteId: note.id, inputVersion: note.version },
+        orderBy: { kind: "asc" },
       });
     },
 
@@ -248,6 +260,38 @@ function findEvidenceTarget(db: PrismaClient, userId: string, type: "note" | "cl
   if (type === "note") return db.note.findFirst({ where, select });
   if (type === "clip") return db.clip.findFirst({ where, select });
   return db.feedEntry.findFirst({ where, select });
+}
+
+async function enrichRelations(
+  db: PrismaClient,
+  relations: Array<{ targetType: "note" | "clip" | "feed_entry"; targetId: string; [key: string]: unknown }>,
+  userId: string,
+) {
+  const enriched = await Promise.all(relations.map(async (relation) => {
+    const target = await findRelatedTarget(db, userId, relation.targetType, relation.targetId);
+    if (!target) return null;
+    return {
+      ...relation,
+      title: target.title,
+      excerpt: target.content.slice(0, 240) || null,
+      href: target.href,
+    };
+  }));
+  return enriched.filter((relation): relation is NonNullable<typeof relation> => relation !== null);
+}
+
+async function findRelatedTarget(db: PrismaClient, userId: string, type: "note" | "clip" | "feed_entry", id: string) {
+  const where = { id, userId, deletedAt: null };
+  if (type === "note") {
+    const note = await db.note.findFirst({ where, select: { title: true, content: true, slug: true } });
+    return note ? { ...note, href: `/notes/${note.slug}` } : null;
+  }
+  if (type === "clip") {
+    const clip = await db.clip.findFirst({ where, select: { title: true, content: true } });
+    return clip ? { ...clip, href: `/clips/${id}` } : null;
+  }
+  const entry = await db.feedEntry.findFirst({ where, select: { title: true, content: true } });
+  return entry ? { ...entry, href: `/feed-entries/${id}` } : null;
 }
 
 function jsonVector(value: unknown): number[] {
@@ -337,5 +381,9 @@ function enqueueFollowup(
 
 function safeError(error: unknown) {
   if (error instanceof Error) return error.message.slice(0, 500);
+  if (typeof error === "object" && error !== null && "message" in error && typeof error.message === "string") {
+    return error.message.slice(0, 500);
+  }
+  if (typeof error === "string") return error.slice(0, 500);
   return "workflow execution failed";
 }

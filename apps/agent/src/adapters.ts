@@ -10,8 +10,8 @@ import {
   type Actor,
 } from "@mewmo/application";
 import { AgentError } from "./errors";
-import type { AgentActionProposal, AgentActor, AgentClientEffect, WriteToolName } from "./contracts";
-import type { AgentModelPort, ApplicationPort, ConfirmedAction, ProposeActionInput } from "./ports";
+import type { AgentActionProposal, AgentActionView, AgentActor, AgentClientEffect, WriteToolName } from "./contracts";
+import type { AgentModelPort, ApplicationPort, ProposeActionInput } from "./ports";
 
 export interface FoundationAdapters {
   models: AgentModelPort;
@@ -20,6 +20,10 @@ export interface FoundationAdapters {
 
 export async function loadFoundationAdapters(): Promise<FoundationAdapters> {
   const runtime = createAIRuntime(loadAIRuntimeConfig());
+  const languageModels = {
+    "agent.chat": runtime.languageModel("agent.chat"),
+    "agent.deep_insight": runtime.languageModel("agent.deep_insight"),
+  };
   const content = createContentService();
   const actions = createAiActionService();
   const chats = createAiChatService();
@@ -70,8 +74,11 @@ export async function loadFoundationAdapters(): Promise<FoundationAdapters> {
       },
     },
     actions: {
+      async get(input) {
+        return withDomainErrors(async () => actionView(await actions.get(actor(input.actor), input.actionId)));
+      },
       async propose(input) {
-        return withDomainErrors(async () => proposal(await actions.propose(actor(input.actor), {
+        return withDomainErrors(async () => actionView(await actions.propose(actor(input.actor), {
           toolName: input.toolName,
           input: asRecord(input.input),
           preview: asRecord(input.preview),
@@ -80,7 +87,7 @@ export async function loadFoundationAdapters(): Promise<FoundationAdapters> {
           ...(input.clientEffect ? { clientEffect: input.clientEffect } : {}),
           ...(input.expectedVersion === undefined ? {} : { expectedVersion: input.expectedVersion }),
           idempotencyKey: input.idempotencyKey,
-        }), input.riskLevel));
+        }), input.riskLevel) as AgentActionProposal);
       },
       confirm(input) {
         return confirmAndMaybeExecute({ actions, notes, knowledge }, input.actor, input.actionId, input.executionMode);
@@ -88,34 +95,40 @@ export async function loadFoundationAdapters(): Promise<FoundationAdapters> {
       async cancel(input) {
         return withDomainErrors(async () => {
           const result = await actions.cancel(actor(input.actor), { actionId: input.actionId });
-          return { id: result.id, status: "cancelled" };
+          return actionView(result);
         });
       },
       async retry(input) {
         return withDomainErrors(async () => {
-          const retried = await actions.retry(actor(input.actor), { actionId: input.actionId });
-          if (input.executionMode && input.executionMode !== retried.executionMode) {
+          const frozen = await actions.get(actor(input.actor), input.actionId);
+          if (input.executionMode !== frozen.executionMode) {
             throw new AgentError("bad_request", "Action execution mode does not match its frozen proposal.");
           }
+          const retried = await actions.retry(actor(input.actor), { actionId: input.actionId, executionMode: input.executionMode });
           const mode = retried.executionMode;
-          if (mode === "client") return confirmed(retried);
+          if (mode === "client") return actionView(retried);
           return executeServerAction({ actions, notes, knowledge }, input.actor, retried.id);
         });
       },
       async reportResult(input) {
         return withDomainErrors(async () => {
+          const frozen = await actions.get(actor(input.actor), input.actionId);
+          if (frozen.executionMode !== "client") {
+            throw new AgentError("bad_request", "Only client actions accept a client result.");
+          }
           const result = await actions.recordResult(actor(input.actor), {
             actionId: input.actionId,
+            executionMode: "client",
             succeeded: input.status === "succeeded",
             ...(input.result === undefined ? {} : { result: input.result }),
             ...(input.error === undefined ? {} : { errorCode: "client_execution_failed", errorMessage: input.error }),
           });
-          return { id: result.id, status: result.status as "succeeded" | "failed" };
+          return actionView(result);
         });
       },
     },
   };
-  return { models: { languageModel: (purpose) => runtime.languageModel(purpose) }, application };
+  return { models: { languageModel: (purpose) => languageModels[purpose] }, application };
 }
 
 async function confirmAndMaybeExecute(
@@ -123,12 +136,12 @@ async function confirmAndMaybeExecute(
   agentActor: AgentActor,
   actionId: string,
   requestedMode: "server" | "client",
-): Promise<ConfirmedAction> {
+): Promise<AgentActionView> {
   return withDomainErrors(async () => {
     const action = await services.actions.get(actor(agentActor), actionId);
     if (action.executionMode !== requestedMode) throw new AgentError("bad_request", "Action execution mode does not match its frozen proposal.");
     const result = await services.actions.confirm(actor(agentActor), { actionId });
-    if (requestedMode === "client") return confirmed(result);
+    if (requestedMode === "client") return actionView(result);
     return executeServerAction(services, agentActor, actionId);
   });
 }
@@ -139,7 +152,7 @@ interface Services {
   knowledge: ReturnType<typeof createKnowledgeService>;
 }
 
-async function executeServerAction(services: Services, agentActor: AgentActor, actionId: string): Promise<ConfirmedAction> {
+async function executeServerAction(services: Services, agentActor: AgentActor, actionId: string): Promise<AgentActionView> {
   const appActor = actor(agentActor);
   const action = await services.actions.get(appActor, actionId);
   await services.actions.startExecution(appActor, { actionId });
@@ -168,11 +181,11 @@ async function executeServerAction(services: Services, agentActor: AgentActor, a
     } else {
       throw new AgentError("dependency_unavailable", `Server execution is not available for ${action.toolName}.`);
     }
-    const completed = await services.actions.recordResult(appActor, { actionId, succeeded: true, result });
-    return { id: completed.id, status: "succeeded", executionMode: "server", result };
+    const completed = await services.actions.recordResult(appActor, { actionId, executionMode: "server", succeeded: true, result });
+    return actionView(completed);
   } catch (error) {
     const normalized = normalizeError(error);
-    await services.actions.recordResult(appActor, { actionId, succeeded: false, errorCode: normalized.code, errorMessage: normalized.message });
+    await services.actions.recordResult(appActor, { actionId, executionMode: "server", succeeded: false, errorCode: normalized.code, errorMessage: normalized.message });
     throw normalized;
   }
 }
@@ -181,12 +194,21 @@ function actor(input: AgentActor): Actor {
   return createActor({ userId: input.userId, source: "internal-agent", clientId: input.clientId, scopes: input.scopes });
 }
 
-function proposal(action: Awaited<ReturnType<ReturnType<typeof createAiActionService>["propose"]>>, riskLevel: ProposeActionInput["riskLevel"]): AgentActionProposal {
-  return { id: action.id, toolName: action.toolName as WriteToolName, preview: action.preview, riskLevel, status: "proposed", ...(action.clientEffect ? { clientEffect: action.clientEffect as AgentClientEffect } : {}) };
-}
-
-function confirmed(action: { id: string; executionMode: "server" | "client"; clientEffect: unknown }): ConfirmedAction {
-  return { id: action.id, status: "confirmed", executionMode: action.executionMode, ...(action.clientEffect ? { clientEffect: action.clientEffect as AgentClientEffect } : {}) };
+function actionView(
+  action: Awaited<ReturnType<ReturnType<typeof createAiActionService>["get"]>>,
+  riskLevel: ProposeActionInput["riskLevel"] = action.riskLevel === "destructive" ? "high" : "medium",
+): AgentActionView {
+  return {
+    id: action.id,
+    toolName: action.toolName as WriteToolName,
+    preview: action.preview,
+    riskLevel,
+    status: action.status,
+    executionMode: action.executionMode,
+    ...(action.clientEffect ? { clientEffect: action.clientEffect as AgentClientEffect } : {}),
+    ...(action.result === null ? {} : { result: action.result }),
+    ...(action.errorMessage ? { error: { code: action.errorCode ?? "action_failed", message: action.errorMessage, retryable: action.status === "failed" } } : {}),
+  };
 }
 
 function messageView<Role extends "user" | "assistant">(message: { id: string; content: string; status: string; createdAt: Date }, role: Role) {

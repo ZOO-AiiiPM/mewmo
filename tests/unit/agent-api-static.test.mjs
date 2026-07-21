@@ -8,9 +8,10 @@ test("agent browser API is an authenticated BFF with explicit service degradatio
   const messagePath = "apps/web/src/app/api/agent/chats/[id]/messages/route.ts";
   const actionPath = "apps/web/src/app/api/agent/actions/[id]/[command]/route.ts";
   const resultPath = "apps/web/src/app/api/agent/actions/[id]/result/route.ts";
+  const actionPathById = "apps/web/src/app/api/agent/actions/[id]/route.ts";
   const clientPath = "apps/web/src/lib/agent-server-client.ts";
 
-  for (const path of [messagePath, actionPath, resultPath, clientPath]) {
+  for (const path of [messagePath, actionPath, resultPath, actionPathById, clientPath]) {
     assert.ok(existsSync(path), `${path} should exist`);
   }
 
@@ -36,6 +37,8 @@ test("agent browser API is an authenticated BFF with explicit service degradatio
   assert.match(client, /sid:\s*randomUUID\(\)/);
   assert.match(client, /agent_not_configured/);
   assert.doesNotMatch(client, /NEXT_PUBLIC_/);
+  assert.match(read(actionPathById), /auth\(\)/);
+  assert.match(read(actionPathById), /\/v1\/actions\/\$\{encodeURIComponent\(id\)\}/);
 });
 
 test("chat history strips context snapshots and leaves a pagination contract", () => {
@@ -78,6 +81,8 @@ test("AI sidebar supports draft context, Deep Insight, proposals, and idempotent
   assert.match(sidebar, /executionMode:\s*"client"/);
   assert.match(sidebar, /\/api\/agent\/actions\/\$\{proposal\.id\}\/\$\{name\}/);
   assert.match(sidebar, /\/api\/agent\/actions\/\$\{actionId\}\/result/);
+  assert.match(sidebar, /name === "retry"/);
+  assert.match(sidebar, /proposalsFromMessages/);
   assert.doesNotMatch(sidebar, /RELATED_PLACEHOLDERS|The Rise of the AI-Native Note App/);
 
   assert.match(notePage, /draft:\s*\{/);

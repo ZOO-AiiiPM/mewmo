@@ -5,6 +5,7 @@ export interface AiWorkflowQueryService {
   getRun(input: { userId: string; runId: string }): Promise<unknown | null>;
   retryRun(input: { userId: string; runId: string }): Promise<{ id: string; status?: string }>;
   getRelated(input: { userId: string; targetType: "note" | "clip" | "feed_entry"; targetId: string }): Promise<unknown[]>;
+  getNoteInsights(input: { userId: string; noteId: string }): Promise<unknown[] | null>;
   queryRelated(input: { userId: string; text: string; contentHash: string; limit: number }): Promise<{ items: unknown[]; embeddingModel?: string }>;
 }
 
@@ -21,6 +22,7 @@ async function createService(): Promise<AiWorkflowQueryService> {
     getRun: (input) => runs.getRun(input),
     retryRun: (input) => runs.retryRun(input),
     getRelated: (input) => runs.getRelated(input),
+    getNoteInsights: (input) => runs.getNoteInsights(input),
     async queryRelated(input) {
       const ai = createAIRuntime(loadAIRuntimeConfig());
       const generated = await ai.embed({ purpose: "workflow.embedding", values: [input.text.slice(0, 24_000)] });

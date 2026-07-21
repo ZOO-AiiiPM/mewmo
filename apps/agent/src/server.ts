@@ -67,6 +67,10 @@ export function buildAgentServer(dependencies: AgentServerDependencies): Fastify
     return { action };
   });
 
+  app.get<{ Params: { id: string } }>("/v1/actions/:id", async (request) => {
+    return { action: await dependencies.application.actions.get({ actor: request.agentActor, actionId: request.params.id }) };
+  });
+
   app.post<{ Params: { id: string } }>("/v1/actions/:id/cancel", async (request) => {
     return { action: await dependencies.application.actions.cancel({ actor: request.agentActor, actionId: request.params.id }) };
   });
@@ -78,7 +82,7 @@ export function buildAgentServer(dependencies: AgentServerDependencies): Fastify
 
   app.post<{ Params: { id: string } }>("/v1/actions/:id/result", async (request) => {
     const body = actionResultBodySchema.parse(request.body);
-    return dependencies.application.actions.reportResult({ actor: request.agentActor, actionId: request.params.id, ...body });
+    return { action: await dependencies.application.actions.reportResult({ actor: request.agentActor, actionId: request.params.id, ...body }) };
   });
 
   app.setErrorHandler((unknownError, request, reply) => {

@@ -33,22 +33,37 @@ export function createApplicationStub(overrides: Partial<ApplicationPort> = {}):
           preview: input.preview,
           riskLevel: input.riskLevel,
           status: "proposed",
+          executionMode: input.clientEffect ? "client" : "server",
           ...(input.clientEffect ? { clientEffect: input.clientEffect } : {}),
         } satisfies AgentActionProposal;
       },
+      async get(input) {
+        return actionView(input.actionId, "proposed", "server");
+      },
       async confirm(input) {
-        return { id: input.actionId, status: "confirmed", executionMode: input.executionMode };
+        return actionView(input.actionId, "confirmed", input.executionMode);
       },
       async cancel(input) {
-        return { id: input.actionId, status: "cancelled" };
+        return actionView(input.actionId, "cancelled", "server");
       },
       async retry(input) {
-        return { id: input.actionId, status: "executing", executionMode: input.executionMode ?? "server" };
+        return actionView(input.actionId, "executing", input.executionMode);
       },
       async reportResult(input) {
-        return { id: input.actionId, status: input.status };
+        return actionView(input.actionId, input.status, "client");
       },
     },
+  };
+}
+
+function actionView(id: string, status: "proposed" | "confirmed" | "executing" | "succeeded" | "failed" | "cancelled", executionMode: "server" | "client") {
+  return {
+    id,
+    toolName: "note_update" as const,
+    preview: { title: "Update note" },
+    riskLevel: "medium" as const,
+    status,
+    executionMode,
   };
 }
 

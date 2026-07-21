@@ -50,6 +50,7 @@ export interface AgentChatMessage {
   content: string;
   status?: "pending" | "completed" | "failed" | "cancelled";
   createdAt?: string;
+  metadata?: { proposals?: AgentActionProposal[] };
 }
 
 export type AgentActionStatus =
@@ -65,12 +66,14 @@ export interface AgentActionProposal {
   toolName: string;
   status: AgentActionStatus;
   riskLevel: "low" | "medium" | "high";
+  executionMode: "server" | "client";
   preview: {
-    title: string;
+    title?: string;
     summary?: string;
     diff?: string;
     targets?: Array<{ type: string; id: string; title?: string }>;
   };
+  result?: unknown;
   clientEffect?: {
     kind: "note_draft_patch";
     noteId: string;

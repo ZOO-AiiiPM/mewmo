@@ -8,6 +8,7 @@ import { enqueueSummaryRun } from "../../../../lib/ai-run-enqueue";
 const summaryRequestSchema = z.object({
   targetType: z.enum(["clip", "feed_entry"]),
   targetId: z.string().min(1),
+  clientRequestId: z.string().uuid(),
 });
 
 export async function POST(request: Request) {
@@ -36,6 +37,7 @@ export async function POST(request: Request) {
       targetId: target.id,
       inputVersion: target.version,
       manual: true,
+      manualRequestId: parsed.data.clientRequestId,
     });
     return NextResponse.json({ runId: run.id, status: "queued" }, { status: 202 });
   } catch (error) {

@@ -60,8 +60,11 @@ export function createAiActionService(options: { prisma?: PrismaClient } = {}) {
       return owned(actor, actionId);
     },
 
-    async recordResult(actor: Actor, input: ActionIdentity & { succeeded: boolean; result?: unknown; errorCode?: string; errorMessage?: string }) {
+    async recordResult(actor: Actor, input: ActionIdentity & { executionMode: "server" | "client"; succeeded: boolean; result?: unknown; errorCode?: string; errorMessage?: string }) {
       const action = await owned(actor, input.actionId);
+      if (action.executionMode !== input.executionMode) {
+        throw new DomainError("invalid_state", "action execution mode does not match the result source");
+      }
       if (action.status !== "confirmed" && action.status !== "executing") {
         if (action.status === "succeeded" || action.status === "failed") return action;
         throw new DomainError("invalid_state", "action is not ready to record a result");
@@ -89,8 +92,11 @@ export function createAiActionService(options: { prisma?: PrismaClient } = {}) {
       return owned(actor, actionId);
     },
 
-    async retry(actor: Actor, { actionId }: ActionIdentity) {
-      await owned(actor, actionId);
+    async retry(actor: Actor, { actionId, executionMode }: ActionIdentity & { executionMode: "server" | "client" }) {
+      const action = await owned(actor, actionId);
+      if (action.executionMode !== executionMode) {
+        throw new DomainError("invalid_state", "action execution mode does not match the retry source");
+      }
       const result = await db.aiAction.updateMany({
         where: { id: actionId, userId: actor.userId, status: "failed" },
         data: {

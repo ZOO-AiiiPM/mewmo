@@ -8,18 +8,20 @@ interface ConfirmedCommand {
   expectedVersion?: number;
 }
 
+type KnowledgeToolName = "note_move" | "knowledge_base_create" | "knowledge_base_rename" | "knowledge_item_move" | "knowledge_item_remove";
+
 export function createKnowledgeService(options: { prisma?: PrismaClient } = {}) {
   const db = options.prisma ?? getPrisma();
   return {
     async createBase(actor: Actor, input: ConfirmedCommand & { name: string }) {
       assertScope(actor.scopes, "knowledge:write");
-      await assertConfirmed(db, actor, input);
+      await assertConfirmed(db, actor, input, "knowledge_base_create");
       return db.knowledgeBase.create({ data: { userId: actor.userId, title: input.name } });
     },
 
     async renameBase(actor: Actor, input: ConfirmedCommand & { knowledgeBaseId: string; name: string }) {
       assertScope(actor.scopes, "knowledge:write");
-      await assertConfirmed(db, actor, input);
+      await assertConfirmed(db, actor, input, "knowledge_base_rename");
       const result = await db.knowledgeBase.updateMany({
         where: { id: input.knowledgeBaseId, userId: actor.userId, deletedAt: null, ...(input.expectedVersion === undefined ? {} : { version: input.expectedVersion }) },
         data: { title: input.name, version: { increment: 1 } },
@@ -30,7 +32,7 @@ export function createKnowledgeService(options: { prisma?: PrismaClient } = {}) 
 
     async addNote(actor: Actor, input: ConfirmedCommand & { noteId: string; knowledgeBaseId: string; folderId?: string | null }) {
       assertScope(actor.scopes, "knowledge:write");
-      await assertConfirmed(db, actor, input);
+      await assertConfirmed(db, actor, input, "note_move");
       const [note, base, folder] = await Promise.all([
         db.note.findFirst({ where: { id: input.noteId, userId: actor.userId, deletedAt: null }, select: { version: true } }),
         db.knowledgeBase.findFirst({ where: { id: input.knowledgeBaseId, userId: actor.userId, deletedAt: null }, select: { id: true } }),
@@ -47,7 +49,7 @@ export function createKnowledgeService(options: { prisma?: PrismaClient } = {}) 
 
     async moveItem(actor: Actor, input: ConfirmedCommand & { itemId: string; targetFolderId: string | null }) {
       assertScope(actor.scopes, "knowledge:write");
-      await assertConfirmed(db, actor, input);
+      await assertConfirmed(db, actor, input, "knowledge_item_move");
       const item = await db.knowledgeItem.findFirst({ where: { id: input.itemId, userId: actor.userId, deletedAt: null } });
       if (!item) throw new DomainError("not_found", "knowledge item was not found");
       if (input.expectedVersion !== undefined && item.version !== input.expectedVersion) throw new DomainError("conflict", "knowledge item version changed");
@@ -60,7 +62,7 @@ export function createKnowledgeService(options: { prisma?: PrismaClient } = {}) 
 
     async removeItem(actor: Actor, input: ConfirmedCommand & { itemId: string }) {
       assertScope(actor.scopes, "knowledge:write");
-      await assertConfirmed(db, actor, input);
+      await assertConfirmed(db, actor, input, "knowledge_item_remove");
       const result = await db.knowledgeItem.updateMany({
         where: { id: input.itemId, userId: actor.userId, deletedAt: null, ...(input.expectedVersion === undefined ? {} : { version: input.expectedVersion }) },
         data: { deletedAt: new Date(), version: { increment: 1 } },
@@ -71,12 +73,13 @@ export function createKnowledgeService(options: { prisma?: PrismaClient } = {}) 
   };
 }
 
-async function assertConfirmed(db: PrismaClient, actor: Actor, input: ConfirmedCommand) {
+async function assertConfirmed(db: PrismaClient, actor: Actor, input: ConfirmedCommand, expectedToolName: KnowledgeToolName) {
   if (actor.source !== "internal-agent" && actor.source !== "mcp") return;
   const action = await db.aiAction.findFirst({
     where: { id: input.actionId, userId: actor.userId, idempotencyKey: input.idempotencyKey, status: { in: ["confirmed", "executing"] } },
-    select: { expectedVersion: true },
+    select: { expectedVersion: true, toolName: true },
   });
   if (!action) throw new DomainError("confirmation_required", "Agent action is not confirmed");
+  if (action.toolName !== expectedToolName) throw new DomainError("confirmation_required", "confirmed action does not match the requested tool");
   if (input.expectedVersion !== undefined && action.expectedVersion !== input.expectedVersion) throw new DomainError("conflict", "confirmed action version does not match command");
 }

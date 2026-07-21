@@ -22,10 +22,12 @@ export async function runWorkflowBatch(input: {
   const now = input.now ?? (() => new Date());
   const limit = clamp(input.limit ?? 10, 1, 100);
   const concurrency = clamp(input.concurrency ?? 2, 1, Math.min(limit, 8));
+  const taskTimeoutMs = input.taskTimeoutMs ?? 45_000;
+  const leaseMs = input.leaseMs ?? Math.ceil(limit / concurrency) * taskTimeoutMs + 15_000;
   const runs = await input.application.claimDue({
     workerId: input.workerId,
     limit,
-    leaseMs: input.leaseMs ?? 55_000,
+    leaseMs,
     now: now(),
   });
   const result: WorkflowBatchResult = {
@@ -45,7 +47,7 @@ export async function runWorkflowBatch(input: {
         application: input.application,
         context: input.context,
         workerId: input.workerId,
-        timeoutMs: input.taskTimeoutMs ?? 45_000,
+        timeoutMs: taskTimeoutMs,
         now,
       });
       result[status] += 1;

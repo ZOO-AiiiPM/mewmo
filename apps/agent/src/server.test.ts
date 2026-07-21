@@ -71,14 +71,25 @@ describe("Agent HTTP server", () => {
   it("keeps a client edit confirmed until the Web reports its save result", async () => {
     const confirm = vi.fn(async ({ actionId, executionMode }) => ({
       id: actionId,
+      toolName: "note_update" as const,
+      preview: { title: "Update note" },
+      riskLevel: "medium" as const,
       status: "confirmed" as const,
       executionMode,
       clientEffect: { kind: "note_draft_patch" as const, noteId: "note-1", content: "new", baseVersion: 3 },
     }));
-    const reportResult = vi.fn(async ({ actionId, status }) => ({ id: actionId, status }));
+    const reportResult = vi.fn(async ({ actionId, status }) => ({
+      id: actionId,
+      toolName: "note_update" as const,
+      preview: { title: "Update note" },
+      riskLevel: "medium" as const,
+      status,
+      executionMode: "client" as const,
+    }));
     const application = createApplicationStub({
       actions: {
         propose: vi.fn(),
+        get: vi.fn(),
         confirm,
         cancel: vi.fn(),
         retry: vi.fn(),
@@ -92,7 +103,7 @@ describe("Agent HTTP server", () => {
     expect(confirmed.json()).toMatchObject({ action: { status: "confirmed", executionMode: "client", clientEffect: { content: "new" } } });
     expect(reportResult).not.toHaveBeenCalled();
     const completed = await app.inject({ method: "POST", url: "/v1/actions/action-1/result", headers, payload: { status: "succeeded", result: { version: 4 } } });
-    expect(completed.json()).toEqual({ id: "action-1", status: "succeeded" });
+    expect(completed.json()).toMatchObject({ action: { id: "action-1", status: "succeeded" } });
   });
 });
 

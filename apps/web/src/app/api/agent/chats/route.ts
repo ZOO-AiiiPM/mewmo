@@ -39,7 +39,7 @@ function toChatView(value: unknown) {
     title?: unknown;
     createdAt?: unknown;
     updatedAt?: unknown;
-    messages?: Array<{ id: string; role: string; content: string; status?: string; createdAt?: unknown }>;
+    messages?: Array<{ id: string; role: string; content: string; status?: string; createdAt?: unknown; metadata?: unknown }>;
   };
   return {
     id: chat.id,
@@ -53,6 +53,7 @@ function toChatView(value: unknown) {
           content: message.content,
           status: message.status,
           createdAt: message.createdAt,
+          metadata: message.metadata,
         }))
       : [],
   };

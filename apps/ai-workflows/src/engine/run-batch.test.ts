@@ -88,6 +88,12 @@ describe("AI Workflow batch engine", () => {
     });
   });
 
+  it("leases the whole claimed batch when no explicit lease is supplied", async () => {
+    const { application, ai } = setup([summaryRun], { [summaryRun.id]: summaryInput() });
+    await runWorkflowBatch({ application, context: { ai, loadPrompt }, workerId: "worker-1", limit: 10, concurrency: 2, taskTimeoutMs: 45_000 });
+    expect(application.claimDue).toHaveBeenCalledWith(expect.objectContaining({ leaseMs: 240_000 }));
+  });
+
   it("supersedes stale work before calling the model", async () => {
     const { application, ai } = setup([summaryRun], {
       [summaryRun.id]: summaryInput({ currentVersion: 3 }),

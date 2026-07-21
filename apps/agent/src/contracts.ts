@@ -35,6 +35,7 @@ export const confirmActionBodySchema = z.object({
 });
 
 export const actionResultBodySchema = z.object({
+  clientRequestId: z.string().min(8).max(128).optional(),
   status: z.enum(["succeeded", "failed"]),
   result: z.unknown().optional(),
   error: z.string().max(4_000).optional(),
@@ -53,14 +54,21 @@ export type SendMessageBody = z.infer<typeof sendMessageBodySchema>;
 export type ConfirmActionBody = z.infer<typeof confirmActionBodySchema>;
 export type ActionResultBody = z.infer<typeof actionResultBodySchema>;
 
-export interface AgentActionProposal {
+export type AgentActionStatus = "proposed" | "confirmed" | "executing" | "succeeded" | "failed" | "cancelled";
+
+export interface AgentActionView {
   id: string;
   toolName: WriteToolName;
   preview: unknown;
   riskLevel: "low" | "medium" | "high";
-  status: "proposed";
+  status: AgentActionStatus;
+  executionMode: "server" | "client";
   clientEffect?: AgentClientEffect;
+  result?: unknown;
+  error?: { code: string; message: string; retryable: boolean };
 }
+
+export type AgentActionProposal = AgentActionView & { status: "proposed" };
 
 export interface AgentMessageResponse {
   userMessage: { id: string; role: "user"; content: string; status: string; createdAt: string };

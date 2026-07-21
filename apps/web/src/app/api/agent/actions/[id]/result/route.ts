@@ -27,6 +27,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        clientRequestId: parsed.data.clientRequestId,
         status: parsed.data.status,
         ...(parsed.data.result ? { result: parsed.data.result } : {}),
         ...(parsed.data.error ? { error: `${parsed.data.error.code}: ${parsed.data.error.message}` } : {}),
