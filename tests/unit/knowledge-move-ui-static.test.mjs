@@ -13,6 +13,13 @@ test("content menus share the move-to-knowledge workflow", () => {
   );
 
   const menuItem = read(menuItemPath);
+  const providerPath =
+    "apps/web/src/components/knowledge/MoveToKnowledgeProvider.tsx";
+  assert.ok(
+    existsSync(providerPath),
+    "the move dialog should live in an app-level provider, not inside the menu",
+  );
+  const provider = read(providerPath);
   const appLayout = read("apps/web/src/app/(app)/layout.tsx");
   const cardMenu = read("apps/web/src/components/shell/CardActionMenu.tsx");
   const readerToolbar = read("apps/web/src/components/shell/ReaderToolbar.tsx");
@@ -29,27 +36,38 @@ test("content menus share the move-to-knowledge workflow", () => {
   const knowledgePage = read("apps/web/src/app/(app)/knowledge-bases/page.tsx");
   const css = read("apps/web/src/app/globals.css");
 
-  assert.doesNotMatch(appLayout, /MoveToKnowledgeProvider/);
+  // The dialog must be mounted at app level so closing the three-dot menu
+  // (which unmounts the menu subtree) does not unmount and dismiss the dialog.
+  assert.match(appLayout, /MoveToKnowledgeProvider/);
+
+  // The menu item is a thin trigger: it closes the menu and asks the
+  // app-level provider to open the dialog. It must NOT own the dialog markup,
+  // otherwise it dies together with the closing menu (the ZOO-19 regression).
+  assert.match(menuItem, />移动到知识库</);
+  assert.match(menuItem, /closeMenu\?\.\(\)/);
+  assert.match(menuItem, /openMoveDialog\(target\)/);
+  assert.doesNotMatch(menuItem, /mewmo-move-knowledge__panel/);
+  assert.doesNotMatch(menuItem, /aria-modal="true"/);
+  assert.doesNotMatch(menuItem, /items\/import/);
+
+  // The move workflow (import call, 409 handling, centered modal) lives in
+  // the provider.
   assert.match(
-    menuItem,
+    provider,
     /`\/api\/knowledge-bases\/\$\{selectedBaseId\}\/items\/import`/,
   );
-  assert.match(menuItem, /response\.status === 409/);
-  assert.match(menuItem, /这条内容已经在目标文件夹中/);
-  assert.match(menuItem, />移动到知识库</);
-  assert.match(menuItem, /mewmo-move-knowledge/);
-  assert.match(menuItem, /aria-modal="true"/);
-  assert.match(menuItem, /mewmo-move-knowledge__panel/);
-  assert.match(menuItem, /aria-label="知识库"/);
-  assert.match(menuItem, /aria-label="文件夹"/);
-  assert.match(menuItem, /知识库根级/);
-  assert.match(menuItem, /closeMenu\?\.\(\)/);
-  assert.match(menuItem, /setOpen\(true\)/);
-  assert.doesNotMatch(menuItem, /onMouseEnter/);
-  assert.doesNotMatch(menuItem, /acct-submenu/);
-  assert.doesNotMatch(menuItem, /mewmo-move-knowledge-card/);
-  assert.doesNotMatch(menuItem, /<select/);
-  assert.doesNotMatch(menuItem, /目录/);
+  assert.match(provider, /response\.status === 409/);
+  assert.match(provider, /这条内容已经在目标文件夹中/);
+  assert.match(provider, /mewmo-move-knowledge/);
+  assert.match(provider, /aria-modal="true"/);
+  assert.match(provider, /mewmo-move-knowledge__panel/);
+  assert.match(provider, /aria-label="知识库"/);
+  assert.match(provider, /aria-label="文件夹"/);
+  assert.match(provider, /知识库根级/);
+  assert.doesNotMatch(provider, /onMouseEnter/);
+  assert.doesNotMatch(provider, /acct-submenu/);
+  assert.doesNotMatch(provider, /mewmo-move-knowledge-card/);
+  assert.doesNotMatch(provider, /<select/);
   assert.match(css, /\.mewmo-move-knowledge__/);
   assert.match(css, /\.mewmo-move-knowledge__panel/);
   assert.match(css, /\.mewmo-move-knowledge__scrim/);

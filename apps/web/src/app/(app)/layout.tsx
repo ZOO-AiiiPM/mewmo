@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { auth } from "../../lib/auth";
 import { AppShell } from "../../components/shell/AppShell";
 import { ToastProvider } from "../../components/ui/ToastProvider";
+import { MoveToKnowledgeProvider } from "../../components/knowledge/MoveToKnowledgeProvider";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <ToastProvider>
-      <AppShell user={session.user}>{children}</AppShell>
+      <MoveToKnowledgeProvider>
+        <AppShell user={session.user}>{children}</AppShell>
+      </MoveToKnowledgeProvider>
     </ToastProvider>
   );
 }
