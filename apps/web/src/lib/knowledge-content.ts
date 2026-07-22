@@ -27,8 +27,10 @@ interface KnowledgeClip {
   excerpt?: string | null;
   content?: string | null;
   sourceName?: string | null;
+  author?: string | null;
   favicon?: string | null;
   coverImage?: string | null;
+  publishedAt?: string | null;
   updatedAt?: string;
   createdAt?: string;
 }
@@ -41,6 +43,7 @@ interface KnowledgeFeedEntry {
   excerpt?: string | null;
   content?: string | null;
   sourceName?: string | null;
+  author?: string | null;
   publishedAt?: string | null;
   createdAt?: string;
   feed?: {
@@ -73,6 +76,8 @@ export interface KnowledgeCardView {
   sourceText: string;
   readerSourceText: string;
   href: string | null;
+  author?: string | null;
+  publishedAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -153,6 +158,8 @@ export function buildKnowledgeCardView(item: KnowledgeItemLike): KnowledgeCardVi
       sourceBadge: "bookmark",
       sourceText: item.clip.sourceName || domainFromUrl(item.clip.url),
       readerSourceText: item.clip.sourceName || domainFromUrl(item.clip.url),
+      author: item.clip.author ?? null,
+      publishedAt: item.clip.publishedAt ?? null,
       href: `/clips/${item.clip.id}`,
       ...(createdAt !== undefined ? { createdAt } : {}),
       ...(updatedAt !== undefined ? { updatedAt } : {}),
@@ -183,6 +190,8 @@ export function buildKnowledgeCardView(item: KnowledgeItemLike): KnowledgeCardVi
         url: item.feedEntry.url,
         feedTitle: item.feedEntry.feed?.title,
       }),
+      author: item.feedEntry.author ?? null,
+      publishedAt: item.feedEntry.publishedAt ?? null,
       href: `/feed-entries/${item.feedEntry.id}`,
       ...(createdAt !== undefined ? { createdAt } : {}),
       ...(updatedAt !== undefined ? { updatedAt } : {}),

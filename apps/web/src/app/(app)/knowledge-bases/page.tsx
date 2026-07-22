@@ -19,7 +19,7 @@ import { ReaderToolbar } from "../../../components/shell/ReaderToolbar";
 import {
   useReaderToolbarTitleVisibility,
 } from "../../../components/shell/useReaderToolbarTitleVisibility";
-import { FloatingMenuButton } from "../../../components/ui/FloatingMenu";
+import { FloatingMenuButton, PopoverMenu } from "../../../components/ui/FloatingMenu";
 import { useToast } from "../../../components/ui/ToastProvider";
 import {
   clipPreviewText,
@@ -91,6 +91,8 @@ type KnowledgeEntityDetail = {
   title?: string;
   summary?: string | null;
   content?: string | null;
+  author?: string | null;
+  publishedAt?: string | null;
   updatedAt?: string;
   createdAt?: string;
   version?: number;
@@ -653,8 +655,12 @@ export default function KnowledgeBasesPage() {
                     )}
                     <div className="mewmo-list-card__source mewmo-knowledge-card__source">
                       <PrototypeIcon name={card.icon} size={15} />
-                      <span>{card.sourceText}</span>
-                      <time>{formatKnowledgeListTime(item, card)}</time>
+                      {knowledgeMetaItems(card).map((metaItem, index) => (
+                        <span key={`${metaItem}-${index}`}>
+                          {index > 0 && <b aria-hidden="true">·</b>}
+                          {metaItem}
+                        </span>
+                      ))}
                     </div>
                   </button>
                   <CardActionMenu
@@ -700,6 +706,7 @@ export default function KnowledgeBasesPage() {
               ? () => void copySelectedNote()
               : undefined
           }
+          href={selectedItem?.kind === "note" ? undefined : (selectedSourceUrl ?? undefined)}
           onCopyLink={
             selectedSourceUrl
               ? () => {
@@ -754,8 +761,8 @@ function KnowledgeRootEmptyState({ onImportLocalFolder }: { onImportLocalFolder:
       <p>一级目录只存放文件夹</p>
       <div className="mewmo-knowledge-empty__actions">
         <button type="button" className="mewmo-knowledge-empty__asset" onClick={onImportLocalFolder}>
-          <PrototypeIcon name="folder" size={15} />
-          <span>从本地文件夹导入</span>
+          <PrototypeIcon name="import" size={15} />
+          <span>从本地导入</span>
         </button>
       </div>
     </div>
@@ -771,6 +778,8 @@ function KnowledgeEmptyState({
   onImportLocalFile: () => void;
   onImportLocalFolder: () => void;
 }) {
+  const localImportRef = useRef<HTMLButtonElement>(null);
+  const [localImportOpen, setLocalImportOpen] = useState(false);
   return (
     <div className="mewmo-list-empty mewmo-knowledge-empty">
       <PrototypeIcon name="library" size={40} />
@@ -779,14 +788,56 @@ function KnowledgeEmptyState({
         <button type="button" className="mewmo-button" onClick={onImportInbox}>
           从收藏箱导入
         </button>
-        <button type="button" className="mewmo-knowledge-empty__asset" onClick={onImportLocalFile}>
-          <PrototypeIcon name="import" size={15} />
-          <span>从本地文件导入</span>
-        </button>
-        <button type="button" className="mewmo-knowledge-empty__asset" onClick={onImportLocalFolder}>
-          <PrototypeIcon name="folder" size={15} />
-          <span>从本地文件夹导入</span>
-        </button>
+        <div className="mewmo-knowledge-empty__local">
+          <button
+            type="button"
+            ref={localImportRef}
+            className={`mewmo-knowledge-empty__asset ${localImportOpen ? "mewmo-knowledge-empty__asset--active" : ""}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              setLocalImportOpen((value) => !value);
+            }}
+            aria-expanded={localImportOpen}
+            aria-haspopup="menu"
+          >
+            <PrototypeIcon name="import" size={15} />
+            <span>从本地导入</span>
+          </button>
+          <PopoverMenu
+            open={localImportOpen}
+            anchorRef={localImportRef}
+            onOpenChange={setLocalImportOpen}
+            boundary="main"
+            className="mewmo-card-menu"
+          >
+            <button
+              type="button"
+              className="mewmo-card-menu__item"
+              onClick={() => {
+                setLocalImportOpen(false);
+                onImportLocalFile();
+              }}
+            >
+              <span className="mewmo-card-menu__icon">
+                <PrototypeIcon name="import" size={16} />
+              </span>
+              <span>从本地文件导入</span>
+            </button>
+            <button
+              type="button"
+              className="mewmo-card-menu__item"
+              onClick={() => {
+                setLocalImportOpen(false);
+                onImportLocalFolder();
+              }}
+            >
+              <span className="mewmo-card-menu__icon">
+                <PrototypeIcon name="folder" size={16} />
+              </span>
+              <span>从本地文件夹导入</span>
+            </button>
+          </PopoverMenu>
+        </div>
       </div>
     </div>
   );
@@ -1006,6 +1057,25 @@ function formatKnowledgeListTime(
   if (!value) return "";
   if (item.kind === "note") return formatNoteListTime(value);
   return formatClipListTime(value);
+}
+
+function formatArticleDate(value?: string | null) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const now = new Date();
+  const sameYear = date.getFullYear() === now.getFullYear();
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  const hh = String(date.getHours()).padStart(2, "0");
+  const mm = String(date.getMinutes()).padStart(2, "0");
+  return `${sameYear ? "" : `${date.getFullYear()}年`}${month}月${day}日 ${hh}:${mm}`;
+}
+
+function knowledgeMetaItems(card: ReturnType<typeof buildKnowledgeCardView>): string[] {
+  const author = card.author && card.author !== card.sourceText ? card.author : null;
+  const publishedAt = card.publishedAt ? formatArticleDate(card.publishedAt) : null;
+  return [card.sourceText, author, publishedAt].filter(Boolean) as string[];
 }
 
 function inferLocalKnowledgeImportType(fileName: string): LocalKnowledgeImportType | null {

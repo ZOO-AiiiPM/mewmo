@@ -382,7 +382,6 @@ export default function ClipsPage() {
           >
             {virtualizer.getVirtualItems().map((virtualRow) => {
               const clip = visibleClips[virtualRow.index]!;
-              const domain = getDomain(clip.url);
               const menuOpen = openMenuId === clip.id;
               const cardHovered = hoveredCardId === clip.id || menuOpen;
               return (
@@ -423,10 +422,12 @@ export default function ClipsPage() {
                     )}
                     <div className="mewmo-list-card__source mewmo-list-card__source--clip">
                       <Favicon clip={clip} />
-                      <span>{domain}</span>
-                      <time>
-                        {formatClipListTime(clip.createdAt)}
-                      </time>
+                      {articleMetaItems(clip).map((metaItem, index) => (
+                        <span key={`${metaItem}-${index}`}>
+                          {index > 0 && <b aria-hidden="true">·</b>}
+                          {metaItem}
+                        </span>
+                      ))}
                     </div>
                   </button>
                   <CardActionMenu
@@ -460,6 +461,7 @@ export default function ClipsPage() {
           onDelete={selectedClip ? () => void deleteClip(selectedClip) : undefined}
           onRefresh={selectedClip ? () => void refreshClip(selectedClip) : undefined}
           onCopyLink={selectedClip ? () => void copyClipUrl(selectedClip) : undefined}
+          href={selectedClip?.url}
           moveToKnowledgeTarget={selectedClip ? { kind: "clip", clipId: selectedClip.id, title: selectedClip.title } : undefined}
         />
         <div ref={scrollRef} className="mewmo-reader-scroll">

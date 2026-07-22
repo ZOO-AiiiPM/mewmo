@@ -5518,6 +5518,29 @@ html.light .acct-submenu {
   background: var(--selected);
 }
 
+.mewmo-move-knowledge__new-folder {
+  color: var(--accent, var(--ink));
+}
+
+.mewmo-move-knowledge__new-folder-input {
+  width: calc(100% - 20px);
+  margin: 4px 10px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--field, var(--bg));
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.mewmo-move-knowledge__new-folder-input:focus {
+  border-color: var(--accent, var(--ink));
+}
+
 .mewmo-move-knowledge__status {
   margin: 0;
   padding: 12px 10px;

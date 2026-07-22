@@ -301,7 +301,6 @@ export function ClipDetailClient({
       >
         <div className="mewmo-list-stack">
           {visibleClips.map((item) => {
-            const domain = getDomain(item.url);
             const menuOpen = openMenuId === item.id;
             const cardHovered = hoveredCardId === item.id || menuOpen;
             return (
@@ -337,8 +336,12 @@ export function ClipDetailClient({
                   )}
                   <div className="mewmo-list-card__source mewmo-list-card__source--clip">
                     <Favicon clip={item} />
-                    <span>{domain}</span>
-                    <time>{formatClipListTime(item.createdAt)}</time>
+                    {articleMetaItems(item).map((metaItem, index) => (
+                      <span key={`${metaItem}-${index}`}>
+                        {index > 0 && <b aria-hidden="true">·</b>}
+                        {metaItem}
+                      </span>
+                    ))}
                   </div>
                 </button>
                 <CardActionMenu

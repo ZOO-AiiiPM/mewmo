@@ -14,6 +14,7 @@ interface FeedArticleMenuProps {
   favoriteActive?: boolean;
   onFavorite?: (() => void) | undefined;
   onCopyLink?: (() => void) | undefined;
+  href?: string | undefined;
   moveToKnowledgeTarget?: MoveToKnowledgeTarget | undefined;
 }
 
@@ -22,6 +23,7 @@ export function FeedArticleMenu({
   favoriteActive = false,
   onFavorite,
   onCopyLink,
+  href,
   moveToKnowledgeTarget,
 }: FeedArticleMenuProps) {
   const menuButtonRef = useRef<HTMLButtonElement>(null);
@@ -79,6 +81,20 @@ export function FeedArticleMenu({
           </span>
           <span>复制链接</span>
         </button>
+        {href && (
+          <a
+            className="mewmo-card-menu__item"
+            href={href}
+            target="_blank"
+            rel="noreferrer"
+            onClick={() => setMenuOpen(false)}
+          >
+            <span className="mewmo-card-menu__icon">
+              <PrototypeIcon name="external" size={16} />
+            </span>
+            <span>浏览器打开</span>
+          </a>
+        )}
         {moveToKnowledgeTarget && (
           <MoveToKnowledgeMenuItem target={moveToKnowledgeTarget} />
         )}
