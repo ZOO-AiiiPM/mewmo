@@ -23,6 +23,8 @@ describe("note draft store", () => {
       title: "Offline title",
       content: "Offline body",
       serverVersion: 4,
+      baseTitle: "Server title",
+      baseContent: "Server body",
       updatedAt: 123,
     };
 

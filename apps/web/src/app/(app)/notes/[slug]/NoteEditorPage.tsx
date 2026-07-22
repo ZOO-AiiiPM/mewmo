@@ -62,6 +62,7 @@ import { workspaceResourceKeys } from "../../../../lib/workspace-resource-keys";
 import {
   queueNoteDraftSync,
   subscribeNoteDraftSync,
+  type NoteSaveSnapshot,
 } from "../../../../components/editor/note-draft-sync";
 import "../../../../components/editor/editor-theme.css";
 
@@ -118,7 +119,14 @@ export function NoteEditorPage({
   const mergeCachedDetail = (item: NoteListItem) => {
     const cachedDetail = getCachedWorkspaceDetail<NoteListItem>("notes", item.id);
     return cachedDetail
-      ? { ...item, ...cachedDetail, updatedAt: item.updatedAt }
+      ? {
+          ...item,
+          ...cachedDetail,
+          updatedAt: item.updatedAt,
+          ...(item.version !== undefined || cachedDetail.version !== undefined
+            ? { version: item.version ?? cachedDetail.version }
+            : {}),
+        }
       : item;
   };
   const seededNotes = initialNotes.map(mergeCachedDetail);
@@ -152,7 +160,14 @@ export function NoteEditorPage({
         setNotes((current) =>
           current.map((entry) =>
             entry.id === item.id
-              ? { ...entry, ...cachedDetail, updatedAt: entry.updatedAt }
+              ? {
+                  ...entry,
+                  ...cachedDetail,
+                  updatedAt: entry.updatedAt,
+                  ...(entry.version !== undefined || cachedDetail.version !== undefined
+                    ? { version: entry.version ?? cachedDetail.version }
+                    : {}),
+                }
               : entry,
           ),
         );
@@ -163,7 +178,14 @@ export function NoteEditorPage({
       setNotes((current) =>
         current.map((entry) =>
           entry.id === item.id
-            ? { ...entry, ...cachedDetail, updatedAt: entry.updatedAt }
+            ? {
+                ...entry,
+                ...cachedDetail,
+                updatedAt: entry.updatedAt,
+                ...(entry.version !== undefined || cachedDetail.version !== undefined
+                  ? { version: entry.version ?? cachedDetail.version }
+                  : {}),
+              }
             : entry,
         ),
       );
@@ -187,6 +209,8 @@ export function NoteEditorPage({
                   summary: data.summary,
                   title: data.title,
                   updatedAt: data.updatedAt,
+                  ...(data.version !== undefined ? { version: data.version } : {}),
+                  slug: data.slug,
                 }
               : entry,
           ),
@@ -210,7 +234,16 @@ export function NoteEditorPage({
         setNotes(
           data.map((item) => {
             const detail = getCachedWorkspaceDetail<NoteListItem>("notes", item.id);
-            return detail ? { ...item, ...detail, updatedAt: item.updatedAt } : item;
+            return detail
+              ? {
+                  ...item,
+                  ...detail,
+                  updatedAt: item.updatedAt,
+                  ...(item.version !== undefined || detail.version !== undefined
+                    ? { version: item.version ?? detail.version }
+                    : {}),
+                }
+              : item;
           }),
         );
         setSelectedSlug((current) => {
@@ -388,6 +421,8 @@ export function NoteEditorPage({
           title: nextTitle,
           content: nextContent,
           serverVersion: patch.baseVersion,
+          baseTitle: currentNote.title,
+          baseContent: currentNote.content ?? "",
           updatedAt,
         });
         const savePromise = new Promise<{ version?: number }>((resolve, reject) => {
@@ -397,11 +432,12 @@ export function NoteEditorPage({
             reject(new Error("笔记保存超时，本地草稿仍已保留"));
           }, 20_000);
           unsubscribe = subscribeNoteDraftSync(userId, currentNote.id, (snapshot) => {
+            if (snapshot.draftUpdatedAt !== updatedAt) return;
             if (snapshot.status === "saved") {
               window.clearTimeout(timeout);
               unsubscribe();
               resolve(snapshot.serverVersion === undefined ? {} : { version: snapshot.serverVersion });
-            } else if (snapshot.status === "error") {
+            } else if (snapshot.status === "error" || snapshot.status === "conflict") {
               window.clearTimeout(timeout);
               unsubscribe();
               reject(new Error(snapshot.message));
@@ -454,10 +490,14 @@ export function NoteEditorPage({
       updateCachedWorkspaceItem<NoteListItem>("notes", item.id, (entry) => ({
         ...entry,
         pinned: updated.pinned,
+        version: updated.version,
+        updatedAt: updated.updatedAt,
       }));
       setNotes((current) =>
         current.map((entry) =>
-          entry.id === item.id ? { ...entry, pinned: updated.pinned } : entry,
+          entry.id === item.id
+            ? { ...entry, pinned: updated.pinned, version: updated.version, updatedAt: updated.updatedAt }
+            : entry,
         ),
       );
       showToast(updated.pinned ? "已置顶" : "已取消置顶", "success");
@@ -534,6 +574,26 @@ export function NoteEditorPage({
     },
     [selectedNote],
   );
+
+  const handleNoteSaveSnapshot = useCallback((snapshot: NoteSaveSnapshot) => {
+    if (snapshot.status !== "saved" || !selectedNote || snapshot.serverVersion === undefined) return;
+    const serverVersion = snapshot.serverVersion;
+    const updatedAt = snapshot.savedAt
+      ? new Date(snapshot.savedAt).toISOString()
+      : undefined;
+    updateCachedWorkspaceItem<NoteListItem>("notes", selectedNote.id, (item) => ({
+      ...item,
+      version: serverVersion,
+      ...(updatedAt ? { updatedAt } : {}),
+    }));
+    setNotes((current) => current.map((item) => item.id === selectedNote.id
+      ? {
+          ...item,
+          version: serverVersion,
+          ...(updatedAt ? { updatedAt } : {}),
+        }
+      : item));
+  }, [selectedNote]);
 
   const scrollToTop = () => {
     scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
@@ -696,6 +756,7 @@ export function NoteEditorPage({
                 autoFocusTitle={selectedNote.title === "Untitled" && !selectedNote.content.trim()}
                 onContentChange={updateSelectedNoteContent}
                 onTitleChange={updateSelectedNoteTitle}
+                onSaveSnapshot={handleNoteSaveSnapshot}
                 embedded
               />
             )

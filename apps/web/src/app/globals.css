@@ -2720,9 +2720,11 @@ html.light .mewmo-doc-toc:hover {
 
 .mewmo-note-save-status {
   display: inline-flex;
-  margin-bottom: 8px;
+  margin-left: auto;
+  flex: 0 0 auto;
   color: var(--ink-faint);
   font-size: 12px;
+  white-space: nowrap;
 }
 
 .mewmo-note-save-status--offline,
@@ -2744,6 +2746,41 @@ html.light .mewmo-doc-toc:hover {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+}
+
+.mewmo-note-save-conflict-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 4px;
+}
+
+@media (max-width: 720px) {
+  .mewmo-note-editor__meta {
+    column-gap: 6px;
+  }
+
+  .mewmo-note-save-status {
+    min-width: max-content;
+  }
+
+  .mewmo-note-save-conflict-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
+.mewmo-note-save-conflict-actions button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.mewmo-note-save-conflict-actions button:hover {
+  color: var(--ink);
 }
 
 .mewmo-note-editor__meta b {

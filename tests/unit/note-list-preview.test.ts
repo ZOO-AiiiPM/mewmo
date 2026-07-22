@@ -110,7 +110,7 @@ describe("note list preview", () => {
         new Date("2026-07-06T03:00:00.000Z"),
       ),
     ).toEqual({
-      details: ["18 分钟前"],
+      details: ["上次编辑时间：18 分钟前"],
       tags: ["产品", "AI"],
     });
   });
