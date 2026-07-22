@@ -67,6 +67,7 @@ describe("classified AI workflows", () => {
       generateObject: vi.fn().mockResolvedValue({
         value: { insights: [{ type: "duplicate", message: "这与旧笔记观点重复。", evidenceTargetIds: ["note-old"] }] },
         metadata: { profile: "workflow.note-insight", model: "fake-insight" },
+        attempts: [{ profile: "workflow.note-insight", model: "fake-insight" }],
       }),
     };
     const result = await runNoteInsightWorkflow({
@@ -93,6 +94,7 @@ describe("classified AI workflows", () => {
       generateObject: vi.fn().mockResolvedValue({
         value: [{ type: "completeness", message: "补充一个反例。", evidenceTargetIds: [] }],
         metadata: { profile: "workflow.note-insight", model: "fake-insight" },
+        attempts: [{ profile: "workflow.note-insight", model: "fake-insight" }],
       }),
     };
     const result = await runNoteInsightWorkflow({

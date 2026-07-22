@@ -24,6 +24,10 @@ export function loadAIRuntimeConfig(input: AIEnvironment = process.env): AIRunti
         provider,
         apiKey: required(apiKeyFor(provider, input), `${apiKeyName(provider)} is required`),
         baseUrl: stripSlash(required(baseUrlFor(provider, input), `${baseUrlName(provider)} is required`)),
+        // Standard endpoints can use Pi's maintained model catalog and OAuth
+        // resolver. Relays stay on the endpoint adapter because their model
+        // names and wire compatibility are deployment-specific.
+        useBuiltinProvider: usesBuiltinProvider(provider, baseUrlFor(provider, input)),
       },
     },
     models,
@@ -68,4 +72,11 @@ function required(value: string | undefined, message: string) {
 
 function stripSlash(value: string) {
   return value.replace(/\/+$/, "");
+}
+
+function usesBuiltinProvider(provider: "openai" | "anthropic" | "custom", baseUrl: string | undefined) {
+  const normalized = baseUrl?.replace(/\/+$/, "");
+  if (provider === "openai") return normalized === "https://api.openai.com/v1";
+  if (provider === "anthropic") return normalized === "https://api.anthropic.com/v1";
+  return false;
 }

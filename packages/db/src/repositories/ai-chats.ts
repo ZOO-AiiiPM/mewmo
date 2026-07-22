@@ -44,6 +44,15 @@ interface AiChatsClient {
 }
 
 const chatMessageInclude = {
+  sessionEntries: {
+    where: { type: "message" },
+    orderBy: { entrySeq: "asc" },
+    include: { attachments: true },
+  },
+  turns: {
+    where: { status: "succeeded" },
+    select: { assistantEntryId: true, output: true },
+  },
   messages: {
     where: { deletedAt: null },
     orderBy: { createdAt: "asc" },
@@ -64,27 +73,29 @@ export function createAiChatsRepository(client: unknown = getPrisma()) {
         where: { ...activeByUser(userId), title },
         include: chatMessageInclude,
       });
-      if (existing) return existing;
+      if (existing) return projectSessionMessages(existing);
 
-      return db.aiChat.create({
+      return projectSessionMessages(await db.aiChat.create({
         data: { title, userId },
         include: chatMessageInclude,
-      });
+      }));
     },
 
-    findByUserId(userId: string) {
-      return db.aiChat.findMany({
+    async findByUserId(userId: string) {
+      const chats = await db.aiChat.findMany({
         where: activeByUser(userId),
         orderBy: { updatedAt: "desc" },
         include: chatMessageInclude,
       });
+      return Array.isArray(chats) ? chats.map(projectSessionMessages) : chats;
     },
 
-    findById(userId: string, id: string) {
-      return db.aiChat.findFirst({
+    async findById(userId: string, id: string) {
+      const chat = await db.aiChat.findFirst({
         where: { id, ...activeByUser(userId) },
         include: chatMessageInclude,
       });
+      return chat ? projectSessionMessages(chat) : null;
     },
 
     update(userId: string, id: string, input: Partial<CreateAiChatInput>) {
@@ -122,4 +133,49 @@ export function createAiChatsRepository(client: unknown = getPrisma()) {
       });
     },
   };
+}
+
+function projectSessionMessages(value: unknown): unknown {
+  if (!isRecord(value) || !Array.isArray(value.sessionEntries) || value.sessionEntries.length === 0) return value;
+  const turnMetadata = new Map<string, unknown>();
+  if (Array.isArray(value.turns)) {
+    for (const turn of value.turns) {
+      if (!isRecord(turn) || typeof turn.assistantEntryId !== "string" || !isRecord(turn.output) || !isRecord(turn.output.response)) continue;
+      const response = turn.output.response;
+      turnMetadata.set(turn.assistantEntryId, {
+        ...(Array.isArray(response.proposals) ? { proposals: response.proposals } : {}),
+        ...(isRecord(response.usage) ? { usage: response.usage } : {}),
+      });
+    }
+  }
+  const messages = value.sessionEntries.flatMap((entry) => {
+    if (!isRecord(entry) || typeof entry.entryId !== "string" || !isRecord(entry.payload) || !isRecord(entry.payload.message)) return [];
+    const message = entry.payload.message;
+    if (message.role !== "user" && message.role !== "assistant") return [];
+    return [{
+      id: entry.entryId,
+      role: message.role,
+      content: messageText(message.content),
+      status: "completed",
+      createdAt: entry.timestamp,
+      metadata: turnMetadata.get(entry.entryId) ?? null,
+      contextAttachments: Array.isArray(entry.attachments) ? entry.attachments : [],
+    }];
+  });
+  const { sessionEntries: _sessionEntries, turns: _turns, ...chat } = value;
+  return { ...chat, messages };
+}
+
+function messageText(content: unknown) {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .filter(isRecord)
+    .filter((part) => part.type === "text" && typeof part.text === "string")
+    .map((part) => part.text)
+    .join("");
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

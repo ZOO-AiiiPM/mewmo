@@ -15,6 +15,7 @@
     "@mewmo/auth": "workspace:*",
     "@mewmo/content": "workspace:*",
     "@mewmo/db": "workspace:*",
+    "@mewmo/email": "workspace:*",
     "@mewmo/shared": "workspace:*",
     "@mewmo/storage": "workspace:*",
     "@mewmo/ui": "workspace:*",

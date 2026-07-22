@@ -4,6 +4,7 @@
  */
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createAiRunService } from "../../packages/application/src/index.ts";
 import { fetchFeedDocument } from "../../packages/content/src/index.ts";
 import { getPrisma } from "../../packages/db/src/client.ts";
 import { processFeed } from "../../apps/feed-ingestion/src/feeds/process-feed.ts";
@@ -19,6 +20,37 @@ let cookies = "";
 let createdFeedId = "";
 let createdEntryId = "";
 let createdFeedUrl = "";
+
+async function assertFeedEntriesHaveQueuedAiRuns(feedId, expectedEntryCount) {
+  const prisma = getPrisma();
+  const entries = await prisma.feedEntry.findMany({
+    where: { feedId },
+    select: { id: true, version: true, summary: true },
+  });
+  assert.equal(entries.length, expectedEntryCount);
+  assert.ok(entries.every((entry) => entry.summary === null));
+
+  const runs = await prisma.aiRun.findMany({
+    where: {
+      targetType: "feed_entry",
+      targetId: { in: entries.map((entry) => entry.id) },
+      kind: { in: ["summary", "embedding"] },
+    },
+  });
+  assert.equal(runs.length, expectedEntryCount * 2);
+
+  for (const entry of entries) {
+    for (const kind of ["summary", "embedding"]) {
+      const run = runs.find((candidate) => (
+        candidate.kind === kind && candidate.targetId === entry.id
+      ));
+      assert.ok(run, `${kind} run should exist for feed entry ${entry.id}`);
+      assert.equal(run.status, "queued");
+      assert.equal(run.inputVersion, entry.version);
+      assert.equal(run.idempotencyKey, `${kind}:feed_entry:${entry.id}:v${entry.version}`);
+    }
+  }
+}
 
 async function login() {
   const res = await fetch(`${BASE}/api/login`, {
@@ -111,7 +143,7 @@ test("Feeds API", async (t) => {
     const afterCron = await authedFetch(`/api/feeds/${feed.id}/entries`);
     const entriesAfterCron = await afterCron.json();
     assert.equal(entriesAfterCron.length, 5);
-    assert.ok(entriesAfterCron.every((entry) => entry.summary === "Integration Mewmo AI summary"));
+    await assertFeedEntriesHaveQueuedAiRuns(feed.id, 5);
     assert.equal((await authedFetch(`/api/feeds/${feed.id}`, { method: "DELETE" })).status, 200);
   });
 
@@ -150,14 +182,12 @@ test("Feeds API", async (t) => {
 
     const result = await processFeed(feedRecord, {
       fetchFeed: (url) => fetchFeedDocument(url, { allowedPrivateOrigins }),
+      aiRuns: createAiRunService(),
     });
 
     assert.equal(result.upserted, 12);
     assert.equal(result.created, 12);
-    assert.equal(await getPrisma().feedEntry.count({ where: { feedId: feed.id } }), 13);
-    assert.equal(await getPrisma().feedEntry.count({
-      where: { feedId: feed.id, summary: "Integration Mewmo AI summary" },
-    }), 13);
+    await assertFeedEntriesHaveQueuedAiRuns(feed.id, 13);
     assert.equal((await authedFetch(`/api/feeds/${feed.id}`, { method: "DELETE" })).status, 200);
   });
 

@@ -292,12 +292,22 @@ function AgentPanel({ context, requestedSkill, onSkillConsumed }: { context: AIS
       : [...current, { id: localUserId, role: "user", content: request.content, status: "completed" }, { id: localAssistantId, role: "assistant", content: "正在思考…", status: "pending" }]);
     setStatus("sending"); setFailedSend(null);
     try {
-      const response = await fetch(`/api/agent/chats/${chat.id}/messages`, {
+      const response = await fetch(`/api/agent/chats/${chat.id}/stream`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ clientRequestId: request.clientRequestId, content: request.content, ...(request.skillId ? { skillId: request.skillId } : {}), context: context ? { resource: { type: context.kind, id: context.id, title: context.title }, ...(context.kind === "note" ? { draft: context.draft } : {}) } : null }),
       });
-      const data = (await response.json().catch(() => null)) as (AgentMessageResponse & { error?: { message?: string } }) | null;
-      if (!response.ok || !data?.assistantMessage) throw new Error(data?.error?.message ?? "send failed");
+      if (!response.ok) {
+        const data = await response.json().catch(() => null) as { error?: { message?: string } } | null;
+        throw new Error(data?.error?.message ?? "send failed");
+      }
+      const data = await consumeAgentStream(response, (event) => {
+        const delta = event.type === "text_delta" && typeof event.delta === "string" ? event.delta : null;
+        if (delta !== null) {
+          setMessages((current) => current.map((item) => item.id === localAssistantId ? { ...item, content: item.content === "正在思考…" ? delta : item.content + delta } : item));
+        }
+      });
+      if (data.error?.message) throw new Error(data.error.message);
+      if (!data?.assistantMessage) throw new Error("Agent 未返回完整结果");
       const userMessage: AgentChatMessage = {
         id: data.userMessage.id ?? localUserId,
         role: "user",
@@ -333,13 +343,38 @@ function AgentPanel({ context, requestedSkill, onSkillConsumed }: { context: AIS
     {messages.length === 0 && <Message from="assistant">我可以搜索、创建、修改、润色、移动和整理你的内容。写操作会先展示预览，由你确认后执行。</Message>}
     {messages.map((message) => <Message key={message.id} from={message.role === "user" ? "user" : "assistant"}>{message.content}</Message>)}
     {proposals.map((proposal) => <ProposalCard key={proposal.id} proposal={proposal} context={context} onChange={updateProposal} />)}
-    {failedSend && <button type="button" className="mewmo-ai-retry" onClick={() => void performSend(failedSend)}><PrototypeIcon name="sync" size={13} />使用同一请求重试</button>}
+    {failedSend && <button type="button" className="mewmo-ai-retry" onClick={() => void performSend({ ...failedSend, clientRequestId: crypto.randomUUID() })}><PrototypeIcon name="sync" size={13} />重新尝试</button>}
     {skillId && <div className="mewmo-ai-skill-chip"><PrototypeIcon name="spark" size={12} />深度洞察<button type="button" onClick={() => setSkillId(undefined)} aria-label="取消深度洞察"><PrototypeIcon name="close" size={12} /></button></div>}
     <form className="mewmo-ai-rail__ask" onSubmit={(event) => { event.preventDefault(); send(); }}>
       <textarea value={input} onChange={(event) => setInput(event.target.value)} placeholder={context ? `让 Agent 处理当前${contextLabel(context.kind)}` : "让 Agent 搜索或处理工作区内容"} disabled={!chat || status === "loading" || status === "sending"} rows={2} />
       <button type="submit" disabled={!input.trim() || !chat || status === "loading" || status === "sending"} aria-label="发送"><PrototypeIcon name="send" size={14} /></button>
     </form>
   </>;
+}
+
+async function consumeAgentStream(response: Response, onEvent: (event: Record<string, unknown>) => void): Promise<AgentMessageResponse & { error?: { message?: string } }> {
+  if (!response.body) throw new Error("Agent 流式响应为空");
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let result: AgentMessageResponse & { error?: { message?: string } } | null = null;
+  while (true) {
+    const chunk = await reader.read();
+    buffer += decoder.decode(chunk.value ?? new Uint8Array(), { stream: !chunk.done });
+    const frames = buffer.split("\n\n");
+    buffer = frames.pop() ?? "";
+    for (const frame of frames) {
+      const event = frame.match(/^event: (.+)$/m)?.[1];
+      const payload = frame.match(/^data: (.+)$/m)?.[1];
+      if (!event || !payload) continue;
+      const parsed = JSON.parse(payload) as Record<string, unknown>;
+      if (event === "result") result = parsed as unknown as AgentMessageResponse;
+      else if (event === "error") result = { error: (parsed.error as { message?: string } | undefined) ?? { message: "Agent 请求失败" } } as AgentMessageResponse & { error?: { message?: string } };
+      else onEvent({ type: event, ...parsed });
+    }
+    if (chunk.done) break;
+  }
+  return result ?? {} as AgentMessageResponse & { error?: { message?: string } };
 }
 
 function ProposalCard({ proposal, context, onChange }: { proposal: AgentActionProposal; context: AISidebarContentContext | null; onChange: (proposal: AgentActionProposal) => void }) {

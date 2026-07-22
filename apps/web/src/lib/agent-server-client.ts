@@ -113,6 +113,29 @@ export async function proxyAgentResponse(request: Promise<Response>) {
   }
 }
 
+export async function proxyAgentStream(request: Promise<Response>) {
+  try {
+    const upstream = await request;
+    return new Response(upstream.body, {
+      status: upstream.status,
+      headers: {
+        "Content-Type": upstream.headers.get("Content-Type") ?? "text/event-stream; charset=utf-8",
+        "Cache-Control": "no-store, no-transform",
+        Connection: "keep-alive",
+      },
+    });
+  } catch (error) {
+    const unavailable = error instanceof AgentServerUnavailableError;
+    const aborted = error instanceof Error && error.name === "AbortError";
+    const payload: AgentErrorPayload = unavailable
+      ? agentError("agent_not_configured", "Agent 服务尚未配置，请稍后再试。", false)
+      : aborted
+        ? agentError("agent_timeout", "Agent 响应超时，请重试。", true)
+        : agentError("agent_unreachable", "暂时无法连接 Agent 服务，请重试。", true);
+    return Response.json(payload, { status: unavailable ? 503 : 502 });
+  }
+}
+
 function encodeJson(value: unknown) {
   return Buffer.from(JSON.stringify(value)).toString("base64url");
 }

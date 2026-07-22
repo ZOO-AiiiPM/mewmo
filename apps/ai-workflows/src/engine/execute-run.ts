@@ -40,6 +40,7 @@ export async function executeClaimedRun(input: {
       throw new Error("workflow_input_mismatch");
     }
     const result = await withTimeout(handlers[run.kind](workflowInput, context), input.timeoutMs);
+    await recordModelCalls(application, run, result);
     await completeWorkflowResult(application, run, input.workerId, result);
     return "succeeded";
   } catch (error) {
@@ -50,6 +51,34 @@ export async function executeClaimedRun(input: {
       error: { code: normalized.errorCode, message: normalized.errorMessage },
       now: input.now(),
       maxAttempts: 3,
+    });
+  }
+}
+
+async function recordModelCalls(
+  application: AiWorkflowApplicationPort,
+  run: ClaimedAiRun,
+  result: Awaited<ReturnType<WorkflowHandler>>,
+) {
+  if (!("modelCalls" in result)) return;
+  for (const [index, model] of result.modelCalls.entries()) {
+    const usage = model.usage;
+    await application.recordUsage({
+      userId: run.userId,
+      runId: run.id,
+      purpose: model.profile,
+      operation: `workflow.${run.kind}`,
+      provider: model.provider ?? "unknown",
+      requestedModel: model.model ?? model.profile,
+      ...(model.responseModel ? { responseModel: model.responseModel } : {}),
+      inputTokens: usage?.inputTokens ?? 0,
+      outputTokens: usage?.outputTokens ?? 0,
+      ...(usage?.reasoningTokens === undefined ? {} : { reasoningTokens: usage.reasoningTokens }),
+      cacheReadTokens: usage?.cacheReadTokens ?? 0,
+      cacheWriteTokens: usage?.cacheWriteTokens ?? 0,
+      ...(usage?.providerCostUsd === undefined ? {} : { providerCostUsd: usage.providerCostUsd }),
+      ...(usage?.priceSnapshot === undefined ? {} : { priceSnapshot: usage.priceSnapshot }),
+      idempotencyKey: `workflow:${run.id}:attempt:${run.attempt}:call:${index}`,
     });
   }
 }

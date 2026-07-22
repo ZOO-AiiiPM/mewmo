@@ -70,14 +70,22 @@ export type WorkflowInput =
   | NoteInsightWorkflowInput;
 
 export interface ModelUsage {
-  inputTokens?: number;
-  outputTokens?: number;
+  inputTokens: number;
+  outputTokens: number;
+  reasoningTokens?: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  totalTokens: number;
+  providerCostUsd?: number;
+  pricingKnown: boolean;
+  priceSnapshot?: unknown;
 }
 
 export interface ModelMetadata {
   profile: string;
   provider?: string;
   model?: string;
+  responseModel?: string;
   traceId?: string;
   usage?: ModelUsage;
 }
@@ -90,6 +98,7 @@ export interface TextGenerationResult {
 export interface StructuredGenerationResult<T> {
   value: T;
   metadata: ModelMetadata;
+  attempts: ModelMetadata[];
 }
 
 export interface EmbeddingResult {
@@ -124,6 +133,7 @@ export interface SummaryWorkflowResult {
   summary: string;
   prompt: PromptMetadata;
   model: ModelMetadata;
+  modelCalls: ModelMetadata[];
 }
 
 export interface EmbeddingWorkflowResult {
@@ -132,6 +142,7 @@ export interface EmbeddingWorkflowResult {
   dimensions: number;
   contentHash: string;
   model: ModelMetadata;
+  modelCalls: ModelMetadata[];
 }
 
 export interface RecommendationRelation {
@@ -158,6 +169,7 @@ export interface NoteInsightWorkflowResult {
   insights: NoteInsightItem[];
   prompt: PromptMetadata;
   model: ModelMetadata;
+  modelCalls: ModelMetadata[];
 }
 
 export type WorkflowResult =
@@ -180,6 +192,23 @@ export interface AiWorkflowApplicationPort {
     leaseMs: number;
     now: Date;
   }): Promise<ClaimedAiRun[]>;
+  recordUsage(input: {
+    userId: string;
+    runId: string;
+    purpose: string;
+    operation: string;
+    provider: string;
+    requestedModel: string;
+    responseModel?: string;
+    inputTokens: number;
+    outputTokens: number;
+    reasoningTokens?: number;
+    cacheReadTokens: number;
+    cacheWriteTokens: number;
+    providerCostUsd?: number;
+    priceSnapshot?: unknown;
+    idempotencyKey: string;
+  }): Promise<unknown>;
   getInput(run: ClaimedAiRun): Promise<WorkflowInput | null>;
   completeSummary(input: {
     runId: string;

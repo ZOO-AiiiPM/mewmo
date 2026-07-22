@@ -59,6 +59,9 @@
       "dependsOn": ["^build"],
       "outputs": ["dist/**", ".next/**", "prisma/client/**"]
     },
+    "@mewmo/db#build": {
+      "cache": false
+    },
     "lint": {
       "dependsOn": ["^lint"]
     },
