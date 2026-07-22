@@ -19,7 +19,7 @@ import {
   useReaderToolbarTitleVisibility,
 } from "../../../components/shell/useReaderToolbarTitleVisibility";
 import { useToast } from "../../../components/ui/ToastProvider";
-import { clipPreviewText, formatClipListTime } from "../../../lib/clip-card";
+import { clipPreviewText } from "../../../lib/clip-card";
 import {
   currentStableSelectionPath,
   pushStableSelectionUrl,

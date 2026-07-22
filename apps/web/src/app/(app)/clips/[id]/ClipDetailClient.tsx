@@ -13,7 +13,7 @@ import {
 } from "../../../../components/shell/useReaderToolbarTitleVisibility";
 import { useAISidebarContext } from "../../../../components/shell/AISidebar";
 import { useToast } from "../../../../components/ui/ToastProvider";
-import { clipPreviewText, formatClipListTime } from "../../../../lib/clip-card";
+import { clipPreviewText } from "../../../../lib/clip-card";
 import { buildHtmlToc } from "../../../../lib/note-toc";
 import {
   currentStableSelectionPath,
