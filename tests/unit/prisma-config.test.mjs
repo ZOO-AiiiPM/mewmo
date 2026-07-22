@@ -5,6 +5,7 @@ import test from "node:test";
 const prismaConfig = readFileSync("packages/db/prisma.config.ts", "utf8");
 const dbClient = readFileSync("packages/db/src/client.ts", "utf8");
 const dbPackage = JSON.parse(readFileSync("packages/db/package.json", "utf8"));
+const turboConfig = JSON.parse(readFileSync("turbo.json", "utf8"));
 
 test("Prisma CLI config uses the same local database as the web runtime", () => {
   assert.match(
@@ -29,5 +30,13 @@ test("db package build generates Prisma Client before TypeScript compilation", (
     dbPackage.scripts.build,
     /prisma generate\s*&&\s*tsc -p tsconfig\.json/,
     "cloud builds should not rely on a manually generated local Prisma Client",
+  );
+});
+
+test("db package build never restores an external Prisma Client from Turbo cache", () => {
+  assert.equal(
+    turboConfig.tasks["@mewmo/db#build"]?.cache,
+    false,
+    "Prisma generates into workspace node_modules, so every cloud build must regenerate it",
   );
 });
