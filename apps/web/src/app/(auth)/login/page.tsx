@@ -87,6 +87,10 @@ function LoginForm() {
           <input name="password" type="password" required placeholder="••••••••" />
         </div>
 
+        <p className="mewmo-auth-help">
+          <Link href="/forgot-password">忘记密码？</Link>
+        </p>
+
         {error && <p className="mewmo-auth-error">{error}</p>}
 
         <button type="submit" disabled={loading} className="mewmo-auth-primary">

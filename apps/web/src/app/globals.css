@@ -360,6 +360,31 @@ html.light .mewmo-auth-visual::before {
   font-weight: 620;
 }
 
+.mewmo-auth-info {
+  margin: 0;
+  color: var(--auth-muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.mewmo-auth-help {
+  display: flex;
+  justify-content: flex-end;
+  margin: -8px 0 0;
+  font-size: 13px;
+}
+
+.mewmo-auth-help a {
+  color: var(--auth-muted);
+  font-weight: 620;
+  text-decoration: none;
+}
+
+.mewmo-auth-help a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .mewmo-auth-primary,
 .mewmo-auth-secondary {
   display: inline-flex;
