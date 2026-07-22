@@ -979,6 +979,7 @@ test("prototype popovers and dialogs keep icon-bearing structure", () => {
   );
   const confirmDialog = read("apps/web/src/components/ui/ConfirmDialog.tsx");
   const feedsPage = read("apps/web/src/app/(app)/feeds/page.tsx");
+  const feedMenu = read("apps/web/src/components/shell/FeedArticleMenu.tsx");
   const knowledgeImport = read(
     "apps/web/src/components/knowledge/KnowledgeImportModal.tsx",
   );
@@ -997,12 +998,17 @@ test("prototype popovers and dialogs keep icon-bearing structure", () => {
   assert.match(
     readerToolbar,
     /mewmo-card-menu__item mewmo-card-menu__item--danger[\s\S]*runMenuAction\(onDelete\)[\s\S]*runMenuAction\(onRefresh\)[\s\S]*runMenuAction\(onCopyLink\)/,
-    "clip reader toolbar menu items should keep real clip actions without hiding original-link navigation in the menu",
+    "clip reader toolbar menu items should keep real clip actions and the inline original-link lives in the metadata strip",
   );
-  assert.doesNotMatch(
+  assert.match(
     readerToolbar,
-    /浏览器打开/,
-    "reader toolbar should not keep original-link navigation in the overflow menu",
+    /target="_blank"[\s\S]*rel="noreferrer"[\s\S]*>[\s\S]*浏览器打开/,
+    "clip reader overflow menu should restore the 'open original in browser' anchor",
+  );
+  assert.match(
+    feedMenu,
+    /target="_blank"[\s\S]*rel="noreferrer"[\s\S]*>[\s\S]*浏览器打开/,
+    "feed reader overflow menu should also expose the 'open original in browser' anchor",
   );
   assert.match(
     readerToolbar,
@@ -2112,7 +2118,11 @@ test("clip list cards use cover images, body previews, and recency time", () => 
 
   for (const source of [clipsIndex, clipDetail]) {
     assert.match(source, /clipPreviewText/, "clip cards should show body-derived preview text");
-    assert.match(source, /formatClipListTime/, "clip cards should use the compact recency time format");
+    assert.match(
+      source,
+      /articleMetaItems/,
+      "clip list cards should render the unified author/date metadata strip",
+    );
     assert.match(source, /mewmo-list-card__cover/, "clip cards should render rectangular cover images");
     assert.match(source, /referrerPolicy="no-referrer"/, "WeChat cover images must load without a referrer");
   }

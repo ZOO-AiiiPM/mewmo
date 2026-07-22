@@ -63,7 +63,24 @@ test("content menus share the move-to-knowledge workflow", () => {
   assert.match(provider, /mewmo-move-knowledge__panel/);
   assert.match(provider, /aria-label="知识库"/);
   assert.match(provider, /aria-label="文件夹"/);
-  assert.match(provider, /知识库根级/);
+  // The root of a knowledge base never holds files, so the dialog must not
+  // offer a "root" target. Users pick a folder, or create one inline.
+  assert.doesNotMatch(provider, /知识库根级/);
+  assert.match(
+    provider,
+    /selectedFolderId !== null/,
+    "canSubmit must require a real folder, not just a knowledge base",
+  );
+  assert.match(
+    provider,
+    /\+ 新建文件夹|新建文件夹/,
+    "the dialog should expose an inline new-folder control",
+  );
+  assert.match(
+    provider,
+    /\/folders/,
+    "creating a folder should hit the existing folder POST endpoint",
+  );
   assert.doesNotMatch(provider, /onMouseEnter/);
   assert.doesNotMatch(provider, /acct-submenu/);
   assert.doesNotMatch(provider, /mewmo-move-knowledge-card/);
