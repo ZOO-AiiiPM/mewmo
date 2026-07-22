@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AI_FAB_DEFAULT_BOTTOM,
   clampAiFabBottom,
+  isAiFabDragMoved,
 } from "../../lib/ai-fab-position";
 import { WorkspaceAccountProvider } from "../../lib/workspace-account";
 import { scopeWorkspaceDataCache } from "../../lib/workspace-data-cache";
@@ -39,6 +40,7 @@ export function AppShell({ children, user }: AppShellProps) {
   const shellRef = useRef<HTMLDivElement>(null);
   const sidebarPeekTimer = useRef<number | null>(null);
   const aiFabDragRef = useRef<{
+    startX: number;
     startY: number;
     startBottom: number;
     moved: boolean;
@@ -125,7 +127,13 @@ export function AppShell({ children, user }: AppShellProps) {
     } catch {
       // Synthetic or stale pointer events can be uncapturable.
     }
+    // Reset click-suppression at the start of every gesture. Without this, a
+    // prior real drag that the browser did NOT follow with a `click` event
+    // (common on touch) would leave suppressAiFabClickRef=true and silently
+    // eat the next genuine tap. See ZOO-54.
+    suppressAiFabClickRef.current = false;
     aiFabDragRef.current = {
+      startX: event.clientX,
       startY: event.clientY,
       startBottom: aiFabBottom,
       moved: false,
@@ -138,7 +146,9 @@ export function AppShell({ children, user }: AppShellProps) {
     if (!drag) return;
 
     const delta = drag.startY - event.clientY;
-    if (Math.abs(delta) > 4) drag.moved = true;
+    if (!drag.moved && isAiFabDragMoved(drag.startX, drag.startY, event.clientX, event.clientY)) {
+      drag.moved = true;
+    }
     setAiFabBottom(
       clampAiFabBottom(drag.startBottom + delta, window.innerHeight),
     );
