@@ -12,8 +12,7 @@ export interface StorageLike {
 interface SectionMemory {
   href?: string;
   listScrollTop?: number;
-  readerScrollTop?: number;
-  readerHref?: string;
+  readerScroll?: Record<string, number>;
   selectedKey?: string;
 }
 
@@ -175,8 +174,7 @@ export function rememberWorkspaceScroll(
       current.listScrollTop = scroll.listScrollTop;
     }
     if (typeof scroll.readerScrollTop === "number" && Number.isFinite(scroll.readerScrollTop)) {
-      current.readerScrollTop = scroll.readerScrollTop;
-      current.readerHref = cleanHref;
+      current.readerScroll = { ...(current.readerScroll ?? {}), [cleanHref]: scroll.readerScrollTop };
     }
     sections[section] = current;
     memory.sections = sections;
@@ -192,7 +190,7 @@ export function getWorkspaceScroll(
   const cleanHref = sanitizeWorkspaceHref(href, section);
   return {
     listScrollTop: current?.listScrollTop,
-    readerScrollTop: current?.readerHref && current.readerHref === cleanHref ? current.readerScrollTop : undefined,
+    readerScrollTop: cleanHref ? current?.readerScroll?.[cleanHref] : undefined,
   };
 }
 
@@ -271,8 +269,9 @@ export function useWorkspaceMemory({
       if (restoreListScroll && listRef?.current && Number.isFinite(scroll.listScrollTop)) {
         listRef.current.scrollTop = scroll.listScrollTop ?? 0;
       }
-      if (readerRef?.current && Number.isFinite(scroll.readerScrollTop)) {
-        readerRef.current.scrollTop = scroll.readerScrollTop ?? 0;
+      if (readerRef?.current) {
+        readerRef.current.scrollTop =
+          scroll.readerScrollTop != null && Number.isFinite(scroll.readerScrollTop) ? scroll.readerScrollTop : 0;
       }
     };
 
