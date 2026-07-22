@@ -1,5 +1,6 @@
+import type { Api, CredentialStore, Model, ModelCost, Models } from "@earendil-works/pi-ai";
+
 import type { AIProvider, CompletionMessage } from "../providers/types";
-import type { LanguageModel } from "ai";
 
 export type ModelPurpose =
   | "agent.chat"
@@ -14,17 +15,30 @@ export interface ProviderDefinition {
   provider: AIProvider;
   apiKey: string;
   baseUrl: string;
+  /**
+   * Use Pi's built-in provider and its OAuth/API-key resolver. This is only
+   * valid for the provider's first-party endpoint and catalogued models.
+   */
+  useBuiltinProvider?: boolean;
+  /** Test-only transport injection retained for the existing runtime contract. */
   fetch?: typeof fetch;
 }
 
 export interface ModelDefinition {
   provider: string;
   model: string;
+  contextWindow?: number;
+  maxTokens?: number;
+  reasoning?: boolean;
+  /** Required for custom endpoints to report a known provider cost. */
+  cost?: ModelCost;
 }
 
 export interface AIRuntimeConfig {
   providers: Record<string, ProviderDefinition>;
   models: Partial<Record<ModelPurpose, ModelDefinition>>;
+  /** App-owned, user-scoped credential storage for Pi OAuth/BYOK flows. */
+  credentials?: CredentialStore;
 }
 
 export type AIEnvironment = Record<string, string | undefined>;
@@ -35,10 +49,14 @@ export interface GenerateTextInput {
   messages: CompletionMessage[];
   maxTokens?: number;
   temperature?: number;
+  timeoutMs?: number;
+  maxRetries?: number;
+  signal?: AbortSignal;
 }
 
 export interface GenerateObjectInput<T> extends GenerateTextInput {
   schema: { parse(value: unknown): T };
+  maxSchemaRetries?: number;
 }
 
 export interface EmbedInput {
@@ -46,15 +64,32 @@ export interface EmbedInput {
   values: string[];
 }
 
+export interface UsageMetadata {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  reasoningTokens?: number;
+  totalTokens: number;
+  /** Undefined means this endpoint has no verified price catalog. */
+  providerCostUsd?: number;
+  pricingKnown: boolean;
+  priceSnapshot?: ModelCost;
+}
+
 export interface TextGenerationResult {
   text: string;
   purpose: ModelPurpose;
-  provider: AIProvider;
+  provider: string;
   model: string;
+  responseModel?: string;
+  usage: UsageMetadata;
 }
 
 export interface ObjectGenerationResult<T> extends Omit<TextGenerationResult, "text"> {
   object: T;
+  /** One item for each provider request, including JSON repair retries. */
+  attempts: TextGenerationResult[];
 }
 
 export interface EmbeddingResult {
@@ -65,9 +100,13 @@ export interface EmbeddingResult {
 }
 
 export interface AIRuntime {
-  languageModel(purpose: "agent.chat" | "agent.deep_insight"): LanguageModel;
+  /** Pi types are intentionally exposed only to packages/ai and apps/agent/src/pi. */
+  models(): Models;
+  model(purpose: Exclude<ModelPurpose, "workflow.embedding">): Model<Api>;
+  modelPricing(purpose: Exclude<ModelPurpose, "workflow.embedding">): { known: boolean; priceSnapshot?: ModelCost };
   generateText(input: GenerateTextInput): Promise<TextGenerationResult>;
   generateObject<T>(input: GenerateObjectInput<T>): Promise<ObjectGenerationResult<T>>;
+  /** Legacy embedding port. A replacement backend is intentionally undecided. */
   embed(input: EmbedInput): Promise<EmbeddingResult>;
 }
 
@@ -77,4 +116,6 @@ export type FakeEmbeddingHandler = (input: EmbedInput) => number[][] | Promise<n
 export interface FakeAIRuntimeOptions {
   text?: string | FakeTextHandler;
   embeddings?: number[][] | FakeEmbeddingHandler;
+  /** Responses consumed by Pi AgentHarness tests. */
+  agentResponses?: string[];
 }

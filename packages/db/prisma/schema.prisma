@@ -36,6 +36,10 @@ model User {
   noteShares     NoteShare[]
   aiActions      AiAction[]
   aiRuns         AiRun[]
+  aiTurns        AiTurn[]
+  aiUsageEvents  AiUsageEvent[]
+  aiSkills       AiSkill[]
+  aiAutomations  AiAutomation[]
   contentEmbeddings ContentEmbedding[]
   contentRelations  ContentRelation[]
   noteInsights      NoteInsight[]
@@ -228,18 +232,29 @@ model FeedEntry {
 }
 
 model AiChat {
-  id        String      @id @default(cuid())
-  title     String
-  version   Int         @default(1)
-  userId    String      @map("user_id")
-  createdAt DateTime    @default(now()) @map("created_at")
-  updatedAt DateTime    @updatedAt @map("updated_at")
-  deletedAt DateTime?   @map("deleted_at")
-  messages  AiMessage[]
+  id             String      @id @default(cuid())
+  title          String
+  version        Int         @default(1)
+  activeLeafId   String?     @map("active_leaf_id")
+  nextEntrySeq   Int         @default(1) @map("next_entry_seq")
+  parentChatId   String?     @map("parent_chat_id")
+  userId         String      @map("user_id")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+  deletedAt      DateTime?   @map("deleted_at")
+  messages       AiMessage[]
+  sessionEntries AiSessionEntry[]
+  turns          AiTurn[]
+  usageEvents    AiUsageEvent[]
+  actions        AiAction[]
+  automations    AiAutomation[]
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parentChat AiChat? @relation("AiChatForks", fields: [parentChatId], references: [id], onDelete: SetNull)
+  childChats AiChat[] @relation("AiChatForks")
 
   @@index([userId, deletedAt, updatedAt])
+  @@index([parentChatId])
   @@map("ai_chats")
 }
 
@@ -265,7 +280,8 @@ model AiMessage {
 
 model AiContextAttachment {
   id              String              @id @default(cuid())
-  messageId       String              @map("message_id")
+  messageId       String?             @map("message_id")
+  sessionEntryId  String?             @map("session_entry_id")
   targetType      AiContextTargetType @map("target_type")
   targetId        String              @map("target_id")
   title           String
@@ -275,10 +291,12 @@ model AiContextAttachment {
   userId          String              @map("user_id")
   createdAt       DateTime            @default(now()) @map("created_at")
 
-  message AiMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  user    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message      AiMessage?      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  sessionEntry AiSessionEntry? @relation(fields: [sessionEntryId], references: [id], onDelete: Cascade)
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([messageId])
+  @@index([sessionEntryId])
   @@index([targetType, targetId])
   @@index([userId, createdAt])
   @@map("ai_context_attachments")
@@ -287,6 +305,9 @@ model AiContextAttachment {
 model AiAction {
   id               String           @id @default(cuid())
   userId           String           @map("user_id")
+  chatId           String?          @map("chat_id")
+  turnId           String?          @map("turn_id")
+  toolCallId       String?          @map("tool_call_id")
   toolName         String           @map("tool_name")
   input            Json
   preview          Json
@@ -306,8 +327,12 @@ model AiAction {
   updatedAt        DateTime         @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chat AiChat? @relation(fields: [chatId], references: [id], onDelete: SetNull)
+  turn AiTurn? @relation(fields: [turnId], references: [id], onDelete: SetNull)
 
   @@unique([userId, idempotencyKey])
+  @@unique([turnId, toolCallId])
+  @@index([chatId, createdAt])
   @@index([userId, status, createdAt])
   @@map("ai_actions")
 }
@@ -318,6 +343,7 @@ model AiRun {
   kind             AiRunKind
   targetType       AiTargetType @map("target_type")
   targetId         String       @map("target_id")
+  automationId     String?      @map("automation_id")
   inputVersion     Int          @map("input_version")
   inputHash        String?      @map("input_hash")
   idempotencyKey   String       @map("idempotency_key")
@@ -336,12 +362,148 @@ model AiRun {
   updatedAt        DateTime     @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  automation AiAutomation? @relation(fields: [automationId], references: [id], onDelete: SetNull)
+  usageEvents AiUsageEvent[]
 
   @@unique([userId, idempotencyKey])
   @@index([status, availableAt, priority, createdAt])
   @@index([userId, targetType, targetId, createdAt])
   @@index([workerId, leaseExpiresAt])
+  @@index([automationId, createdAt])
   @@map("ai_runs")
+}
+
+model AiSessionEntry {
+  id         String   @id @default(cuid())
+  chatId     String   @map("chat_id")
+  entryId    String   @map("entry_id")
+  entrySeq   Int      @map("entry_seq")
+  parentId   String?  @map("parent_id")
+  type       String
+  payload    Json
+  timestamp  DateTime
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  chat        AiChat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  attachments AiContextAttachment[]
+
+  @@unique([chatId, entryId])
+  @@unique([chatId, entrySeq])
+  @@index([chatId, type, entrySeq])
+  @@index([chatId, parentId])
+  @@map("ai_session_entries")
+}
+
+model AiTurn {
+  id                String       @id @default(cuid())
+  chatId            String       @map("chat_id")
+  userId            String       @map("user_id")
+  clientRequestId   String       @map("client_request_id")
+  requestHash       String       @map("request_hash")
+  status            AiTurnStatus @default(running)
+  attempts          Int          @default(1)
+  workerId          String?      @map("worker_id")
+  leaseExpiresAt    DateTime?    @map("lease_expires_at")
+  userEntryId       String?      @map("user_entry_id")
+  assistantEntryId  String?      @map("assistant_entry_id")
+  output            Json?
+  errorCode         String?      @map("error_code")
+  errorMessage      String?      @map("error_message")
+  startedAt         DateTime     @default(now()) @map("started_at")
+  completedAt       DateTime?    @map("completed_at")
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
+
+  chat        AiChat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  actions     AiAction[]
+  usageEvents AiUsageEvent[]
+
+  @@unique([chatId, clientRequestId])
+  @@index([userId, status, createdAt])
+  @@index([workerId, leaseExpiresAt])
+  @@map("ai_turns")
+}
+
+model AiUsageEvent {
+  id                 String   @id @default(cuid())
+  userId             String   @map("user_id")
+  chatId             String?  @map("chat_id")
+  turnId             String?  @map("turn_id")
+  runId              String?  @map("run_id")
+  entryId            String?  @map("entry_id")
+  purpose            String
+  operation          String
+  provider           String
+  requestedModel     String   @map("requested_model")
+  responseModel      String?  @map("response_model")
+  inputTokens        Int      @default(0) @map("input_tokens")
+  outputTokens       Int      @default(0) @map("output_tokens")
+  reasoningTokens    Int?     @map("reasoning_tokens")
+  cacheReadTokens    Int      @default(0) @map("cache_read_tokens")
+  cacheWriteTokens   Int      @default(0) @map("cache_write_tokens")
+  providerCostUsd    Decimal? @db.Decimal(18, 8) @map("provider_cost_usd")
+  productCredits     Decimal? @db.Decimal(18, 8) @map("product_credits")
+  priceSnapshot      Json?    @map("price_snapshot")
+  idempotencyKey     String   @map("idempotency_key")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chat AiChat? @relation(fields: [chatId], references: [id], onDelete: SetNull)
+  turn AiTurn? @relation(fields: [turnId], references: [id], onDelete: SetNull)
+  run AiRun? @relation(fields: [runId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, idempotencyKey])
+  @@index([chatId, createdAt])
+  @@index([turnId, createdAt])
+  @@index([runId, createdAt])
+  @@index([userId, purpose, createdAt])
+  @@map("ai_usage_events")
+}
+
+model AiSkill {
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  name          String
+  description   String
+  content       String
+  version       Int      @default(1)
+  enabled       Boolean  @default(true)
+  modelPurpose  String   @default("agent.chat") @map("model_purpose")
+  allowedTools  Json     @map("allowed_tools")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name])
+  @@index([userId, enabled, updatedAt])
+  @@map("ai_skills")
+}
+
+model AiAutomation {
+  id             String   @id @default(cuid())
+  userId         String   @map("user_id")
+  chatId         String   @unique @map("chat_id")
+  name           String
+  prompt         String
+  skillName      String?  @map("skill_name")
+  cronExpression String   @map("cron_expression")
+  timezone       String   @default("UTC")
+  enabled        Boolean  @default(true)
+  version        Int      @default(1)
+  nextRunAt      DateTime @map("next_run_at")
+  lastEnqueuedAt DateTime? @map("last_enqueued_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chat AiChat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  runs AiRun[]
+
+  @@index([enabled, nextRunAt])
+  @@index([userId, enabled, updatedAt])
+  @@map("ai_automations")
 }
 
 model ContentEmbedding {
@@ -575,6 +737,14 @@ enum AiRunKind {
   embedding
   relation
   note_insight
+  agent_automation
+}
+
+enum AiTurnStatus {
+  running
+  succeeded
+  failed
+  interrupted
 }
 
 enum AiRunStatus {
@@ -589,6 +759,7 @@ enum AiTargetType {
   note
   clip
   feed_entry
+  automation
 }
 
 enum NoteInsightKind {

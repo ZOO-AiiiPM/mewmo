@@ -1,27 +1,19 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { createAIRuntime, createFakeAIRuntime } from "./runtime";
 import { loadAIRuntimeConfig } from "./env";
 
 describe("AI runtime", () => {
-  it("routes multiple purposes through one provider with different models", async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockImplementation(async () => new Response(JSON.stringify({
-      choices: [{ message: { content: "ok" } }],
-    }), { status: 200 }));
+  it("routes multiple purposes through one Pi provider with different models", () => {
     const runtime = createAIRuntime({
-      providers: { primary: { provider: "custom", apiKey: "secret", baseUrl: "https://ai.example/v1", fetch: fetchMock } },
+      providers: { primary: { provider: "custom", apiKey: "secret", baseUrl: "https://ai.example/v1" } },
       models: {
         "agent.chat": { provider: "primary", model: "chat-model" },
         "workflow.summary": { provider: "primary", model: "summary-model" },
       },
     });
 
-    const chat = await runtime.generateText({ purpose: "agent.chat", messages: [{ role: "user", content: "hi" }] });
-    const summary = await runtime.generateText({ purpose: "workflow.summary", messages: [{ role: "user", content: "summarize" }] });
-
-    expect(chat.model).toBe("chat-model");
-    expect(summary.model).toBe("summary-model");
-    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({ model: "chat-model" });
-    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toMatchObject({ model: "summary-model" });
+    expect(runtime.model("agent.chat")).toMatchObject({ id: "chat-model", provider: "primary" });
+    expect(runtime.model("workflow.summary")).toMatchObject({ id: "summary-model", provider: "primary" });
   });
 
   it("validates structured output and provides deterministic fake embeddings", async () => {

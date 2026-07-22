@@ -26,9 +26,14 @@ export const agentContextSchema = z
 export const sendMessageBodySchema = z.object({
   clientRequestId: z.string().min(1).max(200),
   content: z.string().trim().min(1).max(20_000),
-  skill: z.enum(["general", "deep-insight"]).default("general"),
+  skillId: z.string().min(1).max(100).optional(),
+  // Kept for one release while the Web BFF migrates to skillId.
+  skill: z.enum(["general", "deep-insight"]).optional(),
   context: agentContextSchema.default(null),
-});
+}).transform((value) => ({
+  ...value,
+  skillId: value.skillId ?? (value.skill === "deep-insight" ? "deep-insight" : undefined),
+}));
 
 export const confirmActionBodySchema = z.object({
   executionMode: z.enum(["server", "client"]),
@@ -74,7 +79,14 @@ export interface AgentMessageResponse {
   userMessage: { id: string; role: "user"; content: string; status: string; createdAt: string };
   assistantMessage: { id: string; role: "assistant"; content: string; status: string; createdAt: string };
   proposals?: AgentActionProposal[];
-  usage?: { inputTokens?: number; outputTokens?: number };
+  usage?: {
+    inputTokens: number;
+    outputTokens: number;
+    cacheReadTokens: number;
+    cacheWriteTokens: number;
+    reasoningTokens?: number;
+    providerCostUsd?: number;
+  };
 }
 
 export type ReadToolName = "content_search" | "content_read" | "read_current_context";

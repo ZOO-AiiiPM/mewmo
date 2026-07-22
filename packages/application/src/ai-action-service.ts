@@ -19,10 +19,13 @@ export function createAiActionService(options: { prisma?: PrismaClient } = {}) {
   return {
     async propose(actor: Actor, command: Omit<ProposeAiActionDto, "userId">) {
       const input = proposeAiActionSchema.parse({ ...command, userId: actor.userId });
-      return db.aiAction.upsert({
+      const action = await db.aiAction.upsert({
         where: { userId_idempotencyKey: { userId: actor.userId, idempotencyKey: input.idempotencyKey } },
         create: {
           userId: actor.userId,
+          ...(input.chatId === undefined ? {} : { chatId: input.chatId }),
+          ...(input.turnId === undefined ? {} : { turnId: input.turnId }),
+          ...(input.toolCallId === undefined ? {} : { toolCallId: input.toolCallId }),
           toolName: input.toolName,
           input: input.input as Prisma.InputJsonValue,
           preview: input.preview as Prisma.InputJsonValue,
@@ -34,6 +37,8 @@ export function createAiActionService(options: { prisma?: PrismaClient } = {}) {
         },
         update: {},
       });
+      assertFrozenAction(action, input);
+      return action;
     },
 
     get(actor: Actor, actionId: string) {
@@ -111,4 +116,40 @@ export function createAiActionService(options: { prisma?: PrismaClient } = {}) {
       return owned(actor, actionId);
     },
   };
+}
+
+function assertFrozenAction(action: {
+  chatId: string | null;
+  turnId: string | null;
+  toolCallId: string | null;
+  toolName: string;
+  input: unknown;
+  preview: unknown;
+  riskLevel: string;
+  executionMode: string;
+  clientEffect: unknown;
+  expectedVersion: number | null;
+}, input: ProposeAiActionDto) {
+  const same = action.chatId === (input.chatId ?? null)
+    && action.turnId === (input.turnId ?? null)
+    && action.toolCallId === (input.toolCallId ?? null)
+    && action.toolName === input.toolName
+    && action.riskLevel === input.riskLevel
+    && action.executionMode === input.executionMode
+    && action.expectedVersion === (input.expectedVersion ?? null)
+    && canonicalJson(action.input) === canonicalJson(input.input)
+    && canonicalJson(action.preview) === canonicalJson(input.preview)
+    && canonicalJson(action.clientEffect) === canonicalJson(input.clientEffect ?? null);
+  if (!same) throw new DomainError("conflict", "idempotencyKey was already used with different frozen action input");
+}
+
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
 }

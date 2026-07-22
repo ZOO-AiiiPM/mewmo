@@ -54,17 +54,18 @@ test("chat history strips context snapshots and leaves a pagination contract", (
 
 test("Agent service owns idempotent multi-turn message persistence", () => {
   const server = read("apps/agent/src/server.ts");
-  const runtime = read("apps/agent/src/runtime.ts");
-  const service = read("packages/application/src/ai-chat-service.ts");
+  const runtime = read("apps/agent/src/pi/runtime.ts");
+  const service = read("packages/application/src/ai-session-service.ts");
   const schema = read("packages/db/prisma/schema.prisma");
-  assert.match(server, /application\.chats\.prepareTurn/);
-  assert.match(server, /application\.chats\.completeTurn/);
-  assert.match(server, /if \(turn\.cached\)/);
-  assert.match(runtime, /\.\.\.context\.history\.map/);
+  assert.match(server, /application\.turns\.begin/);
+  assert.match(server, /application\.turns\.complete/);
+  assert.match(server, /if \(started\.cached\)/);
+  assert.match(runtime, /new AgentHarness/);
+  assert.match(runtime, /new MewmoSessionStorage/);
   assert.match(service, /userId: actor\.userId/);
-  assert.match(service, /chat_turn_role/);
-  assert.match(schema, /clientRequestId\s+String\?/);
-  assert.match(schema, /@@unique\(\[chatId, clientRequestId, role\], name: "chat_turn_role"\)/);
+  assert.match(service, /requestHash/);
+  assert.match(schema, /model AiTurn/);
+  assert.match(schema, /@@unique\(\[chatId, clientRequestId\]\)/);
 });
 
 test("AI sidebar supports draft context, Deep Insight, proposals, and idempotent retry", () => {
@@ -75,7 +76,7 @@ test("AI sidebar supports draft context, Deep Insight, proposals, and idempotent
   assert.match(sidebar, /deep-insight/);
   assert.match(sidebar, /context\.draft/);
   assert.match(sidebar, /clientRequestId/);
-  assert.match(sidebar, /performSend\(failedSend\)/, "retry should reuse the same clientRequestId");
+  assert.match(sidebar, /performSend\(\{ \.\.\.failedSend, clientRequestId: crypto\.randomUUID\(\) \}\)/, "retry should use a fresh clientRequestId");
   assert.match(sidebar, /data\.userMessage\.id \?\? localUserId/, "runtime responses may omit persistence ids");
   assert.match(sidebar, /ProposalCard/);
   assert.match(sidebar, /executionMode:\s*"client"/);

@@ -1,79 +1,50 @@
-import type { LanguageModel } from "ai";
-import type { AgentActionProposal, AgentActor } from "./contracts";
+import type { AgentActor } from "./contracts";
 import type { ApplicationPort } from "./ports";
-
-export function createApplicationStub(overrides: Partial<ApplicationPort> = {}): ApplicationPort {
-  let actionSequence = 0;
-  return {
-    chats: overrides.chats ?? {
-      async prepareTurn(input) {
-        return {
-          history: [],
-          userMessage: { id: "message-user-1", role: "user", content: input.content, status: "completed", createdAt: "2026-07-20T00:00:00.000Z" },
-        };
-      },
-      async completeTurn(input) {
-        return { id: "message-assistant-1", role: "assistant", content: input.content, status: "completed", createdAt: "2026-07-20T00:00:01.000Z" };
-      },
-    },
-    content: overrides.content ?? {
-      async search() {
-        return { items: [] };
-      },
-      async read(_actor, resourceUri) {
-        return { resourceUri, type: "note", id: "note-1", title: "Test", content: "Test", version: 1 };
-      },
-    },
-    actions: overrides.actions ?? {
-      async propose(input) {
-        actionSequence += 1;
-        return {
-          id: `action-${actionSequence}`,
-          toolName: input.toolName,
-          preview: input.preview,
-          riskLevel: input.riskLevel,
-          status: "proposed",
-          executionMode: input.clientEffect ? "client" : "server",
-          ...(input.clientEffect ? { clientEffect: input.clientEffect } : {}),
-        } satisfies AgentActionProposal;
-      },
-      async get(input) {
-        return actionView(input.actionId, "proposed", "server");
-      },
-      async confirm(input) {
-        return actionView(input.actionId, "confirmed", input.executionMode);
-      },
-      async cancel(input) {
-        return actionView(input.actionId, "cancelled", "server");
-      },
-      async retry(input) {
-        return actionView(input.actionId, "executing", input.executionMode);
-      },
-      async reportResult(input) {
-        return actionView(input.actionId, input.status, "client");
-      },
-    },
-  };
-}
-
-function actionView(id: string, status: "proposed" | "confirmed" | "executing" | "succeeded" | "failed" | "cancelled", executionMode: "server" | "client") {
-  return {
-    id,
-    toolName: "note_update" as const,
-    preview: { title: "Update note" },
-    riskLevel: "medium" as const,
-    status,
-    executionMode,
-  };
-}
 
 export const TEST_ACTOR: AgentActor = {
   userId: "user-1",
   source: "internal-agent",
-  clientId: "session-1",
+  clientId: "test-client",
   scopes: ["content:read", "notes:write", "knowledge:write", "trash:write"],
 };
 
-export function unusedLanguageModel(): LanguageModel {
-  throw new Error("Language model should not be requested in this test.");
+export function createApplicationStub(overrides: Partial<ApplicationPort> = {}): ApplicationPort {
+  const base: ApplicationPort = {
+    turns: {
+      begin: async () => ({ turnId: "turn-1" }),
+      complete: async () => ({
+        userMessage: { id: "entry-user", role: "user", content: "user", status: "completed", createdAt: new Date().toISOString() },
+        assistantMessage: { id: "entry-assistant", role: "assistant", content: "assistant", status: "completed", createdAt: new Date().toISOString() },
+      }),
+      fail: async () => {},
+    },
+    sessions: {
+      metadata: async () => ({ id: "chat-1", createdAt: new Date().toISOString(), activeLeafId: null }),
+      append: async ({ entry }) => ({ ...entry, entrySeq: 1 }),
+      get: async () => undefined,
+      list: async () => [],
+    },
+    skills: { list: async () => [] },
+    content: {
+      search: async () => ({ items: [] }),
+      read: async () => ({ resourceUri: "mewmo://notes/note-1", type: "note", id: "note-1", title: "Note", content: "content", version: 1 }),
+    },
+    actions: {
+      propose: async (input) => ({ id: "action-1", toolName: input.toolName, preview: input.preview, riskLevel: input.riskLevel, status: "proposed", executionMode: input.clientEffect ? "client" : "server", ...(input.clientEffect ? { clientEffect: input.clientEffect } : {}) }),
+      get: async () => { throw new Error("not implemented"); },
+      confirm: async () => { throw new Error("not implemented"); },
+      cancel: async () => { throw new Error("not implemented"); },
+      retry: async () => { throw new Error("not implemented"); },
+      reportResult: async () => { throw new Error("not implemented"); },
+    },
+  };
+  return {
+    ...base,
+    ...overrides,
+    turns: { ...base.turns, ...overrides.turns },
+    sessions: { ...base.sessions, ...overrides.sessions },
+    skills: { ...base.skills, ...overrides.skills },
+    content: { ...base.content, ...overrides.content },
+    actions: { ...base.actions, ...overrides.actions },
+  };
 }
