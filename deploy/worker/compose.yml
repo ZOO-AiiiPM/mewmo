@@ -40,3 +40,23 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  agent-automation-scheduler:
+    image: ${WORKER_IMAGE:-mewmo-worker:local}
+    profiles: ["cron"]
+    env_file:
+      - ${WORKER_ENV_FILE:-.env.worker}
+    command: ["pnpm", "--filter", "@mewmo/ai-workflows", "cron:agent-automations"]
+    restart: "no"
+    init: true
+    mem_limit: 512m
+    mem_reservation: 128m
+    cpus: 0.50
+    pids_limit: 128
+    environment:
+      NODE_OPTIONS: --max-old-space-size=384
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
