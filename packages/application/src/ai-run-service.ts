@@ -8,6 +8,8 @@ export interface ClaimDueAiRunsInput {
   limit: number;
   leaseMs: number;
   now?: Date;
+  /** Workers must claim only the run kinds they can execute. */
+  kinds?: AiRun["kind"][];
 }
 
 interface CompleteBase {
@@ -56,13 +58,17 @@ export function createAiRunService(options: { prisma?: PrismaClient } = {}) {
       const now = input.now ?? new Date();
       const leaseExpiresAt = new Date(now.getTime() + input.leaseMs);
       const limit = Math.min(Math.max(input.limit, 1), 100);
+      const kindFilter = input.kinds?.length
+        ? Prisma.sql`AND kind::text IN (${Prisma.join(input.kinds)})`
+        : Prisma.empty;
       return db.$transaction(async (tx) => {
         const claimed = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
           WITH due AS (
             SELECT id
             FROM ai_runs
-            WHERE (status = 'queued' AND available_at <= ${now})
-               OR (status = 'running' AND lease_expires_at <= ${now})
+            WHERE ((status = 'queued' AND available_at <= ${now})
+               OR (status = 'running' AND lease_expires_at <= ${now}))
+            ${kindFilter}
             ORDER BY priority DESC, available_at ASC, created_at ASC
             FOR UPDATE SKIP LOCKED
             LIMIT ${limit}
@@ -80,6 +86,12 @@ export function createAiRunService(options: { prisma?: PrismaClient } = {}) {
     },
 
     async getInput(run: AiRun) {
+      if (run.kind === "agent_automation" || run.targetType === "automation") {
+        return db.aiAutomation.findFirst({
+          where: { id: run.automationId ?? run.targetId, userId: run.userId, enabled: true },
+          select: { id: true, chatId: true, prompt: true, skillName: true, version: true, name: true },
+        });
+      }
       const where = { id: run.targetId, userId: run.userId, deletedAt: null };
       if (run.targetType === "note") {
         const target = await db.note.findFirst({ where, select: { id: true, title: true, content: true, version: true, summary: true } });
@@ -160,6 +172,15 @@ export function createAiRunService(options: { prisma?: PrismaClient } = {}) {
       });
     },
 
+    async completeAgentAutomation(input: { runId: string; workerId: string; output: unknown }) {
+      const run = await requireRunningRun(db, input.runId, input.workerId);
+      if (run.kind !== "agent_automation") throw new DomainError("invalid_state", "AI run kind is not agent_automation");
+      return db.aiRun.update({
+        where: { id: run.id },
+        data: { status: "succeeded", output: input.output as never, completedAt: new Date(), workerId: null, leaseExpiresAt: null, errorCode: null, errorMessage: null },
+      });
+    },
+
     getRun(input: { userId: string; runId: string }) {
       return db.aiRun.findFirst({ where: { id: input.runId, userId: input.userId } });
     },
@@ -174,11 +195,12 @@ export function createAiRunService(options: { prisma?: PrismaClient } = {}) {
     },
 
     async getRelated(input: { userId: string; targetType: "note" | "clip" | "feed_entry"; targetId: string }) {
-      return enrichRelations(db, await db.contentRelation.findMany({
+      const relations = await db.contentRelation.findMany({
         where: { userId: input.userId, sourceType: input.targetType, sourceId: input.targetId },
         orderBy: { score: "desc" },
         take: 20,
-      }), input.userId);
+      });
+      return enrichRelations(db, relations.filter((relation): relation is typeof relation & { targetType: "note" | "clip" | "feed_entry" } => isContentTarget(relation.targetType)), input.userId);
     },
 
     async getNoteInsights(input: { userId: string; noteId: string }) {
@@ -234,6 +256,7 @@ export function createAiRunService(options: { prisma?: PrismaClient } = {}) {
 }
 
 async function relationCandidates(db: PrismaClient, run: AiRun) {
+  if (!isContentTarget(run.targetType)) return [];
   const source = await db.contentEmbedding.findFirst({ where: { userId: run.userId, targetType: run.targetType, targetId: run.targetId } });
   if (!source) return [];
   const vector = jsonVector(source.embedding);
@@ -248,10 +271,15 @@ async function insightEvidence(db: PrismaClient, run: AiRun) {
   const relations = await db.contentRelation.findMany({ where: { userId: run.userId, sourceType: "note", sourceId: run.targetId }, orderBy: { score: "desc" }, take: 10 });
   const evidence = [];
   for (const relation of relations) {
+    if (!isContentTarget(relation.targetType)) continue;
     const target = await findEvidenceTarget(db, run.userId, relation.targetType, relation.targetId);
     if (target) evidence.push({ targetType: relation.targetType, targetId: relation.targetId, title: target.title, excerpt: target.content.slice(0, 500) });
   }
   return evidence;
+}
+
+function isContentTarget(value: string): value is "note" | "clip" | "feed_entry" {
+  return value === "note" || value === "clip" || value === "feed_entry";
 }
 
 function findEvidenceTarget(db: PrismaClient, userId: string, type: "note" | "clip" | "feed_entry", id: string) {

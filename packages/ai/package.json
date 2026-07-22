@@ -16,6 +16,7 @@
   "dependencies": {
     "@ai-sdk/anthropic": "4.0.16",
     "@ai-sdk/openai": "4.0.16",
+    "@earendil-works/pi-ai": "0.81.0",
     "ai": "7.0.31"
   }
 }

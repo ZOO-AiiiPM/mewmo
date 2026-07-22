@@ -2,6 +2,7 @@ packages:
   - "apps/*"
   - "packages/*"
 allowBuilds:
+  '@google/genai': false
   '@prisma/engines': true
   esbuild: true
   msgpackr-extract: true
@@ -17,3 +18,5 @@ minimumReleaseAgeExclude:
   - '@turbo/windows-arm64@2.10.0'
   - '@types/node@26.0.1'
   - turbo@2.10.0
+  - '@earendil-works/pi-ai@0.81.0'
+  - '@earendil-works/pi-agent-core@0.81.0'

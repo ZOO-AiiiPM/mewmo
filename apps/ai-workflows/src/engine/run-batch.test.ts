@@ -36,6 +36,7 @@ function summaryInput(overrides: Partial<WorkflowInput> = {}): WorkflowInput {
 function setup(runs: ClaimedAiRun[], inputs: Record<string, WorkflowInput | null>) {
   const application: AiWorkflowApplicationPort = {
     claimDue: vi.fn().mockResolvedValue(runs),
+    recordUsage: vi.fn().mockResolvedValue({}),
     getInput: vi.fn().mockImplementation(async (run: ClaimedAiRun) => inputs[run.id] ?? null),
     completeSummary: vi.fn().mockResolvedValue({ status: "succeeded" }),
     completeEmbedding: vi.fn().mockResolvedValue({ status: "succeeded" }),
@@ -86,6 +87,13 @@ describe("AI Workflow batch engine", () => {
       expectedVersion: 2,
       summary: "文章说明了后台任务如何可靠执行。",
     });
+    expect(application.recordUsage).toHaveBeenCalledWith(expect.objectContaining({
+      userId: "user-1",
+      runId: summaryRun.id,
+      purpose: "workflow.summary",
+      operation: "workflow.summary",
+      idempotencyKey: "workflow:run-summary:attempt:1:call:0",
+    }));
   });
 
   it("leases the whole claimed batch when no explicit lease is supplied", async () => {

@@ -19,7 +19,7 @@ export async function runSummaryWorkflow(
   });
   const summary = normalizeSummary(generated.text);
   assertValidSummary(summary);
-  return { kind: "summary", summary, prompt: prompt.metadata, model: generated.metadata };
+  return { kind: "summary", summary, prompt: prompt.metadata, model: generated.metadata, modelCalls: [generated.metadata] };
 }
 
 export function buildSummaryUserPrompt(input: SummaryWorkflowInput) {

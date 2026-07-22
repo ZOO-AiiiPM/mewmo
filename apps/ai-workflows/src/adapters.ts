@@ -1,11 +1,12 @@
 import { createAIRuntime, loadAIRuntimeConfig } from "@mewmo/ai";
-import { createAiRunService } from "@mewmo/application";
+import { createAiRunService, createAiUsageService } from "@mewmo/application";
 import type { AiRuntimePort, AiWorkflowApplicationPort, ClaimedAiRun, WorkflowInput } from "./contracts";
 import type { AiWorkflowRuntimePorts } from "./runtime";
 
 export function createAiWorkflowRuntimePorts(): AiWorkflowRuntimePorts {
   const runtime = createAIRuntime(loadAIRuntimeConfig());
   const runs = createAiRunService();
+  const usage = createAiUsageService();
   const ai: AiRuntimePort = {
     async generateText(input) {
       const result = await runtime.generateText({ purpose: input.purpose, system: input.system, messages: [{ role: "user", content: input.user }] });
@@ -14,7 +15,7 @@ export function createAiWorkflowRuntimePorts(): AiWorkflowRuntimePorts {
     async generateObject<T>(input: Parameters<AiRuntimePort["generateObject"]>[0]) {
       if (!hasParser<T>(input.schema)) throw new Error("workflow structured schema must implement parse()");
       const result = await runtime.generateObject({ purpose: "workflow.note_insight", schema: input.schema, system: input.system, messages: [{ role: "user", content: input.user }] });
-      return { value: result.object, metadata: metadata(result) };
+      return { value: result.object, metadata: metadata(result), attempts: result.attempts.map(metadata) };
     },
     async embed(input) {
       const result = await runtime.embed({ purpose: input.purpose, values: input.values });
@@ -23,16 +24,20 @@ export function createAiWorkflowRuntimePorts(): AiWorkflowRuntimePorts {
   };
   const application: AiWorkflowApplicationPort = {
     async claimDue(input) {
-      return (await runs.claimDue(input)).map((run) => ({
-        id: run.id,
-        userId: run.userId,
-        kind: run.kind === "relation" ? "recommendation" : run.kind,
-        targetType: run.targetType,
-        targetId: run.targetId,
-        inputVersion: run.inputVersion,
-        attempt: run.attempts,
-      }));
+      return (await runs.claimDue({ ...input, kinds: ["summary", "embedding", "relation", "note_insight"] })).map((run) => {
+        if (run.kind === "agent_automation" || run.targetType === "automation") throw new Error("fixed Workflow claimed an Agent automation run");
+        return {
+          id: run.id,
+          userId: run.userId,
+          kind: run.kind === "relation" ? "recommendation" as const : run.kind,
+          targetType: run.targetType,
+          targetId: run.targetId,
+          inputVersion: run.inputVersion,
+          attempt: run.attempts,
+        };
+      });
     },
+    recordUsage: (input) => usage.record(input),
     async getInput(run) {
       const foundationRun = foundationRunShape(run);
       const source = await runs.getInput(foundationRun as never);
@@ -48,8 +53,30 @@ export function createAiWorkflowRuntimePorts(): AiWorkflowRuntimePorts {
   return { ai, application };
 }
 
-function metadata(result: { purpose: string; provider: string; model: string }) {
-  return { profile: result.purpose, provider: result.provider, model: result.model };
+function metadata(result: {
+  purpose: string;
+  provider: string;
+  model: string;
+  responseModel?: string;
+  usage?: {
+    inputTokens: number;
+    outputTokens: number;
+    reasoningTokens?: number;
+    cacheReadTokens: number;
+    cacheWriteTokens: number;
+    totalTokens: number;
+    providerCostUsd?: number;
+    pricingKnown: boolean;
+    priceSnapshot?: unknown;
+  };
+}) {
+  return {
+    profile: result.purpose,
+    provider: result.provider,
+    model: result.model,
+    ...(result.responseModel ? { responseModel: result.responseModel } : {}),
+    ...(result.usage ? { usage: result.usage } : {}),
+  };
 }
 
 function hasParser<T>(value: unknown): value is { parse(value: unknown): T } {

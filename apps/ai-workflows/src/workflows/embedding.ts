@@ -27,6 +27,7 @@ export async function runEmbeddingWorkflow(
     dimensions: embedded.dimensions,
     contentHash: createHash("sha256").update(text).digest("hex"),
     model: embedded.metadata,
+    modelCalls: [embedded.metadata],
   };
 }
 

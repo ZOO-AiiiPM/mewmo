@@ -1,9 +1,9 @@
 import { z } from "zod";
 
-export const aiTargetTypeSchema = z.enum(["note", "clip", "feed_entry"]);
+export const aiTargetTypeSchema = z.enum(["note", "clip", "feed_entry", "automation"]);
 export type AiTargetTypeValue = z.infer<typeof aiTargetTypeSchema>;
 
-export const aiRunKindSchema = z.enum(["summary", "embedding", "relation", "note_insight"]);
+export const aiRunKindSchema = z.enum(["summary", "embedding", "relation", "note_insight", "agent_automation"]);
 export type AiRunKindValue = z.infer<typeof aiRunKindSchema>;
 
 export const aiRunStatusSchema = z.enum(["queued", "running", "succeeded", "failed", "superseded"]);
@@ -51,6 +51,9 @@ export type EnqueueAiRunDto = z.infer<typeof enqueueAiRunSchema>;
 
 export const proposeAiActionSchema = z.object({
   userId: z.string().min(1),
+  chatId: z.string().min(1).optional(),
+  turnId: z.string().min(1).optional(),
+  toolCallId: z.string().min(1).optional(),
   toolName: z.string().min(1),
   input: z.record(z.string(), z.unknown()),
   preview: z.record(z.string(), z.unknown()),

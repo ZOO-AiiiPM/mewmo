@@ -38,4 +38,31 @@ describe("AI action service", () => {
     await expect(createAiActionService({ prisma: db as never }).recordResult(actor, { actionId: "action-1", executionMode: "client", succeeded: true })).rejects.toMatchObject({ code: "invalid_state" });
     expect(db.aiAction.update).not.toHaveBeenCalled();
   });
+
+  it("rejects a reused idempotency key when the frozen action input differs", async () => {
+    const db = {
+      aiAction: {
+        upsert: vi.fn().mockResolvedValue({
+          chatId: null,
+          turnId: null,
+          toolCallId: null,
+          toolName: "note_create",
+          input: { title: "old" },
+          preview: { title: "old" },
+          riskLevel: "write",
+          executionMode: "server",
+          clientEffect: null,
+          expectedVersion: null,
+        }),
+      },
+    };
+    await expect(createAiActionService({ prisma: db as never }).propose(actor, {
+      toolName: "note_create",
+      input: { title: "new" },
+      preview: { title: "new" },
+      riskLevel: "write",
+      executionMode: "server",
+      idempotencyKey: "action-key",
+    })).rejects.toMatchObject({ code: "conflict" });
+  });
 });
