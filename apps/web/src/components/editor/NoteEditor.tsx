@@ -15,6 +15,7 @@ import { useWorkspaceAccountId } from "../../lib/workspace-account";
 import { PrototypeIcon } from "../shell/PrototypeIcon";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { PopoverMenu } from "../ui/FloatingMenu";
+import { useToast } from "../ui/ToastProvider";
 import { getMewmoBlockEditConfig } from "./block-ui";
 import { editorInteractions } from "./editor-interactions";
 import { shouldSaveMarkdownUpdate } from "./markdown-save";
@@ -26,6 +27,7 @@ import {
   resolveNoteDraftConflict,
   subscribeNoteDraftSync,
   type NoteSaveSnapshot,
+  type NoteSaveStatus,
 } from "./note-draft-sync";
 import { uploadNoteImage } from "./note-image-client";
 import { normalizePastedImageSlice } from "./note-image-paste";
@@ -189,6 +191,8 @@ export function NoteEditor({
   );
   const [saveState, setSaveState] = useState<NoteSaveSnapshot>({ status: "saved", message: NOTE_SAVE_MESSAGES.saved });
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+  const { showToast } = useToast();
+  const prevSaveStatusRef = useRef<NoteSaveStatus>("saved");
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [tagPickerOpen, setTagPickerOpen] = useState(false);
   const [tagSearch, setTagSearch] = useState("");
@@ -264,9 +268,13 @@ export function NoteEditor({
       }
       if (snapshot.savedAt !== undefined) setLastSavedAt(snapshot.savedAt);
     }
+    if (snapshot.status === "error" && prevSaveStatusRef.current !== "error") {
+      showToast(snapshot.message || NOTE_SAVE_MESSAGES.error, "error");
+    }
+    prevSaveStatusRef.current = snapshot.status;
     setSaveState(snapshot);
     onSaveSnapshotRef.current?.(snapshot);
-  }), [noteId, userId]);
+  }), [noteId, userId, showToast]);
 
   useEffect(() => {
     const retryLatestDraft = () => retryStoredNoteDraft(userId, noteId);
@@ -373,7 +381,10 @@ export function NoteEditor({
       className={embedded ? "mewmo-note-title-editor" : "text-xl font-bold text-ink outline-none flex-1 mr-4"}
     />
   );
-  const saveStatus = saveState.status === "saved" ? null : (
+  const saveStatus =
+    saveState.status === "saved" || saveState.status === "saving" || saveState.status === "error"
+      ? null
+      : (
     <span
       className={`mewmo-note-save-status mewmo-note-save-status--${saveState.status}`}
       aria-live="polite"
