@@ -105,7 +105,7 @@ export function NoteEditorPage({
   note,
   notes: initialNotes,
 }: NoteEditorPageProps) {
-  const { showToast } = useToast();
+  const { showToast, dismissToast } = useToast();
   const { setContentContext } = useAISidebarContext();
   const userId = useWorkspaceAccountId();
   const listRef = useRef<HTMLDivElement>(null);
@@ -474,7 +474,16 @@ export function NoteEditorPage({
 
       const shareUrl = new URL(data.url, window.location.origin).toString();
       await navigator.clipboard?.writeText(shareUrl);
-      showToast(`已复制分享链接：${shareUrl}`, "success");
+      showToast(`分享链接已复制：${shareUrl}`, "success", {
+        persistent: true,
+        actions: [
+          {
+            label: "关闭",
+            variant: "ghost",
+            onClick: () => dismissToast(),
+          },
+        ],
+      });
     } catch {
       showToast("分享链接生成失败", "error");
     }

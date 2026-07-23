@@ -5058,6 +5058,72 @@ html.light .acct-submenu {
   }
 }
 
+.mewmo-toast__body {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.mewmo-toast__inner--actions {
+  gap: 12px;
+  width: min(520px, 90vw);
+  max-width: min(520px, 90vw);
+  pointer-events: auto;
+}
+
+.mewmo-toast__inner--actions .mewmo-toast__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.mewmo-toast__inner--actions .mewmo-toast__message {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.mewmo-toast__actions {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 8px;
+}
+
+.mewmo-toast__action {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-soft);
+  padding: 5px 13px;
+  font-size: 12.5px;
+  font-weight: 650;
+  cursor: pointer;
+  transition:
+    background 0.14s,
+    color 0.14s,
+    border-color 0.14s,
+    opacity 0.14s;
+}
+
+.mewmo-toast__action:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.mewmo-toast__action--primary {
+  border-color: transparent;
+  background: var(--ink);
+  color: var(--raised);
+}
+
+.mewmo-toast__action--primary:hover {
+  background: var(--ink);
+  color: var(--raised);
+  opacity: 0.86;
+}
+
 .mewmo-confirm {
   position: fixed;
   inset: 0;
