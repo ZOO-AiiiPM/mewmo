@@ -655,12 +655,12 @@ export default function KnowledgeBasesPage() {
                     )}
                     <div className="mewmo-list-card__source mewmo-knowledge-card__source">
                       <PrototypeIcon name={card.icon} size={15} />
-                      {knowledgeMetaItems(card).map((metaItem, index) => (
-                        <span key={`${metaItem}-${index}`}>
-                          {index > 0 && <b aria-hidden="true">·</b>}
-                          {metaItem}
-                        </span>
-                      ))}
+                      <span>{card.sourceText}</span>
+                      {card.createdAt && (
+                        <time dateTime={card.createdAt}>
+                          {formatClipListTime(card.createdAt)}
+                        </time>
+                      )}
                     </div>
                   </button>
                   <CardActionMenu

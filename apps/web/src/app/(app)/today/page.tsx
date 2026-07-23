@@ -48,6 +48,7 @@ interface TodayItem {
   href: string;
   title: string;
   summary?: string | null;
+  preview?: string | null;
   content?: string | null;
   excerpt?: string | null;
   coverImage?: string | null;
@@ -95,7 +96,8 @@ function todayPreview(item: TodayItem) {
   if (item.type === "note") {
     return notePreviewText({
       summary: item.summary ?? null,
-      content: item.content ?? "",
+      preview: item.preview ?? null,
+      content: item.content ?? undefined,
     });
   }
   return clipPreviewText({

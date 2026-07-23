@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@mewmo/db";
 import { auth } from "../../../lib/auth";
+import { listTodayNotePreviews } from "../../../lib/note-list-data";
 import { attachServerTiming, createServerTiming } from "../../../lib/server-timing";
 
 function todayWindow() {
@@ -27,27 +28,7 @@ export async function GET() {
   const { startOfToday, startOfTomorrow } = todayWindow();
 
   const [notes, clips, feedEntries] = await timing.measure("db", () => Promise.all([
-    prisma.note.findMany({
-      where: {
-        userId,
-        deletedAt: null,
-        OR: [
-          { createdAt: { gte: startOfToday, lt: startOfTomorrow } },
-          { updatedAt: { gte: startOfToday, lt: startOfTomorrow } },
-        ],
-      },
-      orderBy: { updatedAt: "desc" },
-      take: 16,
-      select: {
-        id: true,
-        slug: true,
-        title: true,
-        summary: true,
-        version: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    }),
+    listTodayNotePreviews(userId, startOfToday, startOfTomorrow, prisma),
     prisma.clip.findMany({
       where: {
         userId,
@@ -115,6 +96,7 @@ export async function GET() {
       href: `/notes/${note.slug}`,
       title: note.title,
       summary: note.summary,
+      preview: note.preview,
       version: note.version,
       eventAt: note.updatedAt,
       createdAt: note.createdAt,

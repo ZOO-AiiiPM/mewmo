@@ -1795,8 +1795,13 @@ test("today view aggregates notes clips and subscription updates with prototype 
   );
   assert.match(
     todayRoute,
-    /prisma\.note\.findMany[\s\S]*createdAt:\s*\{\s*gte:\s*startOfToday,\s*lt:\s*startOfTomorrow\s*\}/,
-    "today API should include notes created today",
+    /listTodayNotePreviews\(userId,\s*startOfToday,\s*startOfTomorrow/,
+    "today API should include notes created today via the bounded note-preview helper",
+  );
+  assert.match(
+    read("apps/web/src/lib/note-list-data.ts"),
+    /export async function listTodayNotePreviews[\s\S]*created_at >= \$\{start\}[\s\S]*created_at < \$\{end\}/,
+    "today note-preview helper should bound notes to the given day window",
   );
   assert.match(
     todayRoute,
