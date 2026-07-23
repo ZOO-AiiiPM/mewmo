@@ -5066,18 +5066,29 @@ html.light .acct-submenu {
 }
 
 .mewmo-toast__inner--actions {
-  gap: 14px;
+  gap: 12px;
+  width: min(520px, 90vw);
   max-width: min(520px, 90vw);
   pointer-events: auto;
 }
 
 .mewmo-toast__inner--actions .mewmo-toast__body {
-  flex: none;
+  flex: 1;
+  min-width: 0;
+}
+
+.mewmo-toast__inner--actions .mewmo-toast__message {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  -webkit-mask-image: linear-gradient(to right, #000 72%, rgba(0, 0, 0, 0));
+  mask-image: linear-gradient(to right, #000 72%, rgba(0, 0, 0, 0));
 }
 
 .mewmo-toast__actions {
   display: flex;
   align-items: center;
+  flex: none;
   gap: 8px;
 }
 
