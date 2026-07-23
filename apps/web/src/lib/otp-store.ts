@@ -1,5 +1,3 @@
-import { timingSafeEqual } from "node:crypto";
-
 import IORedis from "ioredis";
 
 import { generateOtpCode, safeEqualString } from "./otp-code";
@@ -190,7 +188,6 @@ export function getOtpStore(): OtpStore {
   }
   if (!memoryFallback) {
     memoryFallback = new MemoryOtpStore();
-    // eslint-disable-next-line no-console
     console.warn("[otp-store] REDIS_URL 未配置，使用进程内 OTP 存储（不适用于生产 / 多实例）。");
   }
   return memoryFallback;
