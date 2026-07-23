@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { signIn } from "next-auth/react";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AuthFrame } from "../../../components/auth/AuthFrame";
+
+const PASSWORD_MIN_LENGTH = 8;
 
 function normalizeAuthCallbackUrl(value: string | null) {
   if (!value) return null;
@@ -28,32 +30,98 @@ function RegisterForm() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [code, setCode] = useState("");
+  const [sent, setSent] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+  const [sendingCode, setSendingCode] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setInterval(() => setCooldown((c) => (c <= 1 ? 0 : c - 1)), 1000);
+    return () => clearInterval(timer);
+  }, [cooldown]);
+
+  async function handleSendCode() {
+    setError("");
+    const form = formRef.current;
+    if (!form) return;
+    const fd = new FormData(form);
+    const email = (fd.get("email") as string) || "";
+    const password = (fd.get("password") as string) || "";
+
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      setError("请输入有效的邮箱");
+      return;
+    }
+    if (password.length < PASSWORD_MIN_LENGTH) {
+      setError(`密码至少 ${PASSWORD_MIN_LENGTH} 位`);
+      return;
+    }
+
+    setSendingCode(true);
+    try {
+      const res = await fetch("/api/auth/send-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+
+      if (res.status === 429) {
+        setError("验证码发送过于频繁，请稍后再试");
+        return;
+      }
+      if (res.status === 409) {
+        setError("该邮箱已注册，请直接登录");
+        return;
+      }
+      if (!res.ok) {
+        setError("发送失败，请重试");
+        return;
+      }
+
+      setSent(true);
+      setCooldown(60);
+    } catch {
+      setError("网络错误，请重试");
+    } finally {
+      setSendingCode(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
-    setLoading(true);
 
     const formData = new FormData(e.currentTarget);
     const name = formData.get("name") as string;
     const email = formData.get("email") as string;
     const password = formData.get("password") as string;
+    const confirmPassword = formData.get("confirmPassword") as string;
 
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters");
-      setLoading(false);
+    if (password.length < PASSWORD_MIN_LENGTH) {
+      setError(`密码至少 ${PASSWORD_MIN_LENGTH} 位`);
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError("两次输入的密码不一致");
+      return;
+    }
+    if (code.length !== 6) {
+      setError("请输入 6 位邮箱验证码");
       return;
     }
 
+    setLoading(true);
     const res = await fetch("/api/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, password }),
+      body: JSON.stringify({ name, email, password, code }),
     });
 
     if (!res.ok) {
-      const data = await res.json();
-      setError(data.error || "Registration failed");
+      const data = await res.json().catch(() => null);
+      setError(data?.error || "Registration failed");
       setLoading(false);
       return;
     }
@@ -82,7 +150,7 @@ function RegisterForm() {
         </p>
       }
     >
-      <form onSubmit={handleSubmit} className="mewmo-auth-form">
+      <form ref={formRef} onSubmit={handleSubmit} className="mewmo-auth-form">
         <div className="mewmo-auth-field">
           <label>Name</label>
           <input name="name" type="text" placeholder="Your name" />
@@ -95,7 +163,54 @@ function RegisterForm() {
 
         <div className="mewmo-auth-field">
           <label>Password</label>
-          <input name="password" type="password" required minLength={6} placeholder="••••••••" />
+          <input
+            name="password"
+            type="password"
+            required
+            minLength={PASSWORD_MIN_LENGTH}
+            placeholder={`至少 ${PASSWORD_MIN_LENGTH} 位`}
+          />
+        </div>
+
+        <div className="mewmo-auth-field">
+          <label>Confirm password</label>
+          <input
+            name="confirmPassword"
+            type="password"
+            required
+            minLength={PASSWORD_MIN_LENGTH}
+            placeholder="再次输入密码"
+          />
+        </div>
+
+        <div className="mewmo-auth-field">
+          <label>验证码</label>
+          <div className="mewmo-auth-code-row">
+            <input
+              name="code"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+              placeholder="6 位邮箱验证码"
+              required
+            />
+            <button
+              type="button"
+              onClick={handleSendCode}
+              disabled={sendingCode || cooldown > 0}
+              className="mewmo-auth-code-btn"
+            >
+              {cooldown > 0
+                ? `${cooldown}s 后重发`
+                : sendingCode
+                  ? "发送中..."
+                  : sent
+                    ? "重新发送"
+                    : "获取验证码"}
+            </button>
+          </div>
         </div>
 
         {error && <p className="mewmo-auth-error">{error}</p>}

@@ -33,15 +33,19 @@ export function createEmailService(client: EmailClient = createEmailClient(), en
       });
     },
 
-    sendPasswordReset(email: string, token: string, origin: string) {
-      const url = new URL("/reset-password", origin);
-      url.searchParams.set("token", token);
+    sendOtp(email: string, code: string, kind: "register" | "reset") {
+      const action = kind === "register" ? "注册" : "重置密码";
+      const subject = kind === "register" ? "Verify your Mewmo email" : "Reset your Mewmo password";
 
       return client.emails.send({
         from: env.EMAIL_FROM,
         to: email,
-        subject: "Reset your Mewmo password",
-        html: `<p>Reset your Mewmo password:</p><p><a href="${url}">${url}</a></p>`,
+        subject,
+        html: [
+          `<p>您的 Mewmo ${action}验证码为：</p>`,
+          `<p style="font-size:28px;font-weight:700;letter-spacing:6px;margin:12px 0;">${code}</p>`,
+          `<p>验证码 10 分钟内有效。为了您的账号安全，请勿将验证码告知他人或转发给他人。</p>`,
+        ].join(""),
       });
     },
   };
@@ -50,5 +54,5 @@ export function createEmailService(client: EmailClient = createEmailClient(), en
 export const sendVerification = (email: string, token: string) =>
   createEmailService().sendVerification(email, token);
 
-export const sendPasswordReset = (email: string, token: string, origin: string) =>
-  createEmailService().sendPasswordReset(email, token, origin);
+export const sendOtp = (email: string, code: string, kind: "register" | "reset") =>
+  createEmailService().sendOtp(email, code, kind);

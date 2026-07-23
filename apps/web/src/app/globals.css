@@ -385,6 +385,58 @@ html.light .mewmo-auth-visual::before {
   text-underline-offset: 3px;
 }
 
+.mewmo-auth-code-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.mewmo-auth-code-row input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.mewmo-auth-code-btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  height: 48px;
+  padding: 0 16px;
+  border: 1px solid var(--auth-field-border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--auth-panel-ink);
+  font-size: 13px;
+  font-weight: 680;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    opacity 0.16s ease;
+}
+
+.mewmo-auth-code-btn:hover:not(:disabled) {
+  border-color: var(--auth-focus);
+}
+
+.mewmo-auth-code-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.mewmo-auth-linklike {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--auth-muted);
+  font-size: 13px;
+  font-weight: 620;
+  cursor: pointer;
+}
+
+.mewmo-auth-linklike:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .mewmo-auth-primary,
 .mewmo-auth-secondary {
   display: inline-flex;
