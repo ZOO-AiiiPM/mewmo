@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Crepe } from "@milkdown/crepe";
 import { editorViewOptionsCtx } from "@milkdown/kit/core";
@@ -10,11 +10,9 @@ import { Plugin } from "@milkdown/kit/prose/state";
 import "@milkdown/crepe/theme/common/style.css";
 import "@milkdown/crepe/theme/frame.css";
 import { normalizeNoteMarkdownBreaks } from "../../lib/note-markdown-breaks";
-import { buildNoteMetadataItems, noteTagPalette } from "../../lib/note-list-preview";
+import { buildNoteMetadataItems } from "../../lib/note-list-preview";
 import { useWorkspaceAccountId } from "../../lib/workspace-account";
-import { PrototypeIcon } from "../shell/PrototypeIcon";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
-import { PopoverMenu } from "../ui/FloatingMenu";
 import { getMewmoBlockEditConfig } from "./block-ui";
 import { editorInteractions } from "./editor-interactions";
 import { shouldSaveMarkdownUpdate } from "./markdown-save";
@@ -48,28 +46,12 @@ interface NoteEditorProps {
   onTitleChange?: (title: string, slug?: string) => void;
 }
 
-const TAG_PICKER_OPTIONS = ["产品", "AI", "读书", "设计", "数据层"];
-const TAG_PICKER_COLORS = [
-  "#4caf72",
-  "#4f93e8",
-  "#e0a93a",
-  "#a874e0",
-  "#e88478",
-  "#5ba3d9",
-  "#b07cd8",
-  "#62b87e",
-];
-const TAG_PICKER_SUGGESTIONS = ["关联到当前主题", "让 AI 归类"];
 const NOTE_SAVE_MESSAGES = {
   saving: "保存中…",
   saved: "已保存",
   offline: "离线，已保存在本机",
   error: "保存失败",
 } as const;
-
-function tagColor(tag: string) {
-  return noteTagPalette[tag] ?? "#e88478";
-}
 
 /**
  * Inner Crepe instance. Created once (deps `[]`) so typing never re-builds the
@@ -166,7 +148,6 @@ export function NoteEditor({
   const userId = useWorkspaceAccountId();
   const titleRef = useRef<HTMLHeadingElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
-  const tagPickerAnchorRef = useRef<HTMLSpanElement>(null);
   const onContentChangeRef = useRef(onContentChange);
   onContentChangeRef.current = onContentChange;
   const onTitleChangeRef = useRef(onTitleChange);
@@ -181,8 +162,6 @@ export function NoteEditor({
   );
   const [saveState, setSaveState] = useState<NoteSaveSnapshot>({ status: "saved", message: NOTE_SAVE_MESSAGES.saved });
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [tagPickerOpen, setTagPickerOpen] = useState(false);
-  const [tagSearch, setTagSearch] = useState("");
   const metadata = useMemo(
     () =>
       updatedAt
@@ -321,12 +300,6 @@ export function NoteEditor({
     router.push("/notes");
   }, [noteId, router]);
 
-  const tagOptions = useMemo(() => {
-    const query = tagSearch.trim().toLowerCase();
-    if (!query) return TAG_PICKER_OPTIONS;
-    return TAG_PICKER_OPTIONS.filter((tag) => tag.toLowerCase().includes(query));
-  }, [tagSearch]);
-
   const titleEditor = (
     <h1
       ref={titleRef}
@@ -363,99 +336,6 @@ export function NoteEditor({
                   {item}
                 </span>
               ))}
-              <span className="mewmo-note-editor__tags" ref={tagPickerAnchorRef}>
-                {metadata.tags.map((tag) => (
-                  <button
-                    key={tag}
-                    type="button"
-                    className="mewmo-note-editor__tag"
-                    style={{ "--tc": tagColor(tag) } as CSSProperties}
-                    onClick={() => setTagPickerOpen((value) => !value)}
-                  >
-                    {tag}
-                  </button>
-                ))}
-              </span>
-              <PopoverMenu
-                open={tagPickerOpen}
-                anchorRef={tagPickerAnchorRef}
-                onOpenChange={setTagPickerOpen}
-                align="start"
-                gap={4}
-                boundary="main"
-                className="mewmo-tag-picker"
-              >
-                <div className="mewmo-tag-picker__search">
-                  <PrototypeIcon name="search" size={14} />
-                  <input
-                    value={tagSearch}
-                    placeholder="搜索或创建标签..."
-                    onChange={(event) => setTagSearch(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Escape") setTagPickerOpen(false);
-                    }}
-                  />
-                </div>
-                <div className="mewmo-tag-picker__list">
-                  {tagOptions.map((tag) => {
-                    const checked = metadata.tags.includes(tag);
-                    return (
-                      <button
-                        key={tag}
-                        type="button"
-                        className={`mewmo-tag-picker__item ${checked ? "mewmo-tag-picker__item--checked" : ""}`}
-                        onClick={() => setTagPickerOpen(false)}
-                      >
-                        <span
-                          className="mewmo-tag-picker__dot"
-                          style={{ "--tc": tagColor(tag) } as CSSProperties}
-                        />
-                        <span>{tag}</span>
-                        {checked && (
-                          <span className="mewmo-tag-picker__check">
-                            <PrototypeIcon name="check" size={14} />
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-                <button
-                  type="button"
-                  className="mewmo-tag-picker__create"
-                  onClick={() => setTagPickerOpen(false)}
-                >
-                  <PrototypeIcon name="plus" size={14} />
-                  <span>{tagSearch.trim() ? `新建「${tagSearch.trim()}」` : "新建标签"}</span>
-                </button>
-                <div className="mewmo-tag-picker__colors">
-                  {TAG_PICKER_COLORS.map((color, index) => (
-                    <button
-                      key={color}
-                      type="button"
-                      className={`mewmo-tag-picker__color ${index === 0 ? "mewmo-tag-picker__color--selected" : ""}`}
-                      style={{ "--tc": color } as CSSProperties}
-                      aria-label={`标签颜色 ${index + 1}`}
-                    />
-                  ))}
-                </div>
-                <div className="mewmo-tag-picker__ai">
-                  <PrototypeIcon name="tag" size={14} />
-                  {TAG_PICKER_SUGGESTIONS.map((suggestion) => (
-                    <button key={suggestion} type="button">
-                      {suggestion}
-                    </button>
-                  ))}
-                </div>
-              </PopoverMenu>
-              {metadata.tags.length === 0 && (
-                <span
-                  className="mewmo-note-editor__tag"
-                  style={{ "--tc": tagColor("读书") } as CSSProperties}
-                >
-                  未标签
-                </span>
-              )}
             </div>
           )}
         </div>

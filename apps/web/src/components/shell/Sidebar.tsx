@@ -127,31 +127,13 @@ type EditingKnowledgeFolderState =
   | { type: "create"; base: SidebarKnowledgeBase; parent: KnowledgeFolderNode | null; value: string }
   | { type: "rename"; base: SidebarKnowledgeBase; folder: KnowledgeFolderNode; value: string };
 
-const tagEntries = [
-  { label: "读书", color: "#4f93e8" },
-  { label: "设计", color: "#e88478" },
-  { label: "产品", color: "#4caf72" },
-  { label: "数据层", color: "#a874e0" },
-  { label: "AI", color: "#e0a93a" },
-];
-
-const accentSwatches = [
-  { label: "单色", value: "", mono: true },
-  { label: "靛蓝", value: "#3b6cff" },
-  { label: "翠绿", value: "#05c270" },
-  { label: "朱砂", value: "#ff4d3d" },
-  { label: "琥珀", value: "#ffb01f" },
-  { label: "紫", value: "#8b5cf6" },
-  { label: "品红", value: "#f5408a" },
-];
-
 export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnter, onMouseLeave }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { showToast } = useToast();
   const { beginNavigation } = useWorkspaceNavigation();
-  const { theme, setTheme, accent, setAccent } = useTheme();
+  const { theme, setTheme } = useTheme();
   const { readerFont, setReaderFont, readerFontSize, setReaderFontSize } = useTheme();
   const [allCollapsed, setAllCollapsed] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
@@ -184,7 +166,7 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
   const toggleAllGroups = () => {
     const next = !allCollapsed;
     setAllCollapsed(next);
-    setCollapsedGroups({ collection: next, subscription: next, knowledge: next, tags: next });
+    setCollapsedGroups({ collection: next, subscription: next, knowledge: next });
   };
 
   const defer = () => showToast(deferredMessage, "error");
@@ -788,22 +770,6 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
             ))}
         </SidebarGroup>
 
-        <SidebarGroup
-          id="tags"
-          title="标签"
-          icon="tag"
-          collapsed={Boolean(collapsedGroups.tags)}
-          onToggle={toggleGroup}
-          menuOpen={openMenu === "tags"}
-          onMenuToggle={() => setOpenMenu(openMenu === "tags" ? null : "tags")}
-        >
-          {tagEntries.map((tag) => (
-            <SidebarButton key={tag.label} label={tag.label} onClick={defer}>
-              <span className="mewmo-tag-dot" style={{ backgroundColor: tag.color }} />
-            </SidebarButton>
-          ))}
-        </SidebarGroup>
-
         <SidebarLink
           href="/trash"
           icon="trash"
@@ -1000,27 +966,6 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
           className="mewmo-account-menu"
           placement="top"
         >
-          <AccountSubmenu label="主题色" icon="palette">
-            <div className="acct-submenu acct-submenu--color">
-              <div className="acct-sub__swatches">
-                {accentSwatches.map((item) => (
-                  <button
-                    key={item.label}
-                    type="button"
-                    className={`sw ${item.mono ? "sw--mono" : ""} ${accent === item.value ? "on" : ""}`}
-                    data-accent={item.value}
-                    title={item.label}
-                    style={
-                      item.value
-                        ? ({ "--c": item.value } as CSSProperties)
-                        : undefined
-                    }
-                    onClick={() => setAccent(item.value)}
-                  />
-                ))}
-              </div>
-            </div>
-          </AccountSubmenu>
           <AccountSubmenu label="外观模式" icon="appearance">
             <div className="acct-submenu">
               <AccountSubmenuRow icon="monitor" active={theme === "system"} onClick={() => setTheme("system")}>
