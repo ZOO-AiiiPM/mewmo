@@ -39,6 +39,7 @@ test("Agent secrets and Web identity boundary are documented", () => {
   assert.match(env, /^AI_MODEL_AGENT_CHAT=$/m);
   assert.match(readme, /AGENT_INTERNAL_SECRET/);
   assert.match(readme, /完全相同/);
-  assert.match(readme, /ai-agent-foundation\.sql/);
+  assert.match(readme, /db:migrate:deploy/);
+  assert.match(readme, /video_details/);
   assert.match(gitignore, /^deploy\/agent\/\.env\.agent$/m);
 });

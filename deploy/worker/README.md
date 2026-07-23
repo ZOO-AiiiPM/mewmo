@@ -5,7 +5,7 @@
 - `@mewmo/feed-ingestion` 获取、解析、清洗并保存 Feed 内容。
 - `@mewmo/ai-workflows` 从 PostgreSQL 领取 AiRun，执行摘要、Embedding、推荐和笔记轻量洞察。
 
-没有常驻 BullMQ Worker，也不需要 Redis。两个进程都不接收入站请求，因此不需要域名、SSL、Nginx 或开放公网端口。
+没有常驻 BullMQ Worker，也不需要 Redis。固定 Workflow 和自动化调度器都不接收入站请求，因此不需要域名、SSL、Nginx 或开放公网端口。Agent 自动化执行器使用 `deploy/agent/compose.yml` 的独立镜像和锁。
 
 ## 构建和传输镜像
 
@@ -46,6 +46,7 @@ docker compose -f compose.yml config --quiet
 cd /www/wwwroot/mewmo-worker
 docker compose -f compose.yml --profile cron run --rm feed-ingestion
 docker compose -f compose.yml --profile cron run --rm ai-workflows
+docker compose -f compose.yml --profile cron run --rm agent-automation-scheduler
 ```
 
 Feed 成功日志包含 `feed_cron_completed`；AI 成功日志包含 `ai_workflows_completed`。无到期数据时都应快速退出并输出零计数。
@@ -57,6 +58,7 @@ Feed 成功日志包含 `feed_cron_completed`；AI 成功日志包含 `ai_workfl
 ```cron
 * * * * * cd /www/wwwroot/mewmo-worker && flock -n /var/run/mewmo-feed-ingestion.lock docker compose -f compose.yml --profile cron run --rm feed-ingestion >> /var/log/mewmo-feed-ingestion.log 2>&1
 * * * * * cd /www/wwwroot/mewmo-worker && flock -n /var/run/mewmo-ai-workflows.lock docker compose -f compose.yml --profile cron run --rm ai-workflows >> /var/log/mewmo-ai-workflows.log 2>&1
+* * * * * cd /www/wwwroot/mewmo-worker && flock -n /var/run/mewmo-agent-automation-scheduler.lock docker compose -f compose.yml --profile cron run --rm agent-automation-scheduler >> /var/log/mewmo-agent-automation-scheduler.log 2>&1
 ```
 
 AI Cron 默认每批 10 个任务、并发 2。远程模型调用主要消耗网络等待；当前容器仍限制为 0.5 CPU、512 MB 内存。不要在此容器自托管 BGE-M3。
@@ -66,6 +68,7 @@ AI Cron 默认每批 10 个任务、并发 2。远程模型调用主要消耗网
 ```bash
 tail -n 100 /var/log/mewmo-feed-ingestion.log
 tail -n 100 /var/log/mewmo-ai-workflows.log
+tail -n 100 /var/log/mewmo-agent-automation-scheduler.log
 docker compose -f compose.yml ps -a
 ```
 

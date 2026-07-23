@@ -27,3 +27,23 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  agent-automation-executor:
+    image: ${AGENT_IMAGE:-mewmo-agent:local}
+    profiles: ["cron"]
+    env_file:
+      - ${AGENT_ENV_FILE:-.env.agent}
+    command: ["pnpm", "--filter", "@mewmo/agent", "cron:automations"]
+    restart: "no"
+    init: true
+    mem_limit: 768m
+    mem_reservation: 192m
+    cpus: 1.0
+    pids_limit: 128
+    environment:
+      NODE_OPTIONS: --max-old-space-size=512
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

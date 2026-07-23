@@ -48,7 +48,14 @@ docker compose -f compose.yml ps
 
 `AI_MODEL_AGENT_CHAT` 和 `AI_MODEL_DEEP_INSIGHT` 可以相同。使用 `AI_PROVIDER=anthropic` 时不能把该 Provider 用于 Workflow Embedding；Embedding 由后台 Cron 的独立模型变量配置。
 
-新 Schema 是 Agent 动作和 Workflow 的运行前提。当前生产 Neon 已使用 [ai-agent-foundation.sql](../database/ai-agent-foundation.sql) 完成增量发布，并保留旧的 `video_details`、`video_user_highlights` 表；该脚本不会执行删除。新环境可执行 `pnpm db:push`，包含历史遗留表的环境应先执行这份增量脚本，再启动 Agent/Cron。
+AI Runtime Schema 是 Agent 动作和 Workflow 的运行前提。发布前必须执行仓库中的 additive migration：
+
+```bash
+DATABASE_URL=<该环境的 Neon URL> pnpm db:migrate:deploy
+DATABASE_URL=<该环境的 Neon URL> pnpm db:migrate:status
+```
+
+这份迁移只增加 AI Runtime 所需对象，不会删除或重命名旧表，因此不会触碰历史 `video_details`、`video_user_highlights`。不要在 Preview 或生产使用 `pnpm db:push`；已有环境若没有 `_prisma_migrations` 历史，先在 Neon 建可恢复分支，核对实际 Schema 后按发布 runbook 登记 baseline，再执行 additive migration。
 
 ## Nginx 反代
 
@@ -72,8 +79,15 @@ location / {
 
 ```bash
 curl --fail http://127.0.0.1:3101/health
+docker compose -f compose.yml --profile cron run --rm agent-automation-executor
 docker compose -f compose.yml logs --tail=100 agent
 docker compose -f compose.yml ps
 ```
 
 更新时传输唯一镜像标签，重新设置 `mewmo-agent:local` 后执行 `docker compose -f compose.yml up -d`。回滚时把 `mewmo-agent:local` 指向上一镜像并再次 `up -d`；数据库 Schema 必须同时兼容新旧版本。
+
+`agent-automation-executor` 是一次性 Cron 进程，不要执行 `up -d` 使其常驻。建议使用独立锁：
+
+```cron
+* * * * * cd /www/wwwroot/mewmo-agent && flock -n /var/run/mewmo-agent-automation.lock docker compose -f compose.yml --profile cron run --rm agent-automation-executor >> /var/log/mewmo-agent-automation.log 2>&1
+```
