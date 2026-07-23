@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AuthFrame } from "../../../components/auth/AuthFrame";
+import { PasswordField } from "../../../components/auth/PasswordField";
 
 const PASSWORD_MIN_LENGTH = 8;
 
@@ -180,9 +181,8 @@ export default function ForgotPasswordPage() {
 
           <div className="mewmo-auth-field">
             <label>New password</label>
-            <input
+            <PasswordField
               name="newPassword"
-              type="password"
               required
               minLength={PASSWORD_MIN_LENGTH}
               placeholder={`至少 ${PASSWORD_MIN_LENGTH} 位`}
@@ -191,9 +191,8 @@ export default function ForgotPasswordPage() {
 
           <div className="mewmo-auth-field">
             <label>Confirm password</label>
-            <input
+            <PasswordField
               name="confirmPassword"
-              type="password"
               required
               minLength={PASSWORD_MIN_LENGTH}
               placeholder="再次输入新密码"

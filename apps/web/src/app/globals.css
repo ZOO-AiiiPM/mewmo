@@ -350,7 +350,42 @@ html.light .mewmo-auth-visual::before {
 
 .mewmo-auth-field input:focus {
   border-color: var(--auth-focus);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--auth-focus) 18%, transparent);
+  background: color-mix(in srgb, var(--auth-focus) 8%, var(--auth-field));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--auth-focus) 45%, transparent);
+}
+
+.mewmo-auth-password {
+  position: relative;
+}
+
+.mewmo-auth-password input {
+  width: 100%;
+  padding-right: 46px;
+}
+
+.mewmo-auth-eye {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 48px;
+  width: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--auth-muted);
+  cursor: pointer;
+  transition: color 0.16s ease;
+}
+
+.mewmo-auth-eye:hover {
+  color: var(--auth-panel-ink);
+}
+
+.mewmo-auth-eye svg {
+  width: 18px;
+  height: 18px;
 }
 
 .mewmo-auth-error {

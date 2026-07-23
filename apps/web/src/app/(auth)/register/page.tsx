@@ -5,6 +5,7 @@ import { signIn } from "next-auth/react";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AuthFrame } from "../../../components/auth/AuthFrame";
+import { PasswordField } from "../../../components/auth/PasswordField";
 
 const PASSWORD_MIN_LENGTH = 8;
 
@@ -163,9 +164,8 @@ function RegisterForm() {
 
         <div className="mewmo-auth-field">
           <label>Password</label>
-          <input
+          <PasswordField
             name="password"
-            type="password"
             required
             minLength={PASSWORD_MIN_LENGTH}
             placeholder={`至少 ${PASSWORD_MIN_LENGTH} 位`}
@@ -174,9 +174,8 @@ function RegisterForm() {
 
         <div className="mewmo-auth-field">
           <label>Confirm password</label>
-          <input
+          <PasswordField
             name="confirmPassword"
-            type="password"
             required
             minLength={PASSWORD_MIN_LENGTH}
             placeholder="再次输入密码"
