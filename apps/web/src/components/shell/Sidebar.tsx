@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { signOut } from "next-auth/react";
 import {
   cloneElement,
   isValidElement,
@@ -147,6 +148,8 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
   const [knowledgeFolders, setKnowledgeFolders] = useState<KnowledgeFolderNode[]>([]);
   const [knowledgeMenu, setKnowledgeMenu] = useState<KnowledgeMenuState | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmState | null>(null);
+  const [logoutOpen, setLogoutOpen] = useState(false);
+  const [logoutPending, setLogoutPending] = useState(false);
   const [textPrompt, setTextPrompt] = useState<TextPromptState | null>(null);
   const [textPromptValue, setTextPromptValue] = useState("");
   const [editingKnowledgeFolder, setEditingKnowledgeFolder] = useState<EditingKnowledgeFolderState | null>(null);
@@ -170,6 +173,15 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
   };
 
   const defer = () => showToast(deferredMessage, "error");
+  const handleLogout = async () => {
+    setLogoutPending(true);
+    try {
+      await signOut({ callbackUrl: "/login" });
+    } catch {
+      setLogoutPending(false);
+      showToast("登出失败，请重试", "error");
+    }
+  };
   const activeFeedType = (searchParams.get("type") as FeedType | null) ?? "article";
   const activeFeedId = searchParams.get("feedId");
   const effectiveActiveFeedId = activeFeedId ?? feeds[0]?.id ?? null;
@@ -1050,7 +1062,7 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
             </div>
           </AccountSubmenu>
           <div className="mewmo-menu-separator" />
-          <FloatingMenuButton icon="logout" onClick={defer}>登出</FloatingMenuButton>
+          <FloatingMenuButton icon="logout" onClick={() => setLogoutOpen(true)}>登出</FloatingMenuButton>
         </FloatingMenu>
       </div>
     </aside>
@@ -1062,6 +1074,17 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
       cancelLabel="取消"
       onCancel={() => setDeleteConfirm(null)}
       onConfirm={() => void runDeleteConfirm()}
+    />
+    <ConfirmDialog
+      open={logoutOpen}
+      title="确认登出？"
+      description="登出后需要重新登录才能访问你的工作区。"
+      confirmLabel={logoutPending ? "登出中…" : "登出"}
+      cancelLabel="取消"
+      onCancel={() => {
+        if (!logoutPending) setLogoutOpen(false);
+      }}
+      onConfirm={() => void handleLogout()}
     />
     <ConfirmDialog
       open={Boolean(textPrompt)}
