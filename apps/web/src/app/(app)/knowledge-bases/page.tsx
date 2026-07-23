@@ -997,7 +997,12 @@ function SourceStrip({
   return (
     <div className="mewmo-source-strip">
       <PrototypeIcon name={card.icon} size={16} />
-      <span>{card.readerSourceText}</span>
+      {knowledgeMetaItems(card).map((metaItem, index) => (
+        <span key={`${metaItem}-${index}`}>
+          {index > 0 && <b aria-hidden="true">·</b>}
+          {metaItem}
+        </span>
+      ))}
       <a href={url} target="_blank" rel="noreferrer">
         原文
       </a>
