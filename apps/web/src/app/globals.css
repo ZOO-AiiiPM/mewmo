@@ -5081,8 +5081,7 @@ html.light .acct-submenu {
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
-  -webkit-mask-image: linear-gradient(to right, #000 72%, rgba(0, 0, 0, 0));
-  mask-image: linear-gradient(to right, #000 72%, rgba(0, 0, 0, 0));
+  text-overflow: ellipsis;
 }
 
 .mewmo-toast__actions {

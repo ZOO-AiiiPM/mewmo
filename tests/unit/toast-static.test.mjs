@@ -145,7 +145,7 @@ test("toast grows with content but wraps long messages at the viewport cap", () 
   assert.match(toastCss, /\.mewmo-toast__message\s*\{[\s\S]*overflow-wrap:\s*anywhere/);
   assert.doesNotMatch(toastCss, /\.mewmo-toast__inner\s*\{[^}]*white-space:\s*nowrap/);
   assert.match(toastCss, /\.mewmo-toast__inner--actions \.mewmo-toast__message\s*\{[^}]*white-space:\s*nowrap/);
-  assert.match(toastCss, /\.mewmo-toast__inner--actions \.mewmo-toast__message\s*\{[^}]*mask-image:\s*linear-gradient/);
+  assert.match(toastCss, /\.mewmo-toast__inner--actions \.mewmo-toast__message\s*\{[^}]*text-overflow:\s*ellipsis/);
 });
 
 test("failure and blocked-action toast call sites explicitly request the error state", () => {
