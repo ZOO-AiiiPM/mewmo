@@ -350,7 +350,42 @@ html.light .mewmo-auth-visual::before {
 
 .mewmo-auth-field input:focus {
   border-color: var(--auth-focus);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--auth-focus) 18%, transparent);
+  background: color-mix(in srgb, var(--auth-focus) 8%, var(--auth-field));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--auth-focus) 45%, transparent);
+}
+
+.mewmo-auth-password {
+  position: relative;
+}
+
+.mewmo-auth-password input {
+  width: 100%;
+  padding-right: 46px;
+}
+
+.mewmo-auth-eye {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 48px;
+  width: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--auth-muted);
+  cursor: pointer;
+  transition: color 0.16s ease;
+}
+
+.mewmo-auth-eye:hover {
+  color: var(--auth-panel-ink);
+}
+
+.mewmo-auth-eye svg {
+  width: 18px;
+  height: 18px;
 }
 
 .mewmo-auth-error {
@@ -381,6 +416,58 @@ html.light .mewmo-auth-visual::before {
 }
 
 .mewmo-auth-help a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.mewmo-auth-code-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.mewmo-auth-code-row input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.mewmo-auth-code-btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  height: 48px;
+  padding: 0 16px;
+  border: 1px solid var(--auth-field-border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--auth-panel-ink);
+  font-size: 13px;
+  font-weight: 680;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    opacity 0.16s ease;
+}
+
+.mewmo-auth-code-btn:hover:not(:disabled) {
+  border-color: var(--auth-focus);
+}
+
+.mewmo-auth-code-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.mewmo-auth-linklike {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--auth-muted);
+  font-size: 13px;
+  font-weight: 620;
+  cursor: pointer;
+}
+
+.mewmo-auth-linklike:hover {
   text-decoration: underline;
   text-underline-offset: 3px;
 }

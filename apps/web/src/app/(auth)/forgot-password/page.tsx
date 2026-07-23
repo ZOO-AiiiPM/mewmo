@@ -1,49 +1,150 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AuthFrame } from "../../../components/auth/AuthFrame";
+import { PasswordField } from "../../../components/auth/PasswordField";
+
+const PASSWORD_MIN_LENGTH = 8;
+
+type Step = "email" | "reset";
 
 export default function ForgotPasswordPage() {
-  const [loading, setLoading] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
+  const [step, setStep] = useState<Step>("email");
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+  const [success, setSuccess] = useState(false);
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setInterval(() => setCooldown((c) => (c <= 1 ? 0 : c - 1)), 1000);
+    return () => clearInterval(timer);
+  }, [cooldown]);
+
+  async function sendCode(target: string): Promise<boolean> {
+    const res = await fetch("/api/auth/forgot-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: target }),
+    });
+
+    if (res.status === 429) {
+      setError("验证码发送过于频繁，请稍后再试");
+      return false;
+    }
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      setError(data?.error || "发送失败，请重试");
+      return false;
+    }
+    return true;
+  }
+
+  async function handleRequestCode(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
     setLoading(true);
 
-    const formData = new FormData(e.currentTarget);
-    const email = formData.get("email") as string;
-
+    const value = ((new FormData(e.currentTarget).get("email") as string) || "").trim();
     try {
-      const res = await fetch("/api/auth/forgot-password", {
+      const ok = await sendCode(value);
+      if (!ok) {
+        setLoading(false);
+        return;
+      }
+      // 防枚举：无论邮箱是否注册都进入验证码步骤
+      setEmail(value);
+      setStep("reset");
+      setCooldown(60);
+    } catch {
+      setError("网络错误，请重试");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleResend() {
+    if (cooldown > 0 || resending) return;
+    setError("");
+    setResending(true);
+    try {
+      const ok = await sendCode(email);
+      if (ok) setCooldown(60);
+    } catch {
+      setError("网络错误，请重试");
+    } finally {
+      setResending(false);
+    }
+  }
+
+  async function handleReset(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError("");
+
+    const formData = new FormData(e.currentTarget);
+    const newPassword = formData.get("newPassword") as string;
+    const confirmPassword = formData.get("confirmPassword") as string;
+
+    if (code.length !== 6) {
+      setError("请输入 6 位邮箱验证码");
+      return;
+    }
+    if (newPassword.length < PASSWORD_MIN_LENGTH) {
+      setError(`新密码至少 ${PASSWORD_MIN_LENGTH} 位`);
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError("两次输入的新密码不一致");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/reset-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, code, newPassword, confirmPassword }),
       });
 
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        setError(data?.error || "发送失败，请重试");
+        setError(data?.error || "重置失败，请重试");
         setLoading(false);
         return;
       }
 
-      // 防枚举：无论邮箱是否注册，都显示相同成功提示
-      setSubmitted(true);
+      setSuccess(true);
     } catch {
       setError("网络错误，请重试");
       setLoading(false);
     }
   }
 
-  if (submitted) {
+  if (success) {
     return (
       <AuthFrame
         eyebrow="Password reset"
-        title="Check your email"
+        title="Password updated"
+        footer={
+          <p>
+            <Link href="/login">Back to login</Link>
+          </p>
+        }
+      >
+        <p className="mewmo-auth-info">密码已重置，请用新密码登录。</p>
+      </AuthFrame>
+    );
+  }
+
+  if (step === "reset") {
+    return (
+      <AuthFrame
+        eyebrow="Password reset"
+        title="Enter code and new password"
         footer={
           <p>
             <Link href="/login">Back to login</Link>
@@ -51,8 +152,73 @@ export default function ForgotPasswordPage() {
         }
       >
         <p className="mewmo-auth-info">
-          如果该邮箱已注册，重置邮件已发送。请检查收件箱（及垃圾邮件文件夹）。
+          如果 <strong>{email}</strong> 已注册，验证码已发送。请查收邮件中的 6 位验证码。
         </p>
+        <form onSubmit={handleReset} className="mewmo-auth-form">
+          <div className="mewmo-auth-field">
+            <label>验证码</label>
+            <div className="mewmo-auth-code-row">
+              <input
+                name="code"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                placeholder="6 位邮箱验证码"
+                required
+              />
+              <button
+                type="button"
+                onClick={handleResend}
+                disabled={resending || cooldown > 0}
+                className="mewmo-auth-code-btn"
+              >
+                {cooldown > 0 ? `${cooldown}s 后重发` : resending ? "发送中..." : "重新发送"}
+              </button>
+            </div>
+          </div>
+
+          <div className="mewmo-auth-field">
+            <label>New password</label>
+            <PasswordField
+              name="newPassword"
+              required
+              minLength={PASSWORD_MIN_LENGTH}
+              placeholder={`至少 ${PASSWORD_MIN_LENGTH} 位`}
+            />
+          </div>
+
+          <div className="mewmo-auth-field">
+            <label>Confirm password</label>
+            <PasswordField
+              name="confirmPassword"
+              required
+              minLength={PASSWORD_MIN_LENGTH}
+              placeholder="再次输入新密码"
+            />
+          </div>
+
+          {error && <p className="mewmo-auth-error">{error}</p>}
+
+          <button type="submit" disabled={loading} className="mewmo-auth-primary">
+            {loading ? "Resetting..." : "Reset password"}
+          </button>
+        </form>
+
+        <div className="mewmo-auth-help">
+          <button
+            type="button"
+            className="mewmo-auth-linklike"
+            onClick={() => {
+              setStep("email");
+              setCode("");
+              setError("");
+            }}
+          >
+            换个邮箱
+          </button>
+        </div>
       </AuthFrame>
     );
   }
@@ -68,7 +234,7 @@ export default function ForgotPasswordPage() {
         </p>
       }
     >
-      <form onSubmit={handleSubmit} className="mewmo-auth-form">
+      <form onSubmit={handleRequestCode} className="mewmo-auth-form">
         <div className="mewmo-auth-field">
           <label>Email</label>
           <input name="email" type="email" required placeholder="you@example.com" />
@@ -77,7 +243,7 @@ export default function ForgotPasswordPage() {
         {error && <p className="mewmo-auth-error">{error}</p>}
 
         <button type="submit" disabled={loading} className="mewmo-auth-primary">
-          {loading ? "Sending..." : "Send reset link"}
+          {loading ? "Sending..." : "发送验证码"}
         </button>
       </form>
     </AuthFrame>
