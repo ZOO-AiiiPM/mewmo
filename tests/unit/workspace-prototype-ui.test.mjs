@@ -1549,6 +1549,35 @@ test("all popover menu items expose a prototype icon slot", () => {
   );
 });
 
+test("account menu logout button signs the user out", () => {
+  const sidebar = read("apps/web/src/components/shell/Sidebar.tsx");
+  assert.match(
+    sidebar,
+    /import \{ signOut \} from "next-auth\/react"/,
+    "sidebar should import signOut from next-auth/react to power logout",
+  );
+  assert.match(
+    sidebar,
+    /signOut\(\{\s*callbackUrl:\s*"\/login"\s*\}\)/,
+    "logout should sign out and redirect to the login page",
+  );
+  assert.match(
+    sidebar,
+    /icon="logout"\s+onClick=\{\(\) => setLogoutOpen\(true\)\}/,
+    "the account menu logout button should open the logout confirmation",
+  );
+  assert.match(
+    sidebar,
+    /title="确认登出？"/,
+    "logout should ask for confirmation before signing out",
+  );
+  assert.doesNotMatch(
+    sidebar,
+    /icon="logout"\s+onClick=\{defer\}/,
+    "logout button should no longer be a deferred placeholder",
+  );
+});
+
 test("account menu restores prototype right-side submenus", () => {
   const sidebar = read("apps/web/src/components/shell/Sidebar.tsx");
   const css = read("apps/web/src/app/globals.css");
