@@ -7,6 +7,7 @@ import { AuthFrame } from "../../../components/auth/AuthFrame";
 export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [email, setEmail] = useState("");
   const [error, setError] = useState("");
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -15,13 +16,14 @@ export default function ForgotPasswordPage() {
     setLoading(true);
 
     const formData = new FormData(e.currentTarget);
-    const email = formData.get("email") as string;
+    const value = (formData.get("email") as string) || "";
+    setEmail(value);
 
     try {
       const res = await fetch("/api/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email: value }),
       });
 
       if (!res.ok) {
@@ -51,7 +53,12 @@ export default function ForgotPasswordPage() {
         }
       >
         <p className="mewmo-auth-info">
-          如果该邮箱已注册，重置邮件已发送。请检查收件箱（及垃圾邮件文件夹）。
+          如果该邮箱已注册，验证码已发送。请查收邮件中的 6 位验证码，并在重置页输入。
+        </p>
+        <p className="mewmo-auth-info">
+          <Link href={`/reset-password?email=${encodeURIComponent(email)}`}>
+            前往输入验证码
+          </Link>
         </p>
       </AuthFrame>
     );
@@ -77,7 +84,7 @@ export default function ForgotPasswordPage() {
         {error && <p className="mewmo-auth-error">{error}</p>}
 
         <button type="submit" disabled={loading} className="mewmo-auth-primary">
-          {loading ? "Sending..." : "Send reset link"}
+          {loading ? "Sending..." : "发送验证码"}
         </button>
       </form>
     </AuthFrame>

@@ -7,7 +7,9 @@ import { AuthFrame } from "../../components/auth/AuthFrame";
 
 function ResetPasswordForm() {
   const searchParams = useSearchParams();
-  const token = searchParams.get("token");
+  const prefillEmail = searchParams.get("email") || "";
+  const [email, setEmail] = useState(prefillEmail);
+  const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -25,7 +27,7 @@ function ResetPasswordForm() {
       const res = await fetch("/api/auth/reset-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, newPassword, confirmPassword }),
+        body: JSON.stringify({ email, code, newPassword, confirmPassword }),
       });
 
       if (!res.ok) {
@@ -58,24 +60,6 @@ function ResetPasswordForm() {
     );
   }
 
-  if (!token) {
-    return (
-      <AuthFrame
-        eyebrow="Password reset"
-        title="链接无效"
-        footer={
-          <p>
-            <Link href="/forgot-password">重新申请重置邮件</Link>
-          </p>
-        }
-      >
-        <p className="mewmo-auth-info">
-          重置链接不完整。请从邮件中点击完整的链接进入此页面。
-        </p>
-      </AuthFrame>
-    );
-  }
-
   return (
     <AuthFrame
       eyebrow="Password reset"
@@ -87,6 +71,32 @@ function ResetPasswordForm() {
       }
     >
       <form onSubmit={handleSubmit} className="mewmo-auth-form">
+        <div className="mewmo-auth-field">
+          <label>Email</label>
+          <input
+            name="email"
+            type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+          />
+        </div>
+
+        <div className="mewmo-auth-field">
+          <label>验证码</label>
+          <input
+            name="code"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={6}
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+            placeholder="6 位邮箱验证码"
+            required
+          />
+        </div>
+
         <div className="mewmo-auth-field">
           <label>New password</label>
           <input
