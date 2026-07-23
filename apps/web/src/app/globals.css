@@ -5058,6 +5058,60 @@ html.light .acct-submenu {
   }
 }
 
+.mewmo-toast__body {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.mewmo-toast__inner--actions {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  max-width: min(460px, 86vw);
+  pointer-events: auto;
+}
+
+.mewmo-toast__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.mewmo-toast__action {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-soft);
+  padding: 5px 13px;
+  font-size: 12.5px;
+  font-weight: 650;
+  cursor: pointer;
+  transition:
+    background 0.14s,
+    color 0.14s,
+    border-color 0.14s,
+    opacity 0.14s;
+}
+
+.mewmo-toast__action:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.mewmo-toast__action--primary {
+  border-color: transparent;
+  background: var(--ink);
+  color: var(--raised);
+}
+
+.mewmo-toast__action--primary:hover {
+  background: var(--ink);
+  color: var(--raised);
+  opacity: 0.86;
+}
+
 .mewmo-confirm {
   position: fixed;
   inset: 0;

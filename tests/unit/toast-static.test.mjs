@@ -107,7 +107,7 @@ test("failure toasts use a red exclamation icon in every toast component", () =>
 test("toast helper requires every call site to choose a visual state", () => {
   const provider = read("apps/web/src/components/ui/ToastProvider.tsx");
   const sharedToast = read("packages/ui/src/components/Toast.tsx");
-  assert.match(provider, /showToast: \(text: string, type: ToastType\) => void/);
+  assert.match(provider, /showToast: \(text: string, type: ToastType, options\?: ToastOptions\) => void/);
   assert.doesNotMatch(provider, /type: ToastType = "success"/);
   assert.match(sharedToast, /type: "info" \| "success" \| "error"/);
   assert.doesNotMatch(sharedToast, /type\?: "info" \| "success" \| "error"/);

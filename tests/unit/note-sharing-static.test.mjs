@@ -84,7 +84,11 @@ test("protected note sharing has data model, routes, auth callback, and note UI 
   assert.match(notesPage, /fetch\(`\/api\/notes\/\$\{item\.id\}\/share`/);
   assert.match(notesPage, /navigator\.clipboard\?\.writeText\(shareUrl\)/);
   assert.match(notesPage, /showToast\("正在生成分享链接\.\.\.",\s*"loading"\)/);
-  assert.match(notesPage, /showToast\(`已复制分享链接：\$\{shareUrl\}`,\s*"success"\)/);
-  assert.doesNotMatch(notesPage, /showToast\("已复制分享链接",\s*"success"\)/);
+  assert.match(notesPage, /showToast\(`分享链接已复制：\$\{shareUrl\}`,\s*"success",\s*\{/);
+  assert.match(notesPage, /persistent:\s*true/);
+  assert.match(notesPage, /label:\s*"已复制"/);
+  assert.match(notesPage, /label:\s*"关闭"/);
+  assert.match(notesPage, /dismissToast\(\)/);
+  assert.doesNotMatch(notesPage, /showToast\(`已复制分享链接：\$\{shareUrl\}`,\s*"success"\)/);
   assert.doesNotMatch(notesPage, /onShare=\{\(\) => showToast\("已复制分享链接"\)\}/);
 });
