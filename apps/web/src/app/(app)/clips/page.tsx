@@ -19,7 +19,7 @@ import {
   useReaderToolbarTitleVisibility,
 } from "../../../components/shell/useReaderToolbarTitleVisibility";
 import { useToast } from "../../../components/ui/ToastProvider";
-import { clipPreviewText } from "../../../lib/clip-card";
+import { clipPreviewText, formatClipListTime } from "../../../lib/clip-card";
 import {
   currentStableSelectionPath,
   pushStableSelectionUrl,
@@ -385,6 +385,7 @@ export default function ClipsPage() {
           >
             {virtualizer.getVirtualItems().map((virtualRow) => {
               const clip = visibleClips[virtualRow.index]!;
+              const domain = getDomain(clip.url);
               const menuOpen = openMenuId === clip.id;
               const cardHovered = hoveredCardId === clip.id || menuOpen;
               return (
@@ -425,12 +426,8 @@ export default function ClipsPage() {
                     )}
                     <div className="mewmo-list-card__source mewmo-list-card__source--clip">
                       <Favicon clip={clip} />
-                      {articleMetaItems(clip).map((metaItem, index) => (
-                        <span key={`${metaItem}-${index}`}>
-                          {index > 0 && <b aria-hidden="true">·</b>}
-                          {metaItem}
-                        </span>
-                      ))}
+                      <span>{domain}</span>
+                      <time>{formatClipListTime(clip.createdAt)}</time>
                     </div>
                   </button>
                   <CardActionMenu

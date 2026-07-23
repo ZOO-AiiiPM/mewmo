@@ -13,7 +13,7 @@ import {
 } from "../../../../components/shell/useReaderToolbarTitleVisibility";
 import { useAISidebarContext } from "../../../../components/shell/AISidebar";
 import { useToast } from "../../../../components/ui/ToastProvider";
-import { clipPreviewText } from "../../../../lib/clip-card";
+import { clipPreviewText, formatClipListTime } from "../../../../lib/clip-card";
 import { buildHtmlToc } from "../../../../lib/note-toc";
 import {
   currentStableSelectionPath,
@@ -301,6 +301,7 @@ export function ClipDetailClient({
       >
         <div className="mewmo-list-stack">
           {visibleClips.map((item) => {
+            const domain = getDomain(item.url);
             const menuOpen = openMenuId === item.id;
             const cardHovered = hoveredCardId === item.id || menuOpen;
             return (
@@ -336,12 +337,8 @@ export function ClipDetailClient({
                   )}
                   <div className="mewmo-list-card__source mewmo-list-card__source--clip">
                     <Favicon clip={item} />
-                    {articleMetaItems(item).map((metaItem, index) => (
-                      <span key={`${metaItem}-${index}`}>
-                        {index > 0 && <b aria-hidden="true">·</b>}
-                        {metaItem}
-                      </span>
-                    ))}
+                    <span>{domain}</span>
+                    <time>{formatClipListTime(item.createdAt)}</time>
                   </div>
                 </button>
                 <CardActionMenu
