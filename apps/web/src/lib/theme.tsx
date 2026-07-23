@@ -17,8 +17,6 @@ interface ThemeContextValue {
   theme: Theme;
   setTheme: (t: Theme) => void;
   resolved: "light" | "dark";
-  accent: string;
-  setAccent: (accent: string) => void;
   readerFont: ReaderFont;
   setReaderFont: (font: ReaderFont) => void;
   readerFontSize: ReaderFontSize;
@@ -29,8 +27,6 @@ const ThemeContext = createContext<ThemeContextValue>({
   theme: "dark",
   setTheme: () => {},
   resolved: "dark",
-  accent: "",
-  setAccent: () => {},
   readerFont: "sans",
   setReaderFont: () => {},
   readerFontSize: "default",
@@ -54,22 +50,6 @@ function applyTheme(resolved: "light" | "dark") {
   root.classList.toggle("light", resolved === "light");
 }
 
-function applyAccentColor(accent: string) {
-  const root = document.documentElement;
-  if (!accent) {
-    root.style.removeProperty("--accent");
-    root.style.removeProperty("--accent-ink");
-    root.style.removeProperty("--accent-2");
-    root.style.removeProperty("--hl");
-    return;
-  }
-
-  root.style.setProperty("--accent", accent);
-  root.style.setProperty("--accent-ink", "#fff");
-  root.style.setProperty("--accent-2", `color-mix(in srgb, ${accent} 14%, transparent)`);
-  root.style.setProperty("--hl", `color-mix(in srgb, ${accent} 22%, transparent)`);
-}
-
 function readerFontValue(font: ReaderFont) {
   if (font === "serif") return "var(--serif)";
   if (font === "mono") return "var(--mono)";
@@ -91,7 +71,6 @@ function applyReaderTypography(font: ReaderFont, size: ReaderFontSize) {
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>("dark");
   const [resolved, setResolved] = useState<"light" | "dark">("dark");
-  const [accent, setAccentState] = useState("");
   const [readerFont, setReaderFontState] = useState<ReaderFont>("sans");
   const [readerFontSize, setReaderFontSizeState] = useState<ReaderFontSize>("default");
 
@@ -99,10 +78,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const stored = localStorage.getItem("mewmo-theme") as Theme | null;
     if (stored && ["light", "dark", "system"].includes(stored)) {
       setThemeState(stored);
-    }
-    const storedAccent = localStorage.getItem("mewmo-accent");
-    if (storedAccent !== null) {
-      setAccentState(storedAccent);
     }
     const storedReaderFont = localStorage.getItem("mewmo-reader-font") as ReaderFont | null;
     if (storedReaderFont && ["sans", "serif", "mono"].includes(storedReaderFont)) {
@@ -138,15 +113,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    applyAccentColor(accent);
-  }, [accent]);
-
-  const setAccent = useCallback((accent: string) => {
-    setAccentState(accent);
-    localStorage.setItem("mewmo-accent", accent);
-  }, []);
-
-  useEffect(() => {
     applyReaderTypography(readerFont, readerFontSize);
   }, [readerFont, readerFontSize]);
 
@@ -166,8 +132,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         theme,
         setTheme,
         resolved,
-        accent,
-        setAccent,
         readerFont,
         setReaderFont,
         readerFontSize,

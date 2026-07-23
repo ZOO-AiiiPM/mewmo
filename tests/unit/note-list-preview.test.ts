@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import {
   buildNoteCardTitle,
   buildNoteMetadataItems,
-  contentTags,
   extractNoteImages,
   formatUpdatedRelative,
   formatNoteListTime,
@@ -12,12 +11,6 @@ import {
 } from "../../apps/web/src/lib/note-list-preview";
 
 describe("note list preview", () => {
-  it("does not add a default tag when content has no matching topic", () => {
-    expect(
-      contentTags({ title: "Untitled", summary: null, content: "" }),
-    ).toEqual([]);
-  });
-
   it("uses note content for the preview text when summary is empty", () => {
     expect(
       notePreviewText({
@@ -97,7 +90,7 @@ describe("note list preview", () => {
     ).toBe("昨天 10:42");
   });
 
-  it("builds editor metadata from update time and tags", () => {
+  it("builds editor metadata from update time", () => {
     expect(
       buildNoteMetadataItems(
         {
@@ -111,7 +104,6 @@ describe("note list preview", () => {
       ),
     ).toEqual({
       details: ["18 分钟前"],
-      tags: ["产品", "AI"],
     });
   });
 
@@ -129,7 +121,6 @@ describe("note list preview", () => {
         title: "2.0 数据层验收清单",
         updatedAt: "2026-07-06T02:00:00.000Z",
         createdAt: "2026-07-05T02:00:00.000Z",
-        tags: ["数据层", "产品"],
         preview: "db / auth / queue",
       }),
     ).toContain("修改：");
@@ -138,7 +129,6 @@ describe("note list preview", () => {
         title: "2.0 数据层验收清单",
         updatedAt: "2026-07-06T02:00:00.000Z",
         createdAt: "2026-07-05T02:00:00.000Z",
-        tags: ["数据层", "产品"],
         preview: "db / auth / queue",
       }),
     ).toContain("创建：");

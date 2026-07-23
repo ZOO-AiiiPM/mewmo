@@ -11,27 +11,10 @@ export interface NoteMetadataSource extends NotePreviewSource {
   updatedAt: string;
 }
 
-export const noteTagPalette: Record<string, string> = {
-  产品: "#4caf72",
-  数据层: "#a874e0",
-  读书: "#4f93e8",
-  AI: "#e0a93a",
-};
-
 const markdownImagePattern = /!\[[^\]]*]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
 const htmlImagePattern = /<img\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi;
 const tableDividerCellPattern = /^:?-{3,}:?$/;
 const DAY = 24 * 60 * 60 * 1000;
-
-export function contentTags(note: NotePreviewSource) {
-  const text = `${note.title} ${note.summary ?? ""} ${note.content ?? ""}`.toLowerCase();
-  const tags: string[] = [];
-  if (text.includes("产品") || text.includes("定位")) tags.push("产品");
-  if (text.includes("数据") || text.includes("db") || text.includes("api")) tags.push("数据层");
-  if (text.includes("ai")) tags.push("AI");
-  if (text.includes("读") || text.includes("book")) tags.push("读书");
-  return tags.slice(0, 2);
-}
 
 export function notePreviewText(note: Pick<NotePreviewSource, "summary" | "preview" | "content">) {
   const source =
@@ -161,7 +144,6 @@ export function noteWordCount(content: string | null | undefined) {
 export function buildNoteMetadataItems(note: NoteMetadataSource, now = new Date()) {
   return {
     details: [formatUpdatedRelative(note.updatedAt, now)],
-    tags: contentTags(note),
   };
 }
 
@@ -186,20 +168,17 @@ export function buildNoteCardTitle({
   title,
   updatedAt,
   createdAt,
-  tags,
   preview,
 }: {
   title: string;
   updatedAt: string;
   createdAt?: string | undefined;
-  tags: string[];
   preview: string;
 }) {
   return [
     title,
     `修改：${formatNoteDateTime(updatedAt)}`,
     createdAt ? `创建：${formatNoteDateTime(createdAt)}` : null,
-    tags.length ? tags.join(" / ") : null,
     preview || null,
   ]
     .filter(Boolean)
