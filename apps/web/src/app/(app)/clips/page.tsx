@@ -225,8 +225,11 @@ export default function ClipsPage() {
       "clips",
       clipToLoad.id,
     );
-    setSelectedClip(cachedDetail ?? clipToLoad);
-    if (cachedDetail && isWorkspaceDetailFresh("clips", clipToLoad)) {
+    const cacheIsFresh =
+      !!cachedDetail && isWorkspaceDetailFresh("clips", clipToLoad);
+    const cacheHasMeta = !!(cachedDetail?.author && cachedDetail?.publishedAt);
+    setSelectedClip(cacheIsFresh && cacheHasMeta ? cachedDetail : clipToLoad);
+    if (cacheIsFresh && cacheHasMeta) {
       setLoadingClipId(null);
       return;
     }
