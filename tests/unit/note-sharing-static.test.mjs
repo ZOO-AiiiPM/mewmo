@@ -12,6 +12,7 @@ test("protected note sharing has data model, routes, auth callback, and note UI 
   const notesPage = read("apps/web/src/app/(app)/notes/[slug]/NoteEditorPage.tsx");
 
   assert.match(schema, /model NoteShare \{[\s\S]*token\s+String\s+@unique/);
+  assert.match(schema, /model NoteShare \{[\s\S]*expiresAt\s+DateTime\?/);
   assert.match(schema, /model Note \{[\s\S]*shares\s+NoteShare\[\]/);
   assert.match(schema, /model User \{[\s\S]*noteShares\s+NoteShare\[\]/);
   assert.match(middleware, /"\/share\/:path\*"/);
@@ -26,10 +27,15 @@ test("protected note sharing has data model, routes, auth callback, and note UI 
   assert.match(shareRoute, /deletedAt:\s*null/);
   assert.match(shareRoute, /\/share\/notes\/\$\{share\.token\}/);
 
+  const shareRepo = read("packages/db/src/repositories/note-shares.ts");
+  assert.match(shareRepo, /7\s*\*\s*24\s*\*\s*60\s*\*\s*60\s*\*\s*1000/);
+  assert.match(shareRepo, /expiresAt/);
+
   const sharedPage = read("apps/web/src/app/share/notes/[token]/page.tsx");
   assert.match(sharedPage, /auth\(\)/);
   assert.match(sharedPage, /notFound\(\)/);
   assert.match(sharedPage, /revokedAt:\s*null/);
+  assert.match(sharedPage, /expiresAt:\s*\{\s*gt:\s*new Date\(\)\s*\}/);
   assert.match(sharedPage, /deletedAt:\s*null/);
   assert.match(sharedPage, /SharedNoteMarkdown/);
   assert.match(sharedPage, /ShareThemeToggle/);
@@ -84,11 +90,12 @@ test("protected note sharing has data model, routes, auth callback, and note UI 
   assert.match(notesPage, /fetch\(`\/api\/notes\/\$\{item\.id\}\/share`/);
   assert.match(notesPage, /navigator\.clipboard\?\.writeText\(shareUrl\)/);
   assert.match(notesPage, /showToast\("正在生成分享链接\.\.\.",\s*"loading"\)/);
-  assert.match(notesPage, /showToast\(`分享链接已复制：\$\{shareUrl\}`,\s*"success",\s*\{/);
+  assert.match(notesPage, /showToast\("分享链接已复制，7 天内有效",\s*"success",\s*\{/);
   assert.match(notesPage, /persistent:\s*true/);
   assert.match(notesPage, /label:\s*"已复制"/);
-  assert.match(notesPage, /label:\s*"关闭"/);
+  assert.match(notesPage, /label:\s*"取消"/);
   assert.match(notesPage, /dismissToast\(\)/);
-  assert.doesNotMatch(notesPage, /showToast\(`已复制分享链接：\$\{shareUrl\}`,\s*"success"\)/);
+  assert.doesNotMatch(notesPage, /showToast\(`分享链接已复制：\$\{shareUrl\}`/);
+  assert.doesNotMatch(notesPage, /showToast\("已复制到剪贴板"/);
   assert.doesNotMatch(notesPage, /onShare=\{\(\) => showToast\("已复制分享链接"\)\}/);
 });

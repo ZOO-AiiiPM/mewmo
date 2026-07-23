@@ -474,7 +474,7 @@ export function NoteEditorPage({
 
       const shareUrl = new URL(data.url, window.location.origin).toString();
       await navigator.clipboard?.writeText(shareUrl);
-      showToast(`分享链接已复制：${shareUrl}`, "success", {
+      showToast("分享链接已复制，7 天内有效", "success", {
         persistent: true,
         actions: [
           {
@@ -482,11 +482,10 @@ export function NoteEditorPage({
             variant: "primary",
             onClick: () => {
               void navigator.clipboard?.writeText(shareUrl);
-              showToast("已复制到剪贴板", "success");
             },
           },
           {
-            label: "关闭",
+            label: "取消",
             variant: "ghost",
             onClick: () => dismissToast(),
           },

@@ -5066,16 +5066,18 @@ html.light .acct-submenu {
 }
 
 .mewmo-toast__inner--actions {
-  flex-direction: column;
-  align-items: stretch;
-  gap: 10px;
-  max-width: min(460px, 86vw);
+  gap: 14px;
+  max-width: min(520px, 90vw);
   pointer-events: auto;
+}
+
+.mewmo-toast__inner--actions .mewmo-toast__body {
+  flex: none;
 }
 
 .mewmo-toast__actions {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
   gap: 8px;
 }
 
