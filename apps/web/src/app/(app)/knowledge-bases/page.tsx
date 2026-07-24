@@ -995,7 +995,7 @@ function SourceStrip({
   url: string;
 }) {
   return (
-    <div className="mewmo-source-strip">
+    <div className="mewmo-doc-meta">
       <PrototypeIcon name={card.icon} size={16} />
       {knowledgeMetaItems(card).map((metaItem, index) => (
         <span key={`${metaItem}-${index}`}>
@@ -1003,9 +1003,17 @@ function SourceStrip({
           {metaItem}
         </span>
       ))}
-      <a href={url} target="_blank" rel="noreferrer">
-        原文
-      </a>
+      <span>
+        <b aria-hidden="true">·</b>
+        <a
+          className="mewmo-doc-meta__link"
+          href={url}
+          target="_blank"
+          rel="noreferrer"
+        >
+          原文
+        </a>
+      </span>
     </div>
   );
 }
