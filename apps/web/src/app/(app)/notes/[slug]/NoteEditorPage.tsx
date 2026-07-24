@@ -7,7 +7,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
 } from "react";
 import { CardActionMenu } from "../../../../components/shell/CardActionMenu";
 import { useAISidebarContext } from "../../../../components/shell/AISidebar";
@@ -27,11 +26,9 @@ import {
 import { useToast } from "../../../../components/ui/ToastProvider";
 import {
   buildNoteCardTitle,
-  contentTags,
   extractNoteImages,
   formatNoteListTime,
   notePreviewText,
-  noteTagPalette,
 } from "../../../../lib/note-list-preview";
 import {
   buildNoteCopyMarkdown,
@@ -109,7 +106,7 @@ export function NoteEditorPage({
   note,
   notes: initialNotes,
 }: NoteEditorPageProps) {
-  const { showToast } = useToast();
+  const { showToast, dismissToast } = useToast();
   const { setContentContext } = useAISidebarContext();
   const userId = useWorkspaceAccountId();
   const listRef = useRef<HTMLDivElement>(null);
@@ -517,7 +514,16 @@ export function NoteEditorPage({
 
       const shareUrl = new URL(data.url, window.location.origin).toString();
       await navigator.clipboard?.writeText(shareUrl);
-      showToast(`已复制分享链接：${shareUrl}`, "success");
+      showToast(`分享链接已复制：${shareUrl}`, "success", {
+        persistent: true,
+        actions: [
+          {
+            label: "关闭",
+            variant: "ghost",
+            onClick: () => dismissToast(),
+          },
+        ],
+      });
     } catch {
       showToast("分享链接生成失败", "error");
     }
@@ -629,7 +635,6 @@ export function NoteEditorPage({
         <div className="mewmo-list-stack">
           {visibleNotes.map((item) => {
             const content = item.content ?? "";
-            const tags = contentTags({ ...item, content });
             const preview = notePreviewText({ ...item, content: item.content });
             const images = extractNoteImages(content);
             const menuOpen = openMenuId === item.id;
@@ -653,7 +658,6 @@ export function NoteEditorPage({
                     title: item.title,
                     updatedAt: item.updatedAt,
                     createdAt: item.createdAt,
-                    tags,
                     preview,
                   })}
                 >
@@ -672,19 +676,6 @@ export function NoteEditorPage({
                   )}
                   <div className="mewmo-list-card__meta">
                     <span>{formatNoteListTime(item.createdAt ?? item.updatedAt)}</span>
-                    {tags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="mewmo-tag-pill"
-                        style={
-                          {
-                            "--tc": noteTagPalette[tag],
-                          } as CSSProperties
-                        }
-                      >
-                        {tag}
-                      </span>
-                    ))}
                   </div>
                 </button>
                 {item.pinned && (

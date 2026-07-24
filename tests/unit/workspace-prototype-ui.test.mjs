@@ -287,19 +287,11 @@ test("notes and clips list cards expose prototype actions, search, and pinned st
     );
   }
 
-  for (const source of [notesIndex, noteDetail]) {
-    assert.match(
-      source,
-      /contentTags/,
-      "note cards should keep content tag pills",
-    );
-  }
-
-  for (const source of [clipsIndex, clipDetail]) {
+  for (const source of [notesIndex, noteDetail, clipsIndex, clipDetail]) {
     assert.doesNotMatch(
       source,
       /contentTags|mewmo-tag-pill/,
-      "clip cards should temporarily hide tag pills in the left list",
+      "list cards should not render tag pills after the tag feature removal",
     );
   }
 
@@ -1518,7 +1510,7 @@ test("all popover menu items expose a prototype icon slot", () => {
       `PrototypeIcon should include the account menu ${icon} icon copied from the prototype`,
     );
   }
-  for (const label of ["主题色", "外观模式", "字体字号", "帮助和支持", "导入导出", "登出"]) {
+  for (const label of ["外观模式", "字体字号", "帮助和支持", "导入导出", "登出"]) {
     assert.match(
       sidebar,
       new RegExp(`icon="[a-z-]+"[\\s\\S]*${label}`),
@@ -1557,11 +1549,40 @@ test("all popover menu items expose a prototype icon slot", () => {
   );
 });
 
+test("account menu logout button signs the user out", () => {
+  const sidebar = read("apps/web/src/components/shell/Sidebar.tsx");
+  assert.match(
+    sidebar,
+    /import \{ signOut \} from "next-auth\/react"/,
+    "sidebar should import signOut from next-auth/react to power logout",
+  );
+  assert.match(
+    sidebar,
+    /signOut\(\{\s*callbackUrl:\s*"\/login"\s*\}\)/,
+    "logout should sign out and redirect to the login page",
+  );
+  assert.match(
+    sidebar,
+    /icon="logout"\s+onClick=\{\(\) => setLogoutOpen\(true\)\}/,
+    "the account menu logout button should open the logout confirmation",
+  );
+  assert.match(
+    sidebar,
+    /title="确认登出？"/,
+    "logout should ask for confirmation before signing out",
+  );
+  assert.doesNotMatch(
+    sidebar,
+    /icon="logout"\s+onClick=\{defer\}/,
+    "logout button should no longer be a deferred placeholder",
+  );
+});
+
 test("account menu restores prototype right-side submenus", () => {
   const sidebar = read("apps/web/src/components/shell/Sidebar.tsx");
   const css = read("apps/web/src/app/globals.css");
 
-  for (const label of ["主题色", "外观模式", "字体字号", "导入导出"]) {
+  for (const label of ["外观模式", "字体字号", "导入导出"]) {
     assert.match(
       sidebar,
       new RegExp(`<AccountSubmenu label="${label}"[\\s\\S]*acct-submenu`),
@@ -1572,11 +1593,6 @@ test("account menu restores prototype right-side submenus", () => {
     sidebar,
     /className="acct-chev"[\s\S]*name="caret"/,
     "account submenu parents should render the prototype caret icon",
-  );
-  assert.match(
-    sidebar,
-    /acct-submenu--color[\s\S]*sw--mono[\s\S]*data-accent/,
-    "theme color submenu should render prototype swatches instead of a deferred button",
   );
   for (const label of ["跟随系统", "深色模式", "浅色模式", "导入", "导出"]) {
     assert.match(
@@ -1602,70 +1618,24 @@ test("account menu restores prototype right-side submenus", () => {
   );
 });
 
-test("account theme swatches apply the prototype accent variables", () => {
+test("account theme color swatches are removed", () => {
   const sidebar = read("apps/web/src/components/shell/Sidebar.tsx");
   const theme = read("apps/web/src/lib/theme.tsx");
-  const css = read("apps/web/src/app/globals.css");
 
-  assert.match(
+  assert.doesNotMatch(
     theme,
-    /applyAccentColor\(accent:[\s\S]*root\.style\.removeProperty\("--accent"\)[\s\S]*root\.style\.removeProperty\("--accent-ink"\)[\s\S]*root\.style\.removeProperty\("--accent-2"\)[\s\S]*root\.style\.removeProperty\("--hl"\)/,
-    "mono accent should remove prototype accent overrides so light/dark defaults take over",
-  );
-  assert.match(
-    theme,
-    /root\.style\.setProperty\("--accent",\s*accent\)/,
-    "custom accent should update the prototype --accent variable",
-  );
-  assert.match(
-    theme,
-    /root\.style\.setProperty\("--accent-ink",\s*"#fff"\)/,
-    "custom accent should force white foreground like the prototype",
-  );
-  assert.match(
-    theme,
-    /root\.style\.setProperty\("--accent-2",\s*`color-mix\(in srgb, \$\{accent\} 14%, transparent\)`\)/,
-    "custom accent should derive the prototype translucent accent fill",
-  );
-  assert.match(
-    theme,
-    /root\.style\.setProperty\("--hl",\s*`color-mix\(in srgb, \$\{accent\} 22%, transparent\)`\)/,
-    "custom accent should derive the prototype selection highlight",
-  );
-  assert.match(
-    theme,
-    /localStorage\.getItem\("mewmo-accent"\)[\s\S]*localStorage\.setItem\("mewmo-accent",\s*accent\)/,
-    "accent selection should persist separately from light/dark appearance mode",
-  );
-  assert.match(
-    sidebar,
-    /const \{ theme, setTheme, accent, setAccent \} = useTheme\(\)/,
-    "sidebar should read the current accent from the shared theme state",
-  );
-  assert.match(
-    sidebar,
-    /className=\{`sw \$\{item\.mono \? "sw--mono" : ""\} \$\{accent === item\.value \? "on" : ""\}`\}/,
-    "theme swatch selected state should follow the current accent instead of always marking mono",
-  );
-  assert.match(
-    sidebar,
-    /onClick=\{\(\) => setAccent\(item\.value\)\}/,
-    "theme swatches should apply the selected accent instead of showing a placeholder toast",
-  );
-  assert.match(
-    css,
-    /\.acct-sub__swatches\s+\.sw\s*\{[\s\S]*width:\s*24px[\s\S]*height:\s*24px[\s\S]*position:\s*relative[\s\S]*box-shadow:\s*inset 0 0 0 1px rgba\(0,\s*0,\s*0,\s*\.12\)/,
-    "theme swatches should keep the prototype 24px painted circle with an inset edge",
-  );
-  assert.match(
-    css,
-    /\.acct-sub__swatches\s+\.sw\.on\s*\{[\s\S]*box-shadow:\s*0 0 0 2px var\(--s1\),\s*0 0 0 4px var\(--ink\)/,
-    "selected theme swatches should draw the prototype outer ring without shrinking the painted circle",
+    /applyAccentColor|setAccent|mewmo-accent/,
+    "theme state should no longer expose accent controls after the theme-color removal",
   );
   assert.doesNotMatch(
-    css,
-    /\.acct-sub__swatches\s+\.sw\s*\{[\s\S]*border:\s*2px solid transparent/,
-    "theme swatches should not use an internal border ring that clips the mono conic-gradient",
+    sidebar,
+    /acct-submenu--color|data-accent|setAccent|accentSwatches/,
+    "sidebar account menu should no longer render theme color swatches",
+  );
+  assert.doesNotMatch(
+    sidebar,
+    /<AccountSubmenu label="主题色"/,
+    "the theme color account submenu should be removed",
   );
 });
 
@@ -1707,7 +1677,7 @@ test("account font submenu applies reader typography and stays inside the viewpo
   );
   assert.match(
     sidebar,
-    /const \{ theme, setTheme, accent, setAccent \} = useTheme\(\)[\s\S]*const \{ readerFont, setReaderFont, readerFontSize, setReaderFontSize \} = useTheme\(\)/,
+    /const \{ theme, setTheme \} = useTheme\(\)[\s\S]*const \{ readerFont, setReaderFont, readerFontSize, setReaderFontSize \} = useTheme\(\)/,
     "account menu should read and update reader typography from shared theme state",
   );
   for (const font of ["sans", "serif", "mono"]) {
@@ -1989,44 +1959,13 @@ test("list title menu no longer exposes sorting controls", () => {
   assert.match(knowledgePage, /sortKnowledgeItemsForList\(filtered\)/);
 });
 
-test("note metadata tags open the prototype tag picker popover", () => {
+test("note metadata tag picker is removed", () => {
   const noteEditor = read("apps/web/src/components/editor/NoteEditor.tsx");
-  const css = read("apps/web/src/app/globals.css");
 
-  assert.match(
-    noteEditor,
-    /PopoverMenu/,
-    "note metadata tags should use the shared popover primitive for outside-click close and viewport positioning",
-  );
-  assert.match(
-    noteEditor,
-    /tagPickerAnchorRef/,
-    "tag picker should anchor to the metadata tag group instead of using static absolute positioning",
-  );
-  assert.match(
-    noteEditor,
-    /className="mewmo-tag-picker"/,
-    "tag picker should keep the prototype tag-picker surface class",
-  );
-  assert.match(
-    noteEditor,
-    /mewmo-tag-picker__item[\s\S]*PrototypeIcon name="check"/,
-    "checked tag rows should render the prototype check icon instead of a text glyph",
-  );
-  assert.match(
-    noteEditor,
-    /mewmo-tag-picker__create[\s\S]*PrototypeIcon name="plus"/,
-    "create-tag row should include a leading prototype plus icon",
-  );
-  assert.match(
-    css,
-    /\.mewmo-tag-picker\s*\{[\s\S]*width:\s*220px[\s\S]*background:\s*var\(--raised\)[\s\S]*transition:/,
-    "tag picker card should use the prototype white raised card and animated popover state",
-  );
   assert.doesNotMatch(
-    css,
-    /\.mewmo-tag-picker\s*\{[^}]*display:\s*none|\.mewmo-tag-picker\.open\s*\{[^}]*display:\s*block/,
-    "tag picker should not use display toggles that skip close transitions",
+    noteEditor,
+    /mewmo-tag-picker|tagPickerAnchorRef|tagPickerOpen|noteTagPalette/,
+    "note editor should no longer render the tag picker after the tag feature removal",
   );
 });
 

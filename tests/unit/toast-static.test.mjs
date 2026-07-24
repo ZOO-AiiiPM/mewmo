@@ -107,7 +107,7 @@ test("failure toasts use a red exclamation icon in every toast component", () =>
 test("toast helper requires every call site to choose a visual state", () => {
   const provider = read("apps/web/src/components/ui/ToastProvider.tsx");
   const sharedToast = read("packages/ui/src/components/Toast.tsx");
-  assert.match(provider, /showToast: \(text: string, type: ToastType\) => void/);
+  assert.match(provider, /showToast: \(text: string, type: ToastType, options\?: ToastOptions\) => void/);
   assert.doesNotMatch(provider, /type: ToastType = "success"/);
   assert.match(sharedToast, /type: "info" \| "success" \| "error"/);
   assert.doesNotMatch(sharedToast, /type\?: "info" \| "success" \| "error"/);
@@ -143,7 +143,9 @@ test("toast grows with content but wraps long messages at the viewport cap", () 
   assert.match(toastCss, /\.mewmo-toast__inner\s*\{[\s\S]*max-width:\s*80vw/);
   assert.match(toastCss, /\.mewmo-toast__inner\s*\{[\s\S]*white-space:\s*normal/);
   assert.match(toastCss, /\.mewmo-toast__message\s*\{[\s\S]*overflow-wrap:\s*anywhere/);
-  assert.doesNotMatch(toastCss, /\.mewmo-toast__inner\s*\{[\s\S]*white-space:\s*nowrap/);
+  assert.doesNotMatch(toastCss, /\.mewmo-toast__inner\s*\{[^}]*white-space:\s*nowrap/);
+  assert.match(toastCss, /\.mewmo-toast__inner--actions \.mewmo-toast__message\s*\{[^}]*white-space:\s*nowrap/);
+  assert.match(toastCss, /\.mewmo-toast__inner--actions \.mewmo-toast__message\s*\{[^}]*text-overflow:\s*ellipsis/);
 });
 
 test("failure and blocked-action toast call sites explicitly request the error state", () => {

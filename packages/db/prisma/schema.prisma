@@ -133,6 +133,7 @@ model NoteShare {
   ownerId   String    @map("owner_id")
   token     String    @unique
   createdAt DateTime  @default(now()) @map("created_at")
+  expiresAt DateTime? @map("expires_at")
   revokedAt DateTime? @map("revoked_at")
 
   note  Note @relation(fields: [noteId], references: [id], onDelete: Cascade)

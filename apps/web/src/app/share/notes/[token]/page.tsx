@@ -27,6 +27,7 @@ export default async function SharedNotePage({ params }: { params: Promise<{ tok
     where: {
       token,
       revokedAt: null,
+      OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
       note: { is: { deletedAt: null } },
     },
     include: {
