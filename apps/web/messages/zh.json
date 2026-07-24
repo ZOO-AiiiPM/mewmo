@@ -179,6 +179,10 @@
     "import": "导入",
     "export": "导出",
     "logout": "登出",
+    "logoutConfirmTitle": "确认登出？",
+    "logoutConfirmDescription": "登出后需要重新登录才能访问你的工作区。",
+    "logoutPending": "登出中…",
+    "logoutFailed": "登出失败，请重试",
     "language": "界面语言"
   },
   "settings": {

@@ -17,6 +17,7 @@ interface KnowledgeNote {
   content?: string | null;
   updatedAt?: string;
   createdAt?: string;
+  version?: number;
 }
 
 interface KnowledgeClip {

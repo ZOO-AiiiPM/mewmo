@@ -23,6 +23,6 @@ export async function loadPresetSkills(): Promise<AgentSkillResource[]> {
     content,
     filePath: new URL("../prompts/skills/deep-insight.zh.md", import.meta.url).pathname,
     modelPurpose: "agent.deep_insight",
-    allowedTools: ["read_current_context", "content_search", "content_read"],
+    allowedTools: ["read_current_context", "content_search", "content_read", "web_search", "web_fetch"],
   }];
 }

@@ -179,6 +179,10 @@
     "import": "Import",
     "export": "Export",
     "logout": "Log out",
+    "logoutConfirmTitle": "Log out?",
+    "logoutConfirmDescription": "You will need to log in again to access your workspace.",
+    "logoutPending": "Logging out…",
+    "logoutFailed": "Failed to log out. Please try again.",
     "language": "Language"
   },
   "settings": {

@@ -50,6 +50,7 @@ export async function loadFoundationAdapters() {
             userMessage: messageView(entryRecord(userEntry), "user"),
             assistantMessage: messageView(entryRecord(assistantEntry), "assistant"),
             ...(input.proposals.length ? { proposals: input.proposals } : {}),
+            ...(input.citations?.length ? { citations: input.citations } : {}),
             ...usagePatch(entryRecord(assistantEntry)),
           };
           await sessions.completeTurn(actor(input.actor), {

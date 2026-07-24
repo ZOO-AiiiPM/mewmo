@@ -4,6 +4,7 @@ import test from "node:test";
 
 const page = () => readFileSync("apps/web/src/app/(marketing)/page.tsx", "utf8");
 const css = () => readFileSync("apps/web/src/app/globals.css", "utf8");
+const enMessages = () => JSON.parse(readFileSync("apps/web/messages/en.json", "utf8"));
 
 test("marketing landing uses a product-led hero instead of generic feature cards", () => {
   const source = page();
@@ -25,9 +26,12 @@ test("marketing landing uses a product-led hero instead of generic feature cards
   );
   assert.match(
     source,
-    /Collect|Read|Rediscover/,
+    /t\("scenarios\.collect\.step"\)[\s\S]*t\("scenarios\.read\.step"\)[\s\S]*t\("scenarios\.rediscover\.step"\)/,
     "landing should frame the product around the collect/read/rediscover workflow",
   );
+  assert.equal(enMessages().marketing.scenarios.collect.step, "Collect");
+  assert.equal(enMessages().marketing.scenarios.read.step, "Read");
+  assert.equal(enMessages().marketing.scenarios.rediscover.step, "Rediscover");
   assert.doesNotMatch(
     source,
     /grid grid-cols-1 md:grid-cols-3 gap-6/,
@@ -55,9 +59,12 @@ test("marketing landing shows AI context and product scenario sections", () => {
   );
   assert.match(
     source,
-    /Save without sorting|Read what is already waiting|Rediscover the thread/,
+    /t\("scenarios\.collect\.title"\)[\s\S]*t\("scenarios\.read\.title"\)[\s\S]*t\("scenarios\.rediscover\.title"\)/,
     "scenario copy should narrate save, read, and rediscover workflows",
   );
+  assert.equal(enMessages().marketing.scenarios.collect.title, "Save without sorting.");
+  assert.equal(enMessages().marketing.scenarios.read.title, "Read what is already waiting.");
+  assert.equal(enMessages().marketing.scenarios.rediscover.title, "Rediscover the thread.");
 });
 
 test("marketing landing keeps the provided AI image inside the existing slim card frame", () => {

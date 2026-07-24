@@ -2,6 +2,8 @@ import type { AIProvider, ModelClientOptions, ResolvedModelClientConfig } from "
 
 const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";
 const DEFAULT_ANTHROPIC_BASE_URL = "https://api.anthropic.com/v1";
+// Legacy ModelClient talks to Gemini through its OpenAI-compatible surface.
+const DEFAULT_GOOGLE_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai";
 
 export interface AIConfig {
   provider: AIProvider;
@@ -28,6 +30,15 @@ export function resolveAIConfig(input: Record<string, string | undefined> = proc
       provider,
       apiKey: requireValue(input.CUSTOM_AI_API_KEY, "CUSTOM_AI_API_KEY is required"),
       baseUrl: trimTrailingSlash(requireValue(input.CUSTOM_AI_BASE_URL, "CUSTOM_AI_BASE_URL is required")),
+      summaryModel,
+    };
+  }
+
+  if (provider === "google") {
+    return {
+      provider,
+      apiKey: requireValue(input.GEMINI_API_KEY, "GEMINI_API_KEY is required"),
+      baseUrl: trimTrailingSlash(input.GEMINI_BASE_URL ?? DEFAULT_GOOGLE_BASE_URL),
       summaryModel,
     };
   }
@@ -74,6 +85,9 @@ function providerApiKey(provider: AIProvider, input: Record<string, string | und
   if (provider === "custom") {
     return requireValue(input.CUSTOM_AI_API_KEY, "CUSTOM_AI_API_KEY is required");
   }
+  if (provider === "google") {
+    return requireValue(input.GEMINI_API_KEY, "GEMINI_API_KEY is required");
+  }
   return requireValue(input.OPENAI_API_KEY, "OPENAI_API_KEY is required");
 }
 
@@ -84,18 +98,22 @@ function providerBaseUrl(provider: AIProvider, input: Record<string, string | un
   if (provider === "custom") {
     return requireValue(input.CUSTOM_AI_BASE_URL, "CUSTOM_AI_BASE_URL is required");
   }
+  if (provider === "google") {
+    return input.GEMINI_BASE_URL?.trim() || DEFAULT_GOOGLE_BASE_URL;
+  }
   return input.OPENAI_BASE_URL?.trim() || DEFAULT_OPENAI_BASE_URL;
 }
 
 function parseProvider(value: string | undefined): AIProvider {
   if (!value) return "openai";
-  if (value === "openai" || value === "anthropic" || value === "custom") return value;
-  throw new Error("AI_PROVIDER must be openai, anthropic, or custom");
+  if (value === "openai" || value === "anthropic" || value === "custom" || value === "google") return value;
+  throw new Error("AI_PROVIDER must be openai, anthropic, custom, or google");
 }
 
 function providerEnvPrefix(provider: AIProvider) {
   if (provider === "custom") return "CUSTOM_AI";
   if (provider === "anthropic") return "ANTHROPIC";
+  if (provider === "google") return "GEMINI";
   return "OPENAI";
 }
 

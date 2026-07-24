@@ -143,7 +143,7 @@ export function noteWordCount(content: string | null | undefined) {
 
 export function buildNoteMetadataItems(note: NoteMetadataSource, now = new Date()) {
   return {
-    details: [formatUpdatedRelative(note.updatedAt, now)],
+    details: [`上次编辑时间：${formatUpdatedRelative(note.updatedAt, now)}`],
   };
 }
 

@@ -44,7 +44,7 @@ export function buildAgentServer(dependencies: AgentServerDependencies): Fastify
     if (started.cached) return started.cached;
     try {
       const result = await dependencies.runtime.run({ actor: request.agentActor, chatId: request.params.chatId, turnId: started.turnId, workerId, request: body });
-      return dependencies.application.turns.complete({ actor: request.agentActor, turnId: started.turnId, workerId, assistantEntryId: result.assistantEntryId, proposals: result.proposals });
+      return dependencies.application.turns.complete({ actor: request.agentActor, turnId: started.turnId, workerId, assistantEntryId: result.assistantEntryId, proposals: result.proposals, citations: result.citations });
     } catch (error) {
       await dependencies.application.turns.fail({ actor: request.agentActor, turnId: started.turnId, workerId, code: errorCode(error), message: errorMessage(error), interrupted: isInterrupted(error) });
       throw error;
@@ -68,7 +68,7 @@ export function buildAgentServer(dependencies: AgentServerDependencies): Fastify
     }
     try {
       const result = await dependencies.runtime.run({ actor: request.agentActor, chatId: request.params.chatId, turnId: started.turnId, workerId, request: body }, (event) => streamEvent(send, event));
-      const response = await dependencies.application.turns.complete({ actor: request.agentActor, turnId: started.turnId, workerId, assistantEntryId: result.assistantEntryId, proposals: result.proposals });
+      const response = await dependencies.application.turns.complete({ actor: request.agentActor, turnId: started.turnId, workerId, assistantEntryId: result.assistantEntryId, proposals: result.proposals, citations: result.citations });
       send("result", response);
     } catch (error) {
       await dependencies.application.turns.fail({ actor: request.agentActor, turnId: started.turnId, workerId, code: errorCode(error), message: errorMessage(error), interrupted: isInterrupted(error) });

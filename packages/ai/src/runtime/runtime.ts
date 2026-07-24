@@ -15,7 +15,11 @@ import {
 import * as anthropicMessagesApi from "@earendil-works/pi-ai/api/anthropic-messages";
 import * as openAICompletionsApi from "@earendil-works/pi-ai/api/openai-completions";
 import { anthropicProvider } from "@earendil-works/pi-ai/providers/anthropic";
+import { googleProvider } from "@earendil-works/pi-ai/providers/google";
 import { openaiProvider } from "@earendil-works/pi-ai/providers/openai";
+
+import { createReranker } from "../rerank";
+import { passthroughResult } from "../rerank/passthrough";
 
 import type {
   AIRuntime,
@@ -46,9 +50,14 @@ export function createAIRuntime(config: AIRuntimeConfig): AIRuntime {
   const models = createModels({ ...(config.credentials ? { credentials: config.credentials } : {}) });
   const providerIds = new Map<string, string>();
   const builtinProviders = new Set<string>();
+  const reranker = createReranker(config.reranker ?? {});
 
   for (const [providerKey, definition] of Object.entries(config.providers)) {
-    const configuredModels = Object.values(config.models)
+    // Embedding models never flow through Pi's model registry (see `embed`), so
+    // they must not gate builtin-provider selection or endpoint model lists.
+    const configuredModels = Object.entries(config.models)
+      .filter(([purpose]) => purpose !== "workflow.embedding")
+      .map(([, model]) => model)
       .filter((model): model is ModelDefinition => model?.provider === providerKey)
       .filter((model, index, values) => values.findIndex((value) => value.model === model.model) === index);
     const builtIn = createBuiltinProvider(definition, configuredModels);
@@ -118,11 +127,14 @@ export function createAIRuntime(config: AIRuntimeConfig): AIRuntime {
       if (!definition) throw new Error(`AI provider is not configured: ${modelDefinition.provider}`);
       if (definition.provider === "anthropic") throw new Error("anthropic provider does not support embeddings");
       return {
-        embeddings: await requestEmbeddings(definition, modelDefinition.model, input.values),
+        embeddings: await requestEmbeddings(definition, modelDefinition, input.values),
         purpose: input.purpose,
         provider: definition.provider,
         model: modelDefinition.model,
       };
+    },
+    async rerank(input) {
+      return reranker.rerank(input);
     },
   };
   return runtime;
@@ -153,6 +165,10 @@ export function createFakeAIRuntime(options: FakeAIRuntimeOptions = {}): AIRunti
       const configured = options.embeddings ?? input.values.map(() => [0]);
       const embeddings = typeof configured === "function" ? await configured(input) : configured;
       return { embeddings, purpose: input.purpose, provider: "custom", model: "fake" };
+    },
+    async rerank(input) {
+      if (options.rerank) return options.rerank(input);
+      return passthroughResult(input, { model: "fake", reason: "fake_runtime" });
     },
   };
 }
@@ -224,6 +240,10 @@ function createBuiltinProvider(definition: ProviderDefinition, models: ModelDefi
     const provider = anthropicProvider();
     return models.every((model) => provider.getModels().some((candidate) => candidate.id === model.model)) ? provider : undefined;
   }
+  if (definition.provider === "google") {
+    const provider = googleProvider();
+    return models.every((model) => provider.getModels().some((candidate) => candidate.id === model.model)) ? provider : undefined;
+  }
   return undefined;
 }
 
@@ -285,13 +305,18 @@ function toPiMessage(
   };
 }
 
-async function requestEmbeddings(provider: ProviderDefinition, model: string, values: string[]) {
+async function requestEmbeddings(provider: ProviderDefinition, model: ModelDefinition, values: string[]) {
+  // Gemini exposes embeddings only through its OpenAI-compatible sub-path.
+  const base = trimTrailingSlash(provider.baseUrl);
+  const url = provider.provider === "google" ? `${base}/openai/embeddings` : `${base}/embeddings`;
+  const payload: Record<string, unknown> = { model: model.model, input: values };
+  if (model.dimensions) payload.dimensions = model.dimensions;
   let response: Response;
   try {
-    response = await (provider.fetch ?? fetch)(`${trimTrailingSlash(provider.baseUrl)}/embeddings`, {
+    response = await (provider.fetch ?? fetch)(url, {
       method: "POST",
       headers: { Authorization: `Bearer ${provider.apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model, input: values }),
+      body: JSON.stringify(payload),
     });
   } catch {
     throw new Error(`${provider.provider} embedding request failed during transport`);

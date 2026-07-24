@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
-import { ALL_TOOL_NAMES, READ_TOOL_NAMES } from "../src/tools";
+import { ALL_TOOL_NAMES, READ_TOOL_NAMES, WRITE_TOOL_NAMES } from "../src/tools";
 
 describe("Agent safety eval baseline", () => {
   it("ships the minimum adversarial evaluation corpus", async () => {
@@ -26,6 +26,6 @@ describe("Agent safety eval baseline", () => {
     const prompt = await readFile(new URL("../prompts/skills/deep-insight.zh.md", import.meta.url), "utf8");
     expect(prompt).toContain("此 Skill 只读");
     expect(READ_TOOL_NAMES.every((name) => ALL_TOOL_NAMES.includes(name))).toBe(true);
-    expect(READ_TOOL_NAMES).toHaveLength(3);
+    expect(READ_TOOL_NAMES.some((name) => (WRITE_TOOL_NAMES as readonly string[]).includes(name))).toBe(false);
   });
 });

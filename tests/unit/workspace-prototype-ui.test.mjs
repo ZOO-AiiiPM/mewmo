@@ -800,7 +800,7 @@ test("workspace shell preserves prototype AI rail proportions and resizer", () =
   );
   assert.match(
     appShell,
-    /onClick=\{openAi\}[\s\S]*aria-label="打开 mewmo"/,
+    /onClick=\{openAi\}[\s\S]*aria-label=\{ts\("aiFabOpen"\)\}/,
     "cat entry should only open the AI rail",
   );
   assert.match(
@@ -1510,11 +1510,17 @@ test("all popover menu items expose a prototype icon slot", () => {
       `PrototypeIcon should include the account menu ${icon} icon copied from the prototype`,
     );
   }
-  for (const label of ["外观模式", "字体字号", "帮助和支持", "导入导出", "登出"]) {
+  for (const [pattern, key] of [
+    [/<AccountSubmenu label=\{ta\("appearance"\)\} icon="appearance">/, "appearance"],
+    [/<AccountSubmenu label=\{ta\("fontAndSize"\)\} icon="font-size">/, "fontAndSize"],
+    [/<FloatingMenuButton icon="info"[\s\S]*\{ta\("helpSupport"\)\}/, "helpSupport"],
+    [/<AccountSubmenu label=\{ta\("importExport"\)\} icon="import-export">/, "importExport"],
+    [/<FloatingMenuButton icon="logout"[\s\S]*\{ta\("logout"\)\}/, "logout"],
+  ]) {
     assert.match(
       sidebar,
-      new RegExp(`icon="[a-z-]+"[\\s\\S]*${label}`),
-      `account menu item ${label} should have a leading icon`,
+      pattern,
+      `account menu item ${key} should have a leading icon and translated label`,
     );
   }
   assert.match(
@@ -1549,15 +1555,52 @@ test("all popover menu items expose a prototype icon slot", () => {
   );
 });
 
+test("account menu logout button signs the user out", () => {
+  const sidebar = read("apps/web/src/components/shell/Sidebar.tsx");
+  const zhMessages = JSON.parse(read("apps/web/messages/zh.json"));
+  const enMessages = JSON.parse(read("apps/web/messages/en.json"));
+  assert.match(
+    sidebar,
+    /import \{ signOut \} from "next-auth\/react"/,
+    "sidebar should import signOut from next-auth/react to power logout",
+  );
+  assert.match(
+    sidebar,
+    /signOut\(\{\s*callbackUrl:\s*"\/login"\s*\}\)/,
+    "logout should sign out and redirect to the login page",
+  );
+  assert.match(
+    sidebar,
+    /icon="logout"\s+onClick=\{\(\) => setLogoutOpen\(true\)\}/,
+    "the account menu logout button should open the logout confirmation",
+  );
+  assert.match(
+    sidebar,
+    /title=\{ta\("logoutConfirmTitle"\)\}/,
+    "logout should ask for confirmation before signing out",
+  );
+  assert.equal(zhMessages.account.logoutConfirmTitle, "确认登出？");
+  assert.equal(enMessages.account.logoutConfirmTitle, "Log out?");
+  assert.doesNotMatch(
+    sidebar,
+    /icon="logout"\s+onClick=\{defer\}/,
+    "logout button should no longer be a deferred placeholder",
+  );
+});
+
 test("account menu restores prototype right-side submenus", () => {
   const sidebar = read("apps/web/src/components/shell/Sidebar.tsx");
   const css = read("apps/web/src/app/globals.css");
 
-  for (const label of ["外观模式", "字体字号", "导入导出"]) {
+  for (const [key, icon] of [
+    ["appearance", "appearance"],
+    ["fontAndSize", "font-size"],
+    ["importExport", "import-export"],
+  ]) {
     assert.match(
       sidebar,
-      new RegExp(`<AccountSubmenu label="${label}"[\\s\\S]*acct-submenu`),
-      `account menu parent ${label} should expose a right-side submenu like the prototype`,
+      new RegExp(`<AccountSubmenu label=\\{ta\\("${key}"\\)\\} icon="${icon}"[\\s\\S]*acct-submenu`),
+      `account menu parent ${key} should expose a translated right-side submenu like the prototype`,
     );
   }
   assert.match(
@@ -1565,11 +1608,17 @@ test("account menu restores prototype right-side submenus", () => {
     /className="acct-chev"[\s\S]*name="caret"/,
     "account submenu parents should render the prototype caret icon",
   );
-  for (const label of ["跟随系统", "深色模式", "浅色模式", "导入", "导出"]) {
+  for (const [icon, key] of [
+    ["monitor", "themeSystem"],
+    ["moon", "themeDark"],
+    ["sun", "themeLight"],
+    ["import", "import"],
+    ["export", "export"],
+  ]) {
     assert.match(
       sidebar,
-      new RegExp(`<AccountSubmenuRow icon="[a-z-]+"[\\s\\S]*${label}`),
-      `submenu option ${label} should have a leading icon`,
+      new RegExp(`<AccountSubmenuRow icon="${icon}"[\\s\\S]*\\{ta\\("${key}"\\)\\}`),
+      `submenu option ${key} should have a leading icon and translated label`,
     );
   }
   assert.match(
@@ -1720,7 +1769,7 @@ test("today view aggregates notes clips and subscription updates with prototype 
 
   assert.match(
     sidebar,
-    /today:\s*useRememberedWorkspaceHref\("today",\s*"\/today"\)[\s\S]*href=\{rememberedWorkspaceHrefs\.today\}[\s\S]*icon="calendar"[\s\S]*label="今天"/,
+    /today:\s*useRememberedWorkspaceHref\("today",\s*"\/today"\)[\s\S]*href=\{rememberedWorkspaceHrefs\.today\}[\s\S]*icon="calendar"[\s\S]*label=\{t\("today"\)\}/,
     "sidebar today item should navigate to the real today route instead of the deferred placeholder",
   );
   assert.match(

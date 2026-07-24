@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { signOut } from "next-auth/react";
 import {
   cloneElement,
   isValidElement,
@@ -57,9 +58,11 @@ interface SidebarProps {
   onMouseLeave?: (() => void) | undefined;
 }
 
+type NavEntryLabelKey = "notes" | "clips" | "pdf" | "ebook" | "feedArticle";
+
 type NavEntry =
-  | { kind: "link"; href: string; labelKey: string; icon: PrototypeIconName; badge?: string }
-  | { kind: "deferred"; labelKey: string; icon: PrototypeIconName; badge?: string };
+  | { kind: "link"; href: string; labelKey: NavEntryLabelKey; icon: PrototypeIconName; badge?: string }
+  | { kind: "deferred"; labelKey: NavEntryLabelKey; icon: PrototypeIconName; badge?: string };
 
 const collectionEntries: NavEntry[] = [
   { kind: "link", href: "/notes", labelKey: "notes", icon: "note" },
@@ -149,6 +152,8 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
   const [knowledgeFolders, setKnowledgeFolders] = useState<KnowledgeFolderNode[]>([]);
   const [knowledgeMenu, setKnowledgeMenu] = useState<KnowledgeMenuState | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmState | null>(null);
+  const [logoutOpen, setLogoutOpen] = useState(false);
+  const [logoutPending, setLogoutPending] = useState(false);
   const [textPrompt, setTextPrompt] = useState<TextPromptState | null>(null);
   const [textPromptValue, setTextPromptValue] = useState("");
   const [editingKnowledgeFolder, setEditingKnowledgeFolder] = useState<EditingKnowledgeFolderState | null>(null);
@@ -172,6 +177,15 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
   };
 
   const defer = () => showToast(tc("deferredMessage"), "error");
+  const handleLogout = async () => {
+    setLogoutPending(true);
+    try {
+      await signOut({ callbackUrl: "/login" });
+    } catch {
+      setLogoutPending(false);
+      showToast(ta("logoutFailed"), "error");
+    }
+  };
   const activeFeedType = (searchParams.get("type") as FeedType | null) ?? "article";
   const activeFeedId = searchParams.get("feedId");
   const effectiveActiveFeedId = activeFeedId ?? feeds[0]?.id ?? null;
@@ -1052,7 +1066,7 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
             </div>
           </AccountSubmenu>
           <div className="mewmo-menu-separator" />
-          <FloatingMenuButton icon="logout" onClick={defer}>{ta("logout")}</FloatingMenuButton>
+          <FloatingMenuButton icon="logout" onClick={() => setLogoutOpen(true)}>{ta("logout")}</FloatingMenuButton>
         </FloatingMenu>
       </div>
     </aside>
@@ -1064,6 +1078,17 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
       cancelLabel={tc("cancel")}
       onCancel={() => setDeleteConfirm(null)}
       onConfirm={() => void runDeleteConfirm()}
+    />
+    <ConfirmDialog
+      open={logoutOpen}
+      title={ta("logoutConfirmTitle")}
+      description={ta("logoutConfirmDescription")}
+      confirmLabel={logoutPending ? ta("logoutPending") : ta("logout")}
+      cancelLabel={tc("cancel")}
+      onCancel={() => {
+        if (!logoutPending) setLogoutOpen(false);
+      }}
+      onConfirm={() => void handleLogout()}
     />
     <ConfirmDialog
       open={Boolean(textPrompt)}
@@ -1189,9 +1214,8 @@ function renderEntry(
   pathname: string,
   defer: () => void,
   rememberedWorkspaceHrefs: Record<WorkspaceSection, string>,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  t: (key: any, values?: any) => string,
-  tc: (key: any) => string,
+  t: (key: NavEntryLabelKey) => string,
+  tc: (key: "deferred") => string,
 ) {
   const label = t(entry.labelKey);
   const badge = entry.badge === "deferred" ? tc("deferred") : entry.badge;

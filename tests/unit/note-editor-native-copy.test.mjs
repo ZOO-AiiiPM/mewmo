@@ -13,7 +13,10 @@ test("note editor normalizes legacy breaks before Crepe initialization", () => {
     source,
     /const \[editorInitialContent\] = useState\(\(\) =>\s*normalizeNoteMarkdownBreaks\(latestContentRef\.current\)/,
   );
-  assert.match(source, /<CrepeContent[\s\S]*initialContent=\{editorInitialContent\}/);
+  assert.match(
+    source,
+    /<CrepeContent[\s\S]*initialContent=\{editorRevision[\s\S]*:\s*editorInitialContent\}/,
+  );
 });
 
 test("note editor leaves selection copy to the browser", () => {

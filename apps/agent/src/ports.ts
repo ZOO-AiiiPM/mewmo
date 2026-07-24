@@ -3,6 +3,7 @@ import type {
   AgentActionProposal,
   AgentActionView,
   AgentActor,
+  AgentCitation,
   AgentClientEffect,
   AgentMessageResponse,
   SendMessageBody,
@@ -102,6 +103,7 @@ export interface ApplicationPort {
       workerId: string;
       assistantEntryId: string;
       proposals: AgentActionProposal[];
+      citations?: AgentCitation[];
     }): Promise<AgentMessageResponse>;
     fail(input: {
       actor: AgentActor;
@@ -162,6 +164,7 @@ export interface AgentRuntimePort {
   run(context: AgentRequestContext, onEvent?: (event: AgentRuntimeEvent) => Promise<void> | void): Promise<{
     text: string;
     proposals: AgentActionProposal[];
+    citations: AgentCitation[];
     userEntryId: string;
     assistantEntryId: string;
     usage?: AgentMessageResponse["usage"];

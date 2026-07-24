@@ -4,6 +4,9 @@ export interface NoteDraft {
   title: string;
   content: string;
   serverVersion: number;
+  /** Server values the draft was based on; absent on drafts from the pre-conflict format. */
+  baseTitle?: string;
+  baseContent?: string;
   updatedAt: number;
 }
 
