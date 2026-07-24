@@ -29,7 +29,6 @@ interface ReaderToolbarProps {
   onCopyLink?: (() => void) | undefined;
   onFavorite?: (() => void) | undefined;
   favoriteActive?: boolean | undefined;
-  href?: string | undefined;
   moveToKnowledgeTarget?: MoveToKnowledgeTarget | undefined;
 }
 
@@ -52,7 +51,6 @@ export function ReaderToolbar({
   onCopyLink,
   onFavorite,
   favoriteActive = false,
-  href,
   moveToKnowledgeTarget,
 }: ReaderToolbarProps) {
   const menuButtonRef = useRef<HTMLButtonElement>(null);
@@ -103,7 +101,6 @@ export function ReaderToolbar({
             favoriteActive={favoriteActive}
             onFavorite={onFavorite}
             onCopyLink={onCopyLink}
-            href={href}
             moveToKnowledgeTarget={moveToKnowledgeTarget}
           />
         ) : (
@@ -218,20 +215,6 @@ export function ReaderToolbar({
                     </span>
                     <span>复制链接</span>
                   </button>
-                  {href && (
-                    <a
-                      className="mewmo-card-menu__item"
-                      href={href}
-                      target="_blank"
-                      rel="noreferrer"
-                      onClick={() => setMenuOpen(false)}
-                    >
-                      <span className="mewmo-card-menu__icon">
-                        <PrototypeIcon name="external" size={16} />
-                      </span>
-                      <span>浏览器打开</span>
-                    </a>
-                  )}
                   {moveToKnowledgeTarget && (
                     <MoveToKnowledgeMenuItem target={moveToKnowledgeTarget} />
                   )}

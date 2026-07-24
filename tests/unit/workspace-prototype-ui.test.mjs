@@ -992,15 +992,15 @@ test("prototype popovers and dialogs keep icon-bearing structure", () => {
     /mewmo-card-menu__item mewmo-card-menu__item--danger[\s\S]*runMenuAction\(onDelete\)[\s\S]*runMenuAction\(onRefresh\)[\s\S]*runMenuAction\(onCopyLink\)/,
     "clip reader toolbar menu items should keep real clip actions and the inline original-link lives in the metadata strip",
   );
-  assert.match(
+  assert.doesNotMatch(
     readerToolbar,
-    /target="_blank"[\s\S]*rel="noreferrer"[\s\S]*>[\s\S]*浏览器打开/,
-    "clip reader overflow menu should restore the 'open original in browser' anchor",
+    /浏览器打开/,
+    "clip reader overflow menu should no longer expose the 'open original in browser' anchor",
   );
-  assert.match(
+  assert.doesNotMatch(
     feedMenu,
-    /target="_blank"[\s\S]*rel="noreferrer"[\s\S]*>[\s\S]*浏览器打开/,
-    "feed reader overflow menu should also expose the 'open original in browser' anchor",
+    /浏览器打开/,
+    "feed reader overflow menu should no longer expose the 'open original in browser' anchor",
   );
   assert.match(
     readerToolbar,

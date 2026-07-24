@@ -521,7 +521,6 @@ export default function FeedsPage() {
           favoriteActive={Boolean(selectedEntry?.isFavorited)}
           onFavorite={selectedEntry ? () => void favoriteEntry(selectedEntry) : undefined}
           onCopyLink={selectedEntry ? () => copyEntryLink(selectedEntry) : undefined}
-          href={selectedEntry?.url}
           moveToKnowledgeTarget={selectedEntry ? { kind: "feed_entry", feedEntryId: selectedEntry.id, title: selectedEntry.title } : undefined}
         />
         <ReaderToc

@@ -913,8 +913,8 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
               <FloatingMenuButton icon="plus" onClick={() => void createKnowledgeFolder(null)}>
                 新建文件夹
               </FloatingMenuButton>
-              <FloatingMenuButton icon="folder" onClick={() => openKnowledgeLocalImport("folder")}>
-                从本地文件夹导入
+              <FloatingMenuButton icon="import" onClick={() => openKnowledgeLocalImport("folder")}>
+                从本地导入
               </FloatingMenuButton>
               <FloatingMenuButton icon="export" onClick={exportKnowledgeFolder}>
                 导出到本地
@@ -941,7 +941,6 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
                   onCreateFolder={(selected) => void createKnowledgeFolder(selected)}
                   onImportInbox={(selected) => openKnowledgeImport(selected.id)}
                   onImportLocalFile={(selected) => openKnowledgeLocalImport("file", selected.id)}
-                  onImportLocalFolder={(selected) => openKnowledgeLocalImport("folder", selected.id)}
                   onExport={exportKnowledgeFolder}
                   onRename={(selected) => void renameKnowledgeFolder(selected)}
                   onDelete={(selected) => void deleteKnowledgeFolder(selected)}
@@ -1260,7 +1259,6 @@ function KnowledgeFolderRows({
   onCreateFolder,
   onImportInbox,
   onImportLocalFile,
-  onImportLocalFolder,
   onExport,
   onRename,
   onDelete,
@@ -1278,7 +1276,6 @@ function KnowledgeFolderRows({
   onCreateFolder: (folder: KnowledgeFolderNode) => void;
   onImportInbox: (folder: KnowledgeFolderNode) => void;
   onImportLocalFile: (folder: KnowledgeFolderNode) => void;
-  onImportLocalFolder: (folder: KnowledgeFolderNode) => void;
   onExport: () => void;
   onRename: (folder: KnowledgeFolderNode) => void;
   onDelete: (folder: KnowledgeFolderNode) => void;
@@ -1360,10 +1357,7 @@ function KnowledgeFolderRows({
                 从收藏箱导入
               </FloatingMenuButton>
               <FloatingMenuButton icon="import" onClick={() => onImportLocalFile(folder)}>
-                从本地文件导入
-              </FloatingMenuButton>
-              <FloatingMenuButton icon="folder" onClick={() => onImportLocalFolder(folder)}>
-                从本地文件夹导入
+                从本地导入
               </FloatingMenuButton>
               <FloatingMenuButton icon="export" onClick={onExport}>
                 导出到本地
@@ -1407,7 +1401,6 @@ function KnowledgeFolderRows({
               onCreateFolder={onCreateFolder}
               onImportInbox={onImportInbox}
               onImportLocalFile={onImportLocalFile}
-              onImportLocalFolder={onImportLocalFolder}
               onExport={onExport}
               onRename={onRename}
               onDelete={onDelete}

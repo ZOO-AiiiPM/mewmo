@@ -440,7 +440,6 @@ export default function ClipsPage() {
                     onDelete={() => void deleteClip(clip)}
                     onRefresh={() => void refreshClip(clip)}
                     onCopyLink={() => void copyClipUrl(clip)}
-                    href={clip.url}
                     moveToKnowledgeTarget={{ kind: "clip", clipId: clip.id, title: clip.title }}
                   />
                 </article>
@@ -461,7 +460,6 @@ export default function ClipsPage() {
           onDelete={selectedClip ? () => void deleteClip(selectedClip) : undefined}
           onRefresh={selectedClip ? () => void refreshClip(selectedClip) : undefined}
           onCopyLink={selectedClip ? () => void copyClipUrl(selectedClip) : undefined}
-          href={selectedClip?.url}
           moveToKnowledgeTarget={selectedClip ? { kind: "clip", clipId: selectedClip.id, title: selectedClip.title } : undefined}
         />
         <div ref={scrollRef} className="mewmo-reader-scroll">

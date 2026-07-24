@@ -20,7 +20,7 @@ import { ReaderToolbar } from "../../../components/shell/ReaderToolbar";
 import {
   useReaderToolbarTitleVisibility,
 } from "../../../components/shell/useReaderToolbarTitleVisibility";
-import { FloatingMenuButton, PopoverMenu } from "../../../components/ui/FloatingMenu";
+import { FloatingMenuButton } from "../../../components/ui/FloatingMenu";
 import { useToast } from "../../../components/ui/ToastProvider";
 import {
   clipPreviewText,
@@ -579,6 +579,7 @@ export default function KnowledgeBasesPage() {
         type="file"
         accept=".md,.markdown,.pdf,.epub,.mobi,.azw3"
         hidden
+        multiple
         onChange={(event) => {
           const files = Array.from(event.currentTarget.files ?? []);
           event.currentTarget.value = "";
@@ -638,7 +639,6 @@ export default function KnowledgeBasesPage() {
           <KnowledgeEmptyState
             onImportInbox={openImportModal}
             onImportLocalFile={openLocalFileImport}
-            onImportLocalFolder={openLocalFolderImport}
           />
         ) : (
           <div className="mewmo-knowledge-list">
@@ -737,7 +737,6 @@ export default function KnowledgeBasesPage() {
               ? () => void copySelectedNote()
               : undefined
           }
-          href={selectedItem?.kind === "note" ? undefined : (selectedSourceUrl ?? undefined)}
           onCopyLink={
             selectedSourceUrl
               ? () => {
@@ -804,14 +803,10 @@ function KnowledgeRootEmptyState({ onImportLocalFolder }: { onImportLocalFolder:
 function KnowledgeEmptyState({
   onImportInbox,
   onImportLocalFile,
-  onImportLocalFolder,
 }: {
   onImportInbox: () => void;
   onImportLocalFile: () => void;
-  onImportLocalFolder: () => void;
 }) {
-  const localImportRef = useRef<HTMLButtonElement>(null);
-  const [localImportOpen, setLocalImportOpen] = useState(false);
   return (
     <div className="mewmo-list-empty mewmo-knowledge-empty">
       <PrototypeIcon name="library" size={40} />
@@ -820,56 +815,10 @@ function KnowledgeEmptyState({
         <button type="button" className="mewmo-button" onClick={onImportInbox}>
           从收藏箱导入
         </button>
-        <div className="mewmo-knowledge-empty__local">
-          <button
-            type="button"
-            ref={localImportRef}
-            className={`mewmo-knowledge-empty__asset ${localImportOpen ? "mewmo-knowledge-empty__asset--active" : ""}`}
-            onClick={(event) => {
-              event.stopPropagation();
-              setLocalImportOpen((value) => !value);
-            }}
-            aria-expanded={localImportOpen}
-            aria-haspopup="menu"
-          >
-            <PrototypeIcon name="import" size={15} />
-            <span>从本地导入</span>
-          </button>
-          <PopoverMenu
-            open={localImportOpen}
-            anchorRef={localImportRef}
-            onOpenChange={setLocalImportOpen}
-            boundary="main"
-            className="mewmo-card-menu"
-          >
-            <button
-              type="button"
-              className="mewmo-card-menu__item"
-              onClick={() => {
-                setLocalImportOpen(false);
-                onImportLocalFile();
-              }}
-            >
-              <span className="mewmo-card-menu__icon">
-                <PrototypeIcon name="import" size={16} />
-              </span>
-              <span>从本地文件导入</span>
-            </button>
-            <button
-              type="button"
-              className="mewmo-card-menu__item"
-              onClick={() => {
-                setLocalImportOpen(false);
-                onImportLocalFolder();
-              }}
-            >
-              <span className="mewmo-card-menu__icon">
-                <PrototypeIcon name="folder" size={16} />
-              </span>
-              <span>从本地文件夹导入</span>
-            </button>
-          </PopoverMenu>
-        </div>
+        <button type="button" className="mewmo-knowledge-empty__asset" onClick={onImportLocalFile}>
+          <PrototypeIcon name="import" size={15} />
+          <span>从本地导入</span>
+        </button>
       </div>
     </div>
   );
