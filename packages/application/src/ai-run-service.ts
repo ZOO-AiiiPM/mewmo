@@ -3,6 +3,9 @@ import { enqueueAiRunSchema, type EnqueueAiRunDto } from "@mewmo/shared";
 import { createHash } from "node:crypto";
 import { DomainError } from "./errors";
 
+// ZOO-64: pgvector 影子列维度，必须与 schema 的 vector(N) 及 ensure-pgvector-schema.ts 一致。
+const EMBEDDING_VECTOR_DIMENSIONS = Number(process.env.AI_EMBEDDING_DIMENSIONS ?? 1536);
+
 export interface ClaimDueAiRunsInput {
   workerId: string;
   limit: number;
@@ -96,18 +99,18 @@ export function createAiRunService(options: { prisma?: PrismaClient } = {}) {
       if (run.targetType === "note") {
         const target = await db.note.findFirst({ where, select: { id: true, title: true, content: true, version: true, summary: true } });
         if (!target) return null;
-        if (run.kind === "relation") return { ...target, candidates: await relationCandidates(db, run) };
+        if (run.kind === "relation") return { ...target, candidates: await relationCandidates(db, run, sourceQuery(target.title, target.content)) };
         if (run.kind === "note_insight") return { ...target, related: await insightEvidence(db, run) };
         return target;
       }
       if (run.targetType === "clip") {
         const target = await db.clip.findFirst({ where, select: { id: true, title: true, content: true, version: true, summary: true, sourceName: true, url: true } });
         if (!target) return null;
-        return run.kind === "relation" ? { ...target, candidates: await relationCandidates(db, run) } : target;
+        return run.kind === "relation" ? { ...target, candidates: await relationCandidates(db, run, sourceQuery(target.title, target.content)) } : target;
       }
       const target = await db.feedEntry.findFirst({ where, select: { id: true, title: true, content: true, version: true, summary: true, sourceName: true, url: true } });
       if (!target) return null;
-      return run.kind === "relation" ? { ...target, candidates: await relationCandidates(db, run) } : target;
+      return run.kind === "relation" ? { ...target, candidates: await relationCandidates(db, run, sourceQuery(target.title, target.content)) } : target;
     },
 
     completeSummary(input: CompleteBase & { summary: string }) {
@@ -121,11 +124,13 @@ export function createAiRunService(options: { prisma?: PrismaClient } = {}) {
       return completeTarget(db, input, "embedding", async (tx, run) => {
         const current = await findTarget(tx, run);
         if (!current || current.version !== input.expectedVersion) return { count: 0, output: null };
-        await tx.contentEmbedding.upsert({
+        const saved = await tx.contentEmbedding.upsert({
           where: { userId_targetType_targetId: { userId: run.userId, targetType: run.targetType, targetId: run.targetId } },
           create: { userId: run.userId, targetType: run.targetType, targetId: run.targetId, inputVersion: input.expectedVersion, embedding: input.embedding, dimensions: input.dimensions, model: input.model },
           update: { inputVersion: input.expectedVersion, embedding: input.embedding, dimensions: input.dimensions, model: input.model },
         });
+        // 双写 pgvector 影子列（事务内）：维度匹配时写入，否则清空以待回填。
+        await writeEmbeddingVector(tx, saved.id, input.embedding, input.dimensions);
         await enqueueFollowup(tx, run, "relation", input.expectedVersion, 5);
         return { count: 1, output: { dimensions: input.dimensions, model: input.model } };
       });
@@ -216,12 +221,12 @@ export function createAiRunService(options: { prisma?: PrismaClient } = {}) {
     },
 
     async queryRelated(input: { userId: string; embedding: number[]; limit: number }) {
-      const rows = await db.contentEmbedding.findMany({ where: { userId: input.userId }, orderBy: { updatedAt: "desc" }, take: 500 });
-      return rows
-        .map((row) => ({ targetType: row.targetType, targetId: row.targetId, inputVersion: row.inputVersion, model: row.model, score: cosine(input.embedding, jsonVector(row.embedding)) }))
-        .filter((row) => Number.isFinite(row.score))
-        .sort((left, right) => right.score - left.score)
-        .slice(0, Math.min(Math.max(input.limit, 1), 20));
+      // ZOO-64: /api 检索复用与推荐召回同一条 pgvector dense 路径。
+      const vectorLiteral = toVectorLiteral(input.embedding);
+      if (!vectorLiteral) return [];
+      const limit = Math.min(Math.max(input.limit, 1), 20);
+      const rows = await denseRecall(db, input.userId, vectorLiteral, EMBEDDING_VECTOR_DIMENSIONS, null, limit);
+      return rows.map((row) => ({ targetType: row.targetType, targetId: row.targetId, inputVersion: row.inputVersion, model: row.model, score: 1 - row.distance }));
     },
 
     async retryOrFail(input: { runId: string; workerId: string; error: unknown; now?: Date; maxAttempts?: number }) {
@@ -255,16 +260,223 @@ export function createAiRunService(options: { prisma?: PrismaClient } = {}) {
   };
 }
 
-async function relationCandidates(db: PrismaClient, run: AiRun) {
-  if (!isContentTarget(run.targetType)) return [];
+// ZOO-64 混合召回参数（评测后可调，均为常量便于调整）。
+const DENSE_TOP_K = 50;
+const LEXICAL_TOP_K = 50;
+const RRF_K = 60;
+const FUSED_TOP_K = 20;
+const LEXICAL_QUERY_MAX = 2_000;
+const CANDIDATE_EXCERPT_MAX = 240;
+
+type ContentType = "note" | "clip" | "feed_entry";
+
+interface DenseRow {
+  targetType: ContentType;
+  targetId: string;
+  inputVersion: number;
+  model: string;
+  distance: number;
+}
+
+interface LexicalRow {
+  targetType: ContentType;
+  targetId: string;
+  inputVersion: number;
+  sim: number;
+}
+
+interface HybridCandidate {
+  targetType: ContentType;
+  targetId: string;
+  targetVersion: number;
+  similarity: number;
+  text: string;
+  denseRank: number | null;
+  lexicalRank: number | null;
+  rrfScore: number;
+}
+
+function candidateKey(targetType: ContentType, targetId: string) {
+  return `${targetType}:${targetId}`;
+}
+
+function sourceQuery(title: string, content: string) {
+  return [title, content].filter((value) => value && value.length > 0).join("\n").slice(0, LEXICAL_QUERY_MAX);
+}
+
+function toVectorLiteral(embedding: number[]): string | null {
+  if (embedding.length !== EMBEDDING_VECTOR_DIMENSIONS) return null;
+  if (!embedding.every((value) => Number.isFinite(value))) return null;
+  return `[${embedding.join(",")}]`;
+}
+
+async function writeEmbeddingVector(tx: Prisma.TransactionClient, id: string, embedding: number[], dimensions: number) {
+  const literal = dimensions === EMBEDDING_VECTOR_DIMENSIONS ? toVectorLiteral(embedding) : null;
+  if (literal) {
+    await tx.$executeRaw(Prisma.sql`UPDATE "content_embeddings" SET "embedding_vector" = ${literal}::vector WHERE "id" = ${id}`);
+    return;
+  }
+  // 维度/数据不匹配：清空影子列，混合召回会据此过滤，等待回填。
+  await tx.$executeRaw(Prisma.sql`UPDATE "content_embeddings" SET "embedding_vector" = NULL WHERE "id" = ${id}`);
+}
+
+async function sourceVectorLiteral(db: PrismaClient, run: AiRun): Promise<string | null> {
+  const rows = await db.$queryRaw<Array<{ vector: string | null }>>(Prisma.sql`
+    SELECT "embedding_vector"::text AS vector
+    FROM "content_embeddings"
+    WHERE "user_id" = ${run.userId} AND "target_type" = ${run.targetType}::"AiTargetType" AND "target_id" = ${run.targetId}
+    LIMIT 1
+  `);
+  const stored = rows[0]?.vector;
+  if (stored) return stored;
+  // 影子列未回填时回退到 embedding JSON（保持 dense 可用）。
   const source = await db.contentEmbedding.findFirst({ where: { userId: run.userId, targetType: run.targetType, targetId: run.targetId } });
-  if (!source) return [];
-  const vector = jsonVector(source.embedding);
-  const rows = await db.contentEmbedding.findMany({ where: { userId: run.userId, NOT: { targetType: run.targetType, targetId: run.targetId } }, orderBy: { updatedAt: "desc" }, take: 500 });
-  return rows.map((row) => ({ targetType: row.targetType, targetId: row.targetId, targetVersion: row.inputVersion, similarity: cosine(vector, jsonVector(row.embedding)) }))
-    .filter((row) => Number.isFinite(row.similarity) && row.similarity > 0)
-    .sort((left, right) => right.similarity - left.similarity)
-    .slice(0, 50);
+  return source ? toVectorLiteral(jsonVector(source.embedding)) : null;
+}
+
+async function denseRecall(
+  db: PrismaClient,
+  userId: string,
+  vectorLiteral: string,
+  dimensions: number,
+  exclude: { targetType: ContentType; targetId: string } | null,
+  limit: number,
+): Promise<DenseRow[]> {
+  const excludeClause = exclude
+    ? Prisma.sql`AND NOT ("ce"."target_type" = ${exclude.targetType}::"AiTargetType" AND "ce"."target_id" = ${exclude.targetId})`
+    : Prisma.empty;
+  return db.$queryRaw<DenseRow[]>(Prisma.sql`
+    SELECT "ce"."target_type"::text AS "targetType", "ce"."target_id" AS "targetId",
+           "ce"."input_version" AS "inputVersion", "ce"."model" AS "model",
+           ("ce"."embedding_vector" <=> ${vectorLiteral}::vector) AS "distance"
+    FROM "content_embeddings" "ce"
+    WHERE "ce"."user_id" = ${userId}
+      AND "ce"."embedding_vector" IS NOT NULL
+      AND "ce"."dimensions" = ${dimensions}
+      ${excludeClause}
+    ORDER BY "ce"."embedding_vector" <=> ${vectorLiteral}::vector
+    LIMIT ${limit}
+  `);
+}
+
+function lexicalBranch(
+  table: "notes" | "clips" | "feed_entries",
+  type: ContentType,
+  userId: string,
+  query: string,
+  exclude: { targetType: ContentType; targetId: string } | null,
+  limit: number,
+) {
+  const excludeClause = exclude?.targetType === type ? Prisma.sql`AND "id" <> ${exclude.targetId}` : Prisma.empty;
+  return Prisma.sql`
+    SELECT ${type}::text AS "targetType", "id" AS "targetId", "version" AS "inputVersion",
+           (0.7 * similarity("title", ${query}) + 0.3 * similarity(left("content", ${LEXICAL_QUERY_MAX}), ${query})) AS "sim"
+    FROM ${Prisma.raw(`"${table}"`)}
+    WHERE "user_id" = ${userId} AND "deleted_at" IS NULL
+      ${excludeClause}
+      AND ("title" % ${query} OR left("content", ${LEXICAL_QUERY_MAX}) % ${query})
+    ORDER BY "sim" DESC
+    LIMIT ${limit}
+  `;
+}
+
+async function lexicalRecall(
+  db: PrismaClient,
+  userId: string,
+  query: string,
+  exclude: { targetType: ContentType; targetId: string } | null,
+  limit: number,
+): Promise<LexicalRow[]> {
+  if (!query.trim()) return [];
+  const notes = lexicalBranch("notes", "note", userId, query, exclude, limit);
+  const clips = lexicalBranch("clips", "clip", userId, query, exclude, limit);
+  const entries = lexicalBranch("feed_entries", "feed_entry", userId, query, exclude, limit);
+  const union = Prisma.sql`(${notes}) UNION ALL (${clips}) UNION ALL (${entries})`;
+  return db.$queryRaw<LexicalRow[]>(Prisma.sql`
+    SELECT "targetType", "targetId", "inputVersion", "sim"
+    FROM (${union}) "fused"
+    WHERE "sim" > 0
+    ORDER BY "sim" DESC
+    LIMIT ${limit}
+  `);
+}
+
+function rrfFuse(dense: DenseRow[], lexical: LexicalRow[]) {
+  const fused = new Map<string, { targetType: ContentType; targetId: string; inputVersion: number; denseRank: number | null; lexicalRank: number | null; rrfScore: number }>();
+  dense.forEach((row, index) => {
+    fused.set(candidateKey(row.targetType, row.targetId), { targetType: row.targetType, targetId: row.targetId, inputVersion: row.inputVersion, denseRank: index + 1, lexicalRank: null, rrfScore: 1 / (RRF_K + index + 1) });
+  });
+  lexical.forEach((row, index) => {
+    const key = candidateKey(row.targetType, row.targetId);
+    const contribution = 1 / (RRF_K + index + 1);
+    const existing = fused.get(key);
+    if (existing) {
+      existing.lexicalRank = index + 1;
+      existing.rrfScore += contribution;
+    } else {
+      fused.set(key, { targetType: row.targetType, targetId: row.targetId, inputVersion: row.inputVersion, denseRank: null, lexicalRank: index + 1, rrfScore: contribution });
+    }
+  });
+  return [...fused.values()].sort((left, right) => right.rrfScore - left.rrfScore);
+}
+
+async function resolveCandidateTexts(
+  db: PrismaClient,
+  userId: string,
+  entries: Array<{ targetType: ContentType; targetId: string }>,
+): Promise<Map<string, { title: string; content: string }>> {
+  const byType: Record<ContentType, string[]> = { note: [], clip: [], feed_entry: [] };
+  for (const entry of entries) byType[entry.targetType].push(entry.targetId);
+  const resolved = new Map<string, { title: string; content: string }>();
+  const load = async (type: ContentType, ids: string[]) => {
+    if (!ids.length) return;
+    const where = { id: { in: ids }, userId, deletedAt: null };
+    const select = { id: true, title: true, content: true };
+    const rows = type === "note"
+      ? await db.note.findMany({ where, select })
+      : type === "clip"
+        ? await db.clip.findMany({ where, select })
+        : await db.feedEntry.findMany({ where, select });
+    for (const row of rows) resolved.set(candidateKey(type, row.id), { title: row.title, content: row.content });
+  };
+  await Promise.all([load("note", byType.note), load("clip", byType.clip), load("feed_entry", byType.feed_entry)]);
+  return resolved;
+}
+
+function candidateText(title: string, content: string) {
+  const excerpt = content.slice(0, CANDIDATE_EXCERPT_MAX);
+  return [title, excerpt].filter((value) => value && value.length > 0).join(" — ");
+}
+
+async function relationCandidates(db: PrismaClient, run: AiRun, query: string): Promise<HybridCandidate[]> {
+  if (!isContentTarget(run.targetType)) return [];
+  const startedAt = Date.now();
+  const exclude = { targetType: run.targetType, targetId: run.targetId };
+  const vectorLiteral = await sourceVectorLiteral(db, run);
+  const [dense, lexical] = await Promise.all([
+    vectorLiteral ? denseRecall(db, run.userId, vectorLiteral, EMBEDDING_VECTOR_DIMENSIONS, exclude, DENSE_TOP_K) : Promise.resolve<DenseRow[]>([]),
+    lexicalRecall(db, run.userId, query, exclude, LEXICAL_TOP_K),
+  ]);
+  const fused = rrfFuse(dense, lexical);
+  const texts = await resolveCandidateTexts(db, run.userId, fused.map((item) => ({ targetType: item.targetType, targetId: item.targetId })));
+  const candidates: HybridCandidate[] = [];
+  for (const item of fused) {
+    const resolved = texts.get(candidateKey(item.targetType, item.targetId));
+    if (!resolved) continue; // 已删除/缺失内容在此过滤（dense 影子列可能滞后）。
+    candidates.push({
+      targetType: item.targetType,
+      targetId: item.targetId,
+      targetVersion: item.inputVersion,
+      similarity: item.rrfScore,
+      text: candidateText(resolved.title, resolved.content),
+      denseRank: item.denseRank,
+      lexicalRank: item.lexicalRank,
+      rrfScore: item.rrfScore,
+    });
+    if (candidates.length >= FUSED_TOP_K) break;
+  }
+  console.info(`[recommendation] recall user=${run.userId} target=${run.targetType}:${run.targetId} dense=${dense.length} lexical=${lexical.length} fused=${candidates.length} durationMs=${Date.now() - startedAt}`);
+  return candidates;
 }
 
 async function insightEvidence(db: PrismaClient, run: AiRun) {
@@ -324,21 +536,6 @@ async function findRelatedTarget(db: PrismaClient, userId: string, type: "note" 
 
 function jsonVector(value: unknown): number[] {
   return Array.isArray(value) && value.every((item) => typeof item === "number") ? value : [];
-}
-
-function cosine(left: number[], right: number[]) {
-  if (!left.length || left.length !== right.length) return Number.NEGATIVE_INFINITY;
-  let dot = 0;
-  let leftNorm = 0;
-  let rightNorm = 0;
-  for (let index = 0; index < left.length; index += 1) {
-    const a = left[index] ?? 0;
-    const b = right[index] ?? 0;
-    dot += a * b;
-    leftNorm += a * a;
-    rightNorm += b * b;
-  }
-  return leftNorm && rightNorm ? dot / Math.sqrt(leftNorm * rightNorm) : Number.NEGATIVE_INFINITY;
 }
 
 async function completeTarget(

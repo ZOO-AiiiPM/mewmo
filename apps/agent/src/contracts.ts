@@ -75,10 +75,19 @@ export interface AgentActionView {
 
 export type AgentActionProposal = AgentActionView & { status: "proposed" };
 
+export interface AgentCitation {
+  url: string;
+  title?: string;
+  snippet?: string;
+  /** Where the citation came from: a search hit or a fetched page. */
+  source: "web_search" | "web_fetch";
+}
+
 export interface AgentMessageResponse {
   userMessage: { id: string; role: "user"; content: string; status: string; createdAt: string };
   assistantMessage: { id: string; role: "assistant"; content: string; status: string; createdAt: string };
   proposals?: AgentActionProposal[];
+  citations?: AgentCitation[];
   usage?: {
     inputTokens: number;
     outputTokens: number;
@@ -89,7 +98,7 @@ export interface AgentMessageResponse {
   };
 }
 
-export type ReadToolName = "content_search" | "content_read" | "read_current_context";
+export type ReadToolName = "content_search" | "content_read" | "read_current_context" | "web_search" | "web_fetch";
 
 export type WriteToolName =
   | "note_create"

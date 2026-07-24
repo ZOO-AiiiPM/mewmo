@@ -29,6 +29,21 @@ export type {
 export { buildArticleSummaryUserPrompt as buildSummaryUserPrompt } from "./summaries/article";
 export { summarizeArticle as summarizeContent } from "./summaries/article";
 export { createAIRuntime, createFakeAIRuntime, loadAIRuntimeConfig } from "./runtime";
+export {
+  createReranker,
+  createPassthroughReranker,
+  createVoyageReranker,
+  loadRerankerConfig,
+  PASSTHROUGH_PROVIDER,
+  VOYAGE_PROVIDER,
+} from "./rerank";
+export type {
+  Reranker,
+  RerankInput,
+  RerankResult,
+  RerankResultItem,
+  RerankerConfig,
+} from "./rerank";
 export type {
   AIRuntime,
   AIRuntimeConfig,

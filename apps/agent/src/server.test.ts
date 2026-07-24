@@ -15,6 +15,12 @@ const config: AgentConfig = {
   AGENT_TIMEOUT_MS: 45_000,
   AGENT_WORKER_ID: "test-worker",
   AGENT_TURN_LEASE_MS: 120_000,
+  JINA_API_KEY: "",
+  AGENT_WEB_TIMEOUT_MS: 20_000,
+  AGENT_WEB_SEARCH_BUDGET: 2,
+  AGENT_WEB_FETCH_BUDGET: 5,
+  AGENT_WEB_CACHE_TTL_MS: 300_000,
+  AGENT_WEB_CACHE_MAX_ENTRIES: 128,
 };
 
 describe("Agent HTTP server", () => {
@@ -25,7 +31,7 @@ describe("Agent HTTP server", () => {
   });
 
   it("derives actor identity from the signed token and completes a leased turn", async () => {
-    const run = vi.fn(async () => ({ text: "ok", proposals: [], userEntryId: "entry-user", assistantEntryId: "entry-assistant" }));
+    const run = vi.fn(async () => ({ text: "ok", proposals: [], citations: [], userEntryId: "entry-user", assistantEntryId: "entry-assistant" }));
     const complete = vi.fn(async () => completedResponse("ok"));
     const application = createApplicationStub({ turns: { ...createApplicationStub().turns, complete } });
     const app = buildAgentServer({ config, runtime: { run }, application });
@@ -49,7 +55,7 @@ describe("Agent HTTP server", () => {
   });
 
   it("streams Pi lifecycle events and a final response over SSE", async () => {
-    const runtime = { run: vi.fn(async (_context, onEvent) => { await onEvent?.({ type: "text_delta", delta: "ok" }); return { text: "ok", proposals: [], userEntryId: "entry-user", assistantEntryId: "entry-assistant" }; }) };
+    const runtime = { run: vi.fn(async (_context, onEvent) => { await onEvent?.({ type: "text_delta", delta: "ok" }); return { text: "ok", proposals: [], citations: [], userEntryId: "entry-user", assistantEntryId: "entry-assistant" }; }) };
     const app = buildAgentServer({ config, runtime, application: createApplicationStub() });
     const token = await signIdentityForTest(TEST_ACTOR, identityOptions());
     const response = await app.inject({ method: "POST", url: "/v1/chats/chat-1/stream", headers: { authorization: `Bearer ${token}` }, payload: validMessage() });

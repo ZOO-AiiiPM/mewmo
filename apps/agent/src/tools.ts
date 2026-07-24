@@ -1,6 +1,6 @@
 import type { WriteToolName } from "./contracts";
 
-export const READ_TOOL_NAMES = ["read_current_context", "content_search", "content_read"] as const;
+export const READ_TOOL_NAMES = ["read_current_context", "content_search", "content_read", "web_search", "web_fetch"] as const;
 export const WRITE_TOOL_NAMES = [
   "note_create",
   "note_update",

@@ -40,10 +40,17 @@ export interface RecommendationCandidate {
   targetId: string;
   targetVersion: number;
   similarity: number;
+  // ZOO-64: RRF 融合候选携带文本供 rerank 使用，以及各路排名/分数供观测。
+  text: string;
+  denseRank?: number | null;
+  lexicalRank?: number | null;
+  rrfScore?: number;
 }
 
 export interface RecommendationWorkflowInput extends VersionedWorkflowInput {
   kind: "recommendation";
+  // 源内容文本（title + content），作为 rerank 的 query。
+  sourceText: string;
   candidates: RecommendationCandidate[];
   limit?: number;
 }
@@ -107,6 +114,19 @@ export interface EmbeddingResult {
   metadata: ModelMetadata;
 }
 
+export interface RerankResultItem {
+  index: number;
+  score: number;
+}
+
+export interface RerankOutcome {
+  provider: string;
+  model: string;
+  results: RerankResultItem[];
+  fellBack: boolean;
+  fallbackReason?: string;
+}
+
 export interface AiRuntimePort {
   generateText(input: {
     purpose: "workflow.summary";
@@ -114,6 +134,13 @@ export interface AiRuntimePort {
     user: string;
     timeoutMs: number;
   }): Promise<TextGenerationResult>;
+  rerank(input: {
+    purpose: "workflow.recommendation";
+    query: string;
+    documents: string[];
+    topN?: number;
+    timeoutMs: number;
+  }): Promise<RerankOutcome>;
   generateObject<T>(input: {
     purpose: "workflow.note-insight";
     schema: unknown;
