@@ -1,0 +1,59 @@
+[
+  {
+    "id": "paraphrase-zh",
+    "category": "paraphrase",
+    "note": "同主题不同措辞：语义相关项被 dense 召回，词面改写项被 lexical 召回",
+    "source": "缓存可以显著降低接口的响应延迟。",
+    "candidates": [
+      { "id": "c-dense-relevant", "type": "note", "denseRank": 1, "lexicalRank": null, "semanticScore": 0.95, "relevant": true },
+      { "id": "c-lexical-relevant", "type": "clip", "denseRank": null, "lexicalRank": 1, "semanticScore": 0.88, "relevant": true },
+      { "id": "c-dense-noise", "type": "feed_entry", "denseRank": 2, "lexicalRank": null, "semanticScore": 0.2, "relevant": false },
+      { "id": "c-lexical-noise", "type": "note", "denseRank": null, "lexicalRank": 2, "semanticScore": 0.15, "relevant": false }
+    ]
+  },
+  {
+    "id": "keyword-overlap-irrelevant-zh",
+    "category": "keyword-noise",
+    "note": "关键词重合但语义无关：lexical 头部是干扰项，真正相关项由 dense 提供",
+    "source": "如何用向量检索为笔记做语义推荐。",
+    "candidates": [
+      { "id": "c-keyword-trap", "type": "clip", "denseRank": null, "lexicalRank": 1, "semanticScore": 0.1, "relevant": false },
+      { "id": "c-semantic-hit", "type": "note", "denseRank": 1, "lexicalRank": 4, "semanticScore": 0.92, "relevant": true },
+      { "id": "c-semantic-hit-2", "type": "feed_entry", "denseRank": 2, "lexicalRank": null, "semanticScore": 0.8, "relevant": true },
+      { "id": "c-keyword-trap-2", "type": "note", "denseRank": null, "lexicalRank": 2, "semanticScore": 0.12, "relevant": false }
+    ]
+  },
+  {
+    "id": "cross-content-type-zh",
+    "category": "cross-type",
+    "note": "跨内容类型：相关项分布在 note/clip/feed_entry，单路各自漏召",
+    "source": "分布式系统中的幂等设计与重试策略。",
+    "candidates": [
+      { "id": "c-note-relevant", "type": "note", "denseRank": 1, "lexicalRank": null, "semanticScore": 0.9, "relevant": true },
+      { "id": "c-clip-relevant", "type": "clip", "denseRank": null, "lexicalRank": 1, "semanticScore": 0.85, "relevant": true },
+      { "id": "c-feed-relevant", "type": "feed_entry", "denseRank": 3, "lexicalRank": 2, "semanticScore": 0.82, "relevant": true },
+      { "id": "c-off-topic", "type": "clip", "denseRank": 2, "lexicalRank": null, "semanticScore": 0.18, "relevant": false }
+    ]
+  },
+  {
+    "id": "duplicate-content-zh",
+    "category": "duplicate",
+    "note": "重复内容：近重复项被两路同时召回，应保留为相关",
+    "source": "PostgreSQL 的 HNSW 索引参数如何设置。",
+    "candidates": [
+      { "id": "c-duplicate", "type": "note", "denseRank": 1, "lexicalRank": 1, "semanticScore": 0.97, "relevant": true },
+      { "id": "c-related", "type": "feed_entry", "denseRank": 2, "lexicalRank": null, "semanticScore": 0.7, "relevant": true },
+      { "id": "c-unrelated", "type": "clip", "denseRank": null, "lexicalRank": 2, "semanticScore": 0.2, "relevant": false }
+    ]
+  },
+  {
+    "id": "no-relevant-zh",
+    "category": "no-relevant",
+    "note": "无相关候选：所有候选都不相关，指标应为 0 且不报错",
+    "source": "今天午餐吃什么比较好。",
+    "candidates": [
+      { "id": "c-noise-1", "type": "note", "denseRank": 1, "lexicalRank": 2, "semanticScore": 0.3, "relevant": false },
+      { "id": "c-noise-2", "type": "clip", "denseRank": 2, "lexicalRank": 1, "semanticScore": 0.25, "relevant": false }
+    ]
+  }
+]

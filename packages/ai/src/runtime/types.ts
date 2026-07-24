@@ -1,6 +1,7 @@
 import type { Api, CredentialStore, Model, ModelCost, Models } from "@earendil-works/pi-ai";
 
 import type { AIProvider, CompletionMessage } from "../providers/types";
+import type { RerankInput, RerankResult, RerankerConfig } from "../rerank/types";
 
 export type ModelPurpose =
   | "agent.chat"
@@ -30,6 +31,8 @@ export interface ModelDefinition {
   contextWindow?: number;
   maxTokens?: number;
   reasoning?: boolean;
+  /** Optional output dimensionality forwarded to the embedding endpoint. */
+  dimensions?: number;
   /** Required for custom endpoints to report a known provider cost. */
   cost?: ModelCost;
 }
@@ -39,6 +42,8 @@ export interface AIRuntimeConfig {
   models: Partial<Record<ModelPurpose, ModelDefinition>>;
   /** App-owned, user-scoped credential storage for Pi OAuth/BYOK flows. */
   credentials?: CredentialStore;
+  /** ZOO-64: provider-neutral reranker config; absent/keyless => passthrough. */
+  reranker?: RerankerConfig;
 }
 
 export type AIEnvironment = Record<string, string | undefined>;
@@ -108,14 +113,21 @@ export interface AIRuntime {
   generateObject<T>(input: GenerateObjectInput<T>): Promise<ObjectGenerationResult<T>>;
   /** Legacy embedding port. A replacement backend is intentionally undecided. */
   embed(input: EmbedInput): Promise<EmbeddingResult>;
+  /** ZOO-64: fail-open reranker over RRF candidate text. */
+  rerank(input: RerankInput): Promise<RerankResult>;
 }
 
 export type FakeTextHandler = (input: GenerateTextInput) => string | Promise<string>;
 export type FakeEmbeddingHandler = (input: EmbedInput) => number[][] | Promise<number[][]>;
+export type FakeRerankHandler = (input: RerankInput) => RerankResult | Promise<RerankResult>;
+
+export type { Reranker, RerankInput, RerankResult, RerankerConfig } from "../rerank/types";
 
 export interface FakeAIRuntimeOptions {
   text?: string | FakeTextHandler;
   embeddings?: number[][] | FakeEmbeddingHandler;
+  /** Deterministic rerank override; defaults to passthrough (RRF order). */
+  rerank?: FakeRerankHandler;
   /** Responses consumed by Pi AgentHarness tests. */
   agentResponses?: string[];
 }
