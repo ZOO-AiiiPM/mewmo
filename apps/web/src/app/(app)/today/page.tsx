@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useMemo, useRef, useState } from "react";
+import type { NoteSaveSnapshot } from "../../../components/editor/note-draft-sync";
 import { ListColumn } from "../../../components/shell/ListColumn";
 import { PrototypeIcon, type PrototypeIconName } from "../../../components/shell/PrototypeIcon";
 import { ReaderBackToTopButton } from "../../../components/shell/ReaderBackToTopButton";
@@ -315,6 +316,23 @@ export default function TodayPage() {
     );
   }, [selected, updateItems, updateSelectedDetail]);
 
+  const handleSelectedNoteSave = useCallback((snapshot: NoteSaveSnapshot) => {
+    if (snapshot.status !== "saved" || selected?.type !== "note" || snapshot.serverVersion === undefined) return;
+    const serverVersion = snapshot.serverVersion;
+    const updatedAt = snapshot.savedAt
+      ? new Date(snapshot.savedAt).toISOString()
+      : selected.updatedAt;
+    updateItems((current) => current.map((item) =>
+      item.type === "note" && item.id === selected.id
+        ? { ...item, version: serverVersion, updatedAt }
+        : item,
+    ));
+    updateSelectedDetail((current) => current
+      ? { ...current, version: serverVersion, updatedAt }
+      : current,
+    );
+  }, [selected, updateItems, updateSelectedDetail]);
+
   const copySelectedNote = async () => {
     if (selected?.type !== "note") return;
 
@@ -443,6 +461,7 @@ export default function TodayPage() {
                 serverVersion={selected.version}
                 onContentChange={updateSelectedNoteContent}
                 onTitleChange={updateSelectedNoteTitle}
+                onSaveSnapshot={handleSelectedNoteSave}
                 embedded
               />
             ) : selectedDetailError ? (
