@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
@@ -22,6 +23,7 @@ function normalizeAuthCallbackUrl(value: string | null) {
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const t = useTranslations("auth.login");
   const rawCallbackUrl = searchParams.get("callbackUrl");
   const registerHref = rawCallbackUrl
     ? `/register?callbackUrl=${encodeURIComponent(rawCallbackUrl)}`
@@ -47,7 +49,7 @@ function LoginForm() {
 
     if (!res.ok) {
       const data = await res.json();
-      setError(data.error || "Login failed");
+      setError(data.error || t("failed"));
       setLoading(false);
       return;
     }
@@ -66,41 +68,41 @@ function LoginForm() {
 
   return (
     <AuthFrame
-      eyebrow="Welcome back"
-      title="Log in to your workspace"
+      eyebrow={t("eyebrow")}
+      title={t("title")}
       footer={
         <p>
-          Don&apos;t have an account?{" "}
+          {t("noAccount")}{" "}
           <Link href={registerHref}>
-            Sign up
+            {t("signUp")}
           </Link>
         </p>
       }
     >
       <form onSubmit={handleSubmit} className="mewmo-auth-form">
         <div className="mewmo-auth-field">
-          <label>Email</label>
+          <label>{t("email")}</label>
           <input name="email" type="email" required placeholder="you@example.com" />
         </div>
 
         <div className="mewmo-auth-field">
-          <label>Password</label>
+          <label>{t("password")}</label>
           <PasswordField name="password" required placeholder="••••••••" />
         </div>
 
         <p className="mewmo-auth-help">
-          <Link href="/forgot-password">忘记密码？</Link>
+          <Link href="/forgot-password">{t("forgotPassword")}</Link>
         </p>
 
         {error && <p className="mewmo-auth-error">{error}</p>}
 
         <button type="submit" disabled={loading} className="mewmo-auth-primary">
-          {loading ? "Logging in..." : "Log in"}
+          {loading ? t("submitting") : t("submit")}
         </button>
       </form>
 
       <div className="mewmo-auth-divider">
-        <span>or</span>
+        <span>{t("or")}</span>
       </div>
 
       <button
@@ -110,7 +112,7 @@ function LoginForm() {
         className="mewmo-auth-secondary"
       >
         <span className="mewmo-auth-google-mark">G</span>
-        {googleLoading ? "Opening Google..." : "Continue with Google"}
+        {googleLoading ? t("googleLoading") : t("googleButton")}
       </button>
     </AuthFrame>
   );

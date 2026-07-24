@@ -2,6 +2,7 @@
 
 import type { CSSProperties, PointerEvent, ReactNode } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   AI_FAB_DEFAULT_BOTTOM,
   clampAiFabBottom,
@@ -37,6 +38,7 @@ function clampAiWidth(width: number) {
 
 export function AppShell({ children, user }: AppShellProps) {
   scopeWorkspaceDataCache(user?.id);
+  const ts = useTranslations("shell");
   const shellRef = useRef<HTMLDivElement>(null);
   const sidebarPeekTimer = useRef<number | null>(null);
   const aiFabDragRef = useRef<{
@@ -213,7 +215,7 @@ export function AppShell({ children, user }: AppShellProps) {
           <div
             className="mewmo-ai-resizer"
             role="separator"
-            aria-label="调整 mewmo 宽度"
+            aria-label={ts("aiResizer")}
             aria-orientation="vertical"
             onPointerDown={startAiResize}
             onDoubleClick={() => setAiWidth(AI_W_DEFAULT)}
@@ -227,8 +229,8 @@ export function AppShell({ children, user }: AppShellProps) {
               onPointerUp={endAiFabDrag}
               onPointerCancel={endAiFabDrag}
               onClick={openAi}
-              aria-label="打开 mewmo"
-              title="打开 mewmo"
+              aria-label={ts("aiFabOpen")}
+              title={ts("aiFabTitle")}
             >
               <PrototypeIcon name="mewmo-logo" size={22} />
             </button>
