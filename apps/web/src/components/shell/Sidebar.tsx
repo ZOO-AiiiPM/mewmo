@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { signOut } from "next-auth/react";
 import {
   cloneElement,
   isValidElement,
@@ -127,31 +128,13 @@ type EditingKnowledgeFolderState =
   | { type: "create"; base: SidebarKnowledgeBase; parent: KnowledgeFolderNode | null; value: string }
   | { type: "rename"; base: SidebarKnowledgeBase; folder: KnowledgeFolderNode; value: string };
 
-const tagEntries = [
-  { label: "读书", color: "#4f93e8" },
-  { label: "设计", color: "#e88478" },
-  { label: "产品", color: "#4caf72" },
-  { label: "数据层", color: "#a874e0" },
-  { label: "AI", color: "#e0a93a" },
-];
-
-const accentSwatches = [
-  { label: "单色", value: "", mono: true },
-  { label: "靛蓝", value: "#3b6cff" },
-  { label: "翠绿", value: "#05c270" },
-  { label: "朱砂", value: "#ff4d3d" },
-  { label: "琥珀", value: "#ffb01f" },
-  { label: "紫", value: "#8b5cf6" },
-  { label: "品红", value: "#f5408a" },
-];
-
 export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnter, onMouseLeave }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { showToast } = useToast();
   const { beginNavigation } = useWorkspaceNavigation();
-  const { theme, setTheme, accent, setAccent } = useTheme();
+  const { theme, setTheme } = useTheme();
   const { readerFont, setReaderFont, readerFontSize, setReaderFontSize } = useTheme();
   const [allCollapsed, setAllCollapsed] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
@@ -165,6 +148,8 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
   const [knowledgeFolders, setKnowledgeFolders] = useState<KnowledgeFolderNode[]>([]);
   const [knowledgeMenu, setKnowledgeMenu] = useState<KnowledgeMenuState | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmState | null>(null);
+  const [logoutOpen, setLogoutOpen] = useState(false);
+  const [logoutPending, setLogoutPending] = useState(false);
   const [textPrompt, setTextPrompt] = useState<TextPromptState | null>(null);
   const [textPromptValue, setTextPromptValue] = useState("");
   const [editingKnowledgeFolder, setEditingKnowledgeFolder] = useState<EditingKnowledgeFolderState | null>(null);
@@ -184,10 +169,19 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
   const toggleAllGroups = () => {
     const next = !allCollapsed;
     setAllCollapsed(next);
-    setCollapsedGroups({ collection: next, subscription: next, knowledge: next, tags: next });
+    setCollapsedGroups({ collection: next, subscription: next, knowledge: next });
   };
 
   const defer = () => showToast(deferredMessage, "error");
+  const handleLogout = async () => {
+    setLogoutPending(true);
+    try {
+      await signOut({ callbackUrl: "/login" });
+    } catch {
+      setLogoutPending(false);
+      showToast("登出失败，请重试", "error");
+    }
+  };
   const activeFeedType = (searchParams.get("type") as FeedType | null) ?? "article";
   const activeFeedId = searchParams.get("feedId");
   const effectiveActiveFeedId = activeFeedId ?? feeds[0]?.id ?? null;
@@ -788,22 +782,6 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
             ))}
         </SidebarGroup>
 
-        <SidebarGroup
-          id="tags"
-          title="标签"
-          icon="tag"
-          collapsed={Boolean(collapsedGroups.tags)}
-          onToggle={toggleGroup}
-          menuOpen={openMenu === "tags"}
-          onMenuToggle={() => setOpenMenu(openMenu === "tags" ? null : "tags")}
-        >
-          {tagEntries.map((tag) => (
-            <SidebarButton key={tag.label} label={tag.label} onClick={defer}>
-              <span className="mewmo-tag-dot" style={{ backgroundColor: tag.color }} />
-            </SidebarButton>
-          ))}
-        </SidebarGroup>
-
         <SidebarLink
           href="/trash"
           icon="trash"
@@ -1000,27 +978,6 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
           className="mewmo-account-menu"
           placement="top"
         >
-          <AccountSubmenu label="主题色" icon="palette">
-            <div className="acct-submenu acct-submenu--color">
-              <div className="acct-sub__swatches">
-                {accentSwatches.map((item) => (
-                  <button
-                    key={item.label}
-                    type="button"
-                    className={`sw ${item.mono ? "sw--mono" : ""} ${accent === item.value ? "on" : ""}`}
-                    data-accent={item.value}
-                    title={item.label}
-                    style={
-                      item.value
-                        ? ({ "--c": item.value } as CSSProperties)
-                        : undefined
-                    }
-                    onClick={() => setAccent(item.value)}
-                  />
-                ))}
-              </div>
-            </div>
-          </AccountSubmenu>
           <AccountSubmenu label="外观模式" icon="appearance">
             <div className="acct-submenu">
               <AccountSubmenuRow icon="monitor" active={theme === "system"} onClick={() => setTheme("system")}>
@@ -1105,7 +1062,7 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
             </div>
           </AccountSubmenu>
           <div className="mewmo-menu-separator" />
-          <FloatingMenuButton icon="logout" onClick={defer}>登出</FloatingMenuButton>
+          <FloatingMenuButton icon="logout" onClick={() => setLogoutOpen(true)}>登出</FloatingMenuButton>
         </FloatingMenu>
       </div>
     </aside>
@@ -1117,6 +1074,17 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
       cancelLabel="取消"
       onCancel={() => setDeleteConfirm(null)}
       onConfirm={() => void runDeleteConfirm()}
+    />
+    <ConfirmDialog
+      open={logoutOpen}
+      title="确认登出？"
+      description="登出后需要重新登录才能访问你的工作区。"
+      confirmLabel={logoutPending ? "登出中…" : "登出"}
+      cancelLabel="取消"
+      onCancel={() => {
+        if (!logoutPending) setLogoutOpen(false);
+      }}
+      onConfirm={() => void handleLogout()}
     />
     <ConfirmDialog
       open={Boolean(textPrompt)}

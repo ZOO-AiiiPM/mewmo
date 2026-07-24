@@ -5,6 +5,7 @@ import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { AuthFrame } from "../../../components/auth/AuthFrame";
+import { PasswordField } from "../../../components/auth/PasswordField";
 
 function normalizeAuthCallbackUrl(value: string | null) {
   if (!value) return null;
@@ -84,7 +85,7 @@ function LoginForm() {
 
         <div className="mewmo-auth-field">
           <label>Password</label>
-          <input name="password" type="password" required placeholder="••••••••" />
+          <PasswordField name="password" required placeholder="••••••••" />
         </div>
 
         <p className="mewmo-auth-help">
