@@ -12,26 +12,32 @@ import {
   type Skill,
 } from "@earendil-works/pi-agent-core/node";
 
-import type { AgentActionProposal } from "../contracts";
+import type { AgentActionProposal, AgentCitation } from "../contracts";
 import { AgentError } from "../errors";
 import { loadAgentSystemPrompt, loadPresetSkills, type AgentSkillResource } from "../prompt-loader";
 import type { AgentRuntimeEvent, AgentRuntimePort, ApplicationPort } from "../ports";
 import { ALL_TOOL_NAMES } from "../tools";
+import type { WebPort } from "../web/port";
 import { MewmoSessionStorage } from "./session-storage";
-import { createPiToolRegistry } from "./tools";
+import { createPiToolRegistry, type WebBudget } from "./tools";
 
 export interface CreateAgentRuntimeOptions {
   ai: AIRuntime;
   application: ApplicationPort;
   maxSteps: number;
   timeoutMs: number;
+  web?: WebPort;
+  webSearchBudget?: number;
+  webFetchBudget?: number;
 }
 
 export function createAgentRuntime(options: CreateAgentRuntimeOptions): AgentRuntimePort {
   return {
     async run(context, onEvent) {
       const proposals: AgentActionProposal[] = [];
-      const tools = createPiToolRegistry({ application: options.application, context, proposals });
+      const citations: AgentCitation[] = [];
+      const webBudget: WebBudget = { searchRemaining: options.webSearchBudget ?? 0, fetchRemaining: options.webFetchBudget ?? 0 };
+      const tools = createPiToolRegistry({ application: options.application, context, proposals, citations, ...(options.web ? { web: options.web, webBudget } : {}) });
       const skills = await resolveSkills(options.application, context.actor);
       const selected = context.request.skillId ? skills.find((skill) => skill.name === context.request.skillId || skill.id === context.request.skillId) : undefined;
       if (context.request.skillId && !selected) throw new AgentError("bad_request", "Selected Agent skill was not found or is disabled.");
@@ -96,6 +102,7 @@ export function createAgentRuntime(options: CreateAgentRuntimeOptions): AgentRun
         return {
           text: contentText(response.content),
           proposals,
+          citations,
           userEntryId: userEntry.id,
           assistantEntryId: assistantEntry.id,
           usage: viewUsage(response),
