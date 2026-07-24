@@ -18,8 +18,11 @@ const qiniuRequiredEnvKeys = [
 type RequiredAIEnvKey =
   | "OPENAI_API_KEY"
   | "ANTHROPIC_API_KEY"
+  | "GEMINI_API_KEY"
   | "CUSTOM_AI_API_KEY"
   | "CUSTOM_AI_BASE_URL";
+
+const aiProviderSchema = z.enum(["openai", "anthropic", "custom", "google"]);
 
 const optionalNonEmptyString = z.preprocess(
   (value) => (value === "" ? undefined : value),
@@ -59,11 +62,13 @@ const workerEnvSchema = z
     NODE_ENV: z.enum(["development", "test", "production"]).optional(),
     DATABASE_URL: z.string().min(1),
     REDIS_URL: z.string().min(1),
-    AI_PROVIDER: z.enum(["openai", "anthropic", "custom"]).optional(),
+    AI_PROVIDER: aiProviderSchema.optional(),
     OPENAI_API_KEY: optionalNonEmptyString,
     OPENAI_BASE_URL: optionalUrl,
     ANTHROPIC_API_KEY: optionalNonEmptyString,
     ANTHROPIC_BASE_URL: optionalUrl,
+    GEMINI_API_KEY: optionalNonEmptyString,
+    GEMINI_BASE_URL: optionalUrl,
     CUSTOM_AI_API_KEY: optionalNonEmptyString,
     CUSTOM_AI_BASE_URL: optionalUrl,
     AI_SUMMARY_MODEL: optionalNonEmptyString,
@@ -78,13 +83,7 @@ const workerEnvSchema = z
       });
     }
 
-    const aiProvider = env.AI_PROVIDER ?? "openai";
-    const requiredAIKeys: RequiredAIEnvKey[] =
-      aiProvider === "anthropic"
-        ? ["ANTHROPIC_API_KEY"]
-        : aiProvider === "custom"
-          ? ["CUSTOM_AI_API_KEY", "CUSTOM_AI_BASE_URL"]
-          : ["OPENAI_API_KEY"];
+    const requiredAIKeys = requiredAIKeysFor(env.AI_PROVIDER);
 
     for (const key of requiredAIKeys) {
       if (env[key]) continue;
@@ -103,11 +102,13 @@ const envSchema = z.object({
   NEXTAUTH_URL: z.string().url(),
   GOOGLE_CLIENT_ID: z.string().min(1),
   GOOGLE_CLIENT_SECRET: z.string().min(1),
-  AI_PROVIDER: z.enum(["openai", "anthropic", "custom"]).optional(),
+  AI_PROVIDER: aiProviderSchema.optional(),
   OPENAI_API_KEY: optionalNonEmptyString,
   OPENAI_BASE_URL: optionalUrl,
   ANTHROPIC_API_KEY: optionalNonEmptyString,
   ANTHROPIC_BASE_URL: optionalUrl,
+  GEMINI_API_KEY: optionalNonEmptyString,
+  GEMINI_BASE_URL: optionalUrl,
   CUSTOM_AI_API_KEY: optionalNonEmptyString,
   CUSTOM_AI_BASE_URL: optionalUrl,
   AI_SUMMARY_MODEL: optionalNonEmptyString,
@@ -131,13 +132,7 @@ const envSchema = z.object({
   FEED_SEARCH_API_KEY: z.string().min(1).optional(),
   ...rerankEnvShape,
 }).superRefine((env, ctx) => {
-  const aiProvider = env.AI_PROVIDER ?? "openai";
-  const requiredAIKeys: RequiredAIEnvKey[] =
-    aiProvider === "anthropic"
-      ? ["ANTHROPIC_API_KEY"]
-      : aiProvider === "custom"
-        ? ["CUSTOM_AI_API_KEY", "CUSTOM_AI_BASE_URL"]
-        : ["OPENAI_API_KEY"];
+  const requiredAIKeys = requiredAIKeysFor(env.AI_PROVIDER);
 
   for (const key of requiredAIKeys) {
     if (env[key]) continue;
@@ -163,6 +158,13 @@ const envSchema = z.object({
 export type AppEnv = z.infer<typeof envSchema>;
 export type RedisEnv = z.infer<typeof redisEnvSchema>;
 export type WorkerEnv = z.infer<typeof workerEnvSchema>;
+
+function requiredAIKeysFor(provider: z.infer<typeof aiProviderSchema> | undefined): RequiredAIEnvKey[] {
+  if (provider === "anthropic") return ["ANTHROPIC_API_KEY"];
+  if (provider === "custom") return ["CUSTOM_AI_API_KEY", "CUSTOM_AI_BASE_URL"];
+  if (provider === "google") return ["GEMINI_API_KEY"];
+  return ["OPENAI_API_KEY"];
+}
 
 export function loadEnv(input: Record<string, string | undefined> = process.env): AppEnv {
   const parsed = envSchema.safeParse(input);
