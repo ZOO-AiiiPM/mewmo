@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { NoteSaveSnapshot } from "../../../components/editor/note-draft-sync";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { KnowledgeImportModal } from "../../../components/knowledge/KnowledgeImportModal";
 import { ClipContentRenderer } from "../../../components/clips/ClipContentRenderer";
@@ -526,6 +527,36 @@ export default function KnowledgeBasesPage() {
     [selectedItem, setItems, updateSelectedDetail],
   );
 
+  const handleSelectedNoteSave = useCallback((snapshot: NoteSaveSnapshot) => {
+    if (
+      snapshot.status !== "saved" ||
+      selectedItem?.kind !== "note" ||
+      !selectedItem.note ||
+      snapshot.serverVersion === undefined
+    ) return;
+    const serverVersion = snapshot.serverVersion;
+    const updatedAt = snapshot.savedAt
+      ? new Date(snapshot.savedAt).toISOString()
+      : selectedItem.note.updatedAt;
+    setItems((current) => current.map((item) =>
+      item.id === selectedItem.id && item.kind === "note" && item.note
+        ? {
+            ...item,
+            updatedAt: updatedAt ?? item.updatedAt,
+            note: {
+              ...item.note,
+              version: serverVersion,
+              ...(updatedAt ? { updatedAt } : {}),
+            },
+          }
+        : item,
+    ));
+    updateSelectedDetail((current) => current
+      ? { ...current, version: serverVersion, ...(updatedAt ? { updatedAt } : {}) }
+      : current,
+    );
+  }, [selectedItem, setItems, updateSelectedDetail]);
+
   const copySelectedNote = async () => {
     if (selectedItem?.kind !== "note" || !selectedItem.note) return;
 
@@ -735,6 +766,7 @@ export default function KnowledgeBasesPage() {
             error={selectedDetailError}
             onNoteContentChange={updateSelectedNoteContent}
             onNoteTitleChange={updateSelectedNoteTitle}
+            onNoteSave={handleSelectedNoteSave}
           />
         </div>
         <ReaderBackToTopButton scrollRef={scrollRef} visible={toolbarTitleVisible} />
@@ -851,6 +883,7 @@ function KnowledgeReader({
   error,
   onNoteContentChange,
   onNoteTitleChange,
+  onNoteSave,
 }: {
   item: KnowledgeItemRecord | null;
   card: ReturnType<typeof buildKnowledgeCardView> | null;
@@ -859,6 +892,7 @@ function KnowledgeReader({
   error: string;
   onNoteContentChange: (content: string) => void;
   onNoteTitleChange: (title: string) => void;
+  onNoteSave: (snapshot: NoteSaveSnapshot) => void;
 }) {
   if (!item || !card) {
     if (loading) {
@@ -893,6 +927,7 @@ function KnowledgeReader({
         serverVersion={(item.note as { version?: number }).version}
         onContentChange={onNoteContentChange}
         onTitleChange={onNoteTitleChange}
+        onSaveSnapshot={onNoteSave}
         embedded
       />
     );

@@ -13,6 +13,7 @@ import { normalizeNoteMarkdownBreaks } from "../../lib/note-markdown-breaks";
 import { buildNoteMetadataItems } from "../../lib/note-list-preview";
 import { useWorkspaceAccountId } from "../../lib/workspace-account";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
+import { useToast } from "../ui/ToastProvider";
 import { getMewmoBlockEditConfig } from "./block-ui";
 import { editorInteractions } from "./editor-interactions";
 import { shouldSaveMarkdownUpdate } from "./markdown-save";
@@ -21,8 +22,10 @@ import { readNoteDraft, removeLegacyNoteDraft } from "./note-draft-store";
 import {
   queueNoteDraftSync,
   retryStoredNoteDraft,
+  resolveNoteDraftConflict,
   subscribeNoteDraftSync,
   type NoteSaveSnapshot,
+  type NoteSaveStatus,
 } from "./note-draft-sync";
 import { uploadNoteImage } from "./note-image-client";
 import { normalizePastedImageSlice } from "./note-image-paste";
@@ -44,12 +47,13 @@ interface NoteEditorProps {
   autoFocusTitle?: boolean;
   onContentChange?: (content: string) => void;
   onTitleChange?: (title: string, slug?: string) => void;
+  onSaveSnapshot?: (snapshot: NoteSaveSnapshot) => void;
 }
 
 const NOTE_SAVE_MESSAGES = {
   saving: "保存中…",
   saved: "已保存",
-  offline: "离线，已保存在本机",
+  offline: "保存失败",
   error: "保存失败",
 } as const;
 
@@ -143,6 +147,7 @@ export function NoteEditor({
   autoFocusTitle = false,
   onContentChange,
   onTitleChange,
+  onSaveSnapshot,
 }: NoteEditorProps) {
   const router = useRouter();
   const userId = useWorkspaceAccountId();
@@ -152,27 +157,35 @@ export function NoteEditor({
   onContentChangeRef.current = onContentChange;
   const onTitleChangeRef = useRef(onTitleChange);
   onTitleChangeRef.current = onTitleChange;
+  const onSaveSnapshotRef = useRef(onSaveSnapshot);
+  onSaveSnapshotRef.current = onSaveSnapshot;
   const initialDraft = readNoteDraft(userId, noteId);
   const latestTitleRef = useRef(initialDraft?.title ?? initialTitle);
   const latestContentRef = useRef(initialDraft?.content ?? initialContent);
   const serverVersionRef = useRef(initialDraft?.serverVersion ?? serverVersion);
+  const baseTitleRef = useRef(initialDraft?.baseTitle ?? initialTitle);
+  const baseContentRef = useRef(initialDraft?.baseContent ?? initialContent);
   const draftRevisionRef = useRef(initialDraft?.updatedAt ?? 0);
+  const [editorRevision, setEditorRevision] = useState(0);
   const [editorInitialContent] = useState(() =>
     normalizeNoteMarkdownBreaks(latestContentRef.current),
   );
   const [saveState, setSaveState] = useState<NoteSaveSnapshot>({ status: "saved", message: NOTE_SAVE_MESSAGES.saved });
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+  const { showToast } = useToast();
+  const prevSaveStatusRef = useRef<NoteSaveStatus>("saved");
   const [deleteOpen, setDeleteOpen] = useState(false);
   const metadata = useMemo(
     () =>
-      updatedAt
+      (updatedAt || lastSavedAt)
         ? buildNoteMetadataItems({
             title: initialTitle,
             summary: initialSummary,
             content: editorInitialContent,
-            updatedAt,
+            updatedAt: lastSavedAt ? new Date(lastSavedAt).toISOString() : updatedAt!,
           })
         : null,
-    [editorInitialContent, initialSummary, initialTitle, updatedAt],
+    [editorInitialContent, initialSummary, initialTitle, lastSavedAt, updatedAt],
   );
 
   const queueCurrentDraft = useCallback(() => {
@@ -184,6 +197,8 @@ export function NoteEditor({
       title: latestTitleRef.current,
       content: latestContentRef.current,
       serverVersion: serverVersionRef.current,
+      baseTitle: baseTitleRef.current,
+      baseContent: baseContentRef.current,
       updatedAt,
     });
   }, [noteId, userId]);
@@ -206,13 +221,39 @@ export function NoteEditor({
     retryStoredNoteDraft(userId, noteId);
   }, [noteId, userId]);
 
+  useEffect(() => {
+    if (readNoteDraft(userId, noteId)) return;
+    serverVersionRef.current = serverVersion;
+    baseTitleRef.current = initialTitle;
+    baseContentRef.current = initialContent;
+  }, [initialContent, initialTitle, noteId, serverVersion, userId]);
+
   useEffect(() => subscribeNoteDraftSync(userId, noteId, (snapshot) => {
-    if (snapshot.serverVersion !== undefined) serverVersionRef.current = snapshot.serverVersion;
-    if (snapshot.status === "saved" && snapshot.title && snapshot.slug) {
-      onTitleChangeRef.current?.(snapshot.title, snapshot.slug);
+    if (snapshot.status === "saved") {
+      if (snapshot.serverVersion !== undefined) serverVersionRef.current = snapshot.serverVersion;
+      if (snapshot.title !== undefined) {
+        latestTitleRef.current = snapshot.title;
+        baseTitleRef.current = snapshot.title;
+        if (snapshot.resolvedWithRemote && titleRef.current) {
+          titleRef.current.textContent = snapshot.title;
+        }
+        onTitleChangeRef.current?.(snapshot.title, snapshot.slug);
+      }
+      if (snapshot.content !== undefined) {
+        latestContentRef.current = snapshot.content;
+        baseContentRef.current = snapshot.content;
+        onContentChangeRef.current?.(snapshot.content);
+        if (snapshot.resolvedWithRemote) setEditorRevision((revision) => revision + 1);
+      }
+      if (snapshot.savedAt !== undefined) setLastSavedAt(snapshot.savedAt);
     }
+    if (snapshot.status === "error" && prevSaveStatusRef.current !== "error") {
+      showToast(snapshot.message || NOTE_SAVE_MESSAGES.error, "error");
+    }
+    prevSaveStatusRef.current = snapshot.status;
     setSaveState(snapshot);
-  }), [noteId, userId]);
+    onSaveSnapshotRef.current?.(snapshot);
+  }), [noteId, userId, showToast]);
 
   useEffect(() => {
     const retryLatestDraft = () => retryStoredNoteDraft(userId, noteId);
@@ -313,7 +354,10 @@ export function NoteEditor({
       className={embedded ? "mewmo-note-title-editor" : "text-xl font-bold text-ink outline-none flex-1 mr-4"}
     />
   );
-  const saveStatus = (
+  const saveStatus =
+    saveState.status === "saved" || saveState.status === "saving" || saveState.status === "error"
+      ? null
+      : (
     <span
       className={`mewmo-note-save-status mewmo-note-save-status--${saveState.status}`}
       aria-live="polite"
@@ -321,13 +365,28 @@ export function NoteEditor({
       {saveState.message}
     </span>
   );
+  const conflictActions = saveState.conflict ? (
+    <span className="mewmo-note-save-conflict-actions">
+      <button
+        type="button"
+        onClick={() => resolveNoteDraftConflict(userId, noteId, "local")}
+      >
+        保留本地版本
+      </button>
+      <button
+        type="button"
+        onClick={() => resolveNoteDraftConflict(userId, noteId, "remote")}
+      >
+        使用云端版本
+      </button>
+    </span>
+  ) : null;
 
   if (embedded) {
     return (
       <div className="mewmo-note-editor">
         <div className="mewmo-note-editor__head">
           {titleEditor}
-          {saveStatus}
           {metadata && (
             <div className="mewmo-note-editor__meta">
               {metadata.details.map((item, index) => (
@@ -336,6 +395,8 @@ export function NoteEditor({
                   {item}
                 </span>
               ))}
+              {saveStatus}
+              {conflictActions}
             </div>
           )}
         </div>
@@ -343,7 +404,10 @@ export function NoteEditor({
           <MilkdownProvider>
             <div className="crepe-editor-wrapper crepe-editor-wrapper--embedded">
               <CrepeContent
-                initialContent={editorInitialContent}
+                key={editorRevision}
+                initialContent={editorRevision
+                  ? normalizeNoteMarkdownBreaks(latestContentRef.current)
+                  : editorInitialContent}
                 noteId={noteId}
                 onContentChange={handleContentChange}
               />
@@ -373,7 +437,10 @@ export function NoteEditor({
         <MilkdownProvider>
           <div className="h-full crepe-editor-wrapper">
             <CrepeContent
-              initialContent={editorInitialContent}
+              key={editorRevision}
+              initialContent={editorRevision
+                ? normalizeNoteMarkdownBreaks(latestContentRef.current)
+                : editorInitialContent}
               noteId={noteId}
               onContentChange={handleContentChange}
             />
