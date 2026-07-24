@@ -31,6 +31,25 @@ const optionalUrl = z.preprocess(
   z.string().url().optional(),
 );
 
+const optionalPositiveInt = z.preprocess(
+  (value) => (value === "" || value === undefined ? undefined : Number(value)),
+  z.number().int().positive().optional(),
+);
+
+const rerankEnvShape = {
+  // ZOO-64: provider-neutral reranker. Unset AI_RERANK_API_KEY 降级为透传实现（保留 RRF 顺序）。
+  AI_RERANK_PROVIDER: optionalNonEmptyString,
+  AI_RERANK_MODEL: optionalNonEmptyString,
+  AI_RERANK_API_KEY: optionalNonEmptyString,
+  AI_RERANK_BASE_URL: optionalUrl,
+  AI_RERANK_TIMEOUT_MS: optionalPositiveInt,
+  AI_RERANK_MAX_CANDIDATES: optionalPositiveInt,
+  // provider=jina 时的密钥来源（与 ZOO-65 Jina 工具共享）；AI_RERANK_API_KEY 未设时回退到此。
+  JINA_API_KEY: optionalNonEmptyString,
+  // 固定 pgvector 列维度，默认 1536；与 ensure-pgvector-schema.ts / backfill 一致。
+  AI_EMBEDDING_DIMENSIONS: optionalPositiveInt,
+} as const;
+
 const redisEnvSchema = z.object({
   REDIS_URL: z.string().min(1),
 });
@@ -48,6 +67,7 @@ const workerEnvSchema = z
     CUSTOM_AI_API_KEY: optionalNonEmptyString,
     CUSTOM_AI_BASE_URL: optionalUrl,
     AI_SUMMARY_MODEL: optionalNonEmptyString,
+    ...rerankEnvShape,
   })
   .superRefine((env, ctx) => {
     if (!env.AI_SUMMARY_MODEL) {
@@ -109,6 +129,7 @@ const envSchema = z.object({
   EMAIL_FROM: z.string().min(1),
   FEED_SEARCH_ENDPOINT: z.string().url().optional(),
   FEED_SEARCH_API_KEY: z.string().min(1).optional(),
+  ...rerankEnvShape,
 }).superRefine((env, ctx) => {
   const aiProvider = env.AI_PROVIDER ?? "openai";
   const requiredAIKeys: RequiredAIEnvKey[] =

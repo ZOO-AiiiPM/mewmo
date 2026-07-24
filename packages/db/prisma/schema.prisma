@@ -1,9 +1,11 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
+  provider   = "postgresql"
+  extensions = [vector, pg_trgm]
 }
 
 model User {
@@ -515,6 +517,9 @@ model ContentEmbedding {
   model        String
   dimensions   Int
   embedding    Json
+  // pgvector 影子列（ZOO-64）：与 embedding(JSON) 双写，供 pgvector 语义召回使用。
+  // 维度必须与 AI_EMBEDDING_DIMENSIONS 一致（当前 768，gemini-embedding-001）；索引在 ensure-pgvector-schema.ts 中创建。
+  embeddingVector Unsupported("vector(768)")? @map("embedding_vector")
   createdAt    DateTime     @default(now()) @map("created_at")
   updatedAt    DateTime     @updatedAt @map("updated_at")
 
