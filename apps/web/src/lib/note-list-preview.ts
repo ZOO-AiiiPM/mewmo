@@ -30,7 +30,7 @@ export function notePreviewText(note: Pick<NotePreviewSource, "summary" | "previ
     .split("\n")
     .map(cleanPreviewLine)
     .filter(Boolean)
-    .join("\n");
+    .join(" ");
 
   return normalizeListCardPreview(normalized);
 }

@@ -225,8 +225,11 @@ export default function ClipsPage() {
       "clips",
       clipToLoad.id,
     );
-    setSelectedClip(cachedDetail ?? clipToLoad);
-    if (cachedDetail && isWorkspaceDetailFresh("clips", clipToLoad)) {
+    const cacheIsFresh =
+      !!cachedDetail && isWorkspaceDetailFresh("clips", clipToLoad);
+    const cacheHasMeta = !!(cachedDetail?.author && cachedDetail?.publishedAt);
+    setSelectedClip(cacheIsFresh && cacheHasMeta ? cachedDetail : clipToLoad);
+    if (cacheIsFresh && cacheHasMeta) {
       setLoadingClipId(null);
       return;
     }
@@ -424,9 +427,7 @@ export default function ClipsPage() {
                     <div className="mewmo-list-card__source mewmo-list-card__source--clip">
                       <Favicon clip={clip} />
                       <span>{domain}</span>
-                      <time>
-                        {formatClipListTime(clip.createdAt)}
-                      </time>
+                      <time>{formatClipListTime(clip.createdAt)}</time>
                     </div>
                   </button>
                   <CardActionMenu
@@ -439,7 +440,6 @@ export default function ClipsPage() {
                     onDelete={() => void deleteClip(clip)}
                     onRefresh={() => void refreshClip(clip)}
                     onCopyLink={() => void copyClipUrl(clip)}
-                    href={clip.url}
                     moveToKnowledgeTarget={{ kind: "clip", clipId: clip.id, title: clip.title }}
                   />
                 </article>

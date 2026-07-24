@@ -92,6 +92,8 @@ type KnowledgeEntityDetail = {
   title?: string;
   summary?: string | null;
   content?: string | null;
+  author?: string | null;
+  publishedAt?: string | null;
   updatedAt?: string;
   createdAt?: string;
   version?: number;
@@ -577,6 +579,7 @@ export default function KnowledgeBasesPage() {
         type="file"
         accept=".md,.markdown,.pdf,.epub,.mobi,.azw3"
         hidden
+        multiple
         onChange={(event) => {
           const files = Array.from(event.currentTarget.files ?? []);
           event.currentTarget.value = "";
@@ -636,7 +639,6 @@ export default function KnowledgeBasesPage() {
           <KnowledgeEmptyState
             onImportInbox={openImportModal}
             onImportLocalFile={openLocalFileImport}
-            onImportLocalFolder={openLocalFolderImport}
           />
         ) : (
           <div className="mewmo-knowledge-list">
@@ -685,7 +687,11 @@ export default function KnowledgeBasesPage() {
                     <div className="mewmo-list-card__source mewmo-knowledge-card__source">
                       <PrototypeIcon name={card.icon} size={15} />
                       <span>{card.sourceText}</span>
-                      <time>{formatKnowledgeListTime(item, card)}</time>
+                      {card.createdAt && (
+                        <time dateTime={card.createdAt}>
+                          {formatClipListTime(card.createdAt)}
+                        </time>
+                      )}
                     </div>
                   </button>
                   <CardActionMenu
@@ -786,8 +792,8 @@ function KnowledgeRootEmptyState({ onImportLocalFolder }: { onImportLocalFolder:
       <p>一级目录只存放文件夹</p>
       <div className="mewmo-knowledge-empty__actions">
         <button type="button" className="mewmo-knowledge-empty__asset" onClick={onImportLocalFolder}>
-          <PrototypeIcon name="folder" size={15} />
-          <span>从本地文件夹导入</span>
+          <PrototypeIcon name="import" size={15} />
+          <span>从本地导入</span>
         </button>
       </div>
     </div>
@@ -797,11 +803,9 @@ function KnowledgeRootEmptyState({ onImportLocalFolder }: { onImportLocalFolder:
 function KnowledgeEmptyState({
   onImportInbox,
   onImportLocalFile,
-  onImportLocalFolder,
 }: {
   onImportInbox: () => void;
   onImportLocalFile: () => void;
-  onImportLocalFolder: () => void;
 }) {
   return (
     <div className="mewmo-list-empty mewmo-knowledge-empty">
@@ -813,11 +817,7 @@ function KnowledgeEmptyState({
         </button>
         <button type="button" className="mewmo-knowledge-empty__asset" onClick={onImportLocalFile}>
           <PrototypeIcon name="import" size={15} />
-          <span>从本地文件导入</span>
-        </button>
-        <button type="button" className="mewmo-knowledge-empty__asset" onClick={onImportLocalFolder}>
-          <PrototypeIcon name="folder" size={15} />
-          <span>从本地文件夹导入</span>
+          <span>从本地导入</span>
         </button>
       </div>
     </div>
@@ -979,12 +979,25 @@ function SourceStrip({
   url: string;
 }) {
   return (
-    <div className="mewmo-source-strip">
+    <div className="mewmo-doc-meta">
       <PrototypeIcon name={card.icon} size={16} />
-      <span>{card.readerSourceText}</span>
-      <a href={url} target="_blank" rel="noreferrer">
-        原文
-      </a>
+      {knowledgeMetaItems(card).map((metaItem, index) => (
+        <span key={`${metaItem}-${index}`}>
+          {index > 0 && <b aria-hidden="true">·</b>}
+          {metaItem}
+        </span>
+      ))}
+      <span>
+        <b aria-hidden="true">·</b>
+        <a
+          className="mewmo-doc-meta__link"
+          href={url}
+          target="_blank"
+          rel="noreferrer"
+        >
+          原文
+        </a>
+      </span>
     </div>
   );
 }
@@ -1041,6 +1054,25 @@ function formatKnowledgeListTime(
   if (!value) return "";
   if (item.kind === "note") return formatNoteListTime(value);
   return formatClipListTime(value);
+}
+
+function formatArticleDate(value?: string | null) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const now = new Date();
+  const sameYear = date.getFullYear() === now.getFullYear();
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  const hh = String(date.getHours()).padStart(2, "0");
+  const mm = String(date.getMinutes()).padStart(2, "0");
+  return `${sameYear ? "" : `${date.getFullYear()}年`}${month}月${day}日 ${hh}:${mm}`;
+}
+
+function knowledgeMetaItems(card: ReturnType<typeof buildKnowledgeCardView>): string[] {
+  const author = card.author && card.author !== card.sourceText ? card.author : null;
+  const publishedAt = card.publishedAt ? formatArticleDate(card.publishedAt) : null;
+  return [card.sourceText, author, publishedAt].filter(Boolean) as string[];
 }
 
 function inferLocalKnowledgeImportType(fileName: string): LocalKnowledgeImportType | null {

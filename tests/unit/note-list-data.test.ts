@@ -40,7 +40,7 @@ describe("note list data", () => {
         version: 3,
         createdAt: new Date("2026-07-18T00:00:00.000Z"),
         updatedAt: new Date("2026-07-18T01:00:00.000Z"),
-        preview: "第一段\n第二段",
+        preview: "第一段 第二段",
       },
     ]);
     expect(notes[0]).not.toHaveProperty("previewSource");

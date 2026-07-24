@@ -971,6 +971,7 @@ test("prototype popovers and dialogs keep icon-bearing structure", () => {
   );
   const confirmDialog = read("apps/web/src/components/ui/ConfirmDialog.tsx");
   const feedsPage = read("apps/web/src/app/(app)/feeds/page.tsx");
+  const feedMenu = read("apps/web/src/components/shell/FeedArticleMenu.tsx");
   const knowledgeImport = read(
     "apps/web/src/components/knowledge/KnowledgeImportModal.tsx",
   );
@@ -989,12 +990,17 @@ test("prototype popovers and dialogs keep icon-bearing structure", () => {
   assert.match(
     readerToolbar,
     /mewmo-card-menu__item mewmo-card-menu__item--danger[\s\S]*runMenuAction\(onDelete\)[\s\S]*runMenuAction\(onRefresh\)[\s\S]*runMenuAction\(onCopyLink\)/,
-    "clip reader toolbar menu items should keep real clip actions without hiding original-link navigation in the menu",
+    "clip reader toolbar menu items should keep real clip actions and the inline original-link lives in the metadata strip",
   );
   assert.doesNotMatch(
     readerToolbar,
     /浏览器打开/,
-    "reader toolbar should not keep original-link navigation in the overflow menu",
+    "clip reader overflow menu should no longer expose the 'open original in browser' anchor",
+  );
+  assert.doesNotMatch(
+    feedMenu,
+    /浏览器打开/,
+    "feed reader overflow menu should no longer expose the 'open original in browser' anchor",
   );
   assert.match(
     readerToolbar,
@@ -1759,8 +1765,13 @@ test("today view aggregates notes clips and subscription updates with prototype 
   );
   assert.match(
     todayRoute,
-    /prisma\.note\.findMany[\s\S]*createdAt:\s*\{\s*gte:\s*startOfToday,\s*lt:\s*startOfTomorrow\s*\}/,
-    "today API should include notes created today",
+    /listTodayNotePreviews\(userId,\s*startOfToday,\s*startOfTomorrow/,
+    "today API should include notes created today via the bounded note-preview helper",
+  );
+  assert.match(
+    read("apps/web/src/lib/note-list-data.ts"),
+    /export async function listTodayNotePreviews[\s\S]*created_at >= \$\{start\}[\s\S]*created_at < \$\{end\}/,
+    "today note-preview helper should bound notes to the given day window",
   );
   assert.match(
     todayRoute,
@@ -2051,7 +2062,11 @@ test("clip list cards use cover images, body previews, and recency time", () => 
 
   for (const source of [clipsIndex, clipDetail]) {
     assert.match(source, /clipPreviewText/, "clip cards should show body-derived preview text");
-    assert.match(source, /formatClipListTime/, "clip cards should use the compact recency time format");
+    assert.match(
+      source,
+      /articleMetaItems/,
+      "clip list cards should render the unified author/date metadata strip",
+    );
     assert.match(source, /mewmo-list-card__cover/, "clip cards should render rectangular cover images");
     assert.match(source, /referrerPolicy="no-referrer"/, "WeChat cover images must load without a referrer");
   }
