@@ -11,8 +11,9 @@ function transactionDb(run: Record<string, unknown>, target: "note" | "clip") {
     note: { findFirst: vi.fn().mockResolvedValue(target === "note" ? { version: 4 } : null) },
     clip: { findFirst: vi.fn().mockResolvedValue(target === "clip" ? { version: 4 } : null) },
     feedEntry: { findFirst: vi.fn() },
-    contentEmbedding: { upsert: vi.fn() },
+    contentEmbedding: { upsert: vi.fn().mockResolvedValue({ id: "embedding-1" }) },
     contentRelation: { deleteMany: vi.fn(), createMany: vi.fn() },
+    $executeRaw: vi.fn().mockResolvedValue(1),
   };
   return {
     tx,
@@ -31,6 +32,9 @@ describe("AI run workflow chaining", () => {
     expect(tx.aiRun.upsert).toHaveBeenCalledWith(expect.objectContaining({
       create: expect.objectContaining({ kind: "relation", targetType: "clip", targetId: "clip-1", inputVersion: 4 }),
     }));
+    // 双写：维度与配置不一致时清空影子列以待回填（仍在事务内执行）。
+    expect(tx.contentEmbedding.upsert).toHaveBeenCalledOnce();
+    expect(tx.$executeRaw).toHaveBeenCalledOnce();
   });
 
   it("queues note insight after note relations are refreshed", async () => {

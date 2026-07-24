@@ -1,4 +1,10 @@
-import type { AIEnvironment, AIRuntimeConfig, ModelPurpose } from "./types";
+import type { AIEnvironment, AIRuntimeConfig, ModelDefinition, ModelPurpose } from "./types";
+import type { AIProvider } from "../providers/types";
+import { loadRerankerConfig } from "../rerank/env";
+
+// Native Gemini surface. Chat rides Pi's google provider; embeddings ride the
+// OpenAI-compatible sub-path (see runtime.ts) since Pi has no embedding port.
+const GOOGLE_NATIVE_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
 
 const purposes: Array<[ModelPurpose, string[]]> = [
   ["agent.chat", ["AI_MODEL_AGENT_CHAT", "AI_CHAT_MODEL"]],
@@ -16,7 +22,13 @@ export function loadAIRuntimeConfig(input: AIEnvironment = process.env): AIRunti
   const models: AIRuntimeConfig["models"] = {};
   for (const [purpose, names] of purposes) {
     const model = names.map((name) => input[name]?.trim()).find(Boolean);
-    if (model) models[purpose] = { provider: providerName, model };
+    if (!model) continue;
+    const definition: ModelDefinition = { provider: providerName, model };
+    if (purpose === "workflow.embedding") {
+      const dimensions = Number.parseInt(input.AI_EMBEDDING_DIMENSIONS?.trim() ?? "", 10);
+      if (Number.isFinite(dimensions) && dimensions > 0) definition.dimensions = dimensions;
+    }
+    models[purpose] = definition;
   }
   return {
     providers: {
@@ -31,36 +43,41 @@ export function loadAIRuntimeConfig(input: AIEnvironment = process.env): AIRunti
       },
     },
     models,
+    reranker: loadRerankerConfig(input),
   };
 }
 
-function parseProvider(value: string | undefined) {
-  if (!value || value === "openai") return "openai" as const;
-  if (value === "anthropic" || value === "custom") return value;
-  throw new Error("AI_PROVIDER must be openai, anthropic, or custom");
+function parseProvider(value: string | undefined): AIProvider {
+  if (!value || value === "openai") return "openai";
+  if (value === "anthropic" || value === "custom" || value === "google") return value;
+  throw new Error("AI_PROVIDER must be openai, anthropic, custom, or google");
 }
 
-function apiKeyFor(provider: "openai" | "anthropic" | "custom", input: AIEnvironment) {
+function apiKeyFor(provider: AIProvider, input: AIEnvironment) {
   if (provider === "anthropic") return input.ANTHROPIC_API_KEY;
   if (provider === "custom") return input.CUSTOM_AI_API_KEY;
+  if (provider === "google") return input.GEMINI_API_KEY;
   return input.OPENAI_API_KEY;
 }
 
-function baseUrlFor(provider: "openai" | "anthropic" | "custom", input: AIEnvironment) {
+function baseUrlFor(provider: AIProvider, input: AIEnvironment) {
   if (provider === "anthropic") return input.ANTHROPIC_BASE_URL ?? "https://api.anthropic.com/v1";
   if (provider === "custom") return input.CUSTOM_AI_BASE_URL;
+  if (provider === "google") return input.GEMINI_BASE_URL ?? GOOGLE_NATIVE_BASE_URL;
   return input.OPENAI_BASE_URL ?? "https://api.openai.com/v1";
 }
 
-function apiKeyName(provider: "openai" | "anthropic" | "custom") {
+function apiKeyName(provider: AIProvider) {
   if (provider === "anthropic") return "ANTHROPIC_API_KEY";
   if (provider === "custom") return "CUSTOM_AI_API_KEY";
+  if (provider === "google") return "GEMINI_API_KEY";
   return "OPENAI_API_KEY";
 }
 
-function baseUrlName(provider: "openai" | "anthropic" | "custom") {
+function baseUrlName(provider: AIProvider) {
   if (provider === "anthropic") return "ANTHROPIC_BASE_URL";
   if (provider === "custom") return "CUSTOM_AI_BASE_URL";
+  if (provider === "google") return "GEMINI_BASE_URL";
   return "OPENAI_BASE_URL";
 }
 
@@ -74,9 +91,10 @@ function stripSlash(value: string) {
   return value.replace(/\/+$/, "");
 }
 
-function usesBuiltinProvider(provider: "openai" | "anthropic" | "custom", baseUrl: string | undefined) {
+function usesBuiltinProvider(provider: AIProvider, baseUrl: string | undefined) {
   const normalized = baseUrl?.replace(/\/+$/, "");
   if (provider === "openai") return normalized === "https://api.openai.com/v1";
   if (provider === "anthropic") return normalized === "https://api.anthropic.com/v1";
+  if (provider === "google") return normalized === GOOGLE_NATIVE_BASE_URL;
   return false;
 }

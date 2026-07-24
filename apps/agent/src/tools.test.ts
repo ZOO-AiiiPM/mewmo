@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { AgentRequestContext } from "./ports";
-import { createPiToolRegistry } from "./pi/tools";
+import type { AgentCitation } from "./contracts";
+import { createPiToolRegistry, type WebBudget } from "./pi/tools";
+import type { WebPort } from "./web/port";
 import { ALL_TOOL_NAMES, READ_TOOL_NAMES, WRITE_TOOL_NAMES } from "./tools";
 import { TEST_ACTOR, createApplicationStub } from "./testing";
 
@@ -24,7 +26,7 @@ describe("Agent tool policy", () => {
   });
 
   it("exposes only read tools to Deep Insight policy", () => {
-    expect(READ_TOOL_NAMES).toEqual(["read_current_context", "content_search", "content_read"]);
+    expect(READ_TOOL_NAMES).toEqual(["read_current_context", "content_search", "content_read", "web_search", "web_fetch"]);
     expect(READ_TOOL_NAMES.some((name) => (WRITE_TOOL_NAMES as readonly string[]).includes(name))).toBe(false);
   });
 
@@ -62,5 +64,53 @@ describe("Agent tool policy", () => {
     const tool = tools.find((candidate) => candidate.name === "note_update")!;
     const result = await tool.execute("call-1", { noteId: "note-1", content: "new", expectedVersion: 4 }, undefined);
     expect(result.details).toMatchObject({ status: "proposed", clientEffect: { kind: "note_draft_patch", noteId: "note-1", content: "new", baseVersion: 4 } });
+  });
+});
+
+describe("Agent web tools", () => {
+  function webStub(overrides: Partial<WebPort> = {}): WebPort {
+    return {
+      search: vi.fn(async () => ({ results: [{ title: "Doc", url: "https://example.com/a", snippet: "hello" }] })),
+      fetch: vi.fn(async () => ({ requestedUrl: "https://example.com/a", finalUrl: "https://example.com/a", title: "Doc", content: "body", truncated: false })),
+      ...overrides,
+    };
+  }
+
+  it("fails closed when no web port is configured", async () => {
+    const tools = createPiToolRegistry({ application: createApplicationStub(), context: requestContext(), proposals: [] });
+    const tool = tools.find((candidate) => candidate.name === "web_search")!;
+    await expect(tool.execute("call-1", { query: "anything" }, undefined)).rejects.toThrow(/not configured/i);
+  });
+
+  it("collects deduplicated citations from search and fetch", async () => {
+    const citations: AgentCitation[] = [];
+    const webBudget: WebBudget = { searchRemaining: 2, fetchRemaining: 5 };
+    const tools = createPiToolRegistry({ application: createApplicationStub(), context: requestContext(), proposals: [], web: webStub(), webBudget, citations });
+    const search = tools.find((candidate) => candidate.name === "web_search")!;
+    const fetch = tools.find((candidate) => candidate.name === "web_fetch")!;
+    await search.execute("call-1", { query: "q", limit: 5 }, undefined);
+    await fetch.execute("call-2", { url: "https://example.com/a", maxChars: 12_000 }, undefined);
+    expect(citations).toEqual([
+      { url: "https://example.com/a", title: "Doc", snippet: "hello", source: "web_search" },
+    ]);
+    expect(webBudget).toEqual({ searchRemaining: 1, fetchRemaining: 4 });
+  });
+
+  it("rejects web_search once the per-turn budget is exhausted", async () => {
+    const webBudget: WebBudget = { searchRemaining: 0, fetchRemaining: 5 };
+    const search = vi.fn();
+    const tools = createPiToolRegistry({ application: createApplicationStub(), context: requestContext(), proposals: [], web: webStub({ search }), webBudget, citations: [] });
+    const tool = tools.find((candidate) => candidate.name === "web_search")!;
+    await expect(tool.execute("call-1", { query: "q" }, undefined)).rejects.toThrow(/web_search limit/);
+    expect(search).not.toHaveBeenCalled();
+  });
+
+  it("rejects web_fetch once the per-turn budget is exhausted", async () => {
+    const webBudget: WebBudget = { searchRemaining: 2, fetchRemaining: 0 };
+    const fetch = vi.fn();
+    const tools = createPiToolRegistry({ application: createApplicationStub(), context: requestContext(), proposals: [], web: webStub({ fetch }), webBudget, citations: [] });
+    const tool = tools.find((candidate) => candidate.name === "web_fetch")!;
+    await expect(tool.execute("call-1", { url: "https://example.com/a" }, undefined)).rejects.toThrow(/web_fetch limit/);
+    expect(fetch).not.toHaveBeenCalled();
   });
 });

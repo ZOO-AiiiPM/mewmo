@@ -1,9 +1,24 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { AiRuntimePort, WorkflowHandlerContext } from "../contracts";
+import type {
+  AiRuntimePort,
+  RecommendationCandidate,
+  RerankOutcome,
+  WorkflowHandlerContext,
+} from "../contracts";
 import { runEmbeddingWorkflow } from "./embedding";
 import { runNoteInsightWorkflow } from "./note-insight";
 import { runRecommendationWorkflow } from "./recommendation";
+
+function passthroughRerank(input: { documents: string[] }): RerankOutcome {
+  return {
+    provider: "passthrough",
+    model: "passthrough",
+    fellBack: true,
+    fallbackReason: "fake_passthrough",
+    results: input.documents.map((_doc, index) => ({ index, score: input.documents.length - index })),
+  };
+}
 
 function context(ai: AiRuntimePort): WorkflowHandlerContext {
   return {
@@ -15,11 +30,22 @@ function context(ai: AiRuntimePort): WorkflowHandlerContext {
   };
 }
 
+function recommendationCandidate(overrides: Partial<RecommendationCandidate> & { targetId: string }): RecommendationCandidate {
+  return {
+    targetType: "clip",
+    targetVersion: 1,
+    similarity: 0.5,
+    text: `text for ${overrides.targetId}`,
+    ...overrides,
+  };
+}
+
 describe("classified AI workflows", () => {
   it("embeds content without using a generative model", async () => {
     const ai: AiRuntimePort = {
       generateText: vi.fn(),
       generateObject: vi.fn(),
+      rerank: vi.fn(),
       embed: vi.fn().mockResolvedValue([{
         vector: [0.1, 0.2, 0.3],
         dimensions: 3,
@@ -41,29 +67,105 @@ describe("classified AI workflows", () => {
     expect(ai.generateText).not.toHaveBeenCalled();
   });
 
-  it("ranks related content deterministically without an LLM", async () => {
+  it("applies reranker order and caps relations at the limit", async () => {
+    const rerank = vi.fn(async (input: { documents: string[] }): Promise<RerankOutcome> => ({
+      provider: "voyage",
+      model: "rerank-2.5-lite",
+      fellBack: false,
+      // reverse the RRF order to prove rerank ranking wins.
+      results: input.documents.map((_doc, index) => ({ index: input.documents.length - 1 - index, score: index })),
+    }));
+    const ai = { generateText: vi.fn(), generateObject: vi.fn(), embed: vi.fn(), rerank } as unknown as AiRuntimePort;
     const result = await runRecommendationWorkflow({
       kind: "recommendation",
       targetType: "note",
       targetId: "note-1",
       inputVersion: 1,
       currentVersion: 1,
+      sourceText: "source note",
       candidates: [
-        { targetType: "clip", targetId: "clip-low", targetVersion: 1, similarity: 0.6 },
-        { targetType: "note", targetId: "note-1", targetVersion: 1, similarity: 1 },
-        { targetType: "feed_entry", targetId: "entry-high", targetVersion: 2, similarity: 0.9 },
+        recommendationCandidate({ targetType: "feed_entry", targetId: "entry-a", targetVersion: 2, similarity: 0.9 }),
+        recommendationCandidate({ targetType: "clip", targetId: "clip-b", similarity: 0.6 }),
+        recommendationCandidate({ targetType: "note", targetId: "note-1", targetVersion: 1, similarity: 1 }),
       ],
-    });
+      limit: 2,
+    }, context(ai));
+    expect(rerank).toHaveBeenCalledOnce();
+    // source itself (note-1) is filtered; pool=[entry-a, clip-b]; rerank reverses → [clip-b, entry-a].
     expect(result.relations).toEqual([
-      expect.objectContaining({ targetId: "entry-high", rank: 1 }),
-      expect.objectContaining({ targetId: "clip-low", rank: 2 }),
+      expect.objectContaining({ targetId: "clip-b", rank: 1 }),
+      expect.objectContaining({ targetId: "entry-a", rank: 2 }),
     ]);
+  });
+
+  it("keeps RRF order when the reranker falls back (passthrough)", async () => {
+    const ai = {
+      generateText: vi.fn(),
+      generateObject: vi.fn(),
+      embed: vi.fn(),
+      rerank: vi.fn(passthroughRerank),
+    } as unknown as AiRuntimePort;
+    const result = await runRecommendationWorkflow({
+      kind: "recommendation",
+      targetType: "note",
+      targetId: "note-1",
+      inputVersion: 1,
+      currentVersion: 1,
+      sourceText: "source note",
+      candidates: [
+        recommendationCandidate({ targetType: "feed_entry", targetId: "entry-a", similarity: 0.9 }),
+        recommendationCandidate({ targetType: "clip", targetId: "clip-b", similarity: 0.6 }),
+      ],
+    }, context(ai));
+    expect(result.relations).toEqual([
+      expect.objectContaining({ targetId: "entry-a", rank: 1 }),
+      expect.objectContaining({ targetId: "clip-b", rank: 2 }),
+    ]);
+  });
+
+  it("fails open to RRF order when the reranker throws", async () => {
+    const ai = {
+      generateText: vi.fn(),
+      generateObject: vi.fn(),
+      embed: vi.fn(),
+      rerank: vi.fn().mockRejectedValue(new Error("rerank_timeout")),
+    } as unknown as AiRuntimePort;
+    const result = await runRecommendationWorkflow({
+      kind: "recommendation",
+      targetType: "note",
+      targetId: "note-1",
+      inputVersion: 1,
+      currentVersion: 1,
+      sourceText: "source note",
+      candidates: [
+        recommendationCandidate({ targetType: "feed_entry", targetId: "entry-a", similarity: 0.9 }),
+        recommendationCandidate({ targetType: "clip", targetId: "clip-b", similarity: 0.6 }),
+      ],
+    }, context(ai));
+    expect(result.relations.map((relation) => relation.targetId)).toEqual(["entry-a", "clip-b"]);
+  });
+
+  it("skips rerank and returns empty relations when there are no candidates", async () => {
+    const rerank = vi.fn();
+    const ai = { generateText: vi.fn(), generateObject: vi.fn(), embed: vi.fn(), rerank } as unknown as AiRuntimePort;
+    const result = await runRecommendationWorkflow({
+      kind: "recommendation",
+      targetType: "note",
+      targetId: "note-1",
+      inputVersion: 1,
+      currentVersion: 1,
+      sourceText: "source note",
+      candidates: [],
+    }, context(ai));
+    expect(result.relations).toEqual([]);
+    expect(rerank).not.toHaveBeenCalled();
   });
 
   it("keeps automatic note insight distinct from Agent deep-insight", async () => {
     const ai: AiRuntimePort = {
       generateText: vi.fn(),
       embed: vi.fn(),
+      rerank: vi.fn(),
       generateObject: vi.fn().mockResolvedValue({
         value: { insights: [{ type: "duplicate", message: "这与旧笔记观点重复。", evidenceTargetIds: ["note-old"] }] },
         metadata: { profile: "workflow.note-insight", model: "fake-insight" },
@@ -91,6 +193,7 @@ describe("classified AI workflows", () => {
     const ai: AiRuntimePort = {
       generateText: vi.fn(),
       embed: vi.fn(),
+      rerank: vi.fn(),
       generateObject: vi.fn().mockResolvedValue({
         value: [{ type: "completeness", message: "补充一个反例。", evidenceTargetIds: [] }],
         metadata: { profile: "workflow.note-insight", model: "fake-insight" },

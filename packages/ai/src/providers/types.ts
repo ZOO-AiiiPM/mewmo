@@ -1,4 +1,4 @@
-export type AIProvider = "openai" | "anthropic" | "custom";
+export type AIProvider = "openai" | "anthropic" | "custom" | "google";
 
 export interface CompletionMessage {
   role: "user" | "assistant";
