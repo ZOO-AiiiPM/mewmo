@@ -12,6 +12,8 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:ensure-development": "tsx scripts/ensure-development-schema.ts",
+    "db:ensure-pgvector": "tsx scripts/ensure-pgvector-schema.ts",
+    "db:backfill-vectors": "tsx scripts/backfill-embedding-vectors.ts",
     "build": "prisma generate && tsc -p tsconfig.json",
     "lint": "eslint .",
     "test": "vitest"

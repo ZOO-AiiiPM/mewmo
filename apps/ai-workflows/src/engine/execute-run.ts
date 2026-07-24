@@ -13,7 +13,7 @@ import { runSummaryWorkflow } from "../workflows/summary";
 const handlers: Record<ClaimedAiRun["kind"], WorkflowHandler> = {
   summary: (input, context) => runSummaryWorkflow(expectKind(input, "summary"), context),
   embedding: (input, context) => runEmbeddingWorkflow(expectKind(input, "embedding"), context),
-  recommendation: (input) => runRecommendationWorkflow(expectKind(input, "recommendation")),
+  recommendation: (input, context) => runRecommendationWorkflow(expectKind(input, "recommendation"), context),
   note_insight: (input, context) => runNoteInsightWorkflow(expectKind(input, "note_insight"), context),
 };
 

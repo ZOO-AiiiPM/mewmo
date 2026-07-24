@@ -52,6 +52,7 @@ function setup(runs: ClaimedAiRun[], inputs: Record<string, WorkflowInput | null
     }),
     generateObject: vi.fn(),
     embed: vi.fn(),
+    rerank: vi.fn(),
   };
   return { application, ai };
 }
