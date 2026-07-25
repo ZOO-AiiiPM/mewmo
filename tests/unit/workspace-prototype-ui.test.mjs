@@ -243,6 +243,9 @@ test("notes and clips list cards expose prototype actions, search, and pinned st
   const noteDetail = read(
     "apps/web/src/app/(app)/notes/[slug]/NoteEditorPage.tsx",
   );
+  const noteCardPreview = read(
+    "apps/web/src/components/shell/NoteCardPreview.tsx",
+  );
   const cardActionMenu = read(
     "apps/web/src/components/shell/CardActionMenu.tsx",
   );
@@ -379,6 +382,36 @@ test("notes and clips list cards expose prototype actions, search, and pinned st
     css,
     /\.mewmo-list-card p\s*\{[\s\S]*white-space:\s*pre-line/,
     "gray preview text should render preserved line breaks in every list section",
+  );
+  assert.match(
+    noteCardPreview,
+    /preview\.split\("\\n"\)\.filter\(Boolean\)\.slice\(0, 2\)/,
+    "note card previews should show at most the first two authored lines",
+  );
+  assert.match(
+    notesIndex,
+    /<NoteCardPreview preview=\{preview\} \/>/,
+    "note list cards should always reserve the shared preview slot",
+  );
+  assert.match(
+    css,
+    /\.mewmo-list-card \.mewmo-list-card__preview--note\s*\{[\s\S]*min-height:\s*calc\(2 \* 1\.5em\)[\s\S]*grid-template-rows:\s*repeat\(2, 1\.5em\)[\s\S]*-webkit-line-clamp:\s*initial/,
+    "note preview slots should stay two lines tall without multiline clamping",
+  );
+  assert.match(
+    css,
+    /\.mewmo-list-card \.mewmo-list-card__preview--note > span\s*\{[\s\S]*text-overflow:\s*ellipsis[\s\S]*white-space:\s*nowrap/,
+    "only an individually overflowing authored line should render an ellipsis",
+  );
+  assert.match(
+    css,
+    /\.mewmo-doc-meta \.mewmo-doc-meta__link\s*\{[\s\S]*color:\s*var\(--ink-faint\)[\s\S]*text-decoration:\s*none/,
+    "original-content links should use the same gray tone as reader metadata by default",
+  );
+  assert.match(
+    css,
+    /\.mewmo-doc-meta \.mewmo-doc-meta__link:hover\s*\{[\s\S]*color:\s*var\(--ink\)[\s\S]*text-decoration:\s*underline/,
+    "original-content links should turn white and underline on hover",
   );
   assert.match(
     css,

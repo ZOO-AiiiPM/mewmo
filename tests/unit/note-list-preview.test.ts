@@ -18,16 +18,16 @@ describe("note list preview", () => {
         content:
           "# Title\n\n####Subtitle\n\n不是把 AI 做成助手图标，<br />而是让它像桌上真的趴着一只猫。",
       }),
-    ).toBe("不是把 AI 做成助手图标，而是让它像桌上真的趴着一只猫。");
+    ).toBe("不是把 AI 做成助手图标，\n而是让它像桌上真的趴着一只猫。");
   });
 
-  it("flattens paragraph breaks into a flowing preview and prefers note text over summaries", () => {
+  it("preserves paragraph breaks and prefers note text over summaries", () => {
     expect(
       notePreviewText({
         summary: "AI 生成的摘要",
         content: "第一段原文\n\n第二段原文",
       }),
-    ).toBe("第一段原文 第二段原文");
+    ).toBe("第一段原文\n第二段原文");
   });
 
   it("filters markdown thematic breaks from note previews", () => {
@@ -36,7 +36,7 @@ describe("note list preview", () => {
         summary: null,
         content: "整理日期：2026-01-19\n\n---\n\n正文预览",
       }),
-    ).toBe("整理日期：2026-01-19 正文预览");
+    ).toBe("整理日期：2026-01-19\n正文预览");
   });
 
   it("filters markdown table syntax from preview text", () => {
@@ -46,13 +46,22 @@ describe("note list preview", () => {
         content:
           "| | | | | |\n|:-----|:-----|:-----|\n| | | |\n\nThis is a test note with bold and italic text.\n\n==这是高亮==",
       }),
-    ).toBe("This is a test note with bold and italic text. 这是高亮");
+    ).toBe("This is a test note with bold and italic text.\n这是高亮");
   });
 
   it("limits list previews to 240 characters", () => {
     expect(
       Array.from(notePreviewText({ summary: null, content: "猫".repeat(300) })),
     ).toHaveLength(240);
+  });
+
+  it("keeps the second authored line when the first line exceeds the preview budget", () => {
+    const preview = notePreviewText({
+      summary: null,
+      content: `${"甲".repeat(300)}\n第二行`,
+    });
+
+    expect(preview.split("\n")).toEqual(["甲".repeat(119), "第二行"]);
   });
 
   it("filters filled markdown table rows from preview text", () => {

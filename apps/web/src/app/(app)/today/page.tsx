@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { NoteSaveSnapshot } from "../../../components/editor/note-draft-sync";
 import { ListColumn } from "../../../components/shell/ListColumn";
+import { NoteCardPreview } from "../../../components/shell/NoteCardPreview";
 import { PrototypeIcon, type PrototypeIconName } from "../../../components/shell/PrototypeIcon";
 import { ReaderBackToTopButton } from "../../../components/shell/ReaderBackToTopButton";
 import { ListContentSkeleton } from "../../../components/shell/ListContentSkeleton";
@@ -406,7 +407,11 @@ export default function TodayPage() {
                     <div className="mewmo-list-card__title">
                       <span>{item.title}</span>
                     </div>
-                    {preview && <p>{preview}</p>}
+                    {item.type === "note" ? (
+                      <NoteCardPreview preview={preview} />
+                    ) : (
+                      preview && <p>{preview}</p>
+                    )}
                     {item.coverImage && (
                       <div className="mewmo-list-card__cover" aria-hidden="true">
                         <img src={item.coverImage} alt="" referrerPolicy="no-referrer" />

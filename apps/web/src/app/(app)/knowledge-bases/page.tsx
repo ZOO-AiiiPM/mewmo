@@ -8,6 +8,7 @@ import { KnowledgeImportModal } from "../../../components/knowledge/KnowledgeImp
 import { ClipContentRenderer } from "../../../components/clips/ClipContentRenderer";
 import { CardActionMenu } from "../../../components/shell/CardActionMenu";
 import { ListColumn } from "../../../components/shell/ListColumn";
+import { NoteCardPreview } from "../../../components/shell/NoteCardPreview";
 import {
   PrototypeIcon,
   type PrototypeIconName,
@@ -669,7 +670,11 @@ export default function KnowledgeBasesPage() {
                     <div className="mewmo-list-card__title">
                       <span>{card.title}</span>
                     </div>
-                    {preview && <p>{preview}</p>}
+                    {item.kind === "note" ? (
+                      <NoteCardPreview preview={preview} />
+                    ) : (
+                      preview && <p>{preview}</p>
+                    )}
                     {item.kind === "clip" && item.clip?.coverImage && (
                       <div className="mewmo-list-card__cover" aria-hidden="true">
                         <img src={item.clip.coverImage} alt="" referrerPolicy="no-referrer" />

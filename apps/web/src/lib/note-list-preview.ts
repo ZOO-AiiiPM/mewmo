@@ -15,6 +15,7 @@ const markdownImagePattern = /!\[[^\]]*]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
 const htmlImagePattern = /<img\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi;
 const tableDividerCellPattern = /^:?-{3,}:?$/;
 const DAY = 24 * 60 * 60 * 1000;
+const NOTE_PREVIEW_MAX_LENGTH = 240;
 
 export function notePreviewText(note: Pick<NotePreviewSource, "summary" | "preview" | "content">) {
   const source =
@@ -29,10 +30,24 @@ export function notePreviewText(note: Pick<NotePreviewSource, "summary" | "previ
   )
     .split("\n")
     .map(cleanPreviewLine)
-    .filter(Boolean)
-    .join(" ");
+    .filter(Boolean);
 
-  return normalizeListCardPreview(normalized);
+  const previewLines = normalized.slice(0, 2);
+  if (previewLines.length < 2) {
+    return Array.from(previewLines[0] ?? "")
+      .slice(0, NOTE_PREVIEW_MAX_LENGTH)
+      .join("");
+  }
+
+  const firstLineLimit = Math.floor((NOTE_PREVIEW_MAX_LENGTH - 1) / 2);
+  const secondLineLimit = NOTE_PREVIEW_MAX_LENGTH - 1 - firstLineLimit;
+  return previewLines
+    .map((line, index) =>
+      Array.from(line)
+        .slice(0, index === 0 ? firstLineLimit : secondLineLimit)
+        .join(""),
+    )
+    .join("\n");
 }
 
 function cleanPreviewLine(line: string) {
