@@ -24,7 +24,6 @@ interface CardActionMenuProps {
   onExport?: () => void;
   onRefresh?: () => void;
   onCopyLink?: () => void;
-  href?: string;
   moveToKnowledgeTarget?: MoveToKnowledgeTarget | undefined;
 }
 
@@ -42,7 +41,6 @@ export function CardActionMenu({
   onExport,
   onRefresh,
   onCopyLink,
-  href,
   moveToKnowledgeTarget,
 }: CardActionMenuProps) {
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -158,18 +156,6 @@ export function CardActionMenu({
             </span>
             <span>复制链接</span>
           </button>
-          <a
-            className="mewmo-card-menu__item"
-            href={href}
-            target="_blank"
-            rel="noreferrer"
-            onClick={() => onOpenChange(false)}
-          >
-            <span className="mewmo-card-menu__icon">
-              <PrototypeIcon name="external" size={16} />
-            </span>
-            <span>浏览器打开</span>
-          </a>
         </>
       )}
       {moveToKnowledgeTarget && (

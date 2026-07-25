@@ -21,7 +21,7 @@ describe("note list preview", () => {
     ).toBe("不是把 AI 做成助手图标，\n而是让它像桌上真的趴着一只猫。");
   });
 
-  it("preserves original paragraph breaks and prefers note text over summaries", () => {
+  it("preserves paragraph breaks and prefers note text over summaries", () => {
     expect(
       notePreviewText({
         summary: "AI 生成的摘要",
@@ -53,6 +53,15 @@ describe("note list preview", () => {
     expect(
       Array.from(notePreviewText({ summary: null, content: "猫".repeat(300) })),
     ).toHaveLength(240);
+  });
+
+  it("keeps the second authored line when the first line exceeds the preview budget", () => {
+    const preview = notePreviewText({
+      summary: null,
+      content: `${"甲".repeat(300)}\n第二行`,
+    });
+
+    expect(preview.split("\n")).toEqual(["甲".repeat(119), "第二行"]);
   });
 
   it("filters filled markdown table rows from preview text", () => {

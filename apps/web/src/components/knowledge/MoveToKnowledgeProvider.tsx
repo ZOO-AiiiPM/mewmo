@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -72,6 +73,10 @@ export function MoveToKnowledgeProvider({ children }: { children: ReactNode }) {
   );
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [creatingFolder, setCreatingFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("新建文件夹");
+  const [creatingFolderBusy, setCreatingFolderBusy] = useState(false);
+  const newFolderInputRef = useRef<HTMLInputElement>(null);
 
   const open = target !== null;
 
@@ -199,6 +204,29 @@ export function MoveToKnowledgeProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const submitNewFolder = useCallback(async () => {
+    if (!selectedBaseId || !newFolderName.trim() || creatingFolderBusy) return;
+    setCreatingFolderBusy(true);
+    try {
+      const response = await fetch(`/api/knowledge-bases/${selectedBaseId}/folders`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newFolderName.trim() }),
+      });
+      if (!response.ok) throw new Error("create folder");
+      const folder = (await response.json()) as { id?: string };
+      invalidateWorkspaceResourcePrefix(`knowledge:contents:${selectedBaseId}:`);
+      await loadFolders(selectedBaseId, true);
+      if (folder.id) setSelectedFolderId(folder.id);
+      setCreatingFolder(false);
+      setNewFolderName("新建文件夹");
+    } catch {
+      showToast("新建文件夹失败，请稍后再试。", "error");
+    } finally {
+      setCreatingFolderBusy(false);
+    }
+  }, [selectedBaseId, newFolderName, creatingFolderBusy, loadFolders, showToast]);
+
   const folderState = selectedBaseId
     ? (folderStates[selectedBaseId] ?? "idle")
     : "idle";
@@ -209,6 +237,7 @@ export function MoveToKnowledgeProvider({ children }: { children: ReactNode }) {
     Boolean(selectedBaseId) &&
     basesState === "ready" &&
     bases.length > 0 &&
+    selectedFolderId !== null &&
     !submitting;
 
   return (
@@ -293,16 +322,6 @@ export function MoveToKnowledgeProvider({ children }: { children: ReactNode }) {
                   )}
                   {selectedBaseId && (
                     <>
-                      <button
-                        type="button"
-                        className={`mewmo-move-knowledge__row ${selectedFolderId === null ? "mewmo-move-knowledge__row--active" : ""}`}
-                        onClick={() => setSelectedFolderId(null)}
-                      >
-                        <span className="mewmo-card-menu__icon">
-                          <PrototypeIcon name="library" size={16} dual />
-                        </span>
-                        <span>知识库根级</span>
-                      </button>
                       {folderState === "loading" && (
                         <p className="mewmo-move-knowledge__status">正在加载...</p>
                       )}
@@ -336,6 +355,42 @@ export function MoveToKnowledgeProvider({ children }: { children: ReactNode }) {
                           <span>{folder.name}</span>
                         </button>
                       ))}
+                      {creatingFolder ? (
+                        <input
+                          ref={newFolderInputRef}
+                          className="mewmo-move-knowledge__new-folder-input"
+                          value={newFolderName}
+                          autoFocus
+                          onFocus={(event) => event.currentTarget.select()}
+                          onChange={(event) => setNewFolderName(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              event.preventDefault();
+                              void submitNewFolder();
+                            } else if (event.key === "Escape") {
+                              event.preventDefault();
+                              setCreatingFolder(false);
+                              setNewFolderName("新建文件夹");
+                            }
+                          }}
+                          disabled={creatingFolderBusy}
+                          placeholder="文件夹名称"
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          className="mewmo-move-knowledge__row mewmo-move-knowledge__new-folder"
+                          onClick={() => {
+                            setNewFolderName("新建文件夹");
+                            setCreatingFolder(true);
+                          }}
+                        >
+                          <span className="mewmo-card-menu__icon">
+                            <PrototypeIcon name="plus" size={16} dual />
+                          </span>
+                          <span>新建文件夹</span>
+                        </button>
+                      )}
                     </>
                   )}
                 </div>

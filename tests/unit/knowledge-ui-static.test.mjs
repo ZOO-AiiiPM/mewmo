@@ -105,7 +105,7 @@ test("knowledge base UI is wired as a real prototype drawer, not a deferred plac
     /const PROTOTYPE_FILL_ICONS = \{[\s\S]*"folder": "<svg[\s\S]*fill=\\"currentColor\\"/,
     "folder filled icon should remain solid for the selected state",
   );
-  assert.match(sidebar, /从本地文件夹导入/, "knowledge menus should expose the prototype local folder import action");
+  assert.match(sidebar, /从本地导入/, "knowledge menus should expose the merged local import action");
   assert.match(sidebar, /导出到本地/, "root and folder menus should include local export action");
 
   assert.match(page, /buildKnowledgeCardView/, "knowledge page should render mixed content through the mapping helper");
@@ -230,8 +230,7 @@ test("knowledge base UI is wired as a real prototype drawer, not a deferred plac
     /fetch\(`\/api\/knowledge-bases\/\$\{kbId\}\/items\/import`,[\s\S]*items:\s*\[\{ kind: "note", noteId: note\.id \}\]/,
     "local markdown imports should add the created note to the current knowledge folder by reference",
   );
-  assert.match(page, /从本地文件导入/, "empty folder state should expose local file import");
-  assert.match(page, /从本地文件夹导入/, "empty folder state should expose local folder import");
+  assert.match(page, /从本地导入/, "empty folder state should expose the merged local import action");
 
   assert.match(modal, /笔记/, "import modal should include notes tab");
   assert.match(modal, /剪藏/, "import modal should include clips tab");
