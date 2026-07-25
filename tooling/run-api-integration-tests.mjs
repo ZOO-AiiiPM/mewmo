@@ -17,6 +17,7 @@ const nextEnvPath = new URL("../apps/web/next-env.d.ts", import.meta.url);
 const originalNextEnv = readFileSync(nextEnvPath, "utf8");
 const email = `integration-${randomUUID()}@mewmo.test`;
 const password = "integration-test-password";
+const registrationCode = "482913";
 const baseUrl = `http://127.0.0.1:${webPort}`;
 const fixtureUrl = `http://127.0.0.1:${fixturePort}/article`;
 const fixtureOrigin = new URL(fixtureUrl).origin;
@@ -169,10 +170,26 @@ function startFixtureServer() {
 }
 
 async function registerTestUser() {
+  const otpEntry = JSON.stringify({
+    code: registrationCode,
+    expiresAt: Date.now() + 600_000,
+    attempts: 0,
+    sentAt: Date.now(),
+  });
+  await run("docker", [
+    "exec",
+    redisContainer,
+    "redis-cli",
+    "SET",
+    `otp:${email.toLowerCase()}:register`,
+    otpEntry,
+    "EX",
+    "600",
+  ]);
   const response = await fetch(`${baseUrl}/api/register`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ email, password, name: "Integration Test" }),
+    body: JSON.stringify({ email, password, name: "Integration Test", code: registrationCode }),
   });
   if (response.status !== 201) {
     throw new Error(`Test account registration returned ${response.status}`);
@@ -238,7 +255,7 @@ async function main() {
       "5s",
       "--health-retries",
       "30",
-      "postgres:15",
+      "pgvector/pgvector:pg15",
     ]);
     await run("docker", [
       "run",
@@ -262,7 +279,7 @@ async function main() {
       waitForContainerHealthy(redisContainer),
     ]);
     await run("pnpm", ["db:generate"]);
-    await run("pnpm", ["db:push"]); // pnpm db:push
+    await run("pnpm", ["db:migrate:deploy"]); // pnpm db:migrate:deploy
     fixtureServer = await startFixtureServer();
     web = spawnCommand(
       "pnpm",

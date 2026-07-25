@@ -11,7 +11,11 @@ test("API integration tests own services, fixtures, identity, and cleanup", () =
 
   assert.match(harness, /run\(["']docker["'],\s*\[\s*["']run["']/);
   assert.doesNotMatch(harness, /docker\/docker-compose\.yml/);
-  assert.match(harness, /pnpm db:push/);
+  assert.match(harness, /pgvector\/pgvector:pg15/);
+  assert.match(harness, /pnpm db:migrate:deploy/);
+  assert.doesNotMatch(harness, /pnpm db:push/);
+  assert.match(harness, /otp:\$\{email\.toLowerCase\(\)\}:register/);
+  assert.match(harness, /code: registrationCode/);
   assert.match(harness, /pnpm --filter @mewmo\/web dev/);
   assert.match(harness, /AI_SUMMARY_MODEL/);
   assert.match(harness, /waitForHttp/);
