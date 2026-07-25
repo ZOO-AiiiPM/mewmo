@@ -89,6 +89,7 @@ export function createAgentRuntime(options: CreateAgentRuntimeOptions): AgentRun
         await onEvent?.({ type: "start" });
         const prompt = promptEnvelope(context.request.content, context.request.context);
         const response = selected ? await harness.skill(selected.name, prompt) : await harness.prompt(prompt);
+        assertAgentResponseSucceeded(response);
         const branch = await session.getBranch();
         const estimate = estimateContextTokens((await session.buildContext()).messages);
         if (shouldCompact(estimate.tokens, model.contextWindow, DEFAULT_COMPACTION_SETTINGS)) {
@@ -116,6 +117,16 @@ export function createAgentRuntime(options: CreateAgentRuntimeOptions): AgentRun
       }
     },
   };
+}
+
+export function assertAgentResponseSucceeded(response: Pick<AssistantMessage, "stopReason" | "errorMessage">) {
+  if (response.stopReason === "aborted") {
+    throw new AgentError("timeout", response.errorMessage ?? "Agent request timed out.");
+  }
+  if (response.stopReason === "error") {
+    const message = response.errorMessage ?? "The model provider failed to return a response.";
+    throw new AgentError(isRateLimit(new Error(message)) ? "rate_limited" : "dependency_unavailable", message);
+  }
 }
 
 async function resolveSkills(application: ApplicationPort, actor: Parameters<ApplicationPort["skills"]["list"]>[0]["actor"]): Promise<AgentSkillResource[]> {
