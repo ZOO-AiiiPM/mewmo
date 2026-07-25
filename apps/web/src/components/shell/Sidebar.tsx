@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { signOut } from "next-auth/react";
+import { setLocaleAction } from "../../i18n/actions";
 import {
   cloneElement,
   isValidElement,
@@ -140,6 +141,11 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
   const t = useTranslations("nav");
   const tc = useTranslations("common");
   const ta = useTranslations("account");
+  const locale = useLocale();
+  const handleLocaleSwitch = async (newLocale: string) => {
+    await setLocaleAction(newLocale);
+    router.refresh();
+  };
   const [allCollapsed, setAllCollapsed] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const [openMenu, setOpenMenu] = useState<string | null>(null);
@@ -1063,6 +1069,16 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
             <div className="acct-submenu">
               <AccountSubmenuRow icon="import" onClick={defer}>{ta("import")}</AccountSubmenuRow>
               <AccountSubmenuRow icon="export" onClick={defer}>{ta("export")}</AccountSubmenuRow>
+            </div>
+          </AccountSubmenu>
+          <AccountSubmenu label={ta("language")} icon="appearance">
+            <div className="acct-submenu">
+              <AccountSubmenuRow icon="monitor" active={locale === "zh"} onClick={() => handleLocaleSwitch("zh")}>
+                {ta("languageZh")}
+              </AccountSubmenuRow>
+              <AccountSubmenuRow icon="monitor" active={locale === "en"} onClick={() => handleLocaleSwitch("en")}>
+                {ta("languageEn")}
+              </AccountSubmenuRow>
             </div>
           </AccountSubmenu>
           <div className="mewmo-menu-separator" />

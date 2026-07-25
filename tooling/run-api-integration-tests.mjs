@@ -34,6 +34,7 @@ const env = {
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID ?? "integration-google-client",
   GOOGLE_CLIENT_SECRET:
     process.env.GOOGLE_CLIENT_SECRET ?? "integration-google-secret",
+  AI_PROVIDER: "openai",
   OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? "integration-openai-key",
   OPENAI_BASE_URL: process.env.OPENAI_BASE_URL ?? `${fixtureOrigin}/v1`,
   AI_SUMMARY_MODEL: process.env.AI_SUMMARY_MODEL ?? "integration-summary-model",
@@ -168,15 +169,26 @@ function startFixtureServer() {
   });
 }
 
-async function registerTestUser() {
-  const response = await fetch(`${baseUrl}/api/register`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ email, password, name: "Integration Test" }),
+async function createTestUser() {
+  process.env.DATABASE_URL = env.DATABASE_URL;
+  const [{ ensureOnboardingNotes, getPrisma }, { hashPassword }] = await Promise.all([
+    import("../packages/db/src/index.ts"),
+    import("../packages/auth/src/index.ts"),
+  ]);
+  const prisma = getPrisma();
+  const hashedPassword = await hashPassword(password);
+  await prisma.$transaction(async (tx) => {
+    const user = await tx.user.create({
+      data: {
+        email,
+        password: hashedPassword,
+        name: "Integration Test",
+        provider: "credentials",
+        emailVerified: new Date(),
+      },
+    });
+    await ensureOnboardingNotes(tx, user.id);
   });
-  if (response.status !== 201) {
-    throw new Error(`Test account registration returned ${response.status}`);
-  }
 }
 
 async function cleanupTestUser() {
@@ -238,7 +250,7 @@ async function main() {
       "5s",
       "--health-retries",
       "30",
-      "postgres:15",
+      "pgvector/pgvector:pg16",
     ]);
     await run("docker", [
       "run",
@@ -270,7 +282,7 @@ async function main() {
       { detached: true },
     ); // pnpm --filter @mewmo/web dev
     await waitForHttp(`${baseUrl}/login`);
-    await registerTestUser();
+    await createTestUser();
     accountCreated = true;
     await run("pnpm", ["exec", "tsx", "--test", "tests/integration/*.test.mjs"]);
   } finally {

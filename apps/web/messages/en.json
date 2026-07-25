@@ -59,6 +59,17 @@
     "localeSwitcher": "中文"
   },
   "auth": {
+    "frame": {
+      "previewAriaLabel": "mewmo product preview",
+      "homeAriaLabel": "mewmo home",
+      "kicker": "Private knowledge workspace",
+      "title": "Keep the useful parts of the internet close.",
+      "description": "Collect notes, clipped pages, and feeds into one quiet workspace, then let AI resurface the context when you need it."
+    },
+    "common": {
+      "showPassword": "Show password",
+      "hidePassword": "Hide password"
+    },
     "login": {
       "eyebrow": "Welcome back",
       "title": "Log in to your workspace",
@@ -106,6 +117,37 @@
       "sendFailed": "Failed to send, please try again",
       "networkError": "Network error, please try again",
       "failed": "Registration failed"
+    },
+    "forgotPassword": {
+      "eyebrow": "Password reset",
+      "requestTitle": "Reset your password",
+      "resetTitle": "Enter code and new password",
+      "successTitle": "Password updated",
+      "rememberedPassword": "Remembered it?",
+      "backToLogin": "Back to login",
+      "email": "Email",
+      "sendCode": "Send code",
+      "sending": "Sending…",
+      "codeSent": "If <email></email> is registered, a code has been sent. Check your email for the 6-digit code.",
+      "code": "Verification code",
+      "codePlaceholder": "6-digit email code",
+      "resend": "Resend",
+      "cooldown": "Retry in {seconds}s",
+      "newPassword": "New password",
+      "passwordMin": "At least {min} characters",
+      "confirmPassword": "Confirm password",
+      "confirmPasswordPlaceholder": "Enter the new password again",
+      "reset": "Reset password",
+      "resetting": "Resetting…",
+      "changeEmail": "Use a different email",
+      "successMessage": "Your password has been reset. Log in with your new password.",
+      "codeRequired": "Please enter the 6-digit verification code",
+      "passwordTooShort": "New password must be at least {min} characters",
+      "passwordMismatch": "Passwords do not match",
+      "codeTooFrequent": "Too many requests, please try again later",
+      "sendFailed": "Failed to send the code, please try again",
+      "resetFailed": "Failed to reset the password, please try again",
+      "networkError": "Network error, please try again"
     }
   },
   "nav": {
@@ -183,7 +225,9 @@
     "logoutConfirmDescription": "You will need to log in again to access your workspace.",
     "logoutPending": "Logging out…",
     "logoutFailed": "Failed to log out. Please try again.",
-    "language": "Language"
+    "language": "Language",
+    "languageZh": "中文",
+    "languageEn": "English"
   },
   "settings": {
     "title": "Account Settings",

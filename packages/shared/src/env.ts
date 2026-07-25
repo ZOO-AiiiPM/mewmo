@@ -18,6 +18,7 @@ const qiniuRequiredEnvKeys = [
 type RequiredAIEnvKey =
   | "OPENAI_API_KEY"
   | "ANTHROPIC_API_KEY"
+  | "GEMINI_API_KEY"
   | "CUSTOM_AI_API_KEY"
   | "CUSTOM_AI_BASE_URL";
 
@@ -59,11 +60,13 @@ const workerEnvSchema = z
     NODE_ENV: z.enum(["development", "test", "production"]).optional(),
     DATABASE_URL: z.string().min(1),
     REDIS_URL: z.string().min(1),
-    AI_PROVIDER: z.enum(["openai", "anthropic", "custom"]).optional(),
+    AI_PROVIDER: z.enum(["openai", "anthropic", "custom", "google"]).optional(),
     OPENAI_API_KEY: optionalNonEmptyString,
     OPENAI_BASE_URL: optionalUrl,
     ANTHROPIC_API_KEY: optionalNonEmptyString,
     ANTHROPIC_BASE_URL: optionalUrl,
+    GEMINI_API_KEY: optionalNonEmptyString,
+    GEMINI_BASE_URL: optionalUrl,
     CUSTOM_AI_API_KEY: optionalNonEmptyString,
     CUSTOM_AI_BASE_URL: optionalUrl,
     AI_SUMMARY_MODEL: optionalNonEmptyString,
@@ -82,6 +85,8 @@ const workerEnvSchema = z
     const requiredAIKeys: RequiredAIEnvKey[] =
       aiProvider === "anthropic"
         ? ["ANTHROPIC_API_KEY"]
+        : aiProvider === "google"
+          ? ["GEMINI_API_KEY"]
         : aiProvider === "custom"
           ? ["CUSTOM_AI_API_KEY", "CUSTOM_AI_BASE_URL"]
           : ["OPENAI_API_KEY"];
@@ -103,11 +108,13 @@ const envSchema = z.object({
   NEXTAUTH_URL: z.string().url(),
   GOOGLE_CLIENT_ID: z.string().min(1),
   GOOGLE_CLIENT_SECRET: z.string().min(1),
-  AI_PROVIDER: z.enum(["openai", "anthropic", "custom"]).optional(),
+  AI_PROVIDER: z.enum(["openai", "anthropic", "custom", "google"]).optional(),
   OPENAI_API_KEY: optionalNonEmptyString,
   OPENAI_BASE_URL: optionalUrl,
   ANTHROPIC_API_KEY: optionalNonEmptyString,
   ANTHROPIC_BASE_URL: optionalUrl,
+  GEMINI_API_KEY: optionalNonEmptyString,
+  GEMINI_BASE_URL: optionalUrl,
   CUSTOM_AI_API_KEY: optionalNonEmptyString,
   CUSTOM_AI_BASE_URL: optionalUrl,
   AI_SUMMARY_MODEL: optionalNonEmptyString,
@@ -135,6 +142,8 @@ const envSchema = z.object({
   const requiredAIKeys: RequiredAIEnvKey[] =
     aiProvider === "anthropic"
       ? ["ANTHROPIC_API_KEY"]
+      : aiProvider === "google"
+        ? ["GEMINI_API_KEY"]
       : aiProvider === "custom"
         ? ["CUSTOM_AI_API_KEY", "CUSTOM_AI_BASE_URL"]
         : ["OPENAI_API_KEY"];

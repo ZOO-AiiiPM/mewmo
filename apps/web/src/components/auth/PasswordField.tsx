@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import type { InputHTMLAttributes } from "react";
 
@@ -8,6 +9,7 @@ type PasswordFieldProps = Omit<InputHTMLAttributes<HTMLInputElement>, "type">;
 /** 认证表单的密码输入框：内置「眼睛」按钮，可切换明文/密文显示。
  * 保持非受控（依赖 name + FormData），仅本地管理可见性状态。 */
 export function PasswordField(props: PasswordFieldProps) {
+  const t = useTranslations("auth.common");
   const [visible, setVisible] = useState(false);
 
   return (
@@ -17,7 +19,7 @@ export function PasswordField(props: PasswordFieldProps) {
         type="button"
         className="mewmo-auth-eye"
         onClick={() => setVisible((v) => !v)}
-        aria-label={visible ? "隐藏密码" : "显示密码"}
+        aria-label={visible ? t("hidePassword") : t("showPassword")}
         aria-pressed={visible}
         tabIndex={-1}
       >

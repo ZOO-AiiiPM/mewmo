@@ -82,6 +82,24 @@ describe("loadEnv", () => {
     expect(env.CUSTOM_AI_API_KEY).toBe("custom-key");
   });
 
+  it("accepts the Google provider with a Gemini API key", () => {
+    const envWithoutOpenAI: Partial<typeof validEnv> = { ...validEnv };
+    delete envWithoutOpenAI.OPENAI_API_KEY;
+
+    const env = loadEnv({
+      ...envWithoutOpenAI,
+      AI_PROVIDER: "google",
+      GEMINI_API_KEY: "gemini-key",
+    });
+
+    expect(env.AI_PROVIDER).toBe("google");
+    expect(env.GEMINI_API_KEY).toBe("gemini-key");
+  });
+
+  it("requires a Gemini API key for the Google provider", () => {
+    expect(() => loadEnv({ ...validEnv, AI_PROVIDER: "google" })).toThrow("GEMINI_API_KEY");
+  });
+
   it("throws when required env values are missing", () => {
     expect(() => loadEnv({})).toThrow("Invalid environment");
   });
@@ -114,6 +132,18 @@ describe("scoped environment loaders", () => {
         REDIS_URL: "rediss://default:secret@example.upstash.io:6379",
         OPENAI_API_KEY: "openai-key",
         AI_SUMMARY_MODEL: "summary-model",
+      }),
+    ).not.toThrow();
+  });
+
+  it("loads Google provider config for the Worker", () => {
+    expect(() =>
+      loadWorkerEnv({
+        DATABASE_URL: "postgresql://db.example/mewmo",
+        REDIS_URL: "rediss://default:secret@example.upstash.io:6379",
+        AI_PROVIDER: "google",
+        GEMINI_API_KEY: "gemini-key",
+        AI_SUMMARY_MODEL: "gemini-flash-latest",
       }),
     ).not.toThrow();
   });
