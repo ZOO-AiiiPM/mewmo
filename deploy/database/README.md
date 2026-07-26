@@ -11,6 +11,9 @@ local prototypes.
 - `20260725000000_reconcile_current_schema` records the additive changes that were
   previously applied outside Prisma Migrate: note-share expiry, pgvector, its shadow
   column, and the production retrieval indexes.
+- `20260725070000_fix_default_agent_sessions` assigns the newest active legacy
+  `mewmo` chat as each user's sidebar default and enforces one default chat per user.
+  Other chats remain unkeyed, so user-created conversations are unaffected.
 
 The historical `video_details` and `video_user_highlights` tables are intentionally
 outside the Prisma schema. Migration deployment must preserve them.

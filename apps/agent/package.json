@@ -16,6 +16,7 @@
     "@earendil-works/pi-ai": "0.81.0",
     "@mewmo/ai": "workspace:*",
     "@mewmo/application": "workspace:*",
+    "@mewmo/shared": "workspace:*",
     "ai": "7.0.31",
     "fastify": "5.10.0",
     "jose": "6.2.3",

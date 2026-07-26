@@ -187,33 +187,15 @@ describe("repositories", () => {
   });
 
   it("finds or creates the default AI chat for a user", async () => {
-    const findFirst = vi.fn().mockResolvedValue(null);
-    const create = vi.fn().mockResolvedValue({ id: "chat-default" });
-    const repo = createAiChatsRepository({ aiChat: { findFirst, create } });
+    const upsert = vi.fn().mockResolvedValue({ id: "chat-default" });
+    const repo = createAiChatsRepository({ aiChat: { upsert } });
 
     await repo.findOrCreateDefault("user-1");
 
-    expect(findFirst).toHaveBeenCalledWith({
-      where: { userId: "user-1", deletedAt: null, title: "mewmo" },
-      include: {
-        sessionEntries: {
-          where: { type: "message" },
-          orderBy: { entrySeq: "asc" },
-          include: { attachments: true },
-        },
-        turns: {
-          where: { status: "succeeded" },
-          select: { assistantEntryId: true, output: true },
-        },
-        messages: {
-          where: { deletedAt: null },
-          orderBy: { createdAt: "asc" },
-          include: { contextAttachments: true },
-        },
-      },
-    });
-    expect(create).toHaveBeenCalledWith({
-      data: { title: "mewmo", userId: "user-1" },
+    expect(upsert).toHaveBeenCalledWith({
+      where: { userId_defaultKey: { userId: "user-1", defaultKey: "sidebar" } },
+      create: { title: "mewmo", userId: "user-1", defaultKey: "sidebar" },
+      update: { title: "mewmo", deletedAt: null },
       include: {
         sessionEntries: {
           where: { type: "message" },
@@ -270,6 +252,49 @@ describe("repositories", () => {
     });
     const chat = await createAiChatsRepository({ aiChat: { findFirst } }).findById("user-1", "chat-1") as { messages: Array<{ id: string; content: string; metadata: unknown }> };
     expect(chat.messages).toEqual([{ id: "entry-1", role: "assistant", content: "Pi answer", status: "completed", createdAt: new Date("2026-07-22T00:00:00.000Z"), metadata: { proposals: [{ id: "action-1" }] }, contextAttachments: [] }]);
+  });
+
+  it("normalizes legacy context envelopes and hides tool-only assistant entries", async () => {
+    const timestamp = new Date("2026-07-22T00:00:00.000Z");
+    const findFirst = vi.fn().mockResolvedValue({
+      id: "chat-1",
+      messages: [],
+      turns: [],
+      sessionEntries: [
+        {
+          entryId: "user-1",
+          type: "message",
+          timestamp,
+          payload: { message: { role: "user", content: [{ type: "text", text: [
+            "以下 JSON 只描述当前页面定位；正文必须通过 read_current_context 获取。",
+            '{"kind":"mewmo_page_context","targetType":"note","targetId":"note-1"}',
+            "用户请求：",
+            "总结当前笔记",
+          ].join("\n") }] } },
+          attachments: [],
+        },
+        {
+          entryId: "assistant-tool",
+          type: "message",
+          timestamp,
+          payload: { message: { role: "assistant", content: [{ type: "toolCall", name: "read_current_context" }] } },
+          attachments: [],
+        },
+        {
+          entryId: "assistant-final",
+          type: "message",
+          timestamp,
+          payload: { message: { role: "assistant", content: [{ type: "text", text: "最终总结" }] } },
+          attachments: [],
+        },
+      ],
+    });
+    const chat = await createAiChatsRepository({ aiChat: { findFirst } }).findById("user-1", "chat-1") as { messages: Array<{ id: string; content: string }> };
+
+    expect(chat.messages.map(({ id, content }) => ({ id, content }))).toEqual([
+      { id: "user-1", content: "总结当前笔记" },
+      { id: "assistant-final", content: "最终总结" },
+    ]);
   });
 
   it("stores AI context attachments on the triggering user message", async () => {

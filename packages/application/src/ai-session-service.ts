@@ -137,7 +137,9 @@ export function createAiSessionService(options: { prisma?: PrismaClient } = {}) 
           throw new DomainError("invalid_state", "Agent turn is not owned by this worker");
         }
         const assistant = await tx.aiSessionEntry.findFirst({ where: { chatId: turn.chatId, entryId: input.assistantEntryId, type: "message" } });
-        if (!assistant) throw new DomainError("invalid_state", "Assistant session entry was not found");
+        if (!assistant || !isFinalAssistantMessage(assistant.type, assistant.payload)) {
+          throw new DomainError("invalid_state", "Final Assistant session entry was not found");
+        }
         return tx.aiTurn.update({
           where: { id: turn.id },
           data: {
@@ -264,4 +266,12 @@ function messageRole(type: string, payload: unknown) {
   if (typeof message !== "object" || message === null) return undefined;
   const role = (message as Record<string, unknown>).role;
   return role === "user" || role === "assistant" ? role : undefined;
+}
+
+function isFinalAssistantMessage(type: string, payload: unknown) {
+  if (messageRole(type, payload) !== "assistant" || typeof payload !== "object" || payload === null || !("message" in payload)) return false;
+  const message = (payload as Record<string, unknown>).message;
+  return typeof message === "object"
+    && message !== null
+    && (message as Record<string, unknown>).stopReason !== "toolUse";
 }

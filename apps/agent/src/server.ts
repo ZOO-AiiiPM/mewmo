@@ -1,10 +1,20 @@
 import { randomUUID } from "node:crypto";
 
 import Fastify, { type FastifyInstance } from "fastify";
+import {
+  agentConversationEventSchema,
+  type AgentConversationEvent,
+} from "@mewmo/shared";
 import { ZodError } from "zod";
 
 import type { AgentConfig } from "./config";
-import { actionResultBodySchema, confirmActionBodySchema, sendMessageBodySchema } from "./contracts";
+import {
+  actionResultBodySchema,
+  confirmActionBodySchema,
+  sendMessageBodySchema,
+  type AgentActionProposal,
+  type AgentMessageResponse,
+} from "./contracts";
 import { AgentError, errorBody, toAgentError } from "./errors";
 import { verifyIdentity } from "./identity";
 import type { AgentRuntimeEvent, AgentRuntimePort, ApplicationPort } from "./ports";
@@ -46,8 +56,9 @@ export function buildAgentServer(dependencies: AgentServerDependencies): Fastify
       const result = await dependencies.runtime.run({ actor: request.agentActor, chatId: request.params.chatId, turnId: started.turnId, workerId, request: body });
       return dependencies.application.turns.complete({ actor: request.agentActor, turnId: started.turnId, workerId, assistantEntryId: result.assistantEntryId, proposals: result.proposals, citations: result.citations });
     } catch (error) {
-      await dependencies.application.turns.fail({ actor: request.agentActor, turnId: started.turnId, workerId, code: errorCode(error), message: errorMessage(error), interrupted: isInterrupted(error) });
-      throw error;
+      const normalized = toAgentError(error);
+      await dependencies.application.turns.fail({ actor: request.agentActor, turnId: started.turnId, workerId, code: normalized.code, message: normalized.message, interrupted: isInterrupted(error) });
+      throw normalized;
     }
   });
 
@@ -61,18 +72,31 @@ export function buildAgentServer(dependencies: AgentServerDependencies): Fastify
     reply.raw.setHeader("Cache-Control", "no-cache, no-transform");
     reply.raw.setHeader("Connection", "keep-alive");
     const send = (event: string, data: unknown) => reply.raw.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    const conversation = createConversationEmitter(send, request.params.chatId, started.turnId);
+    conversation.emit({ type: "turn.started" });
     if (started.cached) {
+      emitCompletedTurn(conversation, started.cached);
       send("result", started.cached);
       reply.raw.end();
       return;
     }
     try {
-      const result = await dependencies.runtime.run({ actor: request.agentActor, chatId: request.params.chatId, turnId: started.turnId, workerId, request: body }, (event) => streamEvent(send, event));
+      const result = await dependencies.runtime.run(
+        { actor: request.agentActor, chatId: request.params.chatId, turnId: started.turnId, workerId, request: body },
+        (event) => streamRuntimeEvent(send, conversation, event),
+      );
       const response = await dependencies.application.turns.complete({ actor: request.agentActor, turnId: started.turnId, workerId, assistantEntryId: result.assistantEntryId, proposals: result.proposals, citations: result.citations });
+      emitCompletedTurn(conversation, response);
       send("result", response);
     } catch (error) {
-      await dependencies.application.turns.fail({ actor: request.agentActor, turnId: started.turnId, workerId, code: errorCode(error), message: errorMessage(error), interrupted: isInterrupted(error) });
-      send("error", errorBody(toAgentError(error), request.id));
+      const normalized = toAgentError(error);
+      await dependencies.application.turns.fail({ actor: request.agentActor, turnId: started.turnId, workerId, code: normalized.code, message: normalized.message, interrupted: isInterrupted(error) });
+      conversation.emit({
+        type: "turn.failed",
+        error: { code: normalized.code, message: normalized.message, retryable: normalized.retryable },
+        retryable: normalized.retryable,
+      });
+      send("error", errorBody(normalized, request.id));
     } finally {
       reply.raw.end();
     }
@@ -91,12 +115,122 @@ export function buildAgentServer(dependencies: AgentServerDependencies): Fastify
   return app;
 }
 
-function streamEvent(send: (event: string, data: unknown) => void, event: AgentRuntimeEvent) {
-  send(event.type, event);
+type ConversationEventPayload = AgentConversationEvent extends infer Event
+  ? Event extends AgentConversationEvent
+    ? Omit<Event, "chatId" | "turnId" | "seq">
+    : never
+  : never;
+
+interface ConversationEmitter {
+  emit(event: ConversationEventPayload): AgentConversationEvent;
 }
 
-function errorCode(error: unknown) { return error instanceof AgentError ? error.code : "agent_failed"; }
-function errorMessage(error: unknown) { return error instanceof Error ? error.message : "Agent turn failed"; }
+function createConversationEmitter(
+  send: (event: string, data: unknown) => void,
+  chatId: string,
+  turnId: string,
+): ConversationEmitter {
+  let seq = 0;
+  return {
+    emit(payload) {
+      const event = agentConversationEventSchema.parse({ ...payload, chatId, turnId, seq: ++seq });
+      send(event.type, event);
+      return event;
+    },
+  };
+}
+
+function streamRuntimeEvent(
+  send: (event: string, data: unknown) => void,
+  conversation: ConversationEmitter,
+  event: AgentRuntimeEvent,
+) {
+  if (event.type === "text_delta") {
+    conversation.emit({ type: "assistant.text.delta", delta: event.delta });
+    // ZOO-74 removes these legacy events after the Web consumes the stable contract.
+    send(event.type, event);
+    return;
+  }
+  if (event.type === "tool_start") {
+    conversation.emit({
+      type: "tool.started",
+      toolCallId: event.toolCallId,
+      tool: event.toolName,
+      display: { label: toolLabel(event.toolName, "started") },
+    });
+    send(event.type, event);
+    return;
+  }
+  if (event.type === "tool_end") {
+    conversation.emit({
+      type: "tool.completed",
+      toolCallId: event.toolCallId,
+      display: { label: toolLabel(event.toolName, event.isError ? "failed" : "completed") },
+    });
+    send(event.type, event);
+  }
+}
+
+function emitCompletedTurn(conversation: ConversationEmitter, response: AgentMessageResponse) {
+  for (const proposal of response.proposals ?? []) {
+    conversation.emit({
+      type: "confirmation.required",
+      actionId: proposal.id,
+      display: proposalDisplay(proposal),
+    });
+  }
+  conversation.emit({
+    type: "turn.completed",
+    message: response.assistantMessage,
+    ...(response.usage ? { usage: response.usage } : {}),
+  });
+}
+
+function proposalDisplay(proposal: AgentActionProposal) {
+  const preview = isRecord(proposal.preview) ? proposal.preview : {};
+  const title = typeof preview.title === "string" && preview.title.trim()
+    ? preview.title.trim()
+    : actionTitles[proposal.toolName] ?? "确认执行此操作";
+  return {
+    title,
+    ...(typeof preview.summary === "string" && preview.summary.trim()
+      ? { summary: preview.summary.trim() }
+      : {}),
+    riskLevel: proposal.riskLevel,
+  };
+}
+
+const toolLabels: Partial<Record<string, string>> = {
+  content_search: "正在搜索知识库",
+  content_read: "正在读取内容",
+  read_current_context: "正在读取当前内容",
+  web_search: "正在搜索网页",
+  web_fetch: "正在读取网页",
+};
+
+const actionTitles: Partial<Record<string, string>> = {
+  note_create: "确认创建笔记",
+  note_update: "确认更新笔记",
+  note_move: "确认移动笔记",
+  note_move_to_trash: "确认移入废纸篓",
+  note_restore: "确认恢复笔记",
+  knowledge_base_create: "确认创建知识库",
+  knowledge_base_rename: "确认重命名知识库",
+  knowledge_item_move: "确认移动知识条目",
+  knowledge_item_remove: "确认移除知识条目",
+};
+
+function toolLabel(toolName: string, state: "started" | "completed" | "failed") {
+  const active = toolLabels[toolName] ?? "正在处理请求";
+  if (state === "started") return active;
+  const action = active.replace(/^正在/, "");
+  return state === "completed" ? `已${action}` : `${action}失败`;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function isInterrupted(error: unknown) { return error instanceof Error && error.name === "AbortError"; }
 
 declare module "fastify" {
