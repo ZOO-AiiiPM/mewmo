@@ -215,6 +215,24 @@ describe("repositories", () => {
     });
   });
 
+  it("retries the default-chat upsert once when a concurrent create wins the race", async () => {
+    const upsert = vi.fn()
+      .mockRejectedValueOnce({ code: "P2002" })
+      .mockResolvedValue({ id: "chat-default" });
+    const repo = createAiChatsRepository({ aiChat: { upsert } });
+
+    await expect(repo.findOrCreateDefault("user-1")).resolves.toEqual({ id: "chat-default" });
+    expect(upsert).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not swallow non-unique-violation upsert failures", async () => {
+    const upsert = vi.fn().mockRejectedValue(new Error("connection lost"));
+    const repo = createAiChatsRepository({ aiChat: { upsert } });
+
+    await expect(repo.findOrCreateDefault("user-1")).rejects.toThrow("connection lost");
+    expect(upsert).toHaveBeenCalledTimes(1);
+  });
+
   it("updates AI messages inside a chat with status metadata and version bump", async () => {
     const updateMany = vi.fn().mockResolvedValue({ count: 1 });
     const repo = createAiChatsRepository({ aiMessage: { updateMany } });

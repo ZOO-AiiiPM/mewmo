@@ -73,12 +73,20 @@ export function createAiChatsRepository(client: unknown = getPrisma()) {
     },
 
     async findOrCreateDefault(userId: string, title = "mewmo") {
-      return projectSessionMessages(await db.aiChat.upsert({
+      const upsert = () => db.aiChat.upsert({
         where: { userId_defaultKey: { userId, defaultKey: DEFAULT_CHAT_KEY } },
         create: { title, userId, defaultKey: DEFAULT_CHAT_KEY },
         update: { title, deletedAt: null },
         include: chatMessageInclude,
-      }));
+      });
+      try {
+        return projectSessionMessages(await upsert());
+      } catch (error) {
+        // With `include`, Prisma upsert is select-then-create, so two first-touch
+        // requests can race; the loser retries onto the update path.
+        if (!isUniqueViolation(error)) throw error;
+        return projectSessionMessages(await upsert());
+      }
     },
 
     async findByUserId(userId: string) {
@@ -180,4 +188,8 @@ function messageText(content: unknown) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isUniqueViolation(error: unknown) {
+  return isRecord(error) && error.code === "P2002";
 }
