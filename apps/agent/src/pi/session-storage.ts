@@ -129,8 +129,30 @@ export class MewmoSessionStorage implements SessionStorage<SessionMetadata> {
   }
 
   getAppendedMessageEntry(role: "user" | "assistant") {
-    return this.appended.find((entry) => entry.type === "message" && entry.message.role === role);
+    return role === "assistant"
+      ? findLatestCompletedAssistantEntry(this.appended)
+      : findLatestMessageEntry(this.appended, role);
   }
+}
+
+export function findLatestCompletedAssistantEntry(entries: SessionTreeEntry[]) {
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index];
+    if (
+      entry?.type === "message"
+      && entry.message.role === "assistant"
+      && entry.message.stopReason !== "toolUse"
+    ) return entry;
+  }
+  return undefined;
+}
+
+function findLatestMessageEntry(entries: SessionTreeEntry[], role: "user" | "assistant") {
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index];
+    if (entry?.type === "message" && entry.message.role === role) return entry;
+  }
+  return undefined;
 }
 
 function toRecord(entry: SessionTreeEntry): Omit<SessionEntryRecord, "entrySeq"> {

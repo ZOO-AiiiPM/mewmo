@@ -240,6 +240,7 @@ model AiChat {
   version        Int         @default(1)
   activeLeafId   String?     @map("active_leaf_id")
   nextEntrySeq   Int         @default(1) @map("next_entry_seq")
+  defaultKey     String?     @map("default_key")
   parentChatId   String?     @map("parent_chat_id")
   userId         String      @map("user_id")
   createdAt      DateTime    @default(now()) @map("created_at")
@@ -258,6 +259,7 @@ model AiChat {
 
   @@index([userId, deletedAt, updatedAt])
   @@index([parentChatId])
+  @@unique([userId, defaultKey])
   @@map("ai_chats")
 }
 

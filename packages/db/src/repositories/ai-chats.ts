@@ -1,5 +1,8 @@
 import { getPrisma } from "../client";
+import { visibleAgentUserContent } from "@mewmo/shared";
 import { activeByUser, softDeleteData, versionedUpdateData } from "./repository-utils";
+
+const DEFAULT_CHAT_KEY = "sidebar";
 
 export interface CreateAiChatInput {
   title: string;
@@ -30,6 +33,7 @@ export interface CreateAiContextAttachmentInput {
 interface AiChatsClient {
   aiChat: {
     create(args: unknown): Promise<unknown>;
+    upsert(args: unknown): Promise<unknown>;
     findMany(args: unknown): Promise<unknown>;
     findFirst(args: unknown): Promise<unknown>;
     updateMany(args: unknown): Promise<unknown>;
@@ -69,16 +73,20 @@ export function createAiChatsRepository(client: unknown = getPrisma()) {
     },
 
     async findOrCreateDefault(userId: string, title = "mewmo") {
-      const existing = await db.aiChat.findFirst({
-        where: { ...activeByUser(userId), title },
+      const upsert = () => db.aiChat.upsert({
+        where: { userId_defaultKey: { userId, defaultKey: DEFAULT_CHAT_KEY } },
+        create: { title, userId, defaultKey: DEFAULT_CHAT_KEY },
+        update: { title, deletedAt: null },
         include: chatMessageInclude,
       });
-      if (existing) return projectSessionMessages(existing);
-
-      return projectSessionMessages(await db.aiChat.create({
-        data: { title, userId },
-        include: chatMessageInclude,
-      }));
+      try {
+        return projectSessionMessages(await upsert());
+      } catch (error) {
+        // With `include`, Prisma upsert is select-then-create, so two first-touch
+        // requests can race; the loser retries onto the update path.
+        if (!isUniqueViolation(error)) throw error;
+        return projectSessionMessages(await upsert());
+      }
     },
 
     async findByUserId(userId: string) {
@@ -152,10 +160,12 @@ function projectSessionMessages(value: unknown): unknown {
     if (!isRecord(entry) || typeof entry.entryId !== "string" || !isRecord(entry.payload) || !isRecord(entry.payload.message)) return [];
     const message = entry.payload.message;
     if (message.role !== "user" && message.role !== "assistant") return [];
+    const content = messageText(message.content);
+    if (message.role === "assistant" && content.trim().length === 0) return [];
     return [{
       id: entry.entryId,
       role: message.role,
-      content: messageText(message.content),
+      content: message.role === "user" ? visibleAgentUserContent(content) : content,
       status: "completed",
       createdAt: entry.timestamp,
       metadata: turnMetadata.get(entry.entryId) ?? null,
@@ -178,4 +188,8 @@ function messageText(content: unknown) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isUniqueViolation(error: unknown) {
+  return isRecord(error) && error.code === "P2002";
 }

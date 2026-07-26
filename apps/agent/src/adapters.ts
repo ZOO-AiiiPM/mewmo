@@ -10,6 +10,7 @@ import {
   createNoteService,
   type Actor,
 } from "@mewmo/application";
+import { visibleAgentUserContent } from "@mewmo/shared";
 import type { AgentActionProposal, AgentActionView, AgentActor, AgentClientEffect, AgentMessageResponse, WriteToolName } from "./contracts";
 import { AgentError } from "./errors";
 import type { ApplicationPort, ProposeActionInput, SessionEntryRecord } from "./ports";
@@ -192,7 +193,14 @@ function outputResponse(value: unknown): AgentMessageResponse {
 
 function messageView<Role extends "user" | "assistant">(entry: SessionEntryRecord, role: Role) {
   const message = piMessage(entry);
-  return { id: entry.entryId, role, content: messageText(message.content), status: "completed", createdAt: entry.timestamp };
+  const content = messageText(message.content);
+  return {
+    id: entry.entryId,
+    role,
+    content: role === "user" ? visibleAgentUserContent(content) : content,
+    status: "completed",
+    createdAt: entry.timestamp,
+  };
 }
 
 function messageText(content: unknown): string {

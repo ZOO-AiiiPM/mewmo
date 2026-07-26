@@ -54,14 +54,94 @@ describe("Agent HTTP server", () => {
     expect(run).not.toHaveBeenCalled();
   });
 
+  it("streams a cached idempotent turn through the same stable completion contract", async () => {
+    const run = vi.fn();
+    const cached = completedResponse("cached");
+    const application = createApplicationStub({ turns: { ...createApplicationStub().turns, begin: vi.fn(async () => ({ turnId: "turn-cached", cached })) } });
+    const app = buildAgentServer({ config, runtime: { run }, application });
+    const token = await signIdentityForTest(TEST_ACTOR, identityOptions());
+    const response = await app.inject({ method: "POST", url: "/v1/chats/chat-1/stream", headers: { authorization: `Bearer ${token}` }, payload: validMessage() });
+
+    expect(run).not.toHaveBeenCalled();
+    expect(stableEvents(response.body)).toEqual([
+      expect.objectContaining({ type: "turn.started", turnId: "turn-cached", seq: 1 }),
+      expect.objectContaining({ type: "turn.completed", turnId: "turn-cached", seq: 2, message: expect.objectContaining({ content: "cached" }) }),
+    ]);
+  });
+
   it("streams Pi lifecycle events and a final response over SSE", async () => {
-    const runtime = { run: vi.fn(async (_context, onEvent) => { await onEvent?.({ type: "text_delta", delta: "ok" }); return { text: "ok", proposals: [], citations: [], userEntryId: "entry-user", assistantEntryId: "entry-assistant" }; }) };
+    const runtime = { run: vi.fn(async (_context, onEvent) => {
+      await onEvent?.({ type: "text_delta", delta: "ok" });
+      await onEvent?.({ type: "thinking_delta", delta: "private reasoning" });
+      return { text: "ok", proposals: [], citations: [], userEntryId: "entry-user", assistantEntryId: "entry-assistant" };
+    }) };
     const app = buildAgentServer({ config, runtime, application: createApplicationStub() });
     const token = await signIdentityForTest(TEST_ACTOR, identityOptions());
     const response = await app.inject({ method: "POST", url: "/v1/chats/chat-1/stream", headers: { authorization: `Bearer ${token}` }, payload: validMessage() });
     expect(response.headers["content-type"]).toContain("text/event-stream");
+    expect(response.body).toContain("event: turn.started");
+    expect(response.body).toContain("event: assistant.text.delta");
+    expect(response.body).toContain("event: turn.completed");
     expect(response.body).toContain("event: text_delta");
     expect(response.body).toContain("event: result");
+    expect(response.body).not.toContain("private reasoning");
+    expect(stableEvents(response.body).map((event) => event.seq)).toEqual([1, 2, 3]);
+  });
+
+  it("streams product tool and confirmation events without raw tool payloads", async () => {
+    const proposal = {
+      id: "action-1",
+      toolName: "note_update" as const,
+      preview: { title: "更新当前笔记", summary: "修改标题" },
+      riskLevel: "medium" as const,
+      status: "proposed" as const,
+      executionMode: "server" as const,
+    };
+    const runtime = { run: vi.fn(async (_context, onEvent) => {
+      await onEvent?.({ type: "tool_start", toolCallId: "tool-1", toolName: "read_current_context" });
+      await onEvent?.({ type: "tool_end", toolCallId: "tool-1", toolName: "read_current_context", isError: false });
+      return { text: "ok", proposals: [proposal], citations: [], userEntryId: "entry-user", assistantEntryId: "entry-assistant" };
+    }) };
+    const complete = vi.fn(async () => ({ ...completedResponse("ok"), proposals: [proposal] }));
+    const application = createApplicationStub({ turns: { ...createApplicationStub().turns, complete } });
+    const app = buildAgentServer({ config, runtime, application });
+    const token = await signIdentityForTest(TEST_ACTOR, identityOptions());
+    const response = await app.inject({ method: "POST", url: "/v1/chats/chat-1/stream", headers: { authorization: `Bearer ${token}` }, payload: validMessage() });
+    const events = stableEvents(response.body);
+
+    expect(events.map((event) => event.type)).toEqual([
+      "turn.started",
+      "tool.started",
+      "tool.completed",
+      "confirmation.required",
+      "turn.completed",
+    ]);
+    expect(events[1]).toMatchObject({ tool: "read_current_context", display: { label: "正在读取当前内容" } });
+    expect(events[2]).not.toHaveProperty("result");
+    expect(events[3]).toMatchObject({ actionId: "action-1", display: { title: "更新当前笔记", riskLevel: "medium" } });
+  });
+
+  it("streams a stable failed event before the legacy error", async () => {
+    const fail = vi.fn(async () => {});
+    const app = buildAgentServer({
+      config,
+      runtime: { run: vi.fn(async () => { throw new Error("provider secret"); }) },
+      application: createApplicationStub({ turns: { ...createApplicationStub().turns, fail } }),
+    });
+    const token = await signIdentityForTest(TEST_ACTOR, identityOptions());
+    const response = await app.inject({ method: "POST", url: "/v1/chats/chat-1/stream", headers: { authorization: `Bearer ${token}` }, payload: validMessage() });
+    const events = stableEvents(response.body);
+
+    expect(events.map((event) => event.type)).toEqual(["turn.started", "turn.failed"]);
+    expect(events[1]).toMatchObject({
+      error: { code: "internal_error", message: "Agent request failed.", retryable: true },
+      retryable: true,
+    });
+    expect(response.body).not.toContain("provider secret");
+    expect(fail).toHaveBeenCalledWith(expect.objectContaining({
+      code: "internal_error",
+      message: "Agent request failed.",
+    }));
   });
 
   it("keeps a client edit confirmed until the Web reports its save result", async () => {
@@ -81,3 +161,10 @@ describe("Agent HTTP server", () => {
 function validMessage() { return { clientRequestId: "request-1", content: "hello", context: null }; }
 function identityOptions() { return { secret: config.AGENT_IDENTITY_SECRET, issuer: config.AGENT_IDENTITY_ISSUER, audience: config.AGENT_IDENTITY_AUDIENCE }; }
 function completedResponse(content: string) { return { userMessage: { id: "entry-user", role: "user" as const, content: "hello", status: "completed", createdAt: "2026-07-20T00:00:00.000Z" }, assistantMessage: { id: "entry-assistant", role: "assistant" as const, content, status: "completed", createdAt: "2026-07-20T00:00:01.000Z" } }; }
+
+function stableEvents(body: string) {
+  return body
+    .split("\n\n")
+    .filter((chunk) => /^event: (turn\.|assistant\.|tool\.|confirmation\.)/m.test(chunk))
+    .map((chunk) => JSON.parse(chunk.match(/^data: (.+)$/m)?.[1] ?? "null") as Record<string, unknown>);
+}

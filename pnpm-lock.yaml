@@ -102,6 +102,9 @@ importers:
       '@mewmo/application':
         specifier: workspace:*
         version: link:../../packages/application
+      '@mewmo/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       ai:
         specifier: 7.0.31
         version: 7.0.31(zod@4.4.3)
