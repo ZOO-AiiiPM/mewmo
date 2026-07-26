@@ -1,10 +1,12 @@
 import { loadFoundationAdapters } from "./adapters";
 import { loadAgentConfig } from "./config";
+import { createConfiguredAgentObservability } from "./observability/langfuse";
 import { createAgentRuntime } from "./runtime";
 import { buildAgentServer } from "./server";
 import { createJinaWebAdapter } from "./web/jina-adapter";
 
 const config = loadAgentConfig();
+const observability = createConfiguredAgentObservability(config);
 const adapters = await loadFoundationAdapters();
 const web = config.JINA_API_KEY
   ? createJinaWebAdapter({
@@ -19,14 +21,20 @@ const runtime = createAgentRuntime({
   application: adapters.application,
   maxSteps: config.AGENT_MAX_STEPS,
   timeoutMs: config.AGENT_TIMEOUT_MS,
+  observability,
   ...(web ? { web, webSearchBudget: config.AGENT_WEB_SEARCH_BUDGET, webFetchBudget: config.AGENT_WEB_FETCH_BUDGET } : {}),
 });
 const server = buildAgentServer({ config, runtime, application: adapters.application });
 
 await server.listen({ host: config.AGENT_HOST, port: config.AGENT_PORT });
 
+let shuttingDown = false;
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.once(signal, () => {
-    void server.close().finally(() => process.exit(0));
+    if (shuttingDown) return;
+    shuttingDown = true;
+    void server.close()
+      .finally(() => observability.shutdown())
+      .finally(() => process.exit(0));
   });
 }

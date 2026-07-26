@@ -96,6 +96,12 @@ importers:
       '@earendil-works/pi-ai':
         specifier: 0.81.0
         version: 0.81.0(ws@8.21.1)(zod@4.4.3)
+      '@langfuse/otel':
+        specifier: 5.9.1
+        version: 5.9.1(@opentelemetry/api@1.9.0)(@opentelemetry/core@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/exporter-trace-otlp-http@0.220.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.9.0(@opentelemetry/api@1.9.0))
+      '@langfuse/tracing':
+        specifier: 5.9.1
+        version: 5.9.1(@opentelemetry/api@1.9.0)
       '@mewmo/ai':
         specifier: workspace:*
         version: link:../../packages/ai
@@ -105,6 +111,12 @@ importers:
       '@mewmo/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@opentelemetry/api':
+        specifier: 1.9.0
+        version: 1.9.0
+      '@opentelemetry/sdk-node':
+        specifier: 0.220.0
+        version: 0.220.0(@opentelemetry/api@1.9.0)
       ai:
         specifier: 7.0.31
         version: 7.0.31(zod@4.4.3)

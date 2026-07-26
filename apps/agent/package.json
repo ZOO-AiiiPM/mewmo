@@ -14,9 +14,13 @@
   "dependencies": {
     "@earendil-works/pi-agent-core": "0.81.0",
     "@earendil-works/pi-ai": "0.81.0",
+    "@langfuse/otel": "5.9.1",
+    "@langfuse/tracing": "5.9.1",
     "@mewmo/ai": "workspace:*",
     "@mewmo/application": "workspace:*",
     "@mewmo/shared": "workspace:*",
+    "@opentelemetry/api": "1.9.0",
+    "@opentelemetry/sdk-node": "0.220.0",
     "ai": "7.0.31",
     "fastify": "5.10.0",
     "jose": "6.2.3",
