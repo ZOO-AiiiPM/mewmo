@@ -15,6 +15,7 @@
     "test": "vitest"
   },
   "dependencies": {
+    "@auth/core": "0.41.2",
     "@auth/prisma-adapter": "2.11.2",
     "@mewmo/db": "workspace:*",
     "@mewmo/email": "workspace:*",
