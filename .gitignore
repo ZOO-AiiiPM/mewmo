@@ -19,6 +19,15 @@
 !/docs/
 !/deploy/
 
+# Trellis + agent collaboration layer (tracked in git)
+!/.trellis/
+!/agent.md
+!/AGENTS.md
+!/.agents/
+
+# env backups must never be committed (real secrets)
+**/.env.local.bak*
+
 **/node_modules/
 **/.next/
 **/.next-*/
