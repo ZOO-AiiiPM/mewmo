@@ -52,6 +52,24 @@ test("chat history strips context snapshots and leaves a pagination contract", (
   assert.doesNotMatch(detail, /contextAttachments/);
 });
 
+test("chat lifecycle commands validate input and preserve ownership boundaries", () => {
+  const detail = read("apps/web/src/app/api/agent/chats/[id]/route.ts");
+  const clear = read("apps/web/src/app/api/agent/chats/[id]/clear/route.ts");
+  const repository = read("packages/db/src/repositories/ai-chats.ts");
+
+  assert.match(detail, /auth\(\)/);
+  assert.match(detail, /renameSchema\.safeParse/);
+  assert.match(detail, /status: 401/);
+  assert.match(detail, /status: 400/);
+  assert.match(detail, /createAiChatsRepository\(\)\.update\(session\.user\.id, id/);
+  assert.match(detail, /createAiChatsRepository\(\)\.delete\(session\.user\.id, id\)/);
+  assert.match(detail, /status: 404/);
+  assert.match(clear, /auth\(\)/);
+  assert.match(clear, /clearMessages\(session\.user\.id, id\)/);
+  assert.match(repository, /where: \{ id, \.\.\.activeByUser\(userId\) \}/);
+  assert.match(repository, /where: \{ id: chatId, \.\.\.activeByUser\(userId\) \}/);
+});
+
 test("Agent service owns idempotent multi-turn message persistence", () => {
   const server = read("apps/agent/src/server.ts");
   const runtime = read("apps/agent/src/pi/runtime.ts");
@@ -70,20 +88,26 @@ test("Agent service owns idempotent multi-turn message persistence", () => {
 
 test("AI sidebar supports draft context, Deep Insight, proposals, and idempotent retry", () => {
   const sidebar = read("apps/web/src/components/shell/AISidebar.tsx");
+  const agentSidebar = read("apps/web/src/components/agent/AgentSidebar.tsx");
+  const conversationStore = read("apps/web/src/lib/agent/conversation-store.ts");
+  const confirmationCard = read("apps/web/src/components/agent/ConfirmationCard.tsx");
+  const transcriptAdapter = read("apps/web/src/lib/agent/transcript-adapter.ts");
+  const agentTypes = read("apps/web/src/lib/agent/types.ts");
   const notePage = read("apps/web/src/app/(app)/notes/[slug]/NoteEditorPage.tsx");
 
   assert.match(sidebar, /requestedSkill/);
   assert.match(sidebar, /deep-insight/);
-  assert.match(sidebar, /context\.draft/);
-  assert.match(sidebar, /clientRequestId/);
-  assert.match(sidebar, /performSend\(\{ \.\.\.failedSend, clientRequestId: crypto\.randomUUID\(\) \}\)/, "retry should use a fresh clientRequestId");
-  assert.match(sidebar, /data\.userMessage\.id \?\? localUserId/, "runtime responses may omit persistence ids");
-  assert.match(sidebar, /ProposalCard/);
-  assert.match(sidebar, /executionMode:\s*"client"/);
-  assert.match(sidebar, /\/api\/agent\/actions\/\$\{proposal\.id\}\/\$\{name\}/);
-  assert.match(sidebar, /\/api\/agent\/actions\/\$\{actionId\}\/result/);
-  assert.match(sidebar, /name === "retry"/);
-  assert.match(sidebar, /proposalsFromMessages/);
+  assert.match(agentSidebar, /context\.draft/);
+  assert.match(conversationStore, /clientRequestId/);
+  assert.match(conversationStore, /clientRequestId:\s*crypto\.randomUUID\(\)/, "retry should use a fresh clientRequestId");
+  assert.match(agentTypes, /userMessage\?:\s*\{ id\?: string;/, "runtime responses may omit persistence ids");
+  assert.match(confirmationCard, /function ConfirmationCard/);
+  assert.match(confirmationCard, /executionMode:\s*"client"/);
+  assert.match(confirmationCard, /\/api\/agent\/actions\/\$\{proposal\.id\}\/\$\{name\}/);
+  assert.match(confirmationCard, /\/api\/agent\/actions\/\$\{actionId\}\/result/);
+  assert.match(confirmationCard, /name === "confirm" \|\| name === "retry"/);
+  assert.match(conversationStore, /extractProposals\(rows\)/);
+  assert.match(transcriptAdapter, /metadata\?\.proposals \?\? \[\]/);
   assert.doesNotMatch(sidebar, /RELATED_PLACEHOLDERS|The Rise of the AI-Native Note App/);
 
   assert.match(notePage, /draft:\s*\{/);

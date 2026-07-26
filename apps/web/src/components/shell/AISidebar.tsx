@@ -1,8 +1,8 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type { AgentActionProposal, AgentChatMessage, AgentMessageResponse } from "../../lib/agent-contract";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { waitForAiRun } from "../../lib/ai-workflow-client";
+import { AgentSidebar } from "../agent/AgentSidebar";
 import { PrototypeIcon } from "./PrototypeIcon";
 
 export interface AgentNoteDraftPatch {
@@ -76,7 +76,7 @@ export function AISidebar({ open, onOpenChange }: { open: boolean; onOpenChange:
       <ContextBinding context={contentContext} onDeepInsight={openDeepInsight} />
       <div className="mewmo-ai-rail__body">
         {activeTab === "summary" ? <SummaryPanel context={contentContext} /> : (
-          <AgentPanel context={contentContext} requestedSkill={requestedSkill} onSkillConsumed={() => setRequestedSkill(null)} />
+          <AgentSidebar context={contentContext} requestedSkill={requestedSkill} onSkillConsumed={() => setRequestedSkill(null)} />
         )}
       </div>
     </aside>
@@ -242,205 +242,5 @@ function relatedIcon(type: RelatedItem["targetType"]) { return type === "note" ?
 function relatedLabel(type: RelatedItem["targetType"]) { return type === "note" ? "笔记" : type === "feed_entry" ? "订阅" : "剪藏"; }
 function insightLabel(kind: string) { return ({ completeness: "完整性", duplicate_viewpoint: "重复视角", viewpoint_change: "观点变化" } as Record<string, string>)[kind] ?? "洞察"; }
 
-interface AgentChat { id: string; title: string; messages?: AgentChatMessage[] }
-interface FailedSend { clientRequestId: string; content: string; skillId?: string }
-
-function AgentPanel({ context, requestedSkill, onSkillConsumed }: { context: AISidebarContentContext | null; requestedSkill: string | null; onSkillConsumed: () => void }) {
-  const [chat, setChat] = useState<AgentChat | null>(null);
-  const [messages, setMessages] = useState<AgentChatMessage[]>([]);
-  const [proposals, setProposals] = useState<AgentActionProposal[]>([]);
-  const [input, setInput] = useState("");
-  const [skillId, setSkillId] = useState<string | undefined>();
-  const [status, setStatus] = useState<"loading" | "idle" | "sending" | "failed">("loading");
-  const [failedSend, setFailedSend] = useState<FailedSend | null>(null);
-
-  useEffect(() => {
-    if (!requestedSkill) return;
-    setSkillId(requestedSkill);
-    setInput((current) => current || "请对当前内容进行深度洞察，指出关键联系、盲点、反例和下一步思考方向。");
-    onSkillConsumed();
-  }, [onSkillConsumed, requestedSkill]);
-
-  useEffect(() => {
-    let cancelled = false;
-    void fetch("/api/agent/chats", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ default: true }) })
-      .then(async (response) => ({ response, data: await response.json().catch(() => null) as { chat?: AgentChat } | null }))
-      .then(async ({ response, data }) => {
-        if (!response.ok || !data?.chat || cancelled) throw new Error("load failed");
-        const history = normalizeMessages(data.chat.messages ?? []);
-        const restored = proposalsFromMessages(history);
-        setChat(data.chat); setMessages(history); setProposals(restored); setStatus("idle");
-        if (restored.length > 0) {
-          const current = await Promise.all(restored.map(async (proposal) => {
-            const response = await fetch(`/api/agent/actions/${encodeURIComponent(proposal.id)}`, { cache: "no-store" });
-            const payload = await response.json().catch(() => null) as { action?: AgentActionProposal } | null;
-            return response.ok && payload?.action ? payload.action : proposal;
-          }));
-          if (!cancelled) setProposals(current);
-        }
-      })
-      .catch(() => { if (!cancelled) setStatus("failed"); });
-    return () => { cancelled = true; };
-  }, []);
-
-  const performSend = useCallback(async (request: FailedSend) => {
-    if (!chat) return;
-    const localUserId = `local-user-${request.clientRequestId}`;
-    const localAssistantId = `local-assistant-${request.clientRequestId}`;
-    setMessages((current) => current.some((message) => message.id === localUserId)
-      ? current.map((message) => message.id === localAssistantId ? { ...message, content: "正在思考…", status: "pending" } : message)
-      : [...current, { id: localUserId, role: "user", content: request.content, status: "completed" }, { id: localAssistantId, role: "assistant", content: "正在思考…", status: "pending" }]);
-    setStatus("sending"); setFailedSend(null);
-    try {
-      const response = await fetch(`/api/agent/chats/${chat.id}/stream`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientRequestId: request.clientRequestId, content: request.content, ...(request.skillId ? { skillId: request.skillId } : {}), context: context ? { resource: { type: context.kind, id: context.id, title: context.title }, ...(context.kind === "note" ? { draft: context.draft } : {}) } : null }),
-      });
-      if (!response.ok) {
-        const data = await response.json().catch(() => null) as { error?: { message?: string } } | null;
-        throw new Error(data?.error?.message ?? "send failed");
-      }
-      const data = await consumeAgentStream(response, (event) => {
-        const delta = event.type === "text_delta" && typeof event.delta === "string" ? event.delta : null;
-        if (delta !== null) {
-          setMessages((current) => current.map((item) => item.id === localAssistantId ? { ...item, content: item.content === "正在思考…" ? delta : item.content + delta } : item));
-        }
-      });
-      if (data.error?.message) throw new Error(data.error.message);
-      if (!data?.assistantMessage) throw new Error("Agent 未返回完整结果");
-      const userMessage: AgentChatMessage = {
-        id: data.userMessage.id ?? localUserId,
-        role: "user",
-        content: data.userMessage.content,
-        status: data.userMessage.status ?? "completed",
-      };
-      const assistantMessage: AgentChatMessage = {
-        id: data.assistantMessage.id ?? localAssistantId,
-        role: "assistant",
-        content: data.assistantMessage.content,
-        status: data.assistantMessage.status ?? "completed",
-      };
-      setMessages((current) => [...current.filter((message) => message.id !== localUserId && message.id !== localAssistantId), userMessage, assistantMessage]);
-      setProposals((current) => mergeProposals(current, data.proposals ?? []));
-      setStatus("idle");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Agent 暂时不可用，请重试。";
-      setMessages((current) => current.map((item) => item.id === localAssistantId ? { ...item, content: message, status: "failed" } : item));
-      setFailedSend(request); setInput((current) => current || request.content); setStatus("failed");
-    }
-  }, [chat, context]);
-
-  const send = () => {
-    const content = input.trim();
-    if (!content || !chat || status === "sending") return;
-    const request = { clientRequestId: crypto.randomUUID(), content, ...(skillId ? { skillId } : {}) };
-    setInput(""); setSkillId(undefined); void performSend(request);
-  };
-
-  const updateProposal = (proposal: AgentActionProposal) => setProposals((current) => mergeProposals(current, [proposal]));
-
-  return <>
-    {messages.length === 0 && <Message from="assistant">我可以搜索、创建、修改、润色、移动和整理你的内容。写操作会先展示预览，由你确认后执行。</Message>}
-    {messages.map((message) => <Message key={message.id} from={message.role === "user" ? "user" : "assistant"}>{message.content}</Message>)}
-    {proposals.map((proposal) => <ProposalCard key={proposal.id} proposal={proposal} context={context} onChange={updateProposal} />)}
-    {failedSend && <button type="button" className="mewmo-ai-retry" onClick={() => void performSend({ ...failedSend, clientRequestId: crypto.randomUUID() })}><PrototypeIcon name="sync" size={13} />重新尝试</button>}
-    {skillId && <div className="mewmo-ai-skill-chip"><PrototypeIcon name="spark" size={12} />深度洞察<button type="button" onClick={() => setSkillId(undefined)} aria-label="取消深度洞察"><PrototypeIcon name="close" size={12} /></button></div>}
-    <form className="mewmo-ai-rail__ask" onSubmit={(event) => { event.preventDefault(); send(); }}>
-      <textarea value={input} onChange={(event) => setInput(event.target.value)} placeholder={context ? `让 Agent 处理当前${contextLabel(context.kind)}` : "让 Agent 搜索或处理工作区内容"} disabled={!chat || status === "loading" || status === "sending"} rows={2} />
-      <button type="submit" disabled={!input.trim() || !chat || status === "loading" || status === "sending"} aria-label="发送"><PrototypeIcon name="send" size={14} /></button>
-    </form>
-  </>;
-}
-
-async function consumeAgentStream(response: Response, onEvent: (event: Record<string, unknown>) => void): Promise<AgentMessageResponse & { error?: { message?: string } }> {
-  if (!response.body) throw new Error("Agent 流式响应为空");
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let result: AgentMessageResponse & { error?: { message?: string } } | null = null;
-  while (true) {
-    const chunk = await reader.read();
-    buffer += decoder.decode(chunk.value ?? new Uint8Array(), { stream: !chunk.done });
-    const frames = buffer.split("\n\n");
-    buffer = frames.pop() ?? "";
-    for (const frame of frames) {
-      const event = frame.match(/^event: (.+)$/m)?.[1];
-      const payload = frame.match(/^data: (.+)$/m)?.[1];
-      if (!event || !payload) continue;
-      const parsed = JSON.parse(payload) as Record<string, unknown>;
-      if (event === "result") result = parsed as unknown as AgentMessageResponse;
-      else if (event === "error") result = { error: (parsed.error as { message?: string } | undefined) ?? { message: "Agent 请求失败" } } as AgentMessageResponse & { error?: { message?: string } };
-      else onEvent({ type: event, ...parsed });
-    }
-    if (chunk.done) break;
-  }
-  return result ?? {} as AgentMessageResponse & { error?: { message?: string } };
-}
-
-function ProposalCard({ proposal, context, onChange }: { proposal: AgentActionProposal; context: AISidebarContentContext | null; onChange: (proposal: AgentActionProposal) => void }) {
-  const [phase, setPhase] = useState<"idle" | "requesting" | "saving">("idle");
-  const command = async (name: "confirm" | "cancel" | "retry") => {
-    const requestId = crypto.randomUUID();
-    setPhase("requesting");
-    try {
-      const isClient = (name === "confirm" || name === "retry") && proposal.clientEffect?.kind === "note_draft_patch";
-      const response = await fetch(`/api/agent/actions/${proposal.id}/${name}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ clientRequestId: requestId, ...(isClient ? { executionMode: "client" } : {}) }) });
-      const data = await response.json().catch(() => null) as { action?: AgentActionProposal; error?: { message?: string } } | null;
-      if (!response.ok || !data?.action) throw new Error(data?.error?.message ?? "操作失败");
-      onChange(data.action);
-
-      if (isClient && proposal.clientEffect && context?.kind === "note" && context.applyDraftPatch) {
-        setPhase("saving");
-        try {
-          const result = await context.applyDraftPatch(proposal.clientEffect);
-          const completed = await reportClientResult(proposal.id, requestId, { status: "succeeded", result });
-          onChange(completed ?? { ...data.action, status: "succeeded" });
-        } catch (error) {
-          const message = error instanceof Error ? error.message : "笔记保存失败";
-          const failed = await reportClientResult(proposal.id, requestId, { status: "failed", error: { code: "draft_save_failed", message } });
-          onChange(failed ?? { ...data.action, status: "failed", error: { code: "draft_save_failed", message, retryable: true } });
-        }
-      }
-    } catch (error) {
-      const response = await fetch(`/api/agent/actions/${encodeURIComponent(proposal.id)}`, { cache: "no-store" }).catch(() => null);
-      const payload = await response?.json().catch(() => null) as { action?: AgentActionProposal } | null;
-      onChange(payload?.action ?? { ...proposal, error: { code: "action_request_failed", message: error instanceof Error ? error.message : "操作失败", retryable: true } });
-    } finally { setPhase("idle"); }
-  };
-
-  const stateLabel = phase === "saving" ? "正在保存" : phase === "requesting" ? "正在确认" : actionStatusLabel(proposal.status);
-  return <section className={`mewmo-ai-proposal mewmo-ai-proposal--${proposal.riskLevel}`}>
-    <div className="mewmo-ai-proposal__head"><strong>{proposalTitle(proposal)}</strong><span>{stateLabel}</span></div>
-    {proposal.preview.summary && <p>{proposal.preview.summary}</p>}
-    {proposal.preview.diff && <pre>{proposal.preview.diff}</pre>}
-    {proposal.error && <p className="mewmo-ai-proposal__error">{proposal.error.message}</p>}
-    <div className="mewmo-ai-proposal__actions">
-      {proposal.status === "proposed" && <><button type="button" disabled={phase !== "idle"} onClick={() => void command("cancel")}>取消</button><button type="button" className="mewmo-ai-proposal__confirm" disabled={phase !== "idle"} onClick={() => void command("confirm")}>确认执行</button></>}
-      {proposal.status === "failed" && proposal.error?.retryable && <button type="button" disabled={phase !== "idle"} onClick={() => void command("retry")}><PrototypeIcon name="sync" size={12} />重试</button>}
-    </div>
-  </section>;
-}
-
-async function reportClientResult(actionId: string, clientRequestId: string, result: { status: "succeeded"; result: Record<string, unknown> } | { status: "failed"; error: { code: string; message: string } }): Promise<AgentActionProposal | undefined> {
-  const response = await fetch(`/api/agent/actions/${actionId}/result`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ clientRequestId, ...result }) });
-  if (!response.ok) throw new Error("无法同步操作结果");
-  const data = await response.json().catch(() => null) as { action?: AgentActionProposal } | null;
-  return data?.action;
-}
-
-function Message({ from, children }: { from: "assistant" | "user"; children: ReactNode }) { return <div className={`mewmo-ai-message mewmo-ai-message--${from}`}>{children}</div>; }
-function normalizeMessages(messages: AgentChatMessage[]) { return messages.filter((message) => message.role === "user" || message.role === "assistant"); }
-function proposalsFromMessages(messages: AgentChatMessage[]) {
-  const map = new Map<string, AgentActionProposal>();
-  for (const message of messages) {
-    for (const proposal of message.metadata?.proposals ?? []) map.set(proposal.id, proposal);
-  }
-  return [...map.values()];
-}
-function mergeProposals(current: AgentActionProposal[], incoming: AgentActionProposal[]) { const map = new Map(current.map((item) => [item.id, item])); for (const item of incoming) map.set(item.id, item); return [...map.values()]; }
 function normalizeSummaryText(summary: string | null) { return summary?.trim().replace(/(?:\s*(?:\.{3,}|…|⋯))+$/u, "") ?? ""; }
 function contextLabel(kind: AISidebarContentContext["kind"]) { if (kind === "clip") return "剪藏"; if (kind === "feed_entry") return "订阅文章"; return "笔记"; }
-function actionStatusLabel(status: AgentActionProposal["status"]) { return ({ proposed: "待确认", confirmed: "已确认", executing: "执行中", succeeded: "已完成", failed: "失败", cancelled: "已取消" } as const)[status]; }
-function proposalTitle(proposal: AgentActionProposal) {
-  return proposal.preview.title ?? ({ note_create: "创建笔记", note_update: "更新笔记", note_move: "移动笔记", note_move_to_trash: "移入废纸篓", note_restore: "恢复笔记", knowledge_base_create: "创建知识库", knowledge_base_rename: "重命名知识库", knowledge_item_move: "移动知识库内容", knowledge_item_remove: "移除知识库关联" } as Record<string, string>)[proposal.toolName] ?? "AI 操作";
-}

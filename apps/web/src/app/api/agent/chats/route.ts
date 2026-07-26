@@ -11,7 +11,7 @@ export async function GET() {
 
   const repo = createAiChatsRepository();
   const chats = await repo.findByUserId(session.user.id);
-  return NextResponse.json({ chats: Array.isArray(chats) ? chats.map(toChatView) : [], pageInfo: { nextCursor: null } });
+  return NextResponse.json({ chats: Array.isArray(chats) ? chats.map(toChatSummary) : [], pageInfo: { nextCursor: null } });
 }
 
 export async function POST(request: Request) {
@@ -39,7 +39,7 @@ function toChatView(value: unknown) {
     title?: unknown;
     createdAt?: unknown;
     updatedAt?: unknown;
-    messages?: Array<{ id: string; role: string; content: string; status?: string; createdAt?: unknown; metadata?: unknown }>;
+    messages?: Array<{ id: string; turnId?: string; role: string; content: string; status?: string; createdAt?: unknown; metadata?: unknown; error?: unknown }>;
   };
   return {
     id: chat.id,
@@ -49,12 +49,19 @@ function toChatView(value: unknown) {
     messages: Array.isArray(chat.messages)
       ? chat.messages.map((message) => ({
           id: message.id,
+          turnId: message.turnId,
           role: message.role,
           content: message.content,
           status: message.status,
           createdAt: message.createdAt,
           metadata: message.metadata,
+          error: message.error,
         }))
       : [],
   };
+}
+
+function toChatSummary(value: unknown) {
+  const chat = value as { id?: unknown; title?: unknown; createdAt?: unknown; updatedAt?: unknown };
+  return { id: chat.id, title: chat.title, createdAt: chat.createdAt, updatedAt: chat.updatedAt };
 }
