@@ -1,9 +1,17 @@
 import { NextResponse } from "next/server";
+import { fetchOutbound, UnsafeOutboundUrlError } from "@mewmo/content";
+
+import { auth } from "../../../lib/auth";
 
 const IMAGE_FETCH_TIMEOUT_MS = 12_000;
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 
 export async function GET(request: Request) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const raw = new URL(request.url).searchParams.get("url");
   if (!raw) {
     return NextResponse.json({ error: "Missing image URL" }, { status: 400 });
@@ -24,8 +32,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const response = await fetch(target.href, {
-      redirect: "follow",
+    const response = await fetchOutbound(target.href, {
       signal: AbortSignal.timeout(IMAGE_FETCH_TIMEOUT_MS),
       headers: {
         accept:
@@ -61,11 +68,16 @@ export async function GET(request: Request) {
 
     return new NextResponse(bytes, {
       headers: {
-        "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800",
+        // private: the route is authenticated, so shared caches must not
+        // serve cached images to requests that never passed auth().
+        "Cache-Control": "private, max-age=86400, stale-while-revalidate=604800",
         "Content-Type": contentType,
       },
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof UnsafeOutboundUrlError) {
+      return NextResponse.json({ error: "Blocked image URL" }, { status: 400 });
+    }
     return NextResponse.json({ error: "Image fetch failed" }, { status: 502 });
   }
 }
