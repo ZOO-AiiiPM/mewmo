@@ -20,6 +20,7 @@ import {
   applyLegacyEvent,
   createLiveTurn,
   finalizeLegacyTurn,
+  mergeResultIntoTerminal,
   messagesToTranscriptRows,
   type LiveTurnState,
 } from "./transcript-adapter";
@@ -190,9 +191,10 @@ export function useConversationStore(chatId: string | null): ConversationStore {
       if (!finalTurn) return;
 
       if (finalTurn.terminal) {
-        commitRow(finalTurn.terminal);
-        if (finalTurn.terminal.status === "failed") {
-          setFailedRequest({ ...request, turnId: finalTurn.terminal.turnId });
+        const terminal = mergeResultIntoTerminal(finalTurn.terminal, result);
+        commitRow(terminal);
+        if (terminal.status === "failed") {
+          setFailedRequest({ ...request, turnId: terminal.turnId });
           setStatus("failed");
         } else {
           setFailedRequest(null);

@@ -271,43 +271,83 @@ export function applyConversationEvent(
 
 /**
  * Convert persisted messages from the API into stable TranscriptRows.
- * Groups user + assistant messages into turn-based rows.
+ * Messages carrying a turnId are grouped by real turn identity; messages
+ * without one (pre-turn history) fall back to legacy adjacency pairing.
  */
 export function messagesToTranscriptRows(messages: PersistedMessage[]): TranscriptRow[] {
-  const rows: TranscriptRow[] = [];
-  let currentUser: PersistedMessage | null = null;
+  interface RowUnit { user: PersistedMessage | null; assistant: PersistedMessage | null }
+  const units: RowUnit[] = [];
+  const unitsByTurn = new Map<string, RowUnit>();
+  let pendingLegacyUser: RowUnit | null = null;
 
   for (const message of messages) {
-    if (message.role === "user") {
-      // Flush previous pair
-      if (currentUser) {
-        rows.push(buildRowFromPair(currentUser, null));
-      }
-      currentUser = message;
-    } else if (message.role === "assistant") {
-      if (currentUser) {
-        rows.push(buildRowFromPair(currentUser, message));
-        currentUser = null;
-      } else {
-        // Orphan assistant message (e.g. welcome)
-        rows.push({
-          turnId: message.id,
-          userContent: "",
-          assistant: [{ kind: "text", content: message.content }],
-          status: message.status === "failed" ? "failed" : "completed",
-          proposals: message.metadata?.proposals ?? [],
-        });
-      }
-    }
     // Skip "tool" role messages — they are internal
+    if (message.role !== "user" && message.role !== "assistant") continue;
+
+    if (message.turnId) {
+      let unit = unitsByTurn.get(message.turnId);
+      if (!unit) {
+        unit = { user: null, assistant: null };
+        unitsByTurn.set(message.turnId, unit);
+        units.push(unit);
+      }
+      if (message.role === "user") {
+        if (!unit.user) unit.user = message;
+      } else {
+        unit.assistant = message;
+      }
+      pendingLegacyUser = null;
+      continue;
+    }
+
+    if (message.role === "user") {
+      const unit: RowUnit = { user: message, assistant: null };
+      units.push(unit);
+      pendingLegacyUser = unit;
+    } else if (pendingLegacyUser && !pendingLegacyUser.assistant) {
+      pendingLegacyUser.assistant = message;
+      pendingLegacyUser = null;
+    } else {
+      // Orphan assistant message (e.g. welcome)
+      units.push({ user: null, assistant: message });
+    }
   }
 
-  // Flush trailing user without assistant (shouldn't happen normally)
-  if (currentUser) {
-    rows.push(buildRowFromPair(currentUser, null));
-  }
+  return units.map((unit) => {
+    if (unit.user) return buildRowFromPair(unit.user, unit.assistant);
+    const assistant = unit.assistant;
+    if (!assistant) return null;
+    return {
+      turnId: assistant.turnId ?? assistant.id,
+      userContent: "",
+      assistant: [{ kind: "text" as const, content: assistant.content }],
+      status: assistant.status === "failed" ? "failed" as const : "completed" as const,
+      proposals: assistant.metadata?.proposals ?? [],
+    };
+  }).filter((row): row is TranscriptRow => row !== null);
+}
 
-  return rows;
+/**
+ * Reconcile the legacy `result` payload with a row settled by a stable
+ * terminal event. The landed backend (#33) delivers full action proposals
+ * only on the legacy result — the stable turn.completed message carries
+ * none — so adopt them idempotently instead of dropping confirmations.
+ */
+export function mergeResultIntoTerminal(
+  row: TranscriptRow,
+  result: LegacyResultPayload | null,
+): TranscriptRow {
+  if (!result || row.status !== "completed" || row.proposals.length > 0) return row;
+  const proposals = result.proposals ?? [];
+  if (proposals.length === 0) return row;
+  return {
+    ...row,
+    proposals,
+    assistant: [
+      ...row.assistant,
+      ...proposals.map((proposal) => ({ kind: "confirmation" as const, proposal })),
+    ],
+  };
 }
 
 // ---------------------------------------------------------------------------

@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { applyConversationEvent, applyLegacyEvent, createLiveTurn, finalizeLegacyTurn, messagesToTranscriptRows } from "./transcript-adapter";
+import { applyConversationEvent, applyLegacyEvent, createLiveTurn, finalizeLegacyTurn, mergeResultIntoTerminal, messagesToTranscriptRows } from "./transcript-adapter";
+import type { AgentActionProposal } from "../agent-contract";
+
+const proposal = (id: string): AgentActionProposal => ({
+  id,
+  toolName: "note_create",
+  preview: { title: "创建笔记" },
+  riskLevel: "low",
+  status: "proposed",
+  executionMode: "server",
+});
 
 describe("agent transcript adapter", () => {
   it("keeps tool activity and final text in one legacy turn", () => {
@@ -48,6 +58,45 @@ describe("agent transcript adapter", () => {
       { id: "user-1", turnId: "turn-1", role: "user", content: "问题" },
       { id: "assistant-1", turnId: "turn-1", role: "assistant", content: "答案" },
     ])).toEqual([expect.objectContaining({ turnId: "turn-1", userContent: "问题", status: "completed" })]);
+  });
+
+  it("keeps a failed turn's user row from stealing the next turn's assistant", () => {
+    const rows = messagesToTranscriptRows([
+      { id: "user-1", turnId: "turn-1", role: "user", content: "失败的问题", status: "failed", error: { message: "服务中断", retryable: true } },
+      { id: "user-2", turnId: "turn-2", role: "user", content: "第二个问题" },
+      { id: "assistant-2", turnId: "turn-2", role: "assistant", content: "第二个答案" },
+    ]);
+
+    expect(rows).toEqual([
+      expect.objectContaining({ turnId: "turn-1", status: "failed", error: { message: "服务中断", retryable: true } }),
+      expect.objectContaining({ turnId: "turn-2", userContent: "第二个问题", status: "completed" }),
+    ]);
+    expect(rows[1]?.assistant).toEqual([{ kind: "text", content: "第二个答案" }]);
+  });
+
+  it("adopts legacy result proposals into a stable terminal row exactly once", () => {
+    let state = createLiveTurn("chat-1", "local-request-1", "创建一条笔记");
+    state = applyConversationEvent(state, { type: "turn.started", chatId: "chat-1", turnId: "turn-1", seq: 1 });
+    state = applyConversationEvent(state, {
+      type: "turn.completed",
+      chatId: "chat-1",
+      turnId: "turn-1",
+      seq: 2,
+      message: { id: "assistant-1", content: "准备好了。", status: "completed" },
+    });
+
+    const merged = mergeResultIntoTerminal(state.terminal!, {
+      assistantMessage: { id: "assistant-1", content: "准备好了。" },
+      proposals: [proposal("action-1")],
+    });
+
+    expect(merged.proposals).toEqual([proposal("action-1")]);
+    expect(merged.assistant).toEqual([
+      { kind: "text", content: "准备好了。" },
+      { kind: "confirmation", proposal: proposal("action-1") },
+    ]);
+    expect(mergeResultIntoTerminal(merged, { proposals: [proposal("action-2")] })).toBe(merged);
+    expect(mergeResultIntoTerminal(state.terminal!, null)).toBe(state.terminal);
   });
 
   it("does not turn a persisted user-only turn into an empty success", () => {
