@@ -2,7 +2,9 @@
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { waitForAiRun } from "../../lib/ai-workflow-client";
+import { useAgentChats } from "../../lib/agent/use-agent-chats";
 import { AgentSidebar } from "../agent/AgentSidebar";
+import { ChatSwitcher } from "../agent/ChatSwitcher";
 import { PrototypeIcon } from "./PrototypeIcon";
 
 export interface AgentNoteDraftPatch {
@@ -48,6 +50,7 @@ export function AISidebar({ open, onOpenChange }: { open: boolean; onOpenChange:
   const { contentContext } = useAISidebarContext();
   const [activeTab, setActiveTab] = useState<"summary" | "agent">("agent");
   const [requestedSkill, setRequestedSkill] = useState<string | null>(null);
+  const agentChats = useAgentChats();
 
   const openDeepInsight = () => {
     setActiveTab("agent");
@@ -59,9 +62,32 @@ export function AISidebar({ open, onOpenChange }: { open: boolean; onOpenChange:
       <div className="mewmo-ai-rail__head">
         <div className="mewmo-ai-rail__mark" aria-hidden="true"><PrototypeIcon name="mewmo-logo" size={18} /></div>
         <div><div className="mewmo-ai-rail__name">mewmo</div></div>
-        <button type="button" className="mewmo-icon-button" onClick={() => onOpenChange(false)} aria-label="关闭 mewmo">
-          <PrototypeIcon name="close" size={19} className="mewmo-icon-close" />
-        </button>
+        <div className="mewmo-ai-rail__head-actions">
+          <ChatSwitcher
+            chats={agentChats.chats}
+            activeChatId={agentChats.activeChatId}
+            loading={agentChats.loadingChats}
+            locked={agentChats.store.status === "sending"}
+            pendingChatId={agentChats.pendingChatId}
+            onOpen={() => setActiveTab("agent")}
+            onSelectChat={agentChats.selectChat}
+            onRename={agentChats.renameChat}
+            onClear={agentChats.clearChat}
+            onDelete={agentChats.deleteChat}
+          />
+          <button
+            type="button"
+            className="mewmo-icon-button"
+            onClick={() => { setActiveTab("agent"); void agentChats.newChat(); }}
+            aria-label="新建会话"
+            disabled={agentChats.loadingChats || agentChats.pendingChatId !== null || agentChats.store.status === "sending"}
+          >
+            <PrototypeIcon name="pen-new-square" size={17} />
+          </button>
+          <button type="button" className="mewmo-icon-button" onClick={() => onOpenChange(false)} aria-label="关闭 mewmo">
+            <PrototypeIcon name="close" size={19} className="mewmo-icon-close" />
+          </button>
+        </div>
       </div>
 
       <div className="mewmo-ai-rail__tabs" role="tablist" aria-label="mewmo">
@@ -73,24 +99,12 @@ export function AISidebar({ open, onOpenChange }: { open: boolean; onOpenChange:
         </button>
       </div>
 
-      <ContextBinding context={contentContext} onDeepInsight={openDeepInsight} />
       <div className="mewmo-ai-rail__body">
         {activeTab === "summary" ? <SummaryPanel context={contentContext} /> : (
-          <AgentSidebar context={contentContext} requestedSkill={requestedSkill} onSkillConsumed={() => setRequestedSkill(null)} />
+          <AgentSidebar agentChats={agentChats} context={contentContext} requestedSkill={requestedSkill} onSkillConsumed={() => setRequestedSkill(null)} onDeepInsight={openDeepInsight} />
         )}
       </div>
     </aside>
-  );
-}
-
-function ContextBinding({ context, onDeepInsight }: { context: AISidebarContentContext | null; onDeepInsight: () => void }) {
-  if (!context) return <div className="mewmo-ai-rail__context"><strong>未绑定内容</strong><span>Agent 可以搜索工作区；打开内容后会自动附加当前上下文。</span></div>;
-  return (
-    <div className="mewmo-ai-rail__context">
-      <div><span>当前{contextLabel(context.kind)}</span><strong title={context.title}>{context.title}</strong></div>
-      {context.kind === "note" && <span>发送时会使用编辑器里的最新草稿</span>}
-      <button type="button" onClick={onDeepInsight}><PrototypeIcon name="spark" size={13} />深度洞察</button>
-    </div>
   );
 }
 
@@ -243,4 +257,3 @@ function relatedLabel(type: RelatedItem["targetType"]) { return type === "note" 
 function insightLabel(kind: string) { return ({ completeness: "完整性", duplicate_viewpoint: "重复视角", viewpoint_change: "观点变化" } as Record<string, string>)[kind] ?? "洞察"; }
 
 function normalizeSummaryText(summary: string | null) { return summary?.trim().replace(/(?:\s*(?:\.{3,}|…|⋯))+$/u, "") ?? ""; }
-function contextLabel(kind: AISidebarContentContext["kind"]) { if (kind === "clip") return "剪藏"; if (kind === "feed_entry") return "订阅文章"; return "笔记"; }
