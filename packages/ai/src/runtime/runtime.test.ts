@@ -35,6 +35,20 @@ describe("AI runtime", () => {
     expect(embedded.embeddings).toEqual([[0.1, 0.2]]);
   });
 
+  it("disables the store flag for google relay endpoints and leaves others auto-detected", () => {
+    const google = createAIRuntime({
+      providers: { primary: { provider: "google", apiKey: "secret", baseUrl: "https://relay.example/prefix/v1beta" } },
+      models: { "agent.chat": { provider: "primary", model: "gemini-3.5-flash-lite" } },
+    });
+    const custom = createAIRuntime({
+      providers: { primary: { provider: "custom", apiKey: "secret", baseUrl: "https://ai.example/v1" } },
+      models: { "agent.chat": { provider: "primary", model: "chat-model" } },
+    });
+
+    expect(google.model("agent.chat").compat).toEqual({ supportsStore: false });
+    expect(custom.model("agent.chat").compat).toBeUndefined();
+  });
+
   it("keeps the existing model environment variables as migration fallbacks", () => {
     const config = loadAIRuntimeConfig({
       AI_PROVIDER: "custom",

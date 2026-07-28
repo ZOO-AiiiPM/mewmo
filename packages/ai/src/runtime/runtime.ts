@@ -260,6 +260,10 @@ function createEndpointProvider(id: string, definition: ProviderDefinition, mode
     cost: model.cost ?? ZERO_COST,
     contextWindow: model.contextWindow ?? 128_000,
     maxTokens: model.maxTokens ?? 8_192,
+    // Gemini's OpenAI-compat surface rejects unknown request fields (e.g.
+    // `store`), and Pi's baseUrl auto-detection assumes standard OpenAI
+    // behavior for relay endpoints, so pin the flag explicitly.
+    ...(definition.provider === "google" ? { compat: { supportsStore: false } } : {}),
   }));
   return createProvider({
     id,
