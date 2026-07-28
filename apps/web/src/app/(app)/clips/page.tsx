@@ -8,6 +8,7 @@ import {
 } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ClipContentRenderer } from "../../../components/clips/ClipContentRenderer";
+import { useAISidebarContext } from "../../../components/shell/AISidebar";
 import { CardActionMenu } from "../../../components/shell/CardActionMenu";
 import { ListColumn } from "../../../components/shell/ListColumn";
 import { ListContentSkeleton } from "../../../components/shell/ListContentSkeleton";
@@ -270,6 +271,32 @@ export default function ClipsPage() {
       cancelled = true;
     };
   }, [previewClip]);
+
+  const { setContentContext } = useAISidebarContext();
+
+  useEffect(() => {
+    if (!selectedClip) {
+      setContentContext(null);
+      return;
+    }
+
+    setContentContext({
+      kind: "clip",
+      id: selectedClip.id,
+      title: selectedClip.title,
+      sourceLabel: selectedClip.sourceName || getDomain(selectedClip.url),
+      summary: selectedClip.summary,
+    });
+
+    return () => setContentContext(null);
+  }, [
+    selectedClip?.id,
+    selectedClip?.sourceName,
+    selectedClip?.summary,
+    selectedClip?.title,
+    selectedClip?.url,
+    setContentContext,
+  ]);
 
   useEffect(() => {
     const handlePopState = () => {
