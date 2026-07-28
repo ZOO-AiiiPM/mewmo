@@ -4450,6 +4450,10 @@ html.light .mewmo-ai-related-modal__panel {
 }
 
 .mewmo-chat-switcher__item--active {
+  background: var(--hl);
+}
+
+html.light .mewmo-chat-switcher__item--active {
   background: var(--selected);
 }
 
