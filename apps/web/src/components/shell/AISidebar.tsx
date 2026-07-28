@@ -99,24 +99,12 @@ export function AISidebar({ open, onOpenChange }: { open: boolean; onOpenChange:
         </button>
       </div>
 
-      <ContextBinding context={contentContext} onDeepInsight={openDeepInsight} />
       <div className="mewmo-ai-rail__body">
         {activeTab === "summary" ? <SummaryPanel context={contentContext} /> : (
-          <AgentSidebar agentChats={agentChats} context={contentContext} requestedSkill={requestedSkill} onSkillConsumed={() => setRequestedSkill(null)} />
+          <AgentSidebar agentChats={agentChats} context={contentContext} requestedSkill={requestedSkill} onSkillConsumed={() => setRequestedSkill(null)} onDeepInsight={openDeepInsight} />
         )}
       </div>
     </aside>
-  );
-}
-
-function ContextBinding({ context, onDeepInsight }: { context: AISidebarContentContext | null; onDeepInsight: () => void }) {
-  if (!context) return <div className="mewmo-ai-rail__context"><strong>未绑定内容</strong><span>Agent 可以搜索工作区；打开内容后会自动附加当前上下文。</span></div>;
-  return (
-    <div className="mewmo-ai-rail__context">
-      <div><span>当前{contextLabel(context.kind)}</span><strong title={context.title}>{context.title}</strong></div>
-      {context.kind === "note" && <span>发送时会使用编辑器里的最新草稿</span>}
-      <button type="button" onClick={onDeepInsight}><PrototypeIcon name="spark" size={13} />深度洞察</button>
-    </div>
   );
 }
 
@@ -269,4 +257,3 @@ function relatedLabel(type: RelatedItem["targetType"]) { return type === "note" 
 function insightLabel(kind: string) { return ({ completeness: "完整性", duplicate_viewpoint: "重复视角", viewpoint_change: "观点变化" } as Record<string, string>)[kind] ?? "洞察"; }
 
 function normalizeSummaryText(summary: string | null) { return summary?.trim().replace(/(?:\s*(?:\.{3,}|…|⋯))+$/u, "") ?? ""; }
-function contextLabel(kind: AISidebarContentContext["kind"]) { if (kind === "clip") return "剪藏"; if (kind === "feed_entry") return "订阅文章"; return "笔记"; }

@@ -12,16 +12,17 @@ interface AgentSidebarProps {
   context: AISidebarContentContext | null;
   requestedSkill: string | null;
   onSkillConsumed: () => void;
+  onDeepInsight: () => void;
 }
 
-export function AgentSidebar({ agentChats, context, requestedSkill, onSkillConsumed }: AgentSidebarProps) {
+export function AgentSidebar({ agentChats, context, requestedSkill, onSkillConsumed, onDeepInsight }: AgentSidebarProps) {
   const { activeChatId, loadingChats, chatError, store, dismissError } = agentChats;
 
-  const handleSend = useCallback((options: { content: string; skillId?: string }) => {
+  const handleSend = useCallback((options: { content: string; skillId?: string; includeContext: boolean }) => {
     store.send({
       content: options.content,
       ...(options.skillId ? { skillId: options.skillId } : {}),
-      context: context ? { resource: { type: context.kind, id: context.id, title: context.title }, ...(context.kind === "note" ? { draft: context.draft } : {}) } : null,
+      context: options.includeContext && context ? { resource: { type: context.kind, id: context.id, title: context.title }, ...(context.kind === "note" ? { draft: context.draft } : {}) } : null,
     });
   }, [context, store]);
 
@@ -31,7 +32,7 @@ export function AgentSidebar({ agentChats, context, requestedSkill, onSkillConsu
     <div className="mewmo-agent-panel">
       {chatError && <div className="mewmo-agent-panel__error" role="alert">{chatError}<button type="button" onClick={dismissError} aria-label="关闭提示">×</button></div>}
       <TranscriptList stableRows={store.stableRows} liveRow={store.liveRow} context={context} onProposalChange={store.updateProposal} onRetry={store.retry} {...(store.failedRequest ? { retryTurnId: store.failedRequest.turnId } : {})} />
-      <ChatInput status={store.status} chatReady={chatReady} context={context} requestedSkill={requestedSkill} onSkillConsumed={onSkillConsumed} onSend={handleSend} />
+      <ChatInput status={store.status} chatReady={chatReady} context={context} requestedSkill={requestedSkill} onSkillConsumed={onSkillConsumed} onDeepInsight={onDeepInsight} onSend={handleSend} />
     </div>
   );
 }
