@@ -24,6 +24,7 @@
 !/agent.md
 !/AGENTS.md
 !/.agents/
+!/.cursorrules
 
 # env backups must never be committed (real secrets)
 **/.env.local.bak*

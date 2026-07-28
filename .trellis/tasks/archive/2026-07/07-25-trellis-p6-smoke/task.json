@@ -1,0 +1,28 @@
+{
+  "id": "trellis-p6-smoke",
+  "name": "trellis-p6-smoke",
+  "title": "Trellis P6 最小验收",
+  "description": "验证 Plan→Execute→Finish 状态机、hook 上下文与 journal 写入。",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P3",
+  "creator": "zoo",
+  "assignee": "zoo",
+  "createdAt": "2026-07-25",
+  "completedAt": "2026-07-25",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "purpose": "p6-smoke"
+  }
+}

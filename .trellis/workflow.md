@@ -707,3 +707,12 @@ For the workflow state machine's runtime contract, the locations of all status w
 
 - `.trellis/spec/cli/backend/workflow-state-contract.md` — runtime contract + writer table + test invariants
 - `.trellis/scripts/inject-workflow-state.py` — actual parser (reads workflow.md only, no embedded text)
+
+## Trellis 文档的 git 写入约定（ZOO-79）
+
+协作层（`.trellis/` 及 `agent.md` 系）已入库跟踪。为避免文档提交污染代码史、feature 分支互相踩踏，遵守：
+
+1. **小 PR 快进快出**：trellis 文档变更单独开 `chore/*` 分支、小 PR 尽快合入，绝不搭 feature 分支的车。Why：文档落库越快，其他并行 session 越早看到同一份真相；搭车会让文档被 feature 的验收周期扣押。
+2. **feature PR 的 `.trellis` 触碰边界**：除本任务自己的 `.trellis/tasks/<task>/` 目录外，feature PR 不改 `.trellis` 下任何内容。Why：任务目录是任务的一部分，其余（workflow/spec/workspace）是共享基础设施，混入 feature diff 会制造跨任务冲突。
+3. **trellis 文档 PR 一律 squash 合并**：文档的中间修订史无保留价值；看代码史用 `git log -- ':!.trellis'` 过滤。
+4. **journal 冲突再分片**：共享 journal 若真实出现合并冲突，再改为按月分片文件；不预先过度设计。

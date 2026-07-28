@@ -156,3 +156,43 @@ channel:
 #
 # prompt_injection:
 #   skip_keyword: "no-trellis"   # "" disables the escape hatch entirely
+
+# Auto-detected monorepo packages
+packages:
+  admin:
+    path: apps/admin
+  agent:
+    path: apps/agent
+  ai-workflows:
+    path: apps/ai-workflows
+  extension:
+    path: apps/extension
+  feed-ingestion:
+    path: apps/feed-ingestion
+  web:
+    path: apps/web
+  worker:
+    path: apps/worker
+  ai:
+    path: packages/ai
+  application:
+    path: packages/application
+  auth:
+    path: packages/auth
+  content:
+    path: packages/content
+  db:
+    path: packages/db
+  email:
+    path: packages/email
+  queue:
+    path: packages/queue
+  shared:
+    path: packages/shared
+  storage:
+    path: packages/storage
+  sync:
+    path: packages/sync
+  ui:
+    path: packages/ui
+default_package: admin
