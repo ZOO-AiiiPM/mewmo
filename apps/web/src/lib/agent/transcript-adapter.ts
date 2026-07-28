@@ -10,7 +10,7 @@
  */
 
 import type { AgentActionProposal } from "../agent-contract";
-import { toolRunningLabel, toolDoneLabel } from "./tool-display";
+import { publicErrorMessage, toolRunningLabel, toolDoneLabel } from "./tool-display";
 import type {
   AssistantBlock,
   ConversationEvent,
@@ -47,8 +47,14 @@ export function createLiveTurn(chatId: string, turnId: string, userContent: stri
 /**
  * Apply a legacy stream event to the live turn state.
  * Returns a new state (immutable update pattern for React).
+ *
+ * The landed backend (#33) emits every delta/tool event on BOTH the stable
+ * ConversationEvent channel and the legacy channel. Once a stable event has
+ * claimed this turn (serverTurnId set), legacy content events must be ignored
+ * or every block would be applied twice.
  */
 export function applyLegacyEvent(state: LiveTurnState, event: LegacyStreamEvent): LiveTurnState {
+  if (state.serverTurnId) return state;
   switch (event.type) {
     case "text_delta": {
       const lastBlock = state.blocks[state.blocks.length - 1];
@@ -136,7 +142,7 @@ export function finalizeLegacyTurn(
       status: "failed",
       proposals: state.proposals,
       error: {
-        message: result.error.message,
+        message: publicErrorMessage(result.error.message, result.error.code),
         retryable: result.error.retryable ?? true,
       },
     };
@@ -181,7 +187,7 @@ export function applyConversationEvent(
   const withSeq = {
     ...state,
     lastSeq: event.seq,
-    hasSequenceGap: state.hasSequenceGap || (state.lastSeq > 0 && event.seq > state.lastSeq + 1),
+    hasSequenceGap: state.hasSequenceGap || event.seq > state.lastSeq + 1,
   };
 
   switch (event.type) {
@@ -217,11 +223,15 @@ export function applyConversationEvent(
 
     case "tool.completed": {
       const display = event.display?.label ?? "已完成操作";
+      // #33 encodes tool failure only in its product label; the stable event
+      // contract has no isError field yet. Preserve correct UI state until the
+      // backend follow-up adds that explicit bit.
+      const failed = display.trim().endsWith("失败");
       return {
         ...withSeq,
         blocks: withSeq.blocks.map((block) =>
           block.kind === "tool" && block.toolCallId === event.toolCallId
-            ? { ...block, status: "done" as const, display }
+            ? { ...block, status: failed ? "error" as const : "done" as const, display }
             : block,
         ),
       };
@@ -232,7 +242,9 @@ export function applyConversationEvent(
       return withSeq;
 
     case "turn.completed": {
-      const proposals = event.message.proposals ?? [];
+      // The stable DTO intentionally carries only the assistant projection;
+      // full proposals arrive in the trailing legacy result during migration.
+      const proposals: AgentActionProposal[] = [];
       const blocks = reconcileFinalText(withSeq.blocks, event.message.content);
       const terminal: TranscriptRow = {
         turnId: event.turnId,
@@ -255,7 +267,7 @@ export function applyConversationEvent(
         assistant: withSeq.blocks,
         status: "failed",
         proposals: withSeq.proposals,
-        error: { message: event.error.message, retryable: event.retryable && event.error.retryable },
+        error: { message: publicErrorMessage(event.error.message, event.error.code), retryable: event.retryable && event.error.retryable },
       };
       return { ...withSeq, turnId: event.turnId, serverTurnId: event.turnId, terminal };
     }
@@ -304,13 +316,23 @@ export function messagesToTranscriptRows(messages: PersistedMessage[]): Transcri
       const unit: RowUnit = { user: message, assistant: null };
       units.push(unit);
       pendingLegacyUser = unit;
-    } else if (pendingLegacyUser && !pendingLegacyUser.assistant) {
+      continue;
+    }
+    if (pendingLegacyUser && !pendingLegacyUser.assistant) {
       pendingLegacyUser.assistant = message;
       pendingLegacyUser = null;
-    } else {
-      // Orphan assistant message (e.g. welcome)
-      units.push({ user: null, assistant: message });
+      continue;
     }
+    // A failed turn persists its partial assistant entry without a turn link.
+    // Fold it into the failed turn's row (mirroring the live failure state)
+    // instead of surfacing the leftover as a standalone successful reply.
+    const previous = units[units.length - 1];
+    if (previous?.user?.turnId && previous.user.status === "failed" && !previous.assistant) {
+      previous.assistant = { ...message, status: "failed" };
+      continue;
+    }
+    // Orphan assistant message (e.g. welcome)
+    units.push({ user: null, assistant: message });
   }
 
   return units.map((unit) => {
@@ -369,14 +391,15 @@ function buildRowFromPair(
     blocks.push({ kind: "confirmation", proposal });
   }
 
-  const error = assistant?.error ?? user.error;
+  const rawError = assistant?.error ?? user.error;
+  const error = rawError ? { ...rawError, message: publicErrorMessage(rawError.message) } : rawError;
   const missingAssistant = !assistant;
 
   return {
     turnId: assistant?.turnId ?? user.turnId ?? assistant?.id ?? user.id,
     userContent: user.content,
     assistant: blocks,
-    status: assistant?.status === "failed" || missingAssistant ? "failed" : "completed",
+    status: assistant?.status === "failed" || user.status === "failed" || missingAssistant ? "failed" : "completed",
     proposals,
     ...((assistant?.createdAt ?? user.createdAt) ? { createdAt: assistant?.createdAt ?? user.createdAt } : {}),
     ...(error ? { error } : missingAssistant ? { error: { message: "这次回复未完成。", retryable: false } } : {}),

@@ -90,6 +90,10 @@ export function AgentSidebar({ context, requestedSkill, onSkillConsumed }: Agent
   }, []);
 
   const handleClear = useCallback(async (chatId: string) => {
+    if (store.status === "sending") {
+      setChatError("请等待当前回复完成后再清空会话。");
+      return;
+    }
     setPendingChatId(chatId);
     try {
       const response = await fetch(`/api/agent/chats/${encodeURIComponent(chatId)}/clear`, { method: "POST" });
@@ -105,6 +109,10 @@ export function AgentSidebar({ context, requestedSkill, onSkillConsumed }: Agent
   }, [activeChatId, store]);
 
   const handleDelete = useCallback(async (chatId: string) => {
+    if (store.status === "sending") {
+      setChatError("请等待当前回复完成后再删除会话。");
+      return;
+    }
     setPendingChatId(chatId);
     let replacement: ChatSummary | null = null;
     try {
@@ -142,7 +150,7 @@ export function AgentSidebar({ context, requestedSkill, onSkillConsumed }: Agent
 
   return (
     <div className="mewmo-agent-panel">
-      <ChatSwitcher chats={chats} activeChatId={activeChatId} loading={loadingChats} pendingChatId={pendingChatId} onSelectChat={setActiveChatId} onNewChat={() => void handleNewChat()} onRename={handleRename} onClear={handleClear} onDelete={handleDelete} />
+      <ChatSwitcher chats={chats} activeChatId={activeChatId} loading={loadingChats} locked={store.status === "sending"} pendingChatId={pendingChatId} onSelectChat={setActiveChatId} onNewChat={() => void handleNewChat()} onRename={handleRename} onClear={handleClear} onDelete={handleDelete} />
       {chatError && <div className="mewmo-agent-panel__error" role="alert">{chatError}<button type="button" onClick={() => setChatError(null)} aria-label="关闭提示">×</button></div>}
       <TranscriptList stableRows={store.stableRows} liveRow={store.liveRow} context={context} onProposalChange={store.updateProposal} onRetry={store.retry} {...(store.failedRequest ? { retryTurnId: store.failedRequest.turnId } : {})} />
       <ChatInput status={store.status} chatReady={chatReady} context={context} requestedSkill={requestedSkill} onSkillConsumed={onSkillConsumed} onSend={handleSend} />

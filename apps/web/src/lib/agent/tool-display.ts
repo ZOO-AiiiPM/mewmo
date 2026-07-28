@@ -60,3 +60,41 @@ export function toolDisplayText(toolName: string, status: "running" | "done" | "
   if (status === "done") return toolDoneLabel(toolName);
   return toolRunningLabel(toolName);
 }
+
+const GENERIC_ERROR_MESSAGE = "Agent 暂时遇到问题，请重试。";
+
+const PUBLIC_MESSAGES_BY_CODE: Record<string, string> = {
+  unauthorized: "请先登录。",
+  forbidden: "你没有权限执行此操作。",
+  chat_not_found: "会话不存在。",
+  not_found: "请求的内容不存在。",
+  bad_request: "请求内容无效。",
+  invalid_request: "请求内容无效。",
+  conflict: "这个会话正在处理另一条消息，请稍后重试。",
+  confirmation_required: "这个操作需要先确认。",
+  timeout: "Agent 响应超时，请重试。",
+  rate_limited: "请求过于频繁，请稍后重试。",
+  dependency_unavailable: GENERIC_ERROR_MESSAGE,
+  provider_unavailable: GENERIC_ERROR_MESSAGE,
+  internal_error: GENERIC_ERROR_MESSAGE,
+  action_failed: "操作失败，请重试。",
+  action_request_failed: "操作失败，请重试。",
+  draft_save_failed: "笔记保存失败，请重试。",
+  unsupported_action: "不支持的操作。",
+};
+
+const SAFE_PUBLIC_MESSAGES = new Set(Object.values(PUBLIC_MESSAGES_BY_CODE));
+
+/**
+ * Reduce a backend error message to product copy. The current backend
+ * propagates raw provider/runtime messages (e.g. `got status: UNAVAILABLE.
+ * {"error":...}`) through turn.failed and persisted turns, and those must
+ * never reach the transcript. Product error copy in this app is Chinese, so
+ * anything without CJK text or carrying JSON/stack markers falls back to the
+ * generic message.
+ */
+export function publicErrorMessage(raw: string | null | undefined, code?: string): string {
+  if (code && PUBLIC_MESSAGES_BY_CODE[code]) return PUBLIC_MESSAGES_BY_CODE[code];
+  const message = raw?.trim() ?? "";
+  return SAFE_PUBLIC_MESSAGES.has(message) ? message : GENERIC_ERROR_MESSAGE;
+}

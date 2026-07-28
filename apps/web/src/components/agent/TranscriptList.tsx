@@ -30,7 +30,7 @@ export function TranscriptList({ stableRows, liveRow, context, onProposalChange,
     if (shouldAutoScroll.current && containerRef.current) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
-  }, [allRows.length, liveRow?.assistant.length]);
+  }, [allRows.length, liveRow]);
 
   // Track whether user is near bottom for auto-scroll
   const handleScroll = () => {

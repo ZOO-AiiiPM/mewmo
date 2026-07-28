@@ -70,6 +70,25 @@ test("chat lifecycle commands validate input and preserve ownership boundaries",
   assert.match(repository, /where: \{ id: chatId, \.\.\.activeByUser\(userId\) \}/);
 });
 
+test("chat lifecycle controls lock while an Agent turn is streaming", () => {
+  const sidebar = read("apps/web/src/components/agent/AgentSidebar.tsx");
+  const switcher = read("apps/web/src/components/agent/ChatSwitcher.tsx");
+
+  assert.match(sidebar, /locked=\{store\.status === "sending"\}/);
+  assert.match(sidebar, /请等待当前回复完成后再清空会话/);
+  assert.match(sidebar, /请等待当前回复完成后再删除会话/);
+  assert.match(switcher, /const busy = locked \|\| pendingChatId !== null/);
+  assert.match(switcher, /disabled=\{loading \|\| busy\}/);
+  assert.match(switcher, /disabled=\{busy\}/);
+});
+
+test("client-side note actions require the proposal's original note context", () => {
+  const card = read("apps/web/src/components/agent/ConfirmationCard.tsx");
+
+  assert.match(card, /context\.id !== proposal\.clientEffect\?\.noteId/);
+  assert.match(card, /请先打开该操作对应的笔记再确认/);
+});
+
 test("Agent service owns idempotent multi-turn message persistence", () => {
   const server = read("apps/agent/src/server.ts");
   const runtime = read("apps/agent/src/pi/runtime.ts");
@@ -103,10 +122,10 @@ test("AI sidebar supports draft context, Deep Insight, proposals, and idempotent
   assert.match(agentTypes, /userMessage\?:\s*\{ id\?: string;/, "runtime responses may omit persistence ids");
   assert.match(confirmationCard, /function ConfirmationCard/);
   assert.match(confirmationCard, /executionMode:\s*"client"/);
-  assert.match(confirmationCard, /\/api\/agent\/actions\/\$\{proposal\.id\}\/\$\{name\}/);
-  assert.match(confirmationCard, /\/api\/agent\/actions\/\$\{actionId\}\/result/);
+  assert.match(confirmationCard, /\/api\/agent\/actions\/\$\{encodeURIComponent\(proposal\.id\)\}\/\$\{name\}/);
+  assert.match(confirmationCard, /\/api\/agent\/actions\/\$\{encodeURIComponent\(actionId\)\}\/result/);
   assert.match(confirmationCard, /name === "confirm" \|\| name === "retry"/);
-  assert.match(conversationStore, /extractProposals\(rows\)/);
+  assert.match(conversationStore, /refreshProposalStates\(extractProposals\(persistedRows\)\)/);
   assert.match(transcriptAdapter, /metadata\?\.proposals \?\? \[\]/);
   assert.doesNotMatch(sidebar, /RELATED_PLACEHOLDERS|The Rise of the AI-Native Note App/);
 

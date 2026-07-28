@@ -25,6 +25,7 @@ import {
   type LiveTurnState,
 } from "./transcript-adapter";
 import { sendAndStream } from "./stream-client";
+import { publicErrorMessage } from "./tool-display";
 import type {
   ConversationEvent,
   LegacyStreamEvent,
@@ -98,9 +99,14 @@ export function useConversationStore(chatId: string | null): ConversationStore {
       // Guard: only apply if still on the same chat
       if (chatIdRef.current !== targetChatId || generationRef.current !== generation) return;
 
-      const rows = messagesToTranscriptRows(data.chat.messages ?? []);
+      const persistedRows = messagesToTranscriptRows(data.chat.messages ?? []);
+      const currentProposals = await refreshProposalStates(extractProposals(persistedRows));
+
+      if (chatIdRef.current !== targetChatId || generationRef.current !== generation) return;
+
+      const rows = replaceTranscriptProposals(persistedRows, currentProposals);
       setStableRows(rows);
-      setProposals(extractProposals(rows));
+      setProposals(currentProposals);
       setStatus("idle");
     } catch {
       if (chatIdRef.current === targetChatId && generationRef.current === generation) setStatus("failed");
@@ -190,6 +196,20 @@ export function useConversationStore(chatId: string | null): ConversationStore {
       const finalTurn = liveTurnRef.current;
       if (!finalTurn) return;
 
+      if (finalTurn.hasSequenceGap) {
+        const failedRequest = finalTurn.terminal?.status === "failed"
+          ? { ...request, turnId: finalTurn.terminal.turnId }
+          : null;
+        setLiveRow(null);
+        await loadTranscript(targetChatId);
+        if (chatIdRef.current !== targetChatId) return;
+        if (failedRequest) {
+          setFailedRequest(failedRequest);
+          setStatus("failed");
+        }
+        return;
+      }
+
       if (finalTurn.terminal) {
         const terminal = mergeResultIntoTerminal(finalTurn.terminal, result);
         commitRow(terminal);
@@ -239,7 +259,7 @@ export function useConversationStore(chatId: string | null): ConversationStore {
       if (chatIdRef.current !== targetChatId || generationRef.current !== generation) return;
       if (controller.signal.aborted) return; // Intentional abort (chat switch)
 
-      const message = error instanceof Error ? error.message : "Agent 暂时不可用，请重试。";
+      const message = publicErrorMessage(error instanceof Error ? error.message : null);
       const finalTurn = liveTurnRef.current;
       const failedRow: TranscriptRow = {
         turnId: finalTurn?.turnId ?? `failed-${request.clientRequestId}`,
@@ -254,8 +274,10 @@ export function useConversationStore(chatId: string | null): ConversationStore {
       setFailedRequest({ ...request, turnId: failedRow.turnId });
       setStatus("failed");
     } finally {
-      if (liveTurnRef.current === liveTurn) liveTurnRef.current = null;
-      if (abortRef.current === controller) abortRef.current = null;
+      if (abortRef.current === controller) {
+        liveTurnRef.current = null;
+        abortRef.current = null;
+      }
     }
   }, []);
 
@@ -365,6 +387,32 @@ function mergeProposals(current: AgentActionProposal[], incoming: AgentActionPro
   const map = new Map(current.map((item) => [item.id, item]));
   for (const item of incoming) map.set(item.id, item);
   return [...map.values()];
+}
+
+async function refreshProposalStates(proposals: AgentActionProposal[]): Promise<AgentActionProposal[]> {
+  return Promise.all(proposals.map(async (proposal) => {
+    try {
+      const response = await fetch(`/api/agent/actions/${encodeURIComponent(proposal.id)}`, { cache: "no-store" });
+      const data = await response.json().catch(() => null) as { action?: AgentActionProposal } | null;
+      return response.ok && data?.action ? data.action : proposal;
+    } catch {
+      return proposal;
+    }
+  }));
+}
+
+export function replaceTranscriptProposals(
+  rows: TranscriptRow[],
+  currentProposals: AgentActionProposal[],
+): TranscriptRow[] {
+  const proposalsById = new Map(currentProposals.map((proposal) => [proposal.id, proposal]));
+  return rows.map((row) => ({
+    ...row,
+    proposals: row.proposals.map((proposal) => proposalsById.get(proposal.id) ?? proposal),
+    assistant: row.assistant.map((block) => block.kind === "confirmation"
+      ? { ...block, proposal: proposalsById.get(block.proposal.id) ?? block.proposal }
+      : block),
+  }));
 }
 
 export function upsertTranscriptRow(rows: TranscriptRow[], row: TranscriptRow): TranscriptRow[] {

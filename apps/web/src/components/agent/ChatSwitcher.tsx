@@ -9,6 +9,7 @@ interface ChatSwitcherProps {
   chats: ChatSummary[];
   activeChatId: string | null;
   loading: boolean;
+  locked: boolean;
   pendingChatId: string | null;
   onSelectChat: (chatId: string) => void;
   onNewChat: () => void;
@@ -21,6 +22,7 @@ export function ChatSwitcher({
   chats,
   activeChatId,
   loading,
+  locked,
   pendingChatId,
   onSelectChat,
   onNewChat,
@@ -34,6 +36,7 @@ export function ChatSwitcher({
   const [renameValue, setRenameValue] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
   const renamingRef = useRef(false);
+  const busy = locked || pendingChatId !== null;
 
   useEffect(() => {
     if (!menuChatId) return;
@@ -44,8 +47,15 @@ export function ChatSwitcher({
     return () => document.removeEventListener("mousedown", handler);
   }, [menuChatId]);
 
+  useEffect(() => {
+    if (!busy) return;
+    setExpanded(false);
+    setMenuChatId(null);
+    setRenamingId(null);
+  }, [busy]);
+
   const handleRename = async (chatId: string) => {
-    if (renamingRef.current) return;
+    if (busy || renamingRef.current) return;
     const title = renameValue.trim();
     if (!title) {
       setRenamingId(null);
@@ -64,12 +74,12 @@ export function ChatSwitcher({
   return (
     <div className="mewmo-chat-switcher" ref={menuRef}>
       <div className="mewmo-chat-switcher__bar">
-        <button type="button" className="mewmo-chat-switcher__current" onClick={() => setExpanded(!expanded)} aria-expanded={expanded} aria-label="切换会话" disabled={loading}>
+        <button type="button" className="mewmo-chat-switcher__current" onClick={() => setExpanded(!expanded)} aria-expanded={expanded} aria-label="切换会话" disabled={loading || busy}>
           <PrototypeIcon name="chat" size={14} />
           <span className="mewmo-chat-switcher__title">{loading ? "正在加载" : activeChat?.title ?? "新会话"}</span>
           <PrototypeIcon name="caret" size={12} />
         </button>
-        <button type="button" className="mewmo-chat-switcher__new" onClick={onNewChat} aria-label="新建会话" disabled={loading || pendingChatId !== null}>
+        <button type="button" className="mewmo-chat-switcher__new" onClick={onNewChat} aria-label="新建会话" disabled={loading || busy}>
           <PrototypeIcon name="plus" size={14} />
         </button>
       </div>
@@ -81,21 +91,21 @@ export function ChatSwitcher({
             return (
               <div key={chat.id} className={`mewmo-chat-switcher__item ${chat.id === activeChatId ? "mewmo-chat-switcher__item--active" : ""}`} role="option" aria-selected={chat.id === activeChatId}>
                 {renamingId === chat.id ? (
-                  <input className="mewmo-chat-switcher__rename-input" value={renameValue} onChange={(event) => setRenameValue(event.target.value)} onBlur={() => void handleRename(chat.id)} onKeyDown={(event) => { if (event.key === "Enter") void handleRename(chat.id); if (event.key === "Escape") setRenamingId(null); }} autoFocus maxLength={80} disabled={pending} />
+                  <input className="mewmo-chat-switcher__rename-input" value={renameValue} onChange={(event) => setRenameValue(event.target.value)} onBlur={() => void handleRename(chat.id)} onKeyDown={(event) => { if (event.key === "Enter") void handleRename(chat.id); if (event.key === "Escape") setRenamingId(null); }} autoFocus maxLength={80} disabled={busy} />
                 ) : (
-                  <button type="button" className="mewmo-chat-switcher__item-button" onClick={() => { onSelectChat(chat.id); setExpanded(false); }} disabled={pending}>
+                  <button type="button" className="mewmo-chat-switcher__item-button" onClick={() => { onSelectChat(chat.id); setExpanded(false); }} disabled={busy}>
                     <span className="mewmo-chat-switcher__item-title">{chat.title}</span>
                   </button>
                 )}
-                <button type="button" className="mewmo-chat-switcher__item-menu" onClick={(event) => { event.stopPropagation(); setMenuChatId(menuChatId === chat.id ? null : chat.id); }} aria-label="会话操作" disabled={pending}>
+                <button type="button" className="mewmo-chat-switcher__item-menu" onClick={(event) => { event.stopPropagation(); setMenuChatId(menuChatId === chat.id ? null : chat.id); }} aria-label="会话操作" disabled={busy}>
                   <PrototypeIcon name={pending ? "sync" : "more-horizontal"} size={14} />
                 </button>
 
                 {menuChatId === chat.id && (
                   <div className="mewmo-chat-switcher__menu">
-                    <button type="button" onClick={() => { setRenamingId(chat.id); setRenameValue(chat.title); setMenuChatId(null); }}>重命名</button>
-                    <button type="button" onClick={() => { setMenuChatId(null); if (window.confirm("确定清空这个会话的全部消息吗？")) void onClear(chat.id); }}>清空消息</button>
-                    <button type="button" className="mewmo-chat-switcher__menu-danger" onClick={() => { setMenuChatId(null); if (window.confirm("确定删除这个会话吗？此操作无法撤销。")) void onDelete(chat.id); }}>删除会话</button>
+                    <button type="button" disabled={busy} onClick={() => { setRenamingId(chat.id); setRenameValue(chat.title); setMenuChatId(null); }}>重命名</button>
+                    <button type="button" disabled={busy} onClick={() => { setMenuChatId(null); if (window.confirm("确定清空这个会话的全部消息吗？")) void onClear(chat.id); }}>清空消息</button>
+                    <button type="button" className="mewmo-chat-switcher__menu-danger" disabled={busy} onClick={() => { setMenuChatId(null); if (window.confirm("确定删除这个会话吗？此操作无法撤销。")) void onDelete(chat.id); }}>删除会话</button>
                   </div>
                 )}
               </div>

@@ -23,6 +23,21 @@ describe("agent SSE client", () => {
     expect(onConversationEvent).toHaveBeenCalledWith(expect.objectContaining({ delta: "保留", seq: 2 }));
   });
 
+  it("uses the shared stable-event contract, including positive seq", async () => {
+    const onConversationEvent = vi.fn();
+    const response = new Response([
+      "event: turn.started\n",
+      "data: {\"chatId\":\"chat-1\",\"turnId\":\"turn-1\",\"seq\":0}\n\n",
+      "event: turn.started\n",
+      "data: {\"chatId\":\"chat-1\",\"turnId\":\"turn-1\",\"seq\":1}\n\n",
+    ].join(""), { headers: { "Content-Type": "text/event-stream" } });
+
+    await consumeStream(response, "chat-1", { onConversationEvent });
+
+    expect(onConversationEvent).toHaveBeenCalledTimes(1);
+    expect(onConversationEvent).toHaveBeenCalledWith(expect.objectContaining({ seq: 1 }));
+  });
+
   it("validates result and error payloads before exposing them", async () => {
     const onResult = vi.fn();
     const onError = vi.fn();

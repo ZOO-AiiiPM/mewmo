@@ -53,11 +53,62 @@ describe("agent transcript adapter", () => {
     expect(state.terminal?.assistant).toEqual([{ kind: "text", content: "你好。" }]);
   });
 
+  it("marks a missing initial stable event as a sequence gap", () => {
+    const state = applyConversationEvent(
+      createLiveTurn("chat-1", "local-request-1", "你好"),
+      { type: "turn.started", chatId: "chat-1", turnId: "turn-1", seq: 2 },
+    );
+
+    expect(state.hasSequenceGap).toBe(true);
+  });
+
   it("projects persisted messages using turnId when available", () => {
     expect(messagesToTranscriptRows([
       { id: "user-1", turnId: "turn-1", role: "user", content: "问题" },
       { id: "assistant-1", turnId: "turn-1", role: "assistant", content: "答案" },
     ])).toEqual([expect.objectContaining({ turnId: "turn-1", userContent: "问题", status: "completed" })]);
+  });
+
+  it("ignores duplicated legacy content events once the stable protocol claims the turn", () => {
+    let state = createLiveTurn("chat-1", "local-request-1", "你好");
+    state = applyConversationEvent(state, { type: "turn.started", chatId: "chat-1", turnId: "turn-1", seq: 1 });
+    state = applyConversationEvent(state, { type: "assistant.text.delta", chatId: "chat-1", turnId: "turn-1", seq: 2, delta: "复" });
+    state = applyLegacyEvent(state, { type: "text_delta", delta: "复" });
+    state = applyLegacyEvent(state, { type: "tool_start", toolCallId: "tool-1", toolName: "content_search" });
+
+    expect(state.blocks).toEqual([{ kind: "text", content: "复" }]);
+  });
+
+  it("renders a stable tool failure as an error until the protocol exposes isError", () => {
+    let state = createLiveTurn("chat-1", "local-request-1", "搜索");
+    state = applyConversationEvent(state, { type: "turn.started", chatId: "chat-1", turnId: "turn-1", seq: 1 });
+    state = applyConversationEvent(state, { type: "tool.started", chatId: "chat-1", turnId: "turn-1", seq: 2, toolCallId: "tool-1", tool: "content_search" });
+    state = applyConversationEvent(state, { type: "tool.completed", chatId: "chat-1", turnId: "turn-1", seq: 3, toolCallId: "tool-1", display: { label: "搜索知识库失败" } });
+
+    expect(state.blocks).toEqual([{ kind: "tool", toolCallId: "tool-1", display: "搜索知识库失败", status: "error" }]);
+  });
+
+  it("replaces raw internal error payloads with product error copy", () => {
+    let state = createLiveTurn("chat-1", "local-request-1", "你好");
+    state = applyConversationEvent(state, { type: "turn.started", chatId: "chat-1", turnId: "turn-1", seq: 1 });
+    state = applyConversationEvent(state, {
+      type: "turn.failed",
+      chatId: "chat-1",
+      turnId: "turn-1",
+      seq: 2,
+      error: { code: "provider_unavailable", message: 'got status: UNAVAILABLE. {"error":{"code":503}}', retryable: true },
+      retryable: true,
+    });
+
+    expect(state.terminal?.error).toEqual({ message: "Agent 暂时遇到问题，请重试。", retryable: true });
+
+    const persisted = messagesToTranscriptRows([
+      { id: "user-1", turnId: "turn-1", role: "user", content: "问题", status: "failed", error: { message: "Agent worker lease expired", retryable: true } },
+    ]);
+    expect(persisted[0]?.error?.message).toBe("Agent 暂时遇到问题，请重试。");
+
+    const friendly = finalizeLegacyTurn(createLiveTurn("chat-1", "t", "你好"), { error: { code: "chat_not_found", message: "raw internal detail", retryable: false } });
+    expect(friendly.error).toEqual({ message: "会话不存在。", retryable: false });
   });
 
   it("keeps a failed turn's user row from stealing the next turn's assistant", () => {
@@ -68,7 +119,7 @@ describe("agent transcript adapter", () => {
     ]);
 
     expect(rows).toEqual([
-      expect.objectContaining({ turnId: "turn-1", status: "failed", error: { message: "服务中断", retryable: true } }),
+      expect.objectContaining({ turnId: "turn-1", status: "failed", error: { message: "Agent 暂时遇到问题，请重试。", retryable: true } }),
       expect.objectContaining({ turnId: "turn-2", userContent: "第二个问题", status: "completed" }),
     ]);
     expect(rows[1]?.assistant).toEqual([{ kind: "text", content: "第二个答案" }]);
@@ -97,6 +148,20 @@ describe("agent transcript adapter", () => {
     ]);
     expect(mergeResultIntoTerminal(merged, { proposals: [proposal("action-2")] })).toBe(merged);
     expect(mergeResultIntoTerminal(state.terminal!, null)).toBe(state.terminal);
+  });
+
+  it("folds a failed turn's orphan partial assistant entry into the failed row", () => {
+    const rows = messagesToTranscriptRows([
+      { id: "user-1", turnId: "turn-1", role: "user", content: "问题", status: "failed", error: { message: "服务中断", retryable: true } },
+      { id: "assistant-partial", role: "assistant", content: "复" },
+    ]);
+
+    expect(rows).toEqual([expect.objectContaining({
+      turnId: "turn-1",
+      status: "failed",
+      assistant: [{ kind: "text", content: "复" }],
+      error: { message: "Agent 暂时遇到问题，请重试。", retryable: true },
+    })]);
   });
 
   it("does not turn a persisted user-only turn into an empty success", () => {

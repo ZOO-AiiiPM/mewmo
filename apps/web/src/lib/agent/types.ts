@@ -5,6 +5,7 @@
  * Frontend only consumes Mewmo DTOs — never raw Pi Session entries.
  */
 
+import { agentConversationEventSchema, type AgentConversationEvent } from "@mewmo/shared";
 import { z } from "zod";
 
 import { agentActionProposalSchema, type AgentActionProposal } from "../agent-contract";
@@ -12,25 +13,6 @@ import { agentActionProposalSchema, type AgentActionProposal } from "../agent-co
 // ---------------------------------------------------------------------------
 // Conversation Event Protocol (Spec §8)
 // ---------------------------------------------------------------------------
-
-export interface ToolDisplay {
-  label: string;
-  detail?: string;
-}
-
-export interface ActionDisplay {
-  title: string;
-  summary?: string;
-  riskLevel: "low" | "medium" | "high";
-}
-
-export interface AssistantMessageDTO {
-  id: string;
-  content: string;
-  status: "completed" | "failed";
-  createdAt?: string;
-  proposals?: AgentActionProposal[];
-}
 
 export interface UsageDTO {
   inputTokens: number;
@@ -41,71 +23,12 @@ export interface UsageDTO {
   providerCostUsd?: number;
 }
 
-export interface PublicErrorDTO {
-  code: string;
-  message: string;
-  retryable: boolean;
-}
-
 /**
  * Stable ConversationEvent protocol.
  * Every event carries chatId, turnId and monotonically increasing seq.
  */
-export type ConversationEvent =
-  | { type: "turn.started"; chatId: string; turnId: string; seq: number }
-  | { type: "assistant.text.delta"; chatId: string; turnId: string; seq: number; delta: string }
-  | { type: "tool.started"; chatId: string; turnId: string; seq: number; toolCallId: string; tool: string; display?: ToolDisplay }
-  | { type: "tool.completed"; chatId: string; turnId: string; seq: number; toolCallId: string; display?: ToolDisplay }
-  | { type: "confirmation.required"; chatId: string; turnId: string; seq: number; actionId: string; display: ActionDisplay }
-  | { type: "turn.completed"; chatId: string; turnId: string; seq: number; message: AssistantMessageDTO; usage?: UsageDTO }
-  | { type: "turn.failed"; chatId: string; turnId: string; seq: number; error: PublicErrorDTO; retryable: boolean };
-
-const eventBase = {
-  chatId: z.string().min(1),
-  turnId: z.string().min(1),
-  seq: z.number().int().nonnegative(),
-};
-
-const toolDisplaySchema = z.object({ label: z.string(), detail: z.string().optional() });
-const proposalSchema = agentActionProposalSchema;
-
-export const conversationEventSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("turn.started"), ...eventBase }),
-  z.object({ type: z.literal("assistant.text.delta"), ...eventBase, delta: z.string() }),
-  z.object({ type: z.literal("tool.started"), ...eventBase, toolCallId: z.string().min(1), tool: z.string().min(1), display: toolDisplaySchema.optional() }),
-  z.object({ type: z.literal("tool.completed"), ...eventBase, toolCallId: z.string().min(1), display: toolDisplaySchema.optional() }),
-  z.object({
-    type: z.literal("confirmation.required"),
-    ...eventBase,
-    actionId: z.string().min(1),
-    display: z.object({ title: z.string(), summary: z.string().optional(), riskLevel: z.enum(["low", "medium", "high"]) }),
-  }),
-  z.object({
-    type: z.literal("turn.completed"),
-    ...eventBase,
-    message: z.object({
-      id: z.string().min(1),
-      content: z.string(),
-      status: z.enum(["completed", "failed"]),
-      createdAt: z.string().optional(),
-      proposals: z.array(proposalSchema).optional(),
-    }),
-    usage: z.object({
-      inputTokens: z.number(),
-      outputTokens: z.number(),
-      cacheReadTokens: z.number().optional(),
-      cacheWriteTokens: z.number().optional(),
-      reasoningTokens: z.number().optional(),
-      providerCostUsd: z.number().optional(),
-    }).optional(),
-  }),
-  z.object({
-    type: z.literal("turn.failed"),
-    ...eventBase,
-    error: z.object({ code: z.string(), message: z.string(), retryable: z.boolean() }),
-    retryable: z.boolean(),
-  }),
-]);
+export type ConversationEvent = AgentConversationEvent;
+export const conversationEventSchema = agentConversationEventSchema;
 
 // ---------------------------------------------------------------------------
 // Legacy Backend Events (current apps/agent format, pre-Agent A upgrade)

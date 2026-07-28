@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { AgentActionProposal } from "../../lib/agent-contract";
+import { publicErrorMessage } from "../../lib/agent/tool-display";
 import type { AISidebarContentContext } from "../shell/AISidebar";
 import { PrototypeIcon } from "../shell/PrototypeIcon";
 
@@ -18,13 +19,19 @@ interface ConfirmationCardProps {
  */
 export function ConfirmationCard({ proposal, context, onChange }: ConfirmationCardProps) {
   const [phase, setPhase] = useState<"idle" | "requesting" | "saving">("idle");
+  const [localError, setLocalError] = useState<string | null>(null);
 
   const command = async (name: "confirm" | "cancel" | "retry") => {
     const requestId = crypto.randomUUID();
+    const isClient = (name === "confirm" || name === "retry") && proposal.clientEffect?.kind === "note_draft_patch";
+    if (isClient && (!context || context.kind !== "note" || context.id !== proposal.clientEffect?.noteId || !context.applyDraftPatch)) {
+      setLocalError("请先打开该操作对应的笔记再确认。");
+      return;
+    }
+    setLocalError(null);
     setPhase("requesting");
     try {
-      const isClient = (name === "confirm" || name === "retry") && proposal.clientEffect?.kind === "note_draft_patch";
-      const response = await fetch(`/api/agent/actions/${proposal.id}/${name}`, {
+      const response = await fetch(`/api/agent/actions/${encodeURIComponent(proposal.id)}/${name}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ clientRequestId: requestId, ...(isClient ? { executionMode: "client" } : {}) }),
@@ -40,7 +47,7 @@ export function ConfirmationCard({ proposal, context, onChange }: ConfirmationCa
           const completed = await reportClientResult(proposal.id, requestId, { status: "succeeded", result });
           onChange(completed ?? { ...data.action, status: "succeeded" });
         } catch (error) {
-          const message = error instanceof Error ? error.message : "笔记保存失败";
+          const message = publicErrorMessage(error instanceof Error ? error.message : null, "draft_save_failed");
           const failed = await reportClientResult(proposal.id, requestId, { status: "failed", error: { code: "draft_save_failed", message } });
           onChange(failed ?? { ...data.action, status: "failed", error: { code: "draft_save_failed", message, retryable: true } });
         }
@@ -48,7 +55,8 @@ export function ConfirmationCard({ proposal, context, onChange }: ConfirmationCa
     } catch (error) {
       const response = await fetch(`/api/agent/actions/${encodeURIComponent(proposal.id)}`, { cache: "no-store" }).catch(() => null);
       const payload = await response?.json().catch(() => null) as { action?: AgentActionProposal } | null;
-      onChange(payload?.action ?? { ...proposal, error: { code: "action_request_failed", message: error instanceof Error ? error.message : "操作失败", retryable: true } });
+      const message = publicErrorMessage(error instanceof Error ? error.message : null, "action_request_failed");
+      onChange(payload?.action ?? { ...proposal, error: { code: "action_request_failed", message, retryable: true } });
     } finally {
       setPhase("idle");
     }
@@ -64,7 +72,11 @@ export function ConfirmationCard({ proposal, context, onChange }: ConfirmationCa
       </div>
       {proposal.preview.summary && <p>{proposal.preview.summary}</p>}
       {proposal.preview.diff && <pre>{proposal.preview.diff}</pre>}
-      {proposal.error && <p className="mewmo-ai-proposal__error">{proposal.error.message}</p>}
+      {(localError || proposal.error) && (
+        <p className="mewmo-ai-proposal__error">
+          {localError ?? publicErrorMessage(proposal.error?.message, proposal.error?.code)}
+        </p>
+      )}
       <div className="mewmo-ai-proposal__actions">
         {proposal.status === "proposed" && (
           <>
@@ -87,7 +99,7 @@ async function reportClientResult(
   clientRequestId: string,
   result: { status: "succeeded"; result: Record<string, unknown> } | { status: "failed"; error: { code: string; message: string } },
 ): Promise<AgentActionProposal | undefined> {
-  const response = await fetch(`/api/agent/actions/${actionId}/result`, {
+  const response = await fetch(`/api/agent/actions/${encodeURIComponent(actionId)}/result`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ clientRequestId, ...result }),
