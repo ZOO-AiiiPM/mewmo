@@ -3,7 +3,7 @@
   "name": "prod-agent-embedding-outage",
   "title": "生产服务器 Agent/Embedding 不可用排障",
   "description": "",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": "admin",

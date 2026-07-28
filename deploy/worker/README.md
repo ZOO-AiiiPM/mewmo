@@ -36,7 +36,9 @@ docker tag "mewmo-worker:<commit-sha>" mewmo-worker:local
 docker compose -f compose.yml config --quiet
 ```
 
-填写 Neon、AI Provider 和逻辑模型配置。`AI_MODEL_SUMMARY`、`AI_MODEL_EMBEDDING`、`AI_MODEL_RECOMMENDATION`、`AI_MODEL_NOTE_INSIGHT` 可以指向同一个模型，也可以按任务拆分；Embedding 必须使用提供 embedding API 的模型。`.env.worker` 不进入 Git 或 Docker 镜像。
+填写 Neon、AI Provider、逻辑模型和 Langfuse 配置。`AI_MODEL_SUMMARY`、`AI_MODEL_EMBEDDING`、`AI_MODEL_RECOMMENDATION`、`AI_MODEL_NOTE_INSIGHT` 可以指向同一个模型，也可以按任务拆分；Embedding 必须使用提供 embedding API 的模型。`.env.worker` 不进入 Git 或 Docker 镜像。
+
+Langfuse 的两个项目 key 与 `LANGFUSE_USER_HASH_SECRET` 必须一起配置，或全部留空。Production 固定 `LANGFUSE_ENVIRONMENT=production`，`LANGFUSE_RELEASE` 填构建镜像的完整 commit SHA。Trace 只包含 run/target 标识、状态、匿名 user id、模型与 Usage/Cost，不写正文、prompt、模型输出或密钥；Langfuse 故障不会阻断 Workflow。
 
 旧的 `AI_SUMMARY_MODEL`、`AI_EMBEDDING_MODEL`、`AI_CHAT_MODEL` 只作为迁移期 fallback；新部署优先填写 `AI_MODEL_*`。当前 Runtime 已内置真实 Application/Database adapter，不再配置动态 adapter module。
 

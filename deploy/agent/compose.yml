@@ -3,6 +3,11 @@ name: mewmo-agent
 services:
   agent:
     image: ${AGENT_IMAGE:-mewmo-agent:local}
+    networks:
+      default: {}
+      proxy:
+        aliases:
+          - mewmo-agent-agent-1
     env_file:
       - ${AGENT_ENV_FILE:-.env.agent}
     command: ["pnpm", "--filter", "@mewmo/agent", "start"]
@@ -27,3 +32,8 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+networks:
+  proxy:
+    name: ${AGENT_PROXY_NETWORK:-agent_default}
+    external: true

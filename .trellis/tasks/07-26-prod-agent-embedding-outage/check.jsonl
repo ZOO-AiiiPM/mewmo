@@ -1,1 +1,5 @@
-{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Review must verify every boundary with authoritative end-to-end evidence."}
+{"file":".trellis/spec/application/backend/index.md","reason":"Review run/turn leases, retries, versioning, idempotency, and Usage persistence."}
+{"file":".trellis/spec/db/backend/index.md","reason":"Review migration and Production persistence invariants."}
+{"file":".trellis/spec/queue/backend/index.md","reason":"Review claim isolation and scheduled execution behavior."}
+{"file":".trellis/spec/web/frontend/index.md","reason":"Review real user-visible Agent and Workflow state handling."}

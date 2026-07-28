@@ -4,7 +4,15 @@
 
 ## 网络边界
 
-Compose 只绑定服务器回环地址 `127.0.0.1:3101`，不直接把 Agent 端口暴露到公网。使用 Nginx/Caddy 在同一台服务器提供 HTTPS 域名并反代到该地址。除 `/health` 外，所有接口都要求 Web BFF 签发的短时 HS256 身份令牌。
+Compose 只绑定服务器回环地址 `127.0.0.1:3101`，不直接把 Agent 端口暴露到公网。容器同时加入反向代理的外部 Docker network（默认 `agent_default`），Caddy 通过唯一别名 `mewmo-agent-agent-1:3101` 访问 Agent。除 `/health` 外，所有接口都要求 Web BFF 签发的短时 HS256 身份令牌。
+
+启动前确认代理 network 已存在；使用其他名称时在执行 Compose 前导出 `AGENT_PROXY_NETWORK`：
+
+```bash
+docker network inspect "${AGENT_PROXY_NETWORK:-agent_default}" >/dev/null
+```
+
+不要让容器内 Caddy 反代 `127.0.0.1:3101`：容器的回环地址只指向 Caddy 自身。也不要为了绕过 Docker network 把 Agent 端口改绑到 `0.0.0.0`。
 
 Vercel Web 必须配置：
 
@@ -57,6 +65,7 @@ cp .env.agent.example .env.agent
 chmod 600 .env.agent
 nano .env.agent
 docker tag "mewmo-agent:<commit-sha>" mewmo-agent:local
+docker network inspect "${AGENT_PROXY_NETWORK:-agent_default}" >/dev/null
 docker compose -f compose.yml config --quiet
 docker compose -f compose.yml up -d
 docker compose -f compose.yml ps
@@ -88,6 +97,7 @@ location / {
 
 ```bash
 curl --fail http://127.0.0.1:3101/health
+docker exec agent-caddy-1 wget -qO- http://mewmo-agent-agent-1:3101/health
 docker compose -f compose.yml logs --tail=100 agent
 docker compose -f compose.yml ps
 ```
