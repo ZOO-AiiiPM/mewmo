@@ -96,6 +96,7 @@ describe("classified AI workflows", () => {
       expect.objectContaining({ targetId: "clip-b", rank: 1 }),
       expect.objectContaining({ targetId: "entry-a", rank: 2 }),
     ]);
+    expect(result.modelCalls).toEqual([{ profile: "workflow.recommendation", provider: "voyage", model: "rerank-2.5-lite" }]);
   });
 
   it("keeps RRF order when the reranker falls back (passthrough)", async () => {
@@ -121,6 +122,7 @@ describe("classified AI workflows", () => {
       expect.objectContaining({ targetId: "entry-a", rank: 1 }),
       expect.objectContaining({ targetId: "clip-b", rank: 2 }),
     ]);
+    expect(result.modelCalls).toEqual([expect.objectContaining({ profile: "workflow.recommendation", provider: "passthrough", model: "passthrough" })]);
   });
 
   it("fails open to RRF order when the reranker throws", async () => {

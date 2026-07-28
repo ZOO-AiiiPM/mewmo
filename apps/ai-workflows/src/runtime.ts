@@ -1,10 +1,12 @@
 import type { AiRuntimePort, AiWorkflowApplicationPort } from "./contracts";
 import { runWorkflowBatch } from "./engine/run-batch";
+import type { WorkflowObservabilityPort } from "./observability/port";
 import { loadWorkflowPrompt } from "./prompts";
 
 export interface AiWorkflowRuntimePorts {
   ai: AiRuntimePort;
   application: AiWorkflowApplicationPort;
+  observability?: WorkflowObservabilityPort;
 }
 
 export async function runAiWorkflowsOnce(
@@ -19,6 +21,7 @@ export async function runAiWorkflowsOnce(
   return runWorkflowBatch({
     application: ports.application,
     context: { ai: ports.ai, loadPrompt: loadWorkflowPrompt },
+    ...(ports.observability ? { observability: ports.observability } : {}),
     workerId: options.workerId,
     ...(options.limit === undefined ? {} : { limit: options.limit }),
     ...(options.concurrency === undefined ? {} : { concurrency: options.concurrency }),

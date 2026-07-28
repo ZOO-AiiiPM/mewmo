@@ -1,1 +1,5 @@
-{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Agent and Workflow acceptance spans browser, BFF, containers, runtime, database, and observability boundaries."}
+{"file":".trellis/spec/agent/backend/index.md","reason":"Agent server and deployment behavior are part of the implementation scope."}
+{"file":".trellis/spec/ai-workflows/backend/index.md","reason":"Fixed Workflow and Automation execution are part of the implementation scope."}
+{"file":".trellis/spec/web/backend/index.md","reason":"Production BFF identity and SSE proxy are part of the implementation scope."}
+{"file":".trellis/spec/ai/backend/index.md","reason":"Shared provider compatibility affects both Agent and Worker images."}

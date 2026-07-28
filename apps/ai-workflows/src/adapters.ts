@@ -1,29 +1,47 @@
 import { createAIRuntime, loadAIRuntimeConfig } from "@mewmo/ai";
 import { createAiRunService, createAiUsageService } from "@mewmo/application";
 import type { AiRuntimePort, AiWorkflowApplicationPort, ClaimedAiRun, WorkflowInput } from "./contracts";
+import { createConfiguredWorkflowObservability } from "./observability/langfuse";
 import type { AiWorkflowRuntimePorts } from "./runtime";
 
 export function createAiWorkflowRuntimePorts(): AiWorkflowRuntimePorts {
   const runtime = createAIRuntime(loadAIRuntimeConfig());
+  const observability = createConfiguredWorkflowObservability();
   const runs = createAiRunService();
   const usage = createAiUsageService();
   const ai: AiRuntimePort = {
     async generateText(input) {
-      const result = await runtime.generateText({ purpose: input.purpose, system: input.system, messages: [{ role: "user", content: input.user }] });
-      return { text: result.text, metadata: metadata(result) };
+      return observability.observeModelCall({ name: "workflow.generation.summary", purpose: input.purpose, type: "generation" }, async () => {
+        const result = await runtime.generateText({ purpose: input.purpose, system: input.system, messages: [{ role: "user", content: input.user }] });
+        const value = { text: result.text, metadata: metadata(result) };
+        return { value, metadata: value.metadata };
+      });
     },
     async rerank(input) {
-      const result = await runtime.rerank({ query: input.query, documents: input.documents, timeoutMs: input.timeoutMs, ...(input.topN === undefined ? {} : { topN: input.topN }) });
-      return { provider: result.provider, model: result.model, results: result.results, fellBack: result.fellBack, ...(result.fallbackReason ? { fallbackReason: result.fallbackReason } : {}) };
+      return observability.observeModelCall({ name: "workflow.retriever.recommendation", purpose: input.purpose, type: "retriever" }, async () => {
+        const result = await runtime.rerank({ query: input.query, documents: input.documents, timeoutMs: input.timeoutMs, ...(input.topN === undefined ? {} : { topN: input.topN }) });
+        return {
+          value: { provider: result.provider, model: result.model, results: result.results, fellBack: result.fellBack, ...(result.fallbackReason ? { fallbackReason: result.fallbackReason } : {}) },
+          metadata: { profile: input.purpose, provider: result.provider, model: result.model },
+        };
+      });
     },
-    async generateObject<T>(input: Parameters<AiRuntimePort["generateObject"]>[0]) {
-      if (!hasParser<T>(input.schema)) throw new Error("workflow structured schema must implement parse()");
-      const result = await runtime.generateObject({ purpose: "workflow.note_insight", schema: input.schema, system: input.system, messages: [{ role: "user", content: input.user }] });
-      return { value: result.object, metadata: metadata(result), attempts: result.attempts.map(metadata) };
+    async generateObject<T>(input: { purpose: "workflow.note-insight"; schema: unknown; system: string; user: string; timeoutMs: number }) {
+      const schema = input.schema;
+      if (!hasParser<T>(schema)) throw new Error("workflow structured schema must implement parse()");
+      return observability.observeModelCall({ name: "workflow.generation.note_insight", purpose: input.purpose, type: "generation" }, async () => {
+        const result = await runtime.generateObject<T>({ purpose: "workflow.note_insight", schema, system: input.system, messages: [{ role: "user", content: input.user }] });
+        const attempts = result.attempts.map(metadata);
+        const value = { value: result.object, metadata: metadata(result), attempts };
+        return { value, metadata: aggregateModelMetadata(attempts, value.metadata) };
+      });
     },
     async embed(input) {
-      const result = await runtime.embed({ purpose: input.purpose, values: input.values });
-      return result.embeddings.map((vector) => ({ vector, dimensions: vector.length, metadata: metadata(result) }));
+      return observability.observeModelCall({ name: "workflow.embedding", purpose: input.purpose, type: "embedding" }, async () => {
+        const result = await runtime.embed({ purpose: input.purpose, values: input.values });
+        const model = metadata(result);
+        return { value: result.embeddings.map((vector) => ({ vector, dimensions: vector.length, metadata: model })), metadata: model };
+      });
     },
   };
   const application: AiWorkflowApplicationPort = {
@@ -54,7 +72,7 @@ export function createAiWorkflowRuntimePorts(): AiWorkflowRuntimePorts {
     async supersede(input) { await runs.supersede(input); },
     async retryOrFail(input) { const run = await runs.retryOrFail(input); return run.status === "queued" ? "retrying" : "failed"; },
   };
-  return { ai, application };
+  return { ai, application, observability };
 }
 
 function metadata(result: {
@@ -85,6 +103,25 @@ function metadata(result: {
 
 function hasParser<T>(value: unknown): value is { parse(value: unknown): T } {
   return typeof value === "object" && value !== null && "parse" in value && typeof value.parse === "function";
+}
+
+function aggregateModelMetadata(attempts: ReturnType<typeof metadata>[], fallback: ReturnType<typeof metadata>) {
+  if (attempts.length <= 1) return attempts[0] ?? fallback;
+  const usage = attempts.map((attempt) => attempt.usage).filter((item) => item !== undefined);
+  if (usage.length === 0) return fallback;
+  return {
+    ...fallback,
+    usage: {
+      inputTokens: usage.reduce((sum, item) => sum + item.inputTokens, 0),
+      outputTokens: usage.reduce((sum, item) => sum + item.outputTokens, 0),
+      reasoningTokens: usage.reduce((sum, item) => sum + (item.reasoningTokens ?? 0), 0),
+      cacheReadTokens: usage.reduce((sum, item) => sum + item.cacheReadTokens, 0),
+      cacheWriteTokens: usage.reduce((sum, item) => sum + item.cacheWriteTokens, 0),
+      totalTokens: usage.reduce((sum, item) => sum + item.totalTokens, 0),
+      providerCostUsd: usage.reduce((sum, item) => sum + (item.providerCostUsd ?? 0), 0),
+      pricingKnown: usage.every((item) => item.pricingKnown),
+    },
+  };
 }
 
 function foundationRunShape(run: ClaimedAiRun) {

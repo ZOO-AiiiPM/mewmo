@@ -17,9 +17,9 @@ export async function runRecommendationWorkflow(
   const pool = input.candidates
     .filter((candidate) => candidate.targetId !== input.targetId)
     .filter((candidate) => Number.isFinite(candidate.similarity));
-  if (pool.length === 0) return { kind: "recommendation", relations: [] };
+  if (pool.length === 0) return { kind: "recommendation", relations: [], modelCalls: [] };
 
-  const ordered = await rerankPool(input, context, pool, limit);
+  const { ordered, modelCalls } = await rerankPool(input, context, pool, limit);
   const relations = ordered.slice(0, limit).map((candidate, index) => ({
     targetType: candidate.targetType,
     targetId: candidate.targetId,
@@ -27,7 +27,7 @@ export async function runRecommendationWorkflow(
     similarity: candidate.similarity,
     rank: index + 1,
   }));
-  return { kind: "recommendation", relations };
+  return { kind: "recommendation", relations, modelCalls };
 }
 
 async function rerankPool(
@@ -35,14 +35,14 @@ async function rerankPool(
   context: WorkflowHandlerContext,
   pool: RecommendationCandidate[],
   limit: number,
-): Promise<RecommendationCandidate[]> {
+): Promise<{ ordered: RecommendationCandidate[]; modelCalls: RecommendationWorkflowResult["modelCalls"] }> {
   const query = input.sourceText.trim();
   const documents = pool.map((candidate) => candidate.text ?? "");
   if (!query || documents.every((doc) => doc.length === 0)) {
     console.info(
       `[recommendation] rerank skipped target=${input.targetId} reason=empty_query_or_documents candidates=${pool.length}`,
     );
-    return pool;
+    return { ordered: pool, modelCalls: [] };
   }
   const startedAt = Date.now();
   try {
@@ -57,14 +57,17 @@ async function rerankPool(
     console.info(
       `[recommendation] rerank target=${input.targetId} provider=${outcome.provider} model=${outcome.model} candidates=${pool.length} reranked=${reordered.length} fellBack=${outcome.fellBack}${outcome.fallbackReason ? ` reason=${outcome.fallbackReason}` : ""} durationMs=${Date.now() - startedAt}`,
     );
-    return reordered.length ? reordered : pool;
+    return {
+      ordered: reordered.length ? reordered : pool,
+      modelCalls: [{ profile: "workflow.recommendation", provider: outcome.provider, model: outcome.model }],
+    };
   } catch (error) {
     // fail-open：rerank 抛错/超时/非法响应一律回退到 RRF 顺序，绝不阻塞内容入库。
     const reason = error instanceof Error ? error.message : "rerank_error";
     console.warn(
       `[recommendation] rerank failed target=${input.targetId} reason=${reason} durationMs=${Date.now() - startedAt}; falling back to RRF order`,
     );
-    return pool;
+    return { ordered: pool, modelCalls: [] };
   }
 }
 

@@ -3,25 +3,34 @@ import { hostname } from "node:os";
 import { loadFoundationAdapters } from "../adapters";
 import { createAgentAutomationRunPort } from "../automation/adapters";
 import { runAgentAutomationsOnce } from "../automation/run-batch";
+import { loadAgentConfig } from "../config";
+import { createConfiguredAgentObservability } from "../observability/langfuse";
 import { createAgentRuntime } from "../runtime";
 
 async function main() {
+  const config = loadAgentConfig();
+  const observability = createConfiguredAgentObservability(config);
   const adapters = await loadFoundationAdapters();
   const runtime = createAgentRuntime({
     ai: adapters.ai,
     application: adapters.application,
-    maxSteps: numberEnv("AGENT_MAX_STEPS", 6),
-    timeoutMs: numberEnv("AGENT_TIMEOUT_MS", 45_000),
+    maxSteps: config.AGENT_MAX_STEPS,
+    timeoutMs: config.AGENT_TIMEOUT_MS,
+    observability,
   });
-  const result = await runAgentAutomationsOnce({
-    runs: createAgentAutomationRunPort(),
-    application: adapters.application,
-    runtime,
-    workerId: `${hostname()}:${process.pid}`,
-    limit: numberEnv("AGENT_AUTOMATION_BATCH_LIMIT", 5),
-    leaseMs: numberEnv("AGENT_AUTOMATION_LEASE_MS", 300_000),
-  });
-  console.log(JSON.stringify({ event: "agent_automations_completed", ...result }));
+  try {
+    const result = await runAgentAutomationsOnce({
+      runs: createAgentAutomationRunPort(),
+      application: adapters.application,
+      runtime,
+      workerId: `${hostname()}:${process.pid}`,
+      limit: numberEnv("AGENT_AUTOMATION_BATCH_LIMIT", 5),
+      leaseMs: numberEnv("AGENT_AUTOMATION_LEASE_MS", 300_000),
+    });
+    console.log(JSON.stringify({ event: "agent_automations_completed", ...result }));
+  } finally {
+    await observability.shutdown();
+  }
 }
 
 function numberEnv(name: string, fallback: number) {

@@ -183,6 +183,7 @@ export interface RecommendationRelation {
 export interface RecommendationWorkflowResult {
   kind: "recommendation";
   relations: RecommendationRelation[];
+  modelCalls: ModelMetadata[];
 }
 
 export interface NoteInsightItem {

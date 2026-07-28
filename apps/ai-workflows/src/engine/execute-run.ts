@@ -5,6 +5,7 @@ import type {
   WorkflowHandlerContext,
   WorkflowInput,
 } from "../contracts";
+import { createNoopWorkflowObservability, type WorkflowObservabilityPort } from "../observability/port";
 import { runEmbeddingWorkflow } from "../workflows/embedding";
 import { runNoteInsightWorkflow } from "../workflows/note-insight";
 import { runRecommendationWorkflow } from "../workflows/recommendation";
@@ -18,6 +19,19 @@ const handlers: Record<ClaimedAiRun["kind"], WorkflowHandler> = {
 };
 
 export async function executeClaimedRun(input: {
+  run: ClaimedAiRun;
+  application: AiWorkflowApplicationPort;
+  context: WorkflowHandlerContext;
+  observability?: WorkflowObservabilityPort;
+  workerId: string;
+  timeoutMs: number;
+  now: () => Date;
+}): Promise<"succeeded" | "retrying" | "failed" | "superseded"> {
+  const observability = input.observability ?? createNoopWorkflowObservability();
+  return observability.observeRun(input.run, () => executeObservedRun(input));
+}
+
+async function executeObservedRun(input: {
   run: ClaimedAiRun;
   application: AiWorkflowApplicationPort;
   context: WorkflowHandlerContext;

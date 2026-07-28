@@ -5,6 +5,7 @@
   "scripts": {
     "predev": "pnpm --filter @mewmo/db db:ensure-development",
     "dev": "next dev",
+    "prebuild": "pnpm --filter @mewmo/db db:generate",
     "build": "next build",
     "lint": "eslint .",
     "test": "node -e \"process.exit(0)\""

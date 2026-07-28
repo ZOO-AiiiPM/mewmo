@@ -1,4 +1,5 @@
 import type { AiWorkflowApplicationPort, WorkflowHandlerContext } from "../contracts";
+import type { WorkflowObservabilityPort } from "../observability/port";
 import { executeClaimedRun } from "./execute-run";
 
 export interface WorkflowBatchResult {
@@ -12,6 +13,7 @@ export interface WorkflowBatchResult {
 export async function runWorkflowBatch(input: {
   application: AiWorkflowApplicationPort;
   context: WorkflowHandlerContext;
+  observability?: WorkflowObservabilityPort;
   workerId: string;
   limit?: number;
   concurrency?: number;
@@ -46,6 +48,7 @@ export async function runWorkflowBatch(input: {
         run,
         application: input.application,
         context: input.context,
+        ...(input.observability ? { observability: input.observability } : {}),
         workerId: input.workerId,
         timeoutMs: taskTimeoutMs,
         now,
