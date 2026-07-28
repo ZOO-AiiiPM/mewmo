@@ -1,5 +1,8 @@
 import { getPrisma } from "../client";
+import { visibleAgentUserContent } from "@mewmo/shared";
 import { activeByUser, softDeleteData, versionedUpdateData } from "./repository-utils";
+
+const DEFAULT_CHAT_KEY = "sidebar";
 
 export interface CreateAiChatInput {
   title: string;
@@ -28,15 +31,24 @@ export interface CreateAiContextAttachmentInput {
 }
 
 interface AiChatsClient {
+  $transaction<T>(callback: (transaction: AiChatsClient) => Promise<T>): Promise<T>;
   aiChat: {
     create(args: unknown): Promise<unknown>;
+    upsert(args: unknown): Promise<unknown>;
     findMany(args: unknown): Promise<unknown>;
     findFirst(args: unknown): Promise<unknown>;
     updateMany(args: unknown): Promise<unknown>;
   };
   aiMessage: {
     create(args: unknown): Promise<unknown>;
+    deleteMany(args: unknown): Promise<unknown>;
     updateMany(args: unknown): Promise<unknown>;
+  };
+  aiSessionEntry: {
+    deleteMany(args: unknown): Promise<unknown>;
+  };
+  aiTurn: {
+    deleteMany(args: unknown): Promise<unknown>;
   };
   aiContextAttachment: {
     create(args: unknown): Promise<unknown>;
@@ -50,8 +62,7 @@ const chatMessageInclude = {
     include: { attachments: true },
   },
   turns: {
-    where: { status: "succeeded" },
-    select: { assistantEntryId: true, output: true },
+    select: { id: true, userEntryId: true, assistantEntryId: true, status: true, errorMessage: true, output: true },
   },
   messages: {
     where: { deletedAt: null },
@@ -69,25 +80,28 @@ export function createAiChatsRepository(client: unknown = getPrisma()) {
     },
 
     async findOrCreateDefault(userId: string, title = "mewmo") {
-      const existing = await db.aiChat.findFirst({
-        where: { ...activeByUser(userId), title },
+      const upsert = () => db.aiChat.upsert({
+        where: { userId_defaultKey: { userId, defaultKey: DEFAULT_CHAT_KEY } },
+        create: { title, userId, defaultKey: DEFAULT_CHAT_KEY },
+        update: { title, deletedAt: null },
         include: chatMessageInclude,
       });
-      if (existing) return projectSessionMessages(existing);
-
-      return projectSessionMessages(await db.aiChat.create({
-        data: { title, userId },
-        include: chatMessageInclude,
-      }));
+      try {
+        return projectSessionMessages(await upsert());
+      } catch (error) {
+        // With `include`, Prisma upsert is select-then-create, so two first-touch
+        // requests can race; the loser retries onto the update path.
+        if (!isUniqueViolation(error)) throw error;
+        return projectSessionMessages(await upsert());
+      }
     },
 
     async findByUserId(userId: string) {
-      const chats = await db.aiChat.findMany({
+      return db.aiChat.findMany({
         where: activeByUser(userId),
         orderBy: { updatedAt: "desc" },
-        include: chatMessageInclude,
+        select: { id: true, title: true, createdAt: true, updatedAt: true },
       });
-      return Array.isArray(chats) ? chats.map(projectSessionMessages) : chats;
     },
 
     async findById(userId: string, id: string) {
@@ -132,15 +146,47 @@ export function createAiChatsRepository(client: unknown = getPrisma()) {
         },
       });
     },
+
+    clearMessages(userId: string, chatId: string) {
+      return db.$transaction(async (transaction) => {
+        const owned = await transaction.aiChat.updateMany({
+          where: { id: chatId, ...activeByUser(userId) },
+          data: {
+            activeLeafId: null,
+            nextEntrySeq: 1,
+            version: { increment: 1 },
+          },
+        }) as { count?: number };
+        if (!owned.count) return owned;
+
+        await transaction.aiMessage.deleteMany({ where: { chatId } });
+        await transaction.aiSessionEntry.deleteMany({ where: { chatId } });
+        await transaction.aiTurn.deleteMany({ where: { chatId, userId } });
+        return owned;
+      });
+    },
   };
 }
 
 function projectSessionMessages(value: unknown): unknown {
-  if (!isRecord(value) || !Array.isArray(value.sessionEntries) || value.sessionEntries.length === 0) return value;
+  if (!isRecord(value)) return value;
+  const { sessionEntries, turns, ...chat } = value;
+  if (!Array.isArray(sessionEntries) || sessionEntries.length === 0) return chat;
   const turnMetadata = new Map<string, unknown>();
-  if (Array.isArray(value.turns)) {
-    for (const turn of value.turns) {
-      if (!isRecord(turn) || typeof turn.assistantEntryId !== "string" || !isRecord(turn.output) || !isRecord(turn.output.response)) continue;
+  const entryTurns = new Map<string, { turnId: string; status: string; error?: { message: string; retryable: boolean } }>();
+  if (Array.isArray(turns)) {
+    for (const turn of turns) {
+      if (!isRecord(turn) || typeof turn.id !== "string" || typeof turn.status !== "string") continue;
+      const failed = turn.status === "failed" || turn.status === "interrupted";
+      const turnInfo = {
+        turnId: turn.id,
+        status: failed ? "failed" : "completed",
+        ...(failed && typeof turn.errorMessage === "string" ? { error: { message: turn.errorMessage, retryable: true } } : {}),
+      };
+      if (typeof turn.userEntryId === "string") entryTurns.set(turn.userEntryId, turnInfo);
+      if (typeof turn.assistantEntryId !== "string") continue;
+      entryTurns.set(turn.assistantEntryId, turnInfo);
+      if (!isRecord(turn.output) || !isRecord(turn.output.response)) continue;
       const response = turn.output.response;
       turnMetadata.set(turn.assistantEntryId, {
         ...(Array.isArray(response.proposals) ? { proposals: response.proposals } : {}),
@@ -148,21 +194,25 @@ function projectSessionMessages(value: unknown): unknown {
       });
     }
   }
-  const messages = value.sessionEntries.flatMap((entry) => {
+  const messages = sessionEntries.flatMap((entry) => {
     if (!isRecord(entry) || typeof entry.entryId !== "string" || !isRecord(entry.payload) || !isRecord(entry.payload.message)) return [];
     const message = entry.payload.message;
     if (message.role !== "user" && message.role !== "assistant") return [];
+    const turn = entryTurns.get(entry.entryId);
+    const content = messageText(message.content);
+    if (message.role === "assistant" && content.trim().length === 0) return [];
     return [{
       id: entry.entryId,
+      ...(turn ? { turnId: turn.turnId } : {}),
       role: message.role,
-      content: messageText(message.content),
-      status: "completed",
+      content: message.role === "user" ? visibleAgentUserContent(content) : content,
+      status: turn?.status ?? "completed",
+      ...(turn?.error ? { error: turn.error } : {}),
       createdAt: entry.timestamp,
       metadata: turnMetadata.get(entry.entryId) ?? null,
       contextAttachments: Array.isArray(entry.attachments) ? entry.attachments : [],
     }];
   });
-  const { sessionEntries: _sessionEntries, turns: _turns, ...chat } = value;
   return { ...chat, messages };
 }
 
@@ -178,4 +228,8 @@ function messageText(content: unknown) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isUniqueViolation(error: unknown) {
+  return isRecord(error) && error.code === "P2002";
 }

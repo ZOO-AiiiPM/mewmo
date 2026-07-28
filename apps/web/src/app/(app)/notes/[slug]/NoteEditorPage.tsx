@@ -11,6 +11,7 @@ import {
 import { CardActionMenu } from "../../../../components/shell/CardActionMenu";
 import { useAISidebarContext } from "../../../../components/shell/AISidebar";
 import { ListColumn } from "../../../../components/shell/ListColumn";
+import { NoteCardPreview } from "../../../../components/shell/NoteCardPreview";
 import {
   PinIcon,
   PrototypeIcon,
@@ -664,7 +665,7 @@ export function NoteEditorPage({
                   <div className="mewmo-list-card__title">
                     <span>{item.title}</span>
                   </div>
-                  {preview && <p>{preview}</p>}
+                  <NoteCardPreview preview={preview} />
                   {images.length > 0 && (
                     <div className="mewmo-list-card__thumbs" aria-hidden="true">
                       {images.map((src) => (

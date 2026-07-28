@@ -8,6 +8,7 @@ import {
 } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ClipContentRenderer } from "../../../components/clips/ClipContentRenderer";
+import { useAISidebarContext } from "../../../components/shell/AISidebar";
 import { CardActionMenu } from "../../../components/shell/CardActionMenu";
 import { ListColumn } from "../../../components/shell/ListColumn";
 import { ListContentSkeleton } from "../../../components/shell/ListContentSkeleton";
@@ -225,8 +226,11 @@ export default function ClipsPage() {
       "clips",
       clipToLoad.id,
     );
-    setSelectedClip(cachedDetail ?? clipToLoad);
-    if (cachedDetail && isWorkspaceDetailFresh("clips", clipToLoad)) {
+    const cacheIsFresh =
+      !!cachedDetail && isWorkspaceDetailFresh("clips", clipToLoad);
+    const cacheHasMeta = !!(cachedDetail?.author && cachedDetail?.publishedAt);
+    setSelectedClip(cacheIsFresh && cacheHasMeta ? cachedDetail : clipToLoad);
+    if (cacheIsFresh && cacheHasMeta) {
       setLoadingClipId(null);
       return;
     }
@@ -267,6 +271,32 @@ export default function ClipsPage() {
       cancelled = true;
     };
   }, [previewClip]);
+
+  const { setContentContext } = useAISidebarContext();
+
+  useEffect(() => {
+    if (!selectedClip) {
+      setContentContext(null);
+      return;
+    }
+
+    setContentContext({
+      kind: "clip",
+      id: selectedClip.id,
+      title: selectedClip.title,
+      sourceLabel: selectedClip.sourceName || getDomain(selectedClip.url),
+      summary: selectedClip.summary,
+    });
+
+    return () => setContentContext(null);
+  }, [
+    selectedClip?.id,
+    selectedClip?.sourceName,
+    selectedClip?.summary,
+    selectedClip?.title,
+    selectedClip?.url,
+    setContentContext,
+  ]);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -424,9 +454,7 @@ export default function ClipsPage() {
                     <div className="mewmo-list-card__source mewmo-list-card__source--clip">
                       <Favicon clip={clip} />
                       <span>{domain}</span>
-                      <time>
-                        {formatClipListTime(clip.createdAt)}
-                      </time>
+                      <time>{formatClipListTime(clip.createdAt)}</time>
                     </div>
                   </button>
                   <CardActionMenu
@@ -439,7 +467,6 @@ export default function ClipsPage() {
                     onDelete={() => void deleteClip(clip)}
                     onRefresh={() => void refreshClip(clip)}
                     onCopyLink={() => void copyClipUrl(clip)}
-                    href={clip.url}
                     moveToKnowledgeTarget={{ kind: "clip", clipId: clip.id, title: clip.title }}
                   />
                 </article>

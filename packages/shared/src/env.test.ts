@@ -82,22 +82,27 @@ describe("loadEnv", () => {
     expect(env.CUSTOM_AI_API_KEY).toBe("custom-key");
   });
 
-  it("accepts the Google provider with a Gemini API key", () => {
-    const envWithoutOpenAI: Partial<typeof validEnv> = { ...validEnv };
-    delete envWithoutOpenAI.OPENAI_API_KEY;
-
+  it("accepts Google AI configuration with a Gemini API key", () => {
     const env = loadEnv({
-      ...envWithoutOpenAI,
+      ...validEnv,
       AI_PROVIDER: "google",
+      OPENAI_API_KEY: undefined,
       GEMINI_API_KEY: "gemini-key",
+      GEMINI_BASE_URL: "https://generativelanguage.googleapis.com/v1beta",
     });
 
     expect(env.AI_PROVIDER).toBe("google");
     expect(env.GEMINI_API_KEY).toBe("gemini-key");
   });
 
-  it("requires a Gemini API key for the Google provider", () => {
-    expect(() => loadEnv({ ...validEnv, AI_PROVIDER: "google" })).toThrow("GEMINI_API_KEY");
+  it("requires a Gemini API key for Google AI configuration", () => {
+    expect(() =>
+      loadEnv({
+        ...validEnv,
+        AI_PROVIDER: "google",
+        OPENAI_API_KEY: undefined,
+      }),
+    ).toThrow("Invalid environment: GEMINI_API_KEY");
   });
 
   it("throws when required env values are missing", () => {
@@ -136,15 +141,27 @@ describe("scoped environment loaders", () => {
     ).not.toThrow();
   });
 
-  it("loads Google provider config for the Worker", () => {
+  it("loads Google AI config without requiring OpenAI credentials", () => {
+    const env = loadWorkerEnv({
+      DATABASE_URL: "postgresql://db.example/mewmo",
+      REDIS_URL: "rediss://default:secret@example.upstash.io:6379",
+      AI_PROVIDER: "google",
+      GEMINI_API_KEY: "gemini-key",
+      AI_SUMMARY_MODEL: "gemini-flash-latest",
+    });
+
+    expect(env.AI_PROVIDER).toBe("google");
+    expect(env.GEMINI_API_KEY).toBe("gemini-key");
+  });
+
+  it("requires a Gemini API key for Google Worker config", () => {
     expect(() =>
       loadWorkerEnv({
         DATABASE_URL: "postgresql://db.example/mewmo",
         REDIS_URL: "rediss://default:secret@example.upstash.io:6379",
         AI_PROVIDER: "google",
-        GEMINI_API_KEY: "gemini-key",
         AI_SUMMARY_MODEL: "gemini-flash-latest",
       }),
-    ).not.toThrow();
+    ).toThrow("Invalid Worker environment: GEMINI_API_KEY");
   });
 });

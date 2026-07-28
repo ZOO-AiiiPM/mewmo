@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+const optionalValue = <Schema extends z.ZodType>(schema: Schema) => z.preprocess(emptyAsUndefined, schema.optional());
+
 const envSchema = z.object({
   AGENT_IDENTITY_SECRET: z.string().min(32),
   AGENT_IDENTITY_ISSUER: z.string().min(1).default("mewmo-web"),
@@ -17,10 +19,20 @@ const envSchema = z.object({
   AGENT_WEB_FETCH_BUDGET: z.coerce.number().int().min(0).max(20).default(5),
   AGENT_WEB_CACHE_TTL_MS: z.coerce.number().int().min(0).max(3_600_000).default(300_000),
   AGENT_WEB_CACHE_MAX_ENTRIES: z.coerce.number().int().min(0).max(1_000).default(128),
+  LANGFUSE_PUBLIC_KEY: optionalValue(z.string().trim().min(1)),
+  LANGFUSE_SECRET_KEY: optionalValue(z.string().trim().min(1)),
+  LANGFUSE_BASE_URL: optionalValue(z.string().url()),
+  LANGFUSE_ENVIRONMENT: optionalValue(z.string().trim().min(1).max(40)),
+  LANGFUSE_RELEASE: optionalValue(z.string().trim().min(1).max(200)),
+  LANGFUSE_SHUTDOWN_TIMEOUT_MS: optionalValue(z.coerce.number().int().min(100).max(15_000)),
 });
 
 export type AgentConfig = z.infer<typeof envSchema>;
 
 export function loadAgentConfig(env: NodeJS.ProcessEnv = process.env): AgentConfig {
   return envSchema.parse(env);
+}
+
+function emptyAsUndefined(value: unknown) {
+  return typeof value === "string" && value.trim() === "" ? undefined : value;
 }

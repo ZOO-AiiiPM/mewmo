@@ -53,3 +53,37 @@ export async function listNotesWithPreviews(
     preview: notePreviewText({ summary: null, content: previewSource }),
   }));
 }
+
+export async function listTodayNotePreviews(
+  userId: string,
+  start: Date,
+  end: Date,
+  prisma: Pick<PrismaClient, "$queryRaw"> = getPrisma(),
+): Promise<NoteListData[]> {
+  const rows = await prisma.$queryRaw<NoteListRow[]>(Prisma.sql`
+    SELECT
+      id,
+      slug,
+      title,
+      summary,
+      pinned,
+      version,
+      created_at AS "createdAt",
+      updated_at AS "updatedAt",
+      LEFT(content, ${NOTE_PREVIEW_SOURCE_LIMIT}) AS "previewSource"
+    FROM notes
+    WHERE user_id = ${userId}
+      AND deleted_at IS NULL
+      AND (
+        (created_at >= ${start} AND created_at < ${end})
+        OR (updated_at >= ${start} AND updated_at < ${end})
+      )
+    ORDER BY updated_at DESC
+    LIMIT 16
+  `);
+
+  return rows.map(({ previewSource, ...note }) => ({
+    ...note,
+    preview: notePreviewText({ summary: null, content: previewSource }),
+  }));
+}

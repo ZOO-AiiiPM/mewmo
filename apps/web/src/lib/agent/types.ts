@@ -1,0 +1,147 @@
+/**
+ * ZOO-74: Conversation Event Protocol & Transcript Types
+ *
+ * Stable event protocol aligned with Spec Section 8 (ZOO-63).
+ * Frontend only consumes Mewmo DTOs — never raw Pi Session entries.
+ */
+
+import { agentConversationEventSchema, type AgentConversationEvent } from "@mewmo/shared";
+import { z } from "zod";
+
+import { agentActionProposalSchema, type AgentActionProposal } from "../agent-contract";
+
+// ---------------------------------------------------------------------------
+// Conversation Event Protocol (Spec §8)
+// ---------------------------------------------------------------------------
+
+export interface UsageDTO {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
+  reasoningTokens?: number;
+  providerCostUsd?: number;
+}
+
+/**
+ * Stable ConversationEvent protocol.
+ * Every event carries chatId, turnId and monotonically increasing seq.
+ */
+export type ConversationEvent = AgentConversationEvent;
+export const conversationEventSchema = agentConversationEventSchema;
+
+// ---------------------------------------------------------------------------
+// Legacy Backend Events (current apps/agent format, pre-Agent A upgrade)
+// ---------------------------------------------------------------------------
+
+export type LegacyStreamEvent =
+  | { type: "start" }
+  | { type: "text_delta"; delta: string }
+  | { type: "thinking_delta"; delta: string }
+  | { type: "tool_start"; toolCallId: string; toolName: string }
+  | { type: "tool_end"; toolCallId: string; toolName: string; isError: boolean }
+  | { type: "compaction" }
+  | { type: "end" };
+
+export const legacyStreamEventSchema: z.ZodType<LegacyStreamEvent> = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("start") }),
+  z.object({ type: z.literal("text_delta"), delta: z.string() }),
+  z.object({ type: z.literal("thinking_delta"), delta: z.string() }),
+  z.object({ type: z.literal("tool_start"), toolCallId: z.string(), toolName: z.string() }),
+  z.object({ type: z.literal("tool_end"), toolCallId: z.string(), toolName: z.string(), isError: z.boolean() }),
+  z.object({ type: z.literal("compaction") }),
+  z.object({ type: z.literal("end") }),
+]);
+
+export interface LegacyResultPayload {
+  userMessage?: { id?: string; content: string; status?: string };
+  assistantMessage?: { id?: string; content: string; status?: string };
+  proposals?: AgentActionProposal[];
+  usage?: UsageDTO;
+  error?: { code?: string; message?: string; retryable?: boolean };
+}
+
+const legacyMessageSchema = z.object({
+  id: z.string().optional(),
+  content: z.string(),
+  status: z.string().optional(),
+});
+
+const usageSchema = z.object({
+  inputTokens: z.number(),
+  outputTokens: z.number(),
+  cacheReadTokens: z.number().optional(),
+  cacheWriteTokens: z.number().optional(),
+  reasoningTokens: z.number().optional(),
+  providerCostUsd: z.number().optional(),
+});
+
+export const publicErrorSchema = z.object({
+  code: z.string().optional(),
+  message: z.string(),
+  retryable: z.boolean().optional(),
+});
+
+export const legacyResultPayloadSchema = z.object({
+  userMessage: legacyMessageSchema.optional(),
+  assistantMessage: legacyMessageSchema.optional(),
+  proposals: z.array(agentActionProposalSchema).optional(),
+  usage: usageSchema.optional(),
+  error: publicErrorSchema.optional(),
+});
+
+// ---------------------------------------------------------------------------
+// Transcript Row Model
+// ---------------------------------------------------------------------------
+
+export type AssistantBlock =
+  | { kind: "text"; content: string }
+  | { kind: "tool"; toolCallId: string; display: string; status: "running" | "done" | "error" }
+  | { kind: "thinking"; content: string }
+  | { kind: "confirmation"; proposal: AgentActionProposal };
+
+export type TranscriptRowStatus = "streaming" | "completed" | "failed";
+
+export interface TranscriptRow {
+  turnId: string;
+  userContent: string;
+  assistant: AssistantBlock[];
+  status: TranscriptRowStatus;
+  proposals: AgentActionProposal[];
+  error?: { message: string; retryable: boolean };
+  createdAt?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Chat Summary (for multi-chat switcher)
+// ---------------------------------------------------------------------------
+
+export interface ChatSummary {
+  id: string;
+  title: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Persisted Message (from GET /api/agent/chats/:id)
+// ---------------------------------------------------------------------------
+
+export interface PersistedMessage {
+  id: string;
+  turnId?: string;
+  role: "user" | "assistant" | "tool";
+  content: string;
+  status?: string;
+  createdAt?: string;
+  metadata?: { proposals?: AgentActionProposal[] };
+  error?: { message: string; retryable: boolean };
+}
+
+export interface PersistedChat {
+  id: string;
+  title: string;
+  createdAt?: string;
+  updatedAt?: string;
+  messages: PersistedMessage[];
+}

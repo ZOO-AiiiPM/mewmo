@@ -51,6 +51,7 @@ export function KnowledgeImportModal({
   const [previewId, setPreviewId] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [noteContents, setNoteContents] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (open) {
@@ -163,9 +164,34 @@ export function KnowledgeImportModal({
     allCandidates.find((item) => item.id === previewId) ??
     activeCandidates[0] ??
     allCandidates[0];
-  const previewParagraphs = preview
-    ? formatKnowledgeImportPreviewParagraphs(preview.content, preview.sourceUrl)
+  const previewContent =
+    preview && preview.kind === "note" && preview.noteId && noteContents[preview.noteId] !== undefined
+      ? noteContents[preview.noteId]
+      : (preview?.content ?? "");
+  const previewParagraphs = previewContent
+    ? formatKnowledgeImportPreviewParagraphs(previewContent, preview?.sourceUrl)
     : [];
+
+  useEffect(() => {
+    if (!preview || preview.kind !== "note" || !preview.noteId) return;
+    if (preview.content) return;
+    const noteId = preview.noteId;
+    if (noteContents[noteId] !== undefined) return;
+    let cancelled = false;
+    fetch(`/api/notes/${noteId}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        const content = data && typeof data.content === "string" ? data.content : "";
+        setNoteContents((prev) => ({ ...prev, [noteId]: content }));
+      })
+      .catch(() => {
+        if (!cancelled) setNoteContents((prev) => ({ ...prev, [noteId]: "" }));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [preview, noteContents]);
 
   if (!mounted) return null;
 

@@ -96,12 +96,27 @@ importers:
       '@earendil-works/pi-ai':
         specifier: 0.81.0
         version: 0.81.0(ws@8.21.1)(zod@4.4.3)
+      '@langfuse/otel':
+        specifier: 5.9.1
+        version: 5.9.1(@opentelemetry/api@1.9.0)(@opentelemetry/core@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/exporter-trace-otlp-http@0.220.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.9.0(@opentelemetry/api@1.9.0))
+      '@langfuse/tracing':
+        specifier: 5.9.1
+        version: 5.9.1(@opentelemetry/api@1.9.0)
       '@mewmo/ai':
         specifier: workspace:*
         version: link:../../packages/ai
       '@mewmo/application':
         specifier: workspace:*
         version: link:../../packages/application
+      '@mewmo/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      '@opentelemetry/api':
+        specifier: 1.9.0
+        version: 1.9.0
+      '@opentelemetry/sdk-node':
+        specifier: 0.220.0
+        version: 0.220.0(@opentelemetry/api@1.9.0)
       ai:
         specifier: 7.0.31
         version: 7.0.31(zod@4.4.3)
@@ -287,6 +302,9 @@ importers:
 
   packages/auth:
     dependencies:
+      '@auth/core':
+        specifier: 0.41.2
+        version: 0.41.2
       '@auth/prisma-adapter':
         specifier: 2.11.2
         version: 2.11.2(@prisma/client@7.8.0(prisma@7.8.0(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(typescript@6.0.3))(typescript@6.0.3))

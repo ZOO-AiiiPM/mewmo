@@ -40,7 +40,7 @@ test("root package exposes required workspace scripts", () => {
   const pkg = JSON.parse(readFileSync("package.json", "utf8"));
 
   assert.equal(pkg.private, true);
-  for (const script of ["build", "db:generate", "db:push", "dev", "lint", "test"]) {
+  for (const script of ["build", "db:generate", "db:migrate:deploy", "db:migrate:status", "db:push", "dev", "lint", "test"]) {
     assert.equal(typeof pkg.scripts[script], "string", `missing root script: ${script}`);
   }
   for (const script of ["test:unit", "test:integration", "test:theme", "verify"]) {

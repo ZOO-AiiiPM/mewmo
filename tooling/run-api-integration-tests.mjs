@@ -17,6 +17,7 @@ const nextEnvPath = new URL("../apps/web/next-env.d.ts", import.meta.url);
 const originalNextEnv = readFileSync(nextEnvPath, "utf8");
 const email = `integration-${randomUUID()}@mewmo.test`;
 const password = "integration-test-password";
+const registrationCode = "482913";
 const baseUrl = `http://127.0.0.1:${webPort}`;
 const fixtureUrl = `http://127.0.0.1:${fixturePort}/article`;
 const fixtureOrigin = new URL(fixtureUrl).origin;
@@ -169,26 +170,31 @@ function startFixtureServer() {
   });
 }
 
-async function createTestUser() {
-  process.env.DATABASE_URL = env.DATABASE_URL;
-  const [{ ensureOnboardingNotes, getPrisma }, { hashPassword }] = await Promise.all([
-    import("../packages/db/src/index.ts"),
-    import("../packages/auth/src/index.ts"),
-  ]);
-  const prisma = getPrisma();
-  const hashedPassword = await hashPassword(password);
-  await prisma.$transaction(async (tx) => {
-    const user = await tx.user.create({
-      data: {
-        email,
-        password: hashedPassword,
-        name: "Integration Test",
-        provider: "credentials",
-        emailVerified: new Date(),
-      },
-    });
-    await ensureOnboardingNotes(tx, user.id);
+async function registerTestUser() {
+  const otpEntry = JSON.stringify({
+    code: registrationCode,
+    expiresAt: Date.now() + 600_000,
+    attempts: 0,
+    sentAt: Date.now(),
   });
+  await run("docker", [
+    "exec",
+    redisContainer,
+    "redis-cli",
+    "SET",
+    `otp:${email.toLowerCase()}:register`,
+    otpEntry,
+    "EX",
+    "600",
+  ]);
+  const response = await fetch(`${baseUrl}/api/register`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email, password, name: "Integration Test", code: registrationCode }),
+  });
+  if (response.status !== 201) {
+    throw new Error(`Test account registration returned ${response.status}`);
+  }
 }
 
 async function cleanupTestUser() {
@@ -250,7 +256,7 @@ async function main() {
       "5s",
       "--health-retries",
       "30",
-      "pgvector/pgvector:pg16",
+      "pgvector/pgvector:pg15",
     ]);
     await run("docker", [
       "run",
@@ -274,7 +280,7 @@ async function main() {
       waitForContainerHealthy(redisContainer),
     ]);
     await run("pnpm", ["db:generate"]);
-    await run("pnpm", ["db:push"]); // pnpm db:push
+    await run("pnpm", ["db:migrate:deploy"]); // pnpm db:migrate:deploy
     fixtureServer = await startFixtureServer();
     web = spawnCommand(
       "pnpm",
@@ -282,7 +288,7 @@ async function main() {
       { detached: true },
     ); // pnpm --filter @mewmo/web dev
     await waitForHttp(`${baseUrl}/login`);
-    await createTestUser();
+    await registerTestUser();
     accountCreated = true;
     await run("pnpm", ["exec", "tsx", "--test", "tests/integration/*.test.mjs"]);
   } finally {

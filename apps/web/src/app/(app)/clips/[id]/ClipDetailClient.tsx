@@ -349,7 +349,6 @@ export function ClipDetailClient({
                   onDelete={() => void deleteClip(item)}
                   onRefresh={() => void refreshClip(item)}
                   onCopyLink={() => void copyClipUrl(item)}
-                  href={item.url}
                   moveToKnowledgeTarget={{ kind: "clip", clipId: item.id, title: item.title }}
                 />
               </article>

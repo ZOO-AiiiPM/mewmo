@@ -1,6 +1,5 @@
-import IORedis from "ioredis";
-
 import { generateOtpCode, safeEqualString } from "./otp-code";
+import { getRedisClient } from "./redis-client";
 
 export type OtpPurpose = "register" | "reset";
 
@@ -105,20 +104,6 @@ export class MemoryOtpStore implements OtpStore {
 
 /** Redis 存储，生产/多实例环境使用；key = otp:<email>:<purpose>，TTL 随验证码过期。 */
 export class RedisOtpStore implements OtpStore {
-  private static client: IORedis | null = null;
-
-  private static getClient(): IORedis {
-    if (!RedisOtpStore.client) {
-      const url = process.env.REDIS_URL;
-      if (!url) throw new Error("REDIS_URL is not configured");
-      RedisOtpStore.client = new IORedis(url, {
-        maxRetriesPerRequest: 2,
-        lazyConnect: false,
-      });
-    }
-    return RedisOtpStore.client;
-  }
-
   private key(email: string, purpose: OtpPurpose): string {
     return `otp:${keyOf(email, purpose)}`;
   }
@@ -130,11 +115,11 @@ export class RedisOtpStore implements OtpStore {
       attempts: 0,
       sentAt: Date.now(),
     };
-    await RedisOtpStore.getClient().set(this.key(email, purpose), JSON.stringify(entry), "EX", ttlSeconds);
+    await getRedisClient().set(this.key(email, purpose), JSON.stringify(entry), "EX", ttlSeconds);
   }
 
   async peek(email: string, purpose: OtpPurpose): Promise<OtpEntry | null> {
-    const raw = await RedisOtpStore.getClient().get(this.key(email, purpose));
+    const raw = await getRedisClient().get(this.key(email, purpose));
     if (!raw) return null;
     const entry = JSON.parse(raw) as OtpEntry;
     if (Date.now() > entry.expiresAt) {
@@ -146,7 +131,7 @@ export class RedisOtpStore implements OtpStore {
 
   async verify(email: string, purpose: OtpPurpose, code: string): Promise<OtpVerifyResult> {
     const key = this.key(email, purpose);
-    const raw = await RedisOtpStore.getClient().get(key);
+    const raw = await getRedisClient().get(key);
     if (!raw) return { status: "not_found" };
 
     const entry = JSON.parse(raw) as OtpEntry;
@@ -164,7 +149,7 @@ export class RedisOtpStore implements OtpStore {
         entry.lockUntil = now + OTP_LOCK_SECONDS * 1000;
       }
       const ttl = Math.max(1, Math.ceil((entry.expiresAt - now) / 1000));
-      await RedisOtpStore.getClient().set(key, JSON.stringify(entry), "EX", ttl);
+      await getRedisClient().set(key, JSON.stringify(entry), "EX", ttl);
       return { status: entry.lockUntil ? "too_many_attempts" : "invalid" };
     }
     await this.clear(email, purpose);
@@ -172,7 +157,7 @@ export class RedisOtpStore implements OtpStore {
   }
 
   async clear(email: string, purpose: OtpPurpose): Promise<void> {
-    await RedisOtpStore.getClient().del(this.key(email, purpose));
+    await getRedisClient().del(this.key(email, purpose));
   }
 }
 

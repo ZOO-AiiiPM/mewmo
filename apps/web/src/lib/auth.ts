@@ -1,13 +1,15 @@
 import NextAuth from "next-auth";
 import { createAuthConfig } from "@mewmo/auth";
 
+import { getLoginRateLimiter } from "./login-attempt-store";
+
 let _auth: ReturnType<typeof NextAuth> | null = null;
 type AuthResult = ReturnType<typeof NextAuth>;
 type AuthHandlers = AuthResult["handlers"];
 
 function getAuth() {
   if (!_auth) {
-    _auth = NextAuth(createAuthConfig());
+    _auth = NextAuth(createAuthConfig({ loginRateLimiter: getLoginRateLimiter() }));
   }
   return _auth;
 }
