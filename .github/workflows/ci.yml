@@ -79,3 +79,25 @@ jobs:
       - run: pnpm test:theme
         env:
           THEME_COLOR_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+
+  # ZOO-79: 密钥扫描门禁——只扫 PR 引入的提交范围（不扫全史，
+  # 历史中已知存在评估过的本地测试凭据，扫全史会永久红灯）。
+  # 命中则 CI 失败阻断合入；--redact 避免在日志里回显疑似密钥。
+  gitleaks:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        run: |
+          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz | tar -xz gitleaks
+          ./gitleaks version
+
+      - name: Scan PR commits for secrets
+        run: |
+          ./gitleaks detect --source . \
+            --log-opts="origin/${{ github.base_ref }}..HEAD" \
+            --no-banner --redact --verbose

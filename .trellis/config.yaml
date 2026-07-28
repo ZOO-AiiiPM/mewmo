@@ -32,6 +32,14 @@ max_journal_lines: 2000
 #
 # session_auto_commit: true
 
+# Branches where auto-commit is allowed (ZOO-79 branch guard). When the
+# current branch is not in this list, add_session.py / task.py archive skip
+# the auto-commit (files still written to disk) and print instructions.
+# Default: only main. Accepts a YAML list or a comma-separated string.
+#
+# auto_commit_branches:
+#   - main
+
 #-------------------------------------------------------------------------------
 # Task Lifecycle Hooks
 #-------------------------------------------------------------------------------
