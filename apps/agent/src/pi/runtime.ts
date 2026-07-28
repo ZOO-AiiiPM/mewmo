@@ -165,7 +165,8 @@ export function assertAgentResponseSucceeded(response: Pick<AssistantMessage, "s
   }
   if (response.stopReason === "error") {
     const message = response.errorMessage ?? "The model provider failed to return a response.";
-    throw new AgentError(isRateLimit(new Error(message)) ? "rate_limited" : "dependency_unavailable", message);
+    const cause = new Error(message);
+    throw new AgentError(isTimeout(cause) ? "timeout" : isRateLimit(cause) ? "rate_limited" : "dependency_unavailable", message);
   }
 }
 
@@ -230,7 +231,7 @@ async function emitRuntimeEvent(event: AgentHarnessEvent, listener?: (event: Age
 }
 
 function isTimeout(error: unknown) {
-  return error instanceof Error && (error.name === "AbortError" || /timeout/i.test(error.message));
+  return error instanceof Error && (error.name === "AbortError" || /timeout|timed out/i.test(error.message));
 }
 
 function isRateLimit(error: unknown) {

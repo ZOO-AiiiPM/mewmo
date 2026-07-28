@@ -53,6 +53,14 @@ describe("assertAgentResponseSucceeded", () => {
     ).toThrowError(
       expect.objectContaining<Partial<AgentError>>({ code: "timeout" }),
     );
+    expect(() =>
+      assertAgentResponseSucceeded({
+        stopReason: "error",
+        errorMessage: "Request timed out.",
+      }),
+    ).toThrowError(
+      expect.objectContaining<Partial<AgentError>>({ code: "timeout" }),
+    );
   });
 });
 

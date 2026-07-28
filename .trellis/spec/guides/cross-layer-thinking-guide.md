@@ -121,6 +121,20 @@ After implementation:
 - [ ] Checked that derived state points back to the source event identifier
       (`seq`, `id`, `version`) instead of inventing a second cursor
 
+### Provider compatibility is a lossy boundary
+
+When an AI relay exposes both a provider-native protocol and an
+OpenAI-compatible protocol, do not choose the compatibility surface from a
+successful text-only request. Tool calls, reasoning blocks, cache metadata,
+citations, and safety fields can carry provider-specific state required by the
+next request.
+
+- [ ] Inventory provider-native response fields that must survive a round trip
+- [ ] Verify multi-turn tool replay against the raw second request
+- [ ] Keep capability-specific exceptions, such as an embeddings sub-path,
+      explicit instead of changing the whole provider adapter
+- [ ] Run the production application build after adapter or SDK changes
+
 ---
 
 ## Cross-Platform Template Consistency

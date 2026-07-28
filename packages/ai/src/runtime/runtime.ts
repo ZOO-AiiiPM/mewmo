@@ -13,6 +13,7 @@ import {
   type Usage,
 } from "@earendil-works/pi-ai";
 import * as anthropicMessagesApi from "@earendil-works/pi-ai/api/anthropic-messages";
+import * as googleGenerativeAIApi from "@earendil-works/pi-ai/api/google-generative-ai";
 import * as openAICompletionsApi from "@earendil-works/pi-ai/api/openai-completions";
 import { anthropicProvider } from "@earendil-works/pi-ai/providers/anthropic";
 import { googleProvider } from "@earendil-works/pi-ai/providers/google";
@@ -38,6 +39,20 @@ import type {
 } from "./types";
 
 const ZERO_COST: ModelCost = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+const GOOGLE_MODEL_DEFAULTS = new Map(googleProvider().getModels().map((model) => [model.id, {
+  cost: model.cost,
+  contextWindow: model.contextWindow,
+  maxTokens: model.maxTokens,
+}]));
+
+// Pi 0.81 predates this model entry. Keep its immutable per-million-token
+// rates aligned with the provider/Langfuse catalog until Pi can be upgraded
+// without introducing dynamic-module errors in the Next.js server bundle.
+GOOGLE_MODEL_DEFAULTS.set("gemini-3.5-flash-lite", {
+  cost: { input: 0.3, output: 2.5, cacheRead: 0.03, cacheWrite: 0 },
+  contextWindow: 1_048_576,
+  maxTokens: 65_536,
+});
 
 interface ResolvedPurpose {
   definition: ProviderDefinition;
@@ -84,7 +99,10 @@ export function createAIRuntime(config: AIRuntimeConfig): AIRuntime {
       definition,
       modelDefinition,
       model,
-      pricingKnown: builtinProviders.has(modelDefinition.provider) || modelDefinition.cost !== undefined,
+      pricingKnown:
+        builtinProviders.has(modelDefinition.provider)
+        || modelDefinition.cost !== undefined
+        || (definition.provider === "google" && GOOGLE_MODEL_DEFAULTS.has(modelDefinition.model)),
     };
   };
 
@@ -248,23 +266,30 @@ function createBuiltinProvider(definition: ProviderDefinition, models: ModelDefi
 }
 
 function createEndpointProvider(id: string, definition: ProviderDefinition, models: ModelDefinition[]): Provider {
-  const api = definition.provider === "anthropic" ? anthropicMessagesApi : openAICompletionsApi;
-  const modelList: Array<Model<Api>> = models.map((model) => ({
-    id: model.model,
-    name: model.model,
-    api: definition.provider === "anthropic" ? "anthropic-messages" as const : "openai-completions" as const,
-    provider: id,
-    baseUrl: definition.baseUrl,
-    reasoning: model.reasoning ?? false,
-    input: ["text"],
-    cost: model.cost ?? ZERO_COST,
-    contextWindow: model.contextWindow ?? 128_000,
-    maxTokens: model.maxTokens ?? 8_192,
-    // Gemini's OpenAI-compat surface rejects unknown request fields (e.g.
-    // `store`), and Pi's baseUrl auto-detection assumes standard OpenAI
-    // behavior for relay endpoints, so pin the flag explicitly.
-    ...(definition.provider === "google" ? { compat: { supportsStore: false } } : {}),
-  }));
+  const api = definition.provider === "anthropic"
+    ? anthropicMessagesApi
+    : definition.provider === "google"
+      ? googleGenerativeAIApi
+      : openAICompletionsApi;
+  const modelList: Array<Model<Api>> = models.map((model) => {
+    const defaults = definition.provider === "google" ? GOOGLE_MODEL_DEFAULTS.get(model.model) : undefined;
+    return {
+      id: model.model,
+      name: model.model,
+      api: definition.provider === "anthropic"
+        ? "anthropic-messages" as const
+        : definition.provider === "google"
+          ? "google-generative-ai" as const
+          : "openai-completions" as const,
+      provider: id,
+      baseUrl: definition.baseUrl,
+      reasoning: model.reasoning ?? false,
+      input: ["text"],
+      cost: model.cost ?? defaults?.cost ?? ZERO_COST,
+      contextWindow: model.contextWindow ?? defaults?.contextWindow ?? 128_000,
+      maxTokens: model.maxTokens ?? defaults?.maxTokens ?? 8_192,
+    };
+  });
   return createProvider({
     id,
     name: id,
