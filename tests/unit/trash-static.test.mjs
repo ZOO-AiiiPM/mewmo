@@ -34,7 +34,7 @@ test("trash page exposes restore, manual permanent delete, and 14-day retention"
   assert.ok(existsSync(pagePath), "trash page should exist");
 
   const page = read(pagePath);
-  assert.match(sidebar, /href="\/trash"[\s\S]*label="废纸篓"/, "sidebar trash entry should navigate to /trash");
+  assert.match(sidebar, /href="\/trash"[\s\S]*label=\{t\("trash"\)\}/, "sidebar trash entry should navigate to /trash with a translated label");
   assert.match(page, /fetch\("\/api\/trash"\)/, "trash page should load trashed items");
   assert.match(page, /method:\s*"PATCH"/, "trash page should restore items");
   assert.match(page, /method:\s*"DELETE"/, "trash page should support permanent delete");

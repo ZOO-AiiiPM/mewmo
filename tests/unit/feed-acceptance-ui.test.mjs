@@ -6,9 +6,11 @@ const read = (path) => readFileSync(path, "utf8");
 
 test("feed refresh UI reports queued work instead of a completed check", () => {
   const sidebar = read("apps/web/src/components/shell/Sidebar.tsx");
+  const zhMessages = JSON.parse(read("apps/web/messages/zh.json"));
 
   assert.match(sidebar, /queued\?: boolean/);
-  assert.match(sidebar, /已安排更新，后台将在一分钟内处理/);
+  assert.match(sidebar, /showToast\(t\("feedRefreshQueued"\), "success"\)/);
+  assert.equal(zhMessages.nav.feedRefreshQueued, "已安排更新，后台将在一分钟内处理");
   assert.doesNotMatch(sidebar, /已检查该订阅，暂无新文章/);
 });
 

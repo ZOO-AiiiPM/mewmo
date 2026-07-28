@@ -39,13 +39,16 @@ const topBarSource = readSource(
   "utf8",
 );
 const cssSource = readSource("apps/web/src/app/globals.css");
+const zhMessages = JSON.parse(readSource("apps/web/messages/zh.json"));
 
 test("account menu links to account management before help and closes through FloatingMenuLink", () => {
   assert.match(sidebarSource, /import \{[^}]*FloatingMenuLink[^}]*\} from "\.\.\/ui\/FloatingMenu"/s);
   assert.match(
     sidebarSource,
-    /<FloatingMenuLink\s+href="\/settings"\s+icon="user">账户管理<\/FloatingMenuLink>[\s\S]*帮助和支持/,
+    /<FloatingMenuLink\s+href="\/settings"\s+icon="user">\{ta\("settings"\)\}<\/FloatingMenuLink>[\s\S]*\{ta\("helpSupport"\)\}/,
   );
+  assert.equal(zhMessages.account.settings, "账户管理");
+  assert.equal(zhMessages.account.helpSupport, "帮助和支持");
   assert.match(iconSource, /\| "user"/);
   assert.match(
     iconSource,
@@ -122,17 +125,21 @@ test("settings route exposes an accessible themed loading state", () => {
 
 test("account settings client renders identity, method chips, and both password modes", () => {
   assert.match(clientSource, /"use client"/);
-  assert.match(clientSource, /<TopBar title="账户管理" \/>/);
+  assert.match(clientSource, /<TopBar title=\{t\("title"\)\} \/>/);
   assert.doesNotMatch(topBarSource, /useTheme|compact|type="search"|Search\.\.\.|cycleTheme|Theme:/);
   assert.doesNotMatch(clientSource, /mewmo-account-settings__header/);
   assert.doesNotMatch(clientSource, /管理你的登录方式与密码/);
   assert.match(clientSource, /user\.image[\s\S]*<img[\s\S]*initial/s);
   assert.match(clientSource, /displayedLoginMethods\.map/);
   assert.match(clientSource, /displayedLoginMethods/);
-  assert.match(clientSource, /hasLocalPassword \? "修改密码" : "设置密码"/);
-  assert.match(clientSource, /hasLocalPassword\s*&&[\s\S]*当前密码/);
-  assert.match(clientSource, /新密码/);
-  assert.match(clientSource, /确认新密码/);
+  assert.match(clientSource, /hasLocalPassword \? t\("changePassword"\) : t\("setPassword"\)/);
+  assert.match(clientSource, /hasLocalPassword\s*&&[\s\S]*t\("currentPassword"\)/);
+  assert.match(clientSource, /t\("newPassword"\)/);
+  assert.match(clientSource, /t\("confirmNewPassword"\)/);
+  assert.equal(zhMessages.settings.title, "账户管理");
+  assert.equal(zhMessages.settings.currentPassword, "当前密码");
+  assert.equal(zhMessages.settings.newPassword, "新密码");
+  assert.equal(zhMessages.settings.confirmNewPassword, "确认新密码");
   assert.doesNotMatch(
     clientSource,
     /placeholder="(?:Current password|New password|Confirm password|Change password|Settings|Account|Appearance)"/,

@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useLocale, useTranslations } from "next-intl";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { signOut } from "next-auth/react";
+import { setLocaleAction } from "../../i18n/actions";
 import {
   cloneElement,
   isValidElement,
@@ -57,26 +59,26 @@ interface SidebarProps {
   onMouseLeave?: (() => void) | undefined;
 }
 
-type NavEntry =
-  | { kind: "link"; href: string; label: string; icon: PrototypeIconName; badge?: string }
-  | { kind: "deferred"; label: string; icon: PrototypeIconName; badge?: string };
+type NavEntryLabelKey = "notes" | "clips" | "pdf" | "ebook" | "feedArticle";
 
-const deferredMessage = "这个区域暂未开放。";
+type NavEntry =
+  | { kind: "link"; href: string; labelKey: NavEntryLabelKey; icon: PrototypeIconName; badge?: string }
+  | { kind: "deferred"; labelKey: NavEntryLabelKey; icon: PrototypeIconName; badge?: string };
 
 const collectionEntries: NavEntry[] = [
-  { kind: "link", href: "/notes", label: "笔记", icon: "note" },
-  { kind: "link", href: "/clips", label: "剪藏", icon: "bookmark" },
-  { kind: "deferred", label: "PDF", icon: "pdf", badge: "待开发" },
-  { kind: "deferred", label: "电子书", icon: "shelf", badge: "待开发" },
+  { kind: "link", href: "/notes", labelKey: "notes", icon: "note" },
+  { kind: "link", href: "/clips", labelKey: "clips", icon: "bookmark" },
+  { kind: "deferred", labelKey: "pdf", icon: "pdf", badge: "deferred" },
+  { kind: "deferred", labelKey: "ebook", icon: "shelf", badge: "deferred" },
 ];
 
 type FeedType = "article" | "media" | "video" | "podcast";
 
-const feedTypes: Array<{ type: FeedType; label: string; icon: PrototypeIconName; deferred?: boolean }> = [
-  { type: "article", label: "文章", icon: "doc" },
-  { type: "media", label: "媒体", icon: "media" },
-  { type: "video", label: "视频", icon: "video", deferred: true },
-  { type: "podcast", label: "播客", icon: "mic", deferred: true },
+const feedTypes: Array<{ type: FeedType; labelKey: string; icon: PrototypeIconName; deferred?: boolean }> = [
+  { type: "article", labelKey: "feedArticle", icon: "doc" },
+  { type: "media", labelKey: "feedMedia", icon: "media" },
+  { type: "video", labelKey: "feedVideo", icon: "video", deferred: true },
+  { type: "podcast", labelKey: "feedPodcast", icon: "mic", deferred: true },
 ];
 const FEED_ICON_PRELOAD_TIMEOUT_MS = 450;
 const preloadedFeedIcons = new Set<string>();
@@ -136,6 +138,14 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
   const { beginNavigation } = useWorkspaceNavigation();
   const { theme, setTheme } = useTheme();
   const { readerFont, setReaderFont, readerFontSize, setReaderFontSize } = useTheme();
+  const t = useTranslations("nav");
+  const tc = useTranslations("common");
+  const ta = useTranslations("account");
+  const locale = useLocale();
+  const handleLocaleSwitch = async (newLocale: string) => {
+    await setLocaleAction(newLocale);
+    router.refresh();
+  };
   const [allCollapsed, setAllCollapsed] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const [openMenu, setOpenMenu] = useState<string | null>(null);
@@ -172,14 +182,14 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
     setCollapsedGroups({ collection: next, subscription: next, knowledge: next });
   };
 
-  const defer = () => showToast(deferredMessage, "error");
+  const defer = () => showToast(tc("deferredMessage"), "error");
   const handleLogout = async () => {
     setLogoutPending(true);
     try {
       await signOut({ callbackUrl: "/login" });
     } catch {
       setLogoutPending(false);
-      showToast("登出失败，请重试", "error");
+      showToast(ta("logoutFailed"), "error");
     }
   };
   const activeFeedType = (searchParams.get("type") as FeedType | null) ?? "article";
@@ -292,7 +302,7 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
       const href = getRememberedFeedTypeHref(type, `/feeds?type=${type}`);
       beginNavigation(href);
       router.push(href, { scroll: false });
-      showToast(`${meta.label}订阅还在路上`, "error");
+      showToast(t("feedComingSoon", { type: t(meta.labelKey) }), "error");
       return;
     }
     setFeedDrawer(type);
@@ -369,15 +379,15 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
         return next;
       });
       await openKnowledgeBase(base);
-      showToast("已新建知识库", "success");
+      showToast(t("knowledgeCreated"), "success");
     }
   };
 
   const createKnowledgeBase = async () => {
     openTextPrompt({
       type: "create-knowledge-base",
-      title: "新建知识库",
-      initialValue: "未命名知识库",
+      title: t("createKnowledgeBase"),
+      initialValue: t("unnamedKnowledgeBase"),
     });
   };
 
@@ -408,16 +418,16 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
     });
     if (response.ok) {
       await loadKnowledgeTree(base);
-      showToast("已新建文件夹", "success");
+      showToast(t("folderCreated"), "success");
     } else {
-      showToast("无法再创建更深层级", "error");
+      showToast(t("folderDepthLimit"), "error");
     }
   };
 
   const renameKnowledgeBase = async (base: SidebarKnowledgeBase) => {
     openTextPrompt({
       type: "rename-knowledge-base",
-      title: "重命名知识库",
+      title: t("renameKnowledgeBase"),
       initialValue: base.title,
       item: base,
     });
@@ -437,7 +447,7 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
         return next;
       });
       setKnowledgeDrawer((current) => (current?.id === base.id ? { ...current, title } : current));
-      showToast("已重命名知识库", "success");
+      showToast(t("knowledgeRenamed"), "success");
     }
   };
 
@@ -451,7 +461,7 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
       });
       if (knowledgeDrawer?.id === base.id) setKnowledgeDrawer(null);
       router.push("/notes");
-      showToast("已删除知识库", "success");
+      showToast(t("knowledgeDeleted"), "success");
     }
     setKnowledgeMenu(null);
   };
@@ -500,7 +510,7 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
     });
     if (response.ok) {
       await loadKnowledgeTree(base);
-      showToast("已重命名文件夹", "success");
+      showToast(t("folderRenamed"), "success");
     }
   };
 
@@ -539,7 +549,7 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
     });
     if (response.ok) {
       await loadKnowledgeTree(knowledgeDrawer);
-      showToast("已删除文件夹", "success");
+      showToast(t("folderDeleted"), "success");
     }
     setKnowledgeMenu(null);
   };
@@ -550,26 +560,26 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
   };
 
   const exportKnowledgeFolder = () => {
-    showToast("已准备导出到本地", "success");
+    showToast(t("exportReady"), "success");
     setKnowledgeMenu(null);
   };
 
   const refreshFeed = async (feed: SidebarFeed) => {
-    showToast("检查该订阅更新...", "loading");
+    showToast(t("feedRefreshing"), "loading");
     setFeedMenuId(null);
     const response = await fetch(`/api/feeds/${feed.id}/refresh`, { method: "POST" }).catch(() => null);
     const data = (await response?.json().catch(() => null)) as { queued?: boolean } | null;
     if (response?.ok && data?.queued) {
-      showToast("已安排更新，后台将在一分钟内处理", "success");
+      showToast(t("feedRefreshQueued"), "success");
     } else {
-      showToast("检查订阅更新失败", "error");
+      showToast(t("feedRefreshFailed"), "error");
     }
   };
 
   const renameFeed = async (feed: SidebarFeed) => {
     openTextPrompt({
       type: "rename-feed",
-      title: "重命名订阅源",
+      title: t("renameFeed"),
       initialValue: feed.title,
       item: feed,
     });
@@ -600,7 +610,7 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
           detail: { feedId: feed.id, type: feed.type },
         }),
       );
-      showToast("已重命名订阅源", "success");
+      showToast(t("feedRenamed"), "success");
     }
   };
 
@@ -621,7 +631,7 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
           detail: { feedId: feed.id, type: feed.type },
         }),
       );
-      showToast("已删除订阅源", "success");
+      showToast(t("feedDeleted"), "success");
     }
     setFeedMenuId(null);
   };
@@ -633,11 +643,11 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
 
   const confirmTitle =
     deleteConfirm?.type === "knowledge-base"
-      ? `删除知识库「${deleteConfirm.item.title}」？`
+      ? t("deleteKnowledgeConfirm", { title: deleteConfirm.item.title })
       : deleteConfirm?.type === "knowledge-folder"
-        ? `删除文件夹「${deleteConfirm.item.name}」？`
+        ? t("deleteFolderConfirm", { name: deleteConfirm.item.name })
         : deleteConfirm?.type === "feed"
-          ? `删除订阅源「${deleteConfirm.item.title}」？`
+          ? t("deleteFeedConfirm", { title: deleteConfirm.item.title })
           : "";
 
   const runDeleteConfirm = async () => {
@@ -663,45 +673,45 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
     <>
     <aside className="mewmo-sidebar" onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
       <div className="mewmo-sidebar__bar">
-        <Link href="/notes" className="mewmo-sidebar__brand" aria-label="mewmo 首页">
+        <Link href="/notes" className="mewmo-sidebar__brand" aria-label={t("homeAriaLabel")}>
           <span className="mewmo-sidebar__logo" aria-hidden="true">
             <PrototypeIcon name="mewmo-logo" size={22} className="mewmo-sidebar__logo-cat" />
           </span>
           <span>mewmo</span>
         </Link>
-        <button type="button" className="mewmo-icon-button" onClick={toggleAllGroups} aria-label="展开或收起所有分组">
+        <button type="button" className="mewmo-icon-button" onClick={toggleAllGroups} aria-label={t("expandCollapseGroups")}>
           <PrototypeIcon name={allCollapsed ? "groups-expand" : "groups-collapse"} size={18} />
         </button>
-        <button type="button" className="mewmo-icon-button" onClick={onToggleCollapsed} aria-label="收起侧栏">
+        <button type="button" className="mewmo-icon-button" onClick={onToggleCollapsed} aria-label={t("collapseSidebar")}>
           <PrototypeIcon name={collapsed ? "sidebar-expand" : "sidebar-collapse"} size={18} />
         </button>
       </div>
 
       <div className={`mewmo-sidebar__stage ${stageDrilled ? "mewmo-sidebar__stage--drilled" : ""} ${stageModeClass}`}>
       <nav className="mewmo-sidebar__nav" aria-label="Workspace">
-        <SidebarButton icon="home" label="首页" onClick={defer} />
+        <SidebarButton icon="home" label={t("home")} onClick={defer} />
         <SidebarLink
           href={rememberedWorkspaceHrefs.today}
           icon="calendar"
-          label="今天"
+          label={t("today")}
           active={pathname.startsWith("/today")}
         />
 
         <SidebarGroup
           id="collection"
-          title="收集箱"
+          title={t("collection")}
           icon="inbox"
           collapsed={Boolean(collapsedGroups.collection)}
           onToggle={toggleGroup}
         >
           {collectionEntries.map((entry) =>
-            renderEntry(entry, pathname, defer, rememberedWorkspaceHrefs),
+            renderEntry(entry, pathname, defer, rememberedWorkspaceHrefs, t, tc),
           )}
         </SidebarGroup>
 
         <SidebarGroup
           id="subscription"
-          title="订阅"
+          title={t("subscription")}
           icon="rss"
           collapsed={Boolean(collapsedGroups.subscription)}
           onToggle={toggleGroup}
@@ -709,7 +719,7 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
           onMenuToggle={() => setOpenMenu(openMenu === "subscription" ? null : "subscription")}
           menu={
             <FloatingMenuButton icon="plus" onClick={openAddFeed}>
-              新增
+              {t("addFeed")}
             </FloatingMenuButton>
           }
         >
@@ -717,8 +727,8 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
             <SidebarButton
               key={entry.type}
               icon={entry.icon}
-              label={entry.label}
-              badge={entry.deferred ? "待开发" : undefined}
+              label={t(entry.labelKey)}
+              badge={entry.deferred ? tc("deferred") : undefined}
               muted={Boolean(entry.deferred)}
               active={pathname.startsWith("/feeds") && activeFeedType === entry.type}
               onClick={() => openFeedType(entry.type)}
@@ -728,7 +738,7 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
 
         <SidebarGroup
           id="knowledge"
-          title="知识库"
+          title={t("knowledge")}
           icon="library"
           collapsed={Boolean(collapsedGroups.knowledge)}
           onToggle={toggleGroup}
@@ -736,7 +746,7 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
           onMenuToggle={() => setOpenMenu(openMenu === "knowledge" ? null : "knowledge")}
           menu={
             <FloatingMenuButton icon="plus" onClick={() => void createKnowledgeBase()}>
-              新建
+              {t("newKnowledgeBase")}
             </FloatingMenuButton>
           }
         >
@@ -772,10 +782,10 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
                   className="mewmo-row-menu"
                 >
                   <FloatingMenuButton icon="pen-new-square" onClick={() => void renameKnowledgeBase(base)}>
-                    重命名
+                    {tc("rename")}
                   </FloatingMenuButton>
                   <FloatingMenuButton icon="trash" danger onClick={() => void deleteKnowledgeBase(base)}>
-                    删除
+                    {tc("delete")}
                   </FloatingMenuButton>
                 </FloatingMenu>
               </div>
@@ -785,7 +795,7 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
         <SidebarLink
           href="/trash"
           icon="trash"
-          label="废纸篓"
+          label={t("trash")}
           active={pathname.startsWith("/trash")}
         />
       </nav>
@@ -800,22 +810,22 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
                   setFeedMenuId(null);
                   setFeedDrawer(null);
                 }}
-                aria-label="返回主导航"
+                aria-label={t("backToNav")}
               >
                 <span className="mewmo-nav-row__chevron"><PrototypeIcon name="caret" size={14} /></span>
                 <span className="mewmo-nav-row__icon"><PrototypeIcon name={feedDrawerMeta.icon} dual /></span>
-                <span className="mewmo-nav-row__label">{feedDrawerMeta.label}</span>
+                <span className="mewmo-nav-row__label">{t(feedDrawerMeta.labelKey)}</span>
               </button>
             </div>
             {feedDrawerMeta.deferred ? (
               <div className="mewmo-feed-empty">
                 <PrototypeIcon name={feedDrawerMeta.icon} size={38} />
-                <span>{feedDrawerMeta.label}订阅还在路上</span>
+                <span>{t("feedComingSoon", { type: t(feedDrawerMeta.labelKey) })}</span>
               </div>
             ) : feeds.length === 0 ? (
               <div className="mewmo-feed-empty">
                 <PrototypeIcon name="rss" size={38} />
-                <span>还没有订阅源</span>
+                <span>{t("noFeedSources")}</span>
               </div>
             ) : (
               <div className="mewmo-feed-source-list">
@@ -849,13 +859,13 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
                       className="mewmo-row-menu mewmo-feed-source-menu"
                     >
                       <FloatingMenuButton icon="pen-new-square" onClick={() => void renameFeed(feed)}>
-                        重命名
+                        {tc("rename")}
                       </FloatingMenuButton>
                       <FloatingMenuButton icon="sync" onClick={() => void refreshFeed(feed)}>
-                        刷新
+                        {tc("refresh")}
                       </FloatingMenuButton>
                       <FloatingMenuButton icon="trash" danger onClick={() => void deleteFeed(feed)}>
-                        删除
+                        {tc("delete")}
                       </FloatingMenuButton>
                     </FloatingMenu>
                   </div>
@@ -911,13 +921,13 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
               className="mewmo-row-menu"
             >
               <FloatingMenuButton icon="plus" onClick={() => void createKnowledgeFolder(null)}>
-                新建文件夹
+                {t("newFolder")}
               </FloatingMenuButton>
               <FloatingMenuButton icon="import" onClick={() => openKnowledgeLocalImport("folder")}>
-                从本地导入
+                {t("importLocal")}
               </FloatingMenuButton>
               <FloatingMenuButton icon="export" onClick={exportKnowledgeFolder}>
-                导出到本地
+                {t("exportLocal")}
               </FloatingMenuButton>
             </FloatingMenu>
             <div className="mewmo-knowledge-tree">
@@ -950,7 +960,7 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
                 <KnowledgeFolderNameInput
                   value={editingKnowledgeFolder.value}
                   depth={0}
-                  placeholder="新建文件夹"
+                  placeholder={t("newFolder")}
                   onValueChange={updateEditingKnowledgeFolderValue}
                   onCommit={() => void finishEditingKnowledgeFolder()}
                   onCancel={cancelEditingKnowledgeFolder}
@@ -977,22 +987,22 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
           className="mewmo-account-menu"
           placement="top"
         >
-          <AccountSubmenu label="外观模式" icon="appearance">
+          <AccountSubmenu label={ta("appearance")} icon="appearance">
             <div className="acct-submenu">
               <AccountSubmenuRow icon="monitor" active={theme === "system"} onClick={() => setTheme("system")}>
-                跟随系统
+                {ta("themeSystem")}
               </AccountSubmenuRow>
               <AccountSubmenuRow icon="moon" active={theme === "dark"} onClick={() => setTheme("dark")}>
-                深色模式
+                {ta("themeDark")}
               </AccountSubmenuRow>
               <AccountSubmenuRow icon="sun" active={theme === "light"} onClick={() => setTheme("light")}>
-                浅色模式
+                {ta("themeLight")}
               </AccountSubmenuRow>
             </div>
           </AccountSubmenu>
-          <AccountSubmenu label="字体字号" icon="font-size">
+          <AccountSubmenu label={ta("fontAndSize")} icon="font-size">
             <div className="acct-submenu">
-              <div className="acct-sub__label">字体</div>
+              <div className="acct-sub__label">{ta("fontLabel")}</div>
               <AccountSubmenuRow
                 data-font="sans"
                 glyph="Aa"
@@ -1000,7 +1010,7 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
                 active={readerFont === "sans"}
                 onClick={() => setReaderFont("sans")}
               >
-                无衬线
+                {ta("fontSans")}
               </AccountSubmenuRow>
               <AccountSubmenuRow
                 data-font="serif"
@@ -1009,7 +1019,7 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
                 active={readerFont === "serif"}
                 onClick={() => setReaderFont("serif")}
               >
-                衬线
+                {ta("fontSerif")}
               </AccountSubmenuRow>
               <AccountSubmenuRow
                 data-font="mono"
@@ -1018,10 +1028,10 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
                 active={readerFont === "mono"}
                 onClick={() => setReaderFont("mono")}
               >
-                等宽
+                {ta("fontMono")}
               </AccountSubmenuRow>
               <div className="acct-sub__sep" />
-              <div className="acct-sub__label">字号</div>
+              <div className="acct-sub__label">{ta("fontSizeLabel")}</div>
               <AccountSubmenuRow
                 data-fontsize="small"
                 glyph="A"
@@ -1029,7 +1039,7 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
                 active={readerFontSize === "small"}
                 onClick={() => setReaderFontSize("small")}
               >
-                小
+                {ta("fontSizeSmall")}
               </AccountSubmenuRow>
               <AccountSubmenuRow
                 data-fontsize="default"
@@ -1038,7 +1048,7 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
                 active={readerFontSize === "default"}
                 onClick={() => setReaderFontSize("default")}
               >
-                默认
+                {ta("fontSizeDefault")}
               </AccountSubmenuRow>
               <AccountSubmenuRow
                 data-fontsize="large"
@@ -1047,39 +1057,49 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
                 active={readerFontSize === "large"}
                 onClick={() => setReaderFontSize("large")}
               >
-                大
+                {ta("fontSizeLarge")}
               </AccountSubmenuRow>
             </div>
           </AccountSubmenu>
           <div className="mewmo-menu-separator" />
-          <FloatingMenuLink href="/settings" icon="user">账户管理</FloatingMenuLink>
-          <FloatingMenuButton icon="info" onClick={defer}>帮助和支持</FloatingMenuButton>
-          <AccountSubmenu label="导入导出" icon="import-export">
+          <FloatingMenuLink href="/settings" icon="user">{ta("settings")}</FloatingMenuLink>
+          <FloatingMenuButton icon="info" onClick={defer}>{ta("helpSupport")}</FloatingMenuButton>
+          <AccountSubmenu label={ta("importExport")} icon="import-export">
             <div className="acct-submenu">
-              <AccountSubmenuRow icon="import" onClick={defer}>导入</AccountSubmenuRow>
-              <AccountSubmenuRow icon="export" onClick={defer}>导出</AccountSubmenuRow>
+              <AccountSubmenuRow icon="import" onClick={defer}>{ta("import")}</AccountSubmenuRow>
+              <AccountSubmenuRow icon="export" onClick={defer}>{ta("export")}</AccountSubmenuRow>
+            </div>
+          </AccountSubmenu>
+          <AccountSubmenu label={ta("language")} icon="appearance">
+            <div className="acct-submenu">
+              <AccountSubmenuRow icon="monitor" active={locale === "zh"} onClick={() => handleLocaleSwitch("zh")}>
+                {ta("languageZh")}
+              </AccountSubmenuRow>
+              <AccountSubmenuRow icon="monitor" active={locale === "en"} onClick={() => handleLocaleSwitch("en")}>
+                {ta("languageEn")}
+              </AccountSubmenuRow>
             </div>
           </AccountSubmenu>
           <div className="mewmo-menu-separator" />
-          <FloatingMenuButton icon="logout" onClick={() => setLogoutOpen(true)}>登出</FloatingMenuButton>
+          <FloatingMenuButton icon="logout" onClick={() => setLogoutOpen(true)}>{ta("logout")}</FloatingMenuButton>
         </FloatingMenu>
       </div>
     </aside>
     <ConfirmDialog
       open={Boolean(deleteConfirm)}
       title={confirmTitle}
-      description="删除后会从当前工作区移除。"
-      confirmLabel="删除"
-      cancelLabel="取消"
+      description={t("deleteDescription")}
+      confirmLabel={tc("delete")}
+      cancelLabel={tc("cancel")}
       onCancel={() => setDeleteConfirm(null)}
       onConfirm={() => void runDeleteConfirm()}
     />
     <ConfirmDialog
       open={logoutOpen}
-      title="确认登出？"
-      description="登出后需要重新登录才能访问你的工作区。"
-      confirmLabel={logoutPending ? "登出中…" : "登出"}
-      cancelLabel="取消"
+      title={ta("logoutConfirmTitle")}
+      description={ta("logoutConfirmDescription")}
+      confirmLabel={logoutPending ? ta("logoutPending") : ta("logout")}
+      cancelLabel={tc("cancel")}
       onCancel={() => {
         if (!logoutPending) setLogoutOpen(false);
       }}
@@ -1088,13 +1108,13 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
     <ConfirmDialog
       open={Boolean(textPrompt)}
       title={textPrompt?.title ?? ""}
-      confirmLabel="确认"
-      cancelLabel="取消"
+      confirmLabel={tc("confirm")}
+      cancelLabel={tc("cancel")}
       onCancel={closeTextPrompt}
       onConfirm={() => void runTextPromptConfirm()}
     >
       <label className="mewmo-prompt-field">
-        <span>名称</span>
+        <span>{tc("name")}</span>
         <input
           className="mewmo-prompt-input"
           value={textPromptValue}
@@ -1209,9 +1229,13 @@ function renderEntry(
   pathname: string,
   defer: () => void,
   rememberedWorkspaceHrefs: Record<WorkspaceSection, string>,
+  t: (key: NavEntryLabelKey) => string,
+  tc: (key: "deferred") => string,
 ) {
+  const label = t(entry.labelKey);
+  const badge = entry.badge === "deferred" ? tc("deferred") : entry.badge;
   if (entry.kind === "deferred") {
-    return <SidebarButton key={entry.label} icon={entry.icon} label={entry.label} badge={entry.badge} onClick={defer} muted />;
+    return <SidebarButton key={entry.labelKey} icon={entry.icon} label={label} badge={badge} onClick={defer} muted />;
   }
   const section = workspaceSectionForEntryHref(entry.href);
   const href =
@@ -1222,16 +1246,16 @@ function renderEntry(
         : entry.href;
   const active =
     entry.href === "/feeds"
-      ? pathname.startsWith("/feeds") && entry.label === "文章"
+      ? pathname.startsWith("/feeds") && entry.labelKey === "feedArticle"
       : pathname === entry.href || pathname.startsWith(`${entry.href}/`);
   return (
     <SidebarLink
-      key={`${entry.href}-${entry.label}`}
+      key={`${entry.href}-${entry.labelKey}`}
       href={href}
       icon={entry.icon}
-      label={entry.label}
+      label={label}
       active={active}
-      badge={entry.badge}
+      badge={badge}
     />
   );
 }
@@ -1280,6 +1304,8 @@ function KnowledgeFolderRows({
   onRename: (folder: KnowledgeFolderNode) => void;
   onDelete: (folder: KnowledgeFolderNode) => void;
 }) {
+  const t = useTranslations("nav");
+  const tc = useTranslations("common");
   const [collapsed, setCollapsed] = useState(false);
   const menuOpen = knowledgeMenu?.type === "folder" && knowledgeMenu.id === folder.id;
   const hasChildren = folder.children.length > 0;
@@ -1350,24 +1376,24 @@ function KnowledgeFolderRows({
             >
               {canCreateChild && (
                 <FloatingMenuButton icon="plus" onClick={() => onCreateFolder(folder)}>
-                  新建文件夹
+                  {t("newFolder")}
                 </FloatingMenuButton>
               )}
               <FloatingMenuButton icon="inbox" onClick={() => onImportInbox(folder)}>
-                从收藏箱导入
+                {t("importFromInbox")}
               </FloatingMenuButton>
               <FloatingMenuButton icon="import" onClick={() => onImportLocalFile(folder)}>
-                从本地导入
+                {t("importLocal")}
               </FloatingMenuButton>
               <FloatingMenuButton icon="export" onClick={onExport}>
-                导出到本地
+                {t("exportLocal")}
               </FloatingMenuButton>
               <div className="mewmo-menu-separator" />
               <FloatingMenuButton icon="pen-new-square" onClick={() => onRename(folder)}>
-                重命名
+                {tc("rename")}
               </FloatingMenuButton>
               <FloatingMenuButton icon="trash" danger onClick={() => onDelete(folder)}>
-                删除
+                {tc("delete")}
               </FloatingMenuButton>
             </FloatingMenu>
           </>
@@ -1377,7 +1403,7 @@ function KnowledgeFolderRows({
         <KnowledgeFolderNameInput
           value={editingKnowledgeFolder.value}
           depth={folder.depth + 1}
-          placeholder="新建文件夹"
+          placeholder={t("newFolder")}
           onValueChange={onEditingValueChange}
           onCommit={onCommitEditing}
           onCancel={onCancelEditing}
@@ -1415,7 +1441,7 @@ function KnowledgeFolderRows({
 function KnowledgeFolderNameInput({
   value,
   depth,
-  placeholder = "文件夹名称",
+  placeholder = "",
   active = false,
   onValueChange,
   onCommit,
@@ -1584,6 +1610,9 @@ function SidebarGroup({
   menuOpen,
   onMenuToggle,
   menu,
+  menuRenameLabel = "Rename",
+  menuRefreshLabel = "Refresh",
+  menuDeleteLabel = "Delete",
   children,
 }: {
   id: string;
@@ -1594,6 +1623,9 @@ function SidebarGroup({
   menuOpen?: boolean;
   onMenuToggle?: () => void;
   menu?: ReactNode;
+  menuRenameLabel?: string;
+  menuRefreshLabel?: string;
+  menuDeleteLabel?: string;
   children: ReactNode;
 }) {
   const menuButtonRef = useRef<HTMLButtonElement>(null);
@@ -1628,9 +1660,9 @@ function SidebarGroup({
             >
               {menu ?? (
                 <>
-                  <FloatingMenuButton icon="pen-new-square">重命名</FloatingMenuButton>
-                  <FloatingMenuButton icon="sync">刷新</FloatingMenuButton>
-                  <FloatingMenuButton icon="trash" danger>删除</FloatingMenuButton>
+                  <FloatingMenuButton icon="pen-new-square">{menuRenameLabel}</FloatingMenuButton>
+                  <FloatingMenuButton icon="sync">{menuRefreshLabel}</FloatingMenuButton>
+                  <FloatingMenuButton icon="trash" danger>{menuDeleteLabel}</FloatingMenuButton>
                 </>
               )}
             </FloatingMenu>

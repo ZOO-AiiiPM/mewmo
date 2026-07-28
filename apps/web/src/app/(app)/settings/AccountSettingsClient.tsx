@@ -1,9 +1,12 @@
 "use client";
 
-import { useRef, useState, type FormEvent } from "react";
+import { useTranslations, useLocale } from "next-intl";
+import { useRouter } from "next/navigation";
+import { useRef, useState, useTransition, type FormEvent } from "react";
 
 import { TopBar } from "../../../components/shell/TopBar";
 import { useToast } from "../../../components/ui/ToastProvider";
+import { setLocaleAction } from "../../../i18n/actions";
 
 interface AccountSettingsUser {
   name: string | null;
@@ -40,6 +43,10 @@ export function AccountSettingsClient({
   loginMethods,
 }: AccountSettingsClientProps) {
   const { showToast } = useToast();
+  const t = useTranslations("settings");
+  const locale = useLocale();
+  const router = useRouter();
+  const [localePending, startLocaleTransition] = useTransition();
   const [hasLocalPassword, setHasLocalPassword] = useState(hasPassword);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -53,12 +60,13 @@ export function AccountSettingsClient({
     user.name?.charAt(0)?.toUpperCase() ??
     user.email?.charAt(0)?.toUpperCase() ??
     "U";
-  const displayName = user.name ?? user.email?.split("@")[0] ?? "未命名用户";
-  const displayEmail = user.email ?? "未绑定邮箱";
-  const passwordTitle = hasLocalPassword ? "修改密码" : "设置密码";
+  const displayName = user.name ?? user.email?.split("@")[0] ?? t("unnamedUser");
+  const displayEmail = user.email ?? t("noEmail");
+  const passwordTitle = hasLocalPassword ? t("changePassword") : t("setPassword");
+  const emailPasswordLabel = t("emailPasswordMethod");
   const displayedLoginMethods =
-    hasLocalPassword && !loginMethods.includes("邮箱密码")
-      ? [...loginMethods, "邮箱密码"]
+    hasLocalPassword && !loginMethods.includes(emailPasswordLabel)
+      ? [...loginMethods, emailPasswordLabel]
       : loginMethods;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -69,7 +77,7 @@ export function AccountSettingsClient({
     pendingRef.current = true;
     setPending(true);
     setFieldErrors({});
-    setStatusMessage("正在保存密码…");
+    setStatusMessage(t("savingPassword"));
 
     try {
       const response = await fetch("/api/account/password", {
@@ -84,7 +92,7 @@ export function AccountSettingsClient({
       const data = (await response.json().catch(() => ({}))) as PasswordResponse;
 
       if (!response.ok) {
-        const message = data.error ?? "密码保存失败，请稍后重试";
+        const message = data.error ?? t("passwordSaveFailed");
         if (isPasswordField(data.field)) {
           setFieldErrors({ [data.field]: message });
         }
@@ -93,7 +101,7 @@ export function AccountSettingsClient({
         return;
       }
 
-      const successMessage = hasLocalPassword ? "密码已修改" : "密码已设置";
+      const successMessage = hasLocalPassword ? t("passwordChanged") : t("passwordSet");
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
@@ -101,7 +109,7 @@ export function AccountSettingsClient({
       setStatusMessage(successMessage);
       showToast(successMessage, "success");
     } catch {
-      const message = "网络连接异常，请稍后重试";
+      const message = t("networkError");
       setStatusMessage(message);
       showToast(message, "error");
     } finally {
@@ -110,12 +118,19 @@ export function AccountSettingsClient({
     }
   }
 
+  function handleLocaleChange(newLocale: string) {
+    startLocaleTransition(async () => {
+      await setLocaleAction(newLocale);
+      router.refresh();
+    });
+  }
+
   return (
     <div className="mewmo-account-settings-page">
-      <TopBar title="账户管理" />
+      <TopBar title={t("title")} />
       <main className="mewmo-account-settings">
         <section className="mewmo-account-settings__card" aria-labelledby="account-identity-title">
-          <h2 id="account-identity-title">账户信息</h2>
+          <h2 id="account-identity-title">{t("accountInfo")}</h2>
           <div className="mewmo-account-settings__identity">
             <div className="mewmo-account-settings__avatar" aria-hidden="true">
               {user.image ? <img src={user.image} alt="" /> : <span>{initial}</span>}
@@ -125,8 +140,8 @@ export function AccountSettingsClient({
               <span>{displayEmail}</span>
             </div>
           </div>
-          <div className="mewmo-account-settings__methods" aria-label="登录方式">
-            <span className="mewmo-account-settings__methods-label">登录方式</span>
+          <div className="mewmo-account-settings__methods" aria-label={t("loginMethods")}>
+            <span className="mewmo-account-settings__methods-label">{t("loginMethods")}</span>
             <div className="mewmo-account-settings__chips">
               {displayedLoginMethods.map((method) => (
                 <span className="mewmo-account-settings__chip" key={method}>
@@ -142,15 +157,15 @@ export function AccountSettingsClient({
             <h2 id="account-password-title">{passwordTitle}</h2>
             <p>
               {hasLocalPassword
-                ? "验证当前密码后即可更新。"
-                : "设置后可使用邮箱和密码登录。"}
+                ? t("changePasswordDesc")
+                : t("setPasswordDesc")}
             </p>
           </div>
 
           <form className="mewmo-account-settings__form" onSubmit={handleSubmit}>
             {hasLocalPassword && (
               <label className="mewmo-account-settings__field">
-                <span>当前密码</span>
+                <span>{t("currentPassword")}</span>
                 <input
                   type="password"
                   autoComplete="current-password"
@@ -167,7 +182,7 @@ export function AccountSettingsClient({
             )}
 
             <label className="mewmo-account-settings__field">
-              <span>新密码</span>
+              <span>{t("newPassword")}</span>
               <input
                 type="password"
                 autoComplete="new-password"
@@ -183,7 +198,7 @@ export function AccountSettingsClient({
             </label>
 
             <label className="mewmo-account-settings__field">
-              <span>确认新密码</span>
+              <span>{t("confirmNewPassword")}</span>
               <input
                 type="password"
                 autoComplete="new-password"
@@ -199,12 +214,37 @@ export function AccountSettingsClient({
             </label>
 
             <button className="mewmo-account-settings__submit" type="submit" disabled={pending}>
-              {pending ? "保存中…" : passwordTitle}
+              {pending ? t("savingPassword") : passwordTitle}
             </button>
             <p className="mewmo-account-settings__status" aria-live="polite">
               {statusMessage}
             </p>
           </form>
+        </section>
+
+        <section className="mewmo-account-settings__card" aria-labelledby="account-language-title">
+          <div className="mewmo-account-settings__section-heading">
+            <h2 id="account-language-title">{t("languageSection")}</h2>
+            <p>{t("languageDesc")}</p>
+          </div>
+          <div className="mewmo-account-settings__locale-options">
+            <button
+              type="button"
+              className={`mewmo-account-settings__locale-btn ${locale === "zh" ? "mewmo-account-settings__locale-btn--active" : ""}`}
+              onClick={() => handleLocaleChange("zh")}
+              disabled={localePending}
+            >
+              {t("languageZh")}
+            </button>
+            <button
+              type="button"
+              className={`mewmo-account-settings__locale-btn ${locale === "en" ? "mewmo-account-settings__locale-btn--active" : ""}`}
+              onClick={() => handleLocaleChange("en")}
+              disabled={localePending}
+            >
+              {t("languageEn")}
+            </button>
+          </div>
         </section>
       </main>
     </div>

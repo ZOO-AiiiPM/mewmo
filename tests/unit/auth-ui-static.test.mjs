@@ -4,8 +4,12 @@ import test from "node:test";
 
 const loginPage = readFileSync("apps/web/src/app/(auth)/login/page.tsx", "utf8");
 const registerPage = readFileSync("apps/web/src/app/(auth)/register/page.tsx", "utf8");
+const forgotPasswordPage = readFileSync("apps/web/src/app/(auth)/forgot-password/page.tsx", "utf8");
 const registerRoute = readFileSync("apps/web/src/app/api/register/route.ts", "utf8");
 const authFrame = readFileSync("apps/web/src/components/auth/AuthFrame.tsx", "utf8");
+const passwordField = readFileSync("apps/web/src/components/auth/PasswordField.tsx", "utf8");
+const zhMessages = JSON.parse(readFileSync("apps/web/messages/zh.json", "utf8"));
+const enMessages = JSON.parse(readFileSync("apps/web/messages/en.json", "utf8"));
 const css = readFileSync("apps/web/src/app/globals.css", "utf8");
 
 test("auth pages start Google OAuth through the Auth.js client helper", () => {
@@ -34,6 +38,14 @@ test("auth pages use the dedicated brand frame and stable theme tokens", () => {
   assert.match(authFrame, /mewmo-workspace-preview\.png/);
   assert.match(authFrame, /mewmo-auth-visual/);
   assert.match(authFrame, /mewmo-auth-panel/);
+  assert.match(authFrame, /useTranslations\("auth\.frame"\)/);
+  assert.match(passwordField, /useTranslations\("auth\.common"\)/);
+  assert.match(forgotPasswordPage, /useTranslations\("auth\.forgotPassword"\)/);
+  assert.doesNotMatch(forgotPasswordPage, /Password reset|Reset your password|发送验证码|New password|Back to login/);
+  assert.equal(zhMessages.auth.frame.kicker, "私人知识工作区");
+  assert.equal(enMessages.auth.frame.kicker, "Private knowledge workspace");
+  assert.equal(zhMessages.auth.common.showPassword, "显示密码");
+  assert.equal(enMessages.auth.common.showPassword, "Show password");
 
   assert.match(css, /\.mewmo-auth-page\s*\{[\s\S]*height:\s*100dvh[\s\S]*overflow-y:\s*auto/);
   assert.match(css, /\.mewmo-auth-page\s*\{[\s\S]*--auth-bg:/);

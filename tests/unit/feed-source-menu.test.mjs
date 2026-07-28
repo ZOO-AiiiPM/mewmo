@@ -23,7 +23,7 @@ test("subscription refresh is scoped to a concrete feed source menu", () => {
   );
   assert.match(
     sidebar,
-    /<FloatingMenuButton icon="sync" onClick=\{\(\) => void refreshFeed\(feed\)\}>\s*刷新\s*<\/FloatingMenuButton>/,
+    /<FloatingMenuButton icon="sync" onClick=\{\(\) => void refreshFeed\(feed\)\}>\s*\{tc\("refresh"\)\}\s*<\/FloatingMenuButton>/,
     "each feed source row menu should expose the refresh action",
   );
 });

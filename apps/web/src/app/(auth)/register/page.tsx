@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { signIn } from "next-auth/react";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -24,6 +25,7 @@ function normalizeAuthCallbackUrl(value: string | null) {
 function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const t = useTranslations("auth.register");
   const callbackUrl = searchParams.get("callbackUrl");
   const loginHref = callbackUrl
     ? `/login?callbackUrl=${encodeURIComponent(callbackUrl)}`
@@ -52,11 +54,11 @@ function RegisterForm() {
     const password = (fd.get("password") as string) || "";
 
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
-      setError("请输入有效的邮箱");
+      setError(t("invalidEmail"));
       return;
     }
     if (password.length < PASSWORD_MIN_LENGTH) {
-      setError(`密码至少 ${PASSWORD_MIN_LENGTH} 位`);
+      setError(t("passwordTooShort", { min: PASSWORD_MIN_LENGTH }));
       return;
     }
 
@@ -69,22 +71,22 @@ function RegisterForm() {
       });
 
       if (res.status === 429) {
-        setError("验证码发送过于频繁，请稍后再试");
+        setError(t("codeTooFrequent"));
         return;
       }
       if (res.status === 409) {
-        setError("该邮箱已注册，请直接登录");
+        setError(t("emailExists"));
         return;
       }
       if (!res.ok) {
-        setError("发送失败，请重试");
+        setError(t("sendFailed"));
         return;
       }
 
       setSent(true);
       setCooldown(60);
     } catch {
-      setError("网络错误，请重试");
+      setError(t("networkError"));
     } finally {
       setSendingCode(false);
     }
@@ -101,15 +103,15 @@ function RegisterForm() {
     const confirmPassword = formData.get("confirmPassword") as string;
 
     if (password.length < PASSWORD_MIN_LENGTH) {
-      setError(`密码至少 ${PASSWORD_MIN_LENGTH} 位`);
+      setError(t("passwordTooShort", { min: PASSWORD_MIN_LENGTH }));
       return;
     }
     if (password !== confirmPassword) {
-      setError("两次输入的密码不一致");
+      setError(t("passwordMismatch"));
       return;
     }
     if (code.length !== 6) {
-      setError("请输入 6 位邮箱验证码");
+      setError(t("codeRequired"));
       return;
     }
 
@@ -122,7 +124,7 @@ function RegisterForm() {
 
     if (!res.ok) {
       const data = await res.json().catch(() => null);
-      setError(data?.error || "Registration failed");
+      setError(data?.error || t("failed"));
       setLoading(false);
       return;
     }
@@ -140,50 +142,50 @@ function RegisterForm() {
 
   return (
     <AuthFrame
-      eyebrow="Create your workspace"
-      title="Start collecting what matters"
+      eyebrow={t("eyebrow")}
+      title={t("title")}
       footer={
         <p>
-          Already have an account?{" "}
+          {t("hasAccount")}{" "}
           <Link href={loginHref}>
-            Log in
+            {t("logIn")}
           </Link>
         </p>
       }
     >
       <form ref={formRef} onSubmit={handleSubmit} className="mewmo-auth-form">
         <div className="mewmo-auth-field">
-          <label>Name</label>
-          <input name="name" type="text" placeholder="Your name" />
+          <label>{t("name")}</label>
+          <input name="name" type="text" placeholder={t("namePlaceholder")} />
         </div>
 
         <div className="mewmo-auth-field">
-          <label>Email</label>
+          <label>{t("email")}</label>
           <input name="email" type="email" required placeholder="you@example.com" />
         </div>
 
         <div className="mewmo-auth-field">
-          <label>Password</label>
+          <label>{t("password")}</label>
           <PasswordField
             name="password"
             required
             minLength={PASSWORD_MIN_LENGTH}
-            placeholder={`至少 ${PASSWORD_MIN_LENGTH} 位`}
+            placeholder={t("passwordMin", { min: PASSWORD_MIN_LENGTH })}
           />
         </div>
 
         <div className="mewmo-auth-field">
-          <label>Confirm password</label>
+          <label>{t("confirmPassword")}</label>
           <PasswordField
             name="confirmPassword"
             required
             minLength={PASSWORD_MIN_LENGTH}
-            placeholder="再次输入密码"
+            placeholder={t("confirmPasswordPlaceholder")}
           />
         </div>
 
         <div className="mewmo-auth-field">
-          <label>验证码</label>
+          <label>{t("code")}</label>
           <div className="mewmo-auth-code-row">
             <input
               name="code"
@@ -192,7 +194,7 @@ function RegisterForm() {
               maxLength={6}
               value={code}
               onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-              placeholder="6 位邮箱验证码"
+              placeholder={t("codePlaceholder")}
               required
             />
             <button
@@ -202,12 +204,12 @@ function RegisterForm() {
               className="mewmo-auth-code-btn"
             >
               {cooldown > 0
-                ? `${cooldown}s 后重发`
+                ? t("cooldown", { seconds: cooldown })
                 : sendingCode
-                  ? "发送中..."
+                  ? t("sending")
                   : sent
-                    ? "重新发送"
-                    : "获取验证码"}
+                    ? t("resend")
+                    : t("sendCode")}
             </button>
           </div>
         </div>
@@ -215,12 +217,12 @@ function RegisterForm() {
         {error && <p className="mewmo-auth-error">{error}</p>}
 
         <button type="submit" disabled={loading} className="mewmo-auth-primary">
-          {loading ? "Creating..." : "Create account"}
+          {loading ? t("submitting") : t("submit")}
         </button>
       </form>
 
       <div className="mewmo-auth-divider">
-        <span>or</span>
+        <span>{t("or")}</span>
       </div>
 
       <button
@@ -230,7 +232,7 @@ function RegisterForm() {
         className="mewmo-auth-secondary"
       >
         <span className="mewmo-auth-google-mark">G</span>
-        {googleLoading ? "Opening Google..." : "Continue with Google"}
+        {googleLoading ? t("googleLoading") : t("googleButton")}
       </button>
     </AuthFrame>
   );

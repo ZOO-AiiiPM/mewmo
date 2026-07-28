@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { AuthFrame } from "../../../components/auth/AuthFrame";
 import { PasswordField } from "../../../components/auth/PasswordField";
@@ -10,6 +11,7 @@ const PASSWORD_MIN_LENGTH = 8;
 type Step = "email" | "reset";
 
 export default function ForgotPasswordPage() {
+  const t = useTranslations("auth.forgotPassword");
   const [step, setStep] = useState<Step>("email");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -33,12 +35,11 @@ export default function ForgotPasswordPage() {
     });
 
     if (res.status === 429) {
-      setError("验证码发送过于频繁，请稍后再试");
+      setError(t("codeTooFrequent"));
       return false;
     }
     if (!res.ok) {
-      const data = await res.json().catch(() => null);
-      setError(data?.error || "发送失败，请重试");
+      setError(t("sendFailed"));
       return false;
     }
     return true;
@@ -61,7 +62,7 @@ export default function ForgotPasswordPage() {
       setStep("reset");
       setCooldown(60);
     } catch {
-      setError("网络错误，请重试");
+      setError(t("networkError"));
     } finally {
       setLoading(false);
     }
@@ -75,7 +76,7 @@ export default function ForgotPasswordPage() {
       const ok = await sendCode(email);
       if (ok) setCooldown(60);
     } catch {
-      setError("网络错误，请重试");
+      setError(t("networkError"));
     } finally {
       setResending(false);
     }
@@ -90,15 +91,15 @@ export default function ForgotPasswordPage() {
     const confirmPassword = formData.get("confirmPassword") as string;
 
     if (code.length !== 6) {
-      setError("请输入 6 位邮箱验证码");
+      setError(t("codeRequired"));
       return;
     }
     if (newPassword.length < PASSWORD_MIN_LENGTH) {
-      setError(`新密码至少 ${PASSWORD_MIN_LENGTH} 位`);
+      setError(t("passwordTooShort", { min: PASSWORD_MIN_LENGTH }));
       return;
     }
     if (newPassword !== confirmPassword) {
-      setError("两次输入的新密码不一致");
+      setError(t("passwordMismatch"));
       return;
     }
 
@@ -111,15 +112,14 @@ export default function ForgotPasswordPage() {
       });
 
       if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        setError(data?.error || "重置失败，请重试");
+        setError(t("resetFailed"));
         setLoading(false);
         return;
       }
 
       setSuccess(true);
     } catch {
-      setError("网络错误，请重试");
+      setError(t("networkError"));
       setLoading(false);
     }
   }
@@ -127,15 +127,15 @@ export default function ForgotPasswordPage() {
   if (success) {
     return (
       <AuthFrame
-        eyebrow="Password reset"
-        title="Password updated"
+        eyebrow={t("eyebrow")}
+        title={t("successTitle")}
         footer={
           <p>
-            <Link href="/login">Back to login</Link>
+            <Link href="/login">{t("backToLogin")}</Link>
           </p>
         }
       >
-        <p className="mewmo-auth-info">密码已重置，请用新密码登录。</p>
+        <p className="mewmo-auth-info">{t("successMessage")}</p>
       </AuthFrame>
     );
   }
@@ -143,20 +143,20 @@ export default function ForgotPasswordPage() {
   if (step === "reset") {
     return (
       <AuthFrame
-        eyebrow="Password reset"
-        title="Enter code and new password"
+        eyebrow={t("eyebrow")}
+        title={t("resetTitle")}
         footer={
           <p>
-            <Link href="/login">Back to login</Link>
+            <Link href="/login">{t("backToLogin")}</Link>
           </p>
         }
       >
         <p className="mewmo-auth-info">
-          如果 <strong>{email}</strong> 已注册，验证码已发送。请查收邮件中的 6 位验证码。
+          {t.rich("codeSent", { email: () => <strong>{email}</strong> })}
         </p>
         <form onSubmit={handleReset} className="mewmo-auth-form">
           <div className="mewmo-auth-field">
-            <label>验证码</label>
+            <label>{t("code")}</label>
             <div className="mewmo-auth-code-row">
               <input
                 name="code"
@@ -165,7 +165,7 @@ export default function ForgotPasswordPage() {
                 maxLength={6}
                 value={code}
                 onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-                placeholder="6 位邮箱验证码"
+                placeholder={t("codePlaceholder")}
                 required
               />
               <button
@@ -174,35 +174,39 @@ export default function ForgotPasswordPage() {
                 disabled={resending || cooldown > 0}
                 className="mewmo-auth-code-btn"
               >
-                {cooldown > 0 ? `${cooldown}s 后重发` : resending ? "发送中..." : "重新发送"}
+                {cooldown > 0
+                  ? t("cooldown", { seconds: cooldown })
+                  : resending
+                    ? t("sending")
+                    : t("resend")}
               </button>
             </div>
           </div>
 
           <div className="mewmo-auth-field">
-            <label>New password</label>
+            <label>{t("newPassword")}</label>
             <PasswordField
               name="newPassword"
               required
               minLength={PASSWORD_MIN_LENGTH}
-              placeholder={`至少 ${PASSWORD_MIN_LENGTH} 位`}
+              placeholder={t("passwordMin", { min: PASSWORD_MIN_LENGTH })}
             />
           </div>
 
           <div className="mewmo-auth-field">
-            <label>Confirm password</label>
+            <label>{t("confirmPassword")}</label>
             <PasswordField
               name="confirmPassword"
               required
               minLength={PASSWORD_MIN_LENGTH}
-              placeholder="再次输入新密码"
+              placeholder={t("confirmPasswordPlaceholder")}
             />
           </div>
 
           {error && <p className="mewmo-auth-error">{error}</p>}
 
           <button type="submit" disabled={loading} className="mewmo-auth-primary">
-            {loading ? "Resetting..." : "Reset password"}
+            {loading ? t("resetting") : t("reset")}
           </button>
         </form>
 
@@ -216,7 +220,7 @@ export default function ForgotPasswordPage() {
               setError("");
             }}
           >
-            换个邮箱
+            {t("changeEmail")}
           </button>
         </div>
       </AuthFrame>
@@ -225,25 +229,25 @@ export default function ForgotPasswordPage() {
 
   return (
     <AuthFrame
-      eyebrow="Password reset"
-      title="Reset your password"
+      eyebrow={t("eyebrow")}
+      title={t("requestTitle")}
       footer={
         <p>
-          Remembered it?{" "}
-          <Link href="/login">Back to login</Link>
+          {t("rememberedPassword")} {" "}
+          <Link href="/login">{t("backToLogin")}</Link>
         </p>
       }
     >
       <form onSubmit={handleRequestCode} className="mewmo-auth-form">
         <div className="mewmo-auth-field">
-          <label>Email</label>
+          <label>{t("email")}</label>
           <input name="email" type="email" required placeholder="you@example.com" />
         </div>
 
         {error && <p className="mewmo-auth-error">{error}</p>}
 
         <button type="submit" disabled={loading} className="mewmo-auth-primary">
-          {loading ? "Sending..." : "发送验证码"}
+          {loading ? t("sending") : t("sendCode")}
         </button>
       </form>
     </AuthFrame>

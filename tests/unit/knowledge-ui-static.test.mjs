@@ -28,8 +28,8 @@ test("knowledge base UI is wired as a real prototype drawer, not a deferred plac
   assert.match(sidebar, /mewmo-knowledge-pane/, "sidebar should render the KB push drawer");
   assert.match(sidebar, /mewmo-sidebar__stage--knowledge/, "knowledge drawer should use its own stage mode");
   assert.match(sidebar, /openKnowledgeBase/, "sidebar should open a KB drawer from a KB row");
-  assert.match(sidebar, /新建文件夹/, "root and folder menus should include prototype folder action");
-  assert.match(sidebar, /从收藏箱导入/, "folder menus should include inbox import action");
+  assert.match(sidebar, /t\("newFolder"\)/, "root and folder menus should include the translated prototype folder action");
+  assert.match(sidebar, /t\("importFromInbox"\)/, "folder menus should include the translated inbox import action");
   assert.match(
     sidebar,
     /const \[editingKnowledgeFolder, setEditingKnowledgeFolder\]/,
@@ -54,7 +54,7 @@ test("knowledge base UI is wired as a real prototype drawer, not a deferred plac
   const rootMenuEnd = sidebar.indexOf("</FloatingMenu>", rootMenuStart);
   const rootMenu = sidebar.slice(rootMenuStart, rootMenuEnd);
   assert.ok(rootMenuStart > -1 && rootMenuEnd > rootMenuStart, "knowledge root menu should be present");
-  assert.doesNotMatch(rootMenu, /从收藏箱导入|icon="bookmark"/, "knowledge root menu should not import files because the root only contains folders");
+  assert.doesNotMatch(rootMenu, /importFromInbox|icon="bookmark"/, "knowledge root menu should not import files because the root only contains folders");
   assert.doesNotMatch(
     sidebar,
     /type: "create-knowledge-folder"|type: "rename-knowledge-folder"/,
@@ -105,8 +105,8 @@ test("knowledge base UI is wired as a real prototype drawer, not a deferred plac
     /const PROTOTYPE_FILL_ICONS = \{[\s\S]*"folder": "<svg[\s\S]*fill=\\"currentColor\\"/,
     "folder filled icon should remain solid for the selected state",
   );
-  assert.match(sidebar, /从本地导入/, "knowledge menus should expose the merged local import action");
-  assert.match(sidebar, /导出到本地/, "root and folder menus should include local export action");
+  assert.match(sidebar, /t\("importLocal"\)/, "knowledge menus should expose the merged translated local import action");
+  assert.match(sidebar, /t\("exportLocal"\)/, "root and folder menus should include the translated local export action");
 
   assert.match(page, /buildKnowledgeCardView/, "knowledge page should render mixed content through the mapping helper");
   assert.match(page, /ReaderToc/, "knowledge reader should reuse the shared reader table of contents");

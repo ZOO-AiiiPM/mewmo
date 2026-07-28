@@ -6143,6 +6143,84 @@ html.light .acct-submenu {
   color: #111214;
 }
 
+/* ── Locale Switcher (文/A icon) ── */
+.mewmo-locale-switcher {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 9px;
+  background: transparent;
+  cursor: pointer;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.mewmo-locale-switcher:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.25);
+  transform: scale(1.08);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.05);
+}
+
+.mewmo-locale-switcher:active {
+  transform: scale(0.94);
+}
+
+.mewmo-locale-switcher:disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.mewmo-locale-switcher__icon {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ink-soft);
+  transition: color 0.18s ease;
+}
+
+.mewmo-locale-switcher:hover .mewmo-locale-switcher__icon {
+  color: var(--ink);
+}
+
+.mewmo-locale-switcher__zh,
+.mewmo-locale-switcher__en {
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.mewmo-locale-switcher__divider {
+  opacity: 0.4;
+  font-size: 10px;
+  margin: 0 0.5px;
+}
+
+.mewmo-locale-switcher__indicator {
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  width: 10px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--ink-soft);
+  transform: translateX(-50%);
+  transition: background 0.18s ease, width 0.18s ease;
+}
+
+.mewmo-locale-switcher:hover .mewmo-locale-switcher__indicator {
+  width: 14px;
+  background: var(--ink);
+}
+
 .mewmo-marketing-hero {
   display: grid;
   width: min(1180px, calc(100% - 40px));

@@ -3,7 +3,9 @@ packages:
   - "packages/*"
 allowBuilds:
   '@google/genai': false
+  '@parcel/watcher': false
   '@prisma/engines': true
+  '@swc/core': false
   esbuild: true
   msgpackr-extract: true
   prisma: true

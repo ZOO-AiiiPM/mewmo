@@ -35,6 +35,7 @@ const env = {
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID ?? "integration-google-client",
   GOOGLE_CLIENT_SECRET:
     process.env.GOOGLE_CLIENT_SECRET ?? "integration-google-secret",
+  AI_PROVIDER: "openai",
   OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? "integration-openai-key",
   OPENAI_BASE_URL: process.env.OPENAI_BASE_URL ?? `${fixtureOrigin}/v1`,
   AI_SUMMARY_MODEL: process.env.AI_SUMMARY_MODEL ?? "integration-summary-model",

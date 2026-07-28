@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 
 interface AuthFrameProps {
@@ -9,20 +10,19 @@ interface AuthFrameProps {
 }
 
 export function AuthFrame({ title, eyebrow, children, footer }: AuthFrameProps) {
+  const t = useTranslations("auth.frame");
+
   return (
     <main className="mewmo-auth-page">
-      <section className="mewmo-auth-visual" aria-label="Mewmo preview">
-        <Link href="/" className="mewmo-auth-brand" aria-label="mewmo home">
+      <section className="mewmo-auth-visual" aria-label={t("previewAriaLabel")}>
+        <Link href="/" className="mewmo-auth-brand" aria-label={t("homeAriaLabel")}>
           <span className="mewmo-auth-brand-mark">m</span>
           <span>mewmo</span>
         </Link>
         <div className="mewmo-auth-copy">
-          <p className="mewmo-auth-kicker">Private knowledge workspace</p>
-          <h1>Keep the useful parts of the internet close.</h1>
-          <p>
-            Collect notes, clipped pages, and feeds into one quiet workspace,
-            then let AI resurface the context when you need it.
-          </p>
+          <p className="mewmo-auth-kicker">{t("kicker")}</p>
+          <h1>{t("title")}</h1>
+          <p>{t("description")}</p>
         </div>
         <div className="mewmo-auth-preview" aria-hidden="true">
           <img src="/mewmo-workspace-preview.png" alt="" />

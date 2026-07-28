@@ -1,31 +1,35 @@
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { MewmoLogo } from "../../components/shell/PrototypeIcon";
+import { LocaleSwitcher } from "../../components/LocaleSwitcher";
 
-const scenarios = [
-  {
-    step: "Collect",
-    title: "Save without sorting.",
-    body: "Clip a page, write a raw note, or subscribe to a feed. mewmo keeps the intake light so useful material does not disappear while you are still thinking.",
-    meta: "Clips / RSS / notes",
-    signal: "3 new items held for Today",
-  },
-  {
-    step: "Read",
-    title: "Read what is already waiting.",
-    body: "The first screen is not an empty dashboard. Today brings notes, saved pages, and fresh articles into one calm queue so you can reopen context immediately.",
-    meta: "Today / reader / search",
-    signal: "Recent work stays warm",
-  },
-  {
-    step: "Rediscover",
-    title: "Rediscover the thread.",
-    body: "The AI sidebar works beside the content, not above it. Ask about the open note, pull related clips forward, and turn old fragments into current context.",
-    meta: "AI sidebar / tags / summaries",
-    signal: "2 related memories found",
-  },
-];
+export default async function LandingPage() {
+  const t = await getTranslations("marketing");
 
-export default function LandingPage() {
+  const scenarios = [
+    {
+      step: t("scenarios.collect.step"),
+      title: t("scenarios.collect.title"),
+      body: t("scenarios.collect.body"),
+      meta: t("scenarios.collect.meta"),
+      signal: t("scenarios.collect.signal"),
+    },
+    {
+      step: t("scenarios.read.step"),
+      title: t("scenarios.read.title"),
+      body: t("scenarios.read.body"),
+      meta: t("scenarios.read.meta"),
+      signal: t("scenarios.read.signal"),
+    },
+    {
+      step: t("scenarios.rediscover.step"),
+      title: t("scenarios.rediscover.title"),
+      body: t("scenarios.rediscover.body"),
+      meta: t("scenarios.rediscover.meta"),
+      signal: t("scenarios.rediscover.signal"),
+    },
+  ];
+
   return (
     <div className="mewmo-marketing-page">
       <header className="mewmo-marketing-nav">
@@ -34,9 +38,10 @@ export default function LandingPage() {
           <span>mewmo</span>
         </Link>
         <nav aria-label="Primary" className="mewmo-marketing-links">
-          <Link href="/login">Log in</Link>
+          <LocaleSwitcher className="mewmo-marketing-locale" />
+          <Link href="/login">{t("nav.login")}</Link>
           <Link href="/register" className="mewmo-marketing-nav-cta">
-            Get started
+            {t("nav.getStarted")}
           </Link>
         </nav>
       </header>
@@ -44,24 +49,21 @@ export default function LandingPage() {
       <main>
         <section className="mewmo-marketing-hero">
           <div className="mewmo-hero-copy">
-            <p className="mewmo-kicker">AI information manager</p>
-            <h1>Everything worth remembering, already waiting for you.</h1>
-            <p className="mewmo-hero-lede">
-              mewmo collects notes, clips, feeds, and AI conversations into one fast workspace
-              so your next idea starts with the context you already saved.
-            </p>
+            <p className="mewmo-kicker">{t("hero.kicker")}</p>
+            <h1>{t("hero.title")}</h1>
+            <p className="mewmo-hero-lede">{t("hero.lede")}</p>
             <div className="mewmo-hero-actions">
               <Link href="/register" className="mewmo-primary-cta">
-                Start for free
+                {t("hero.startFree")}
               </Link>
               <Link href="/login" className="mewmo-secondary-cta">
-                Open workspace
+                {t("hero.openWorkspace")}
               </Link>
             </div>
             <div className="mewmo-hero-proof" aria-label="Product promises">
-              <span>Cloud-first</span>
-              <span>Fast open</span>
-              <span>AI in context</span>
+              <span>{t("hero.proofCloud")}</span>
+              <span>{t("hero.proofFast")}</span>
+              <span>{t("hero.proofAi")}</span>
             </div>
           </div>
 
@@ -70,8 +72,8 @@ export default function LandingPage() {
 
         <section className="mewmo-scenario-section" aria-labelledby="scenario-title">
           <div className="mewmo-section-heading">
-            <p className="mewmo-kicker">Product rhythm</p>
-            <h2 id="scenario-title">Save, read, and return to the ideas that still matter.</h2>
+            <p className="mewmo-kicker">{t("scenarios.kicker")}</p>
+            <h2 id="scenario-title">{t("scenarios.heading")}</h2>
           </div>
           <div className="mewmo-scenario-list">
             {scenarios.map((item) => (
@@ -93,7 +95,7 @@ export default function LandingPage() {
 
       <footer className="mewmo-marketing-footer">
         <span>mewmo</span>
-        <span>Built for people who read, save, and think across sources.</span>
+        <span>{t("footer.tagline")}</span>
       </footer>
     </div>
   );
