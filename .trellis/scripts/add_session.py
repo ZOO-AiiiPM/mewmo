@@ -43,6 +43,8 @@ from common.developer import ensure_developer
 from common.git import run_git
 from common.log import Colors, colored
 from common.safe_commit import (
+    branch_allows_auto_commit,
+    print_branch_guard_warning,
     print_gitignore_warning,
     safe_git_add,
     safe_trellis_paths_to_add,
@@ -453,6 +455,12 @@ def _auto_commit_workspace(repo_root: Path) -> None:
             "[OK] session_auto_commit: false — skipping git stage/commit.",
             file=sys.stderr,
         )
+        return
+
+    # ZOO-79 branch guard: never let the session commit ride a feature branch.
+    allowed, branch = branch_allows_auto_commit(repo_root)
+    if not allowed:
+        print_branch_guard_warning(branch, repo_root)
         return
 
     commit_msg = get_session_commit_message(repo_root)

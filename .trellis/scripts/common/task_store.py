@@ -45,6 +45,8 @@ from .paths import (
     get_tasks_dir,
 )
 from .safe_commit import (
+    branch_allows_auto_commit,
+    print_branch_guard_warning,
     print_gitignore_warning,
     safe_archive_paths_to_add,
     safe_git_add,
@@ -653,6 +655,14 @@ def _auto_commit_archive(
             "[OK] session_auto_commit: false — skipping git stage/commit.",
             file=sys.stderr,
         )
+        return True
+
+    # ZOO-79 branch guard: never let the archive commit ride a feature
+    # branch. The on-disk archive move already happened; like the
+    # session_auto_commit:false path, the user commits manually.
+    allowed, branch = branch_allows_auto_commit(repo_root)
+    if not allowed:
+        print_branch_guard_warning(branch, repo_root)
         return True
 
     source_rel = f"{DIR_WORKFLOW}/{DIR_TASKS}/{task_name}"

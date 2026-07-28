@@ -168,6 +168,7 @@ def _next_content_line(lines: list[str], start: int) -> tuple[int, str]:
 DEFAULT_SESSION_COMMIT_MESSAGE = "chore: record journal"
 DEFAULT_MAX_JOURNAL_LINES = 2000
 DEFAULT_SESSION_AUTO_COMMIT = True
+DEFAULT_AUTO_COMMIT_BRANCHES = ["main"]
 DEFAULT_CODEX_DISPATCH_MODE = "auto"
 
 CONFIG_FILE = "config.yaml"
@@ -243,6 +244,33 @@ def get_session_auto_commit(repo_root: Path | None = None) -> bool:
         file=sys.stderr,
     )
     return DEFAULT_SESSION_AUTO_COMMIT
+
+
+def get_auto_commit_branches(repo_root: Path | None = None) -> list[str]:
+    """Branches on which session/task auto-commit is allowed (ZOO-79 guard).
+
+    Trellis auto-commits (``add_session.py``, ``task.py archive``) must not
+    ride feature branches: a doc commit created on someone's WIP branch gets
+    held hostage by that branch's PR cycle. Default allowlist: ``["main"]``.
+
+    Configure in ``.trellis/config.yaml`` either as a YAML list::
+
+        auto_commit_branches:
+          - main
+          - develop
+
+    or as a comma-separated string (``auto_commit_branches: main, develop``).
+    Empty/invalid values fall back to the default.
+    """
+    config = _load_config(repo_root)
+    raw = config.get("auto_commit_branches")
+    if raw is None:
+        return list(DEFAULT_AUTO_COMMIT_BRANCHES)
+    if isinstance(raw, list):
+        branches = [str(b).strip() for b in raw if str(b).strip()]
+    else:
+        branches = [b.strip() for b in str(raw).split(",") if b.strip()]
+    return branches or list(DEFAULT_AUTO_COMMIT_BRANCHES)
 
 
 def get_codex_dispatch_mode(repo_root: Path | None = None) -> str:

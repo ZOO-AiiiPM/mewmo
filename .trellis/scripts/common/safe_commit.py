@@ -35,6 +35,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+from .config import get_auto_commit_branches
 from .git import run_git
 from .paths import (
     DIR_ARCHIVE,
@@ -56,6 +57,52 @@ TRELLIS_IGNORED_SUBPATHS = (
     ".trellis/.runtime/",
     ".trellis/.cache/",
 )
+
+
+def branch_allows_auto_commit(repo_root: Path) -> tuple[bool, str]:
+    """Branch guard for Trellis auto-commits (ZOO-79).
+
+    Real incident: with the main workspace parked on a feature branch,
+    ``task.py archive`` auto-committed doc changes INTO that branch's WIP —
+    the docs were then held hostage by the feature PR and had to be rescued
+    by hand. Auto-commit is therefore only allowed on branches listed in
+    ``auto_commit_branches`` (default ``["main"]``).
+
+    Returns ``(allowed, branch_name)``. Detached HEAD yields an empty branch
+    name, which is never in the allowlist — blocked (safe default).
+    """
+    rc, out, _ = run_git(["branch", "--show-current"], cwd=repo_root)
+    branch = out.strip() if rc == 0 else ""
+    return branch in get_auto_commit_branches(repo_root), branch
+
+
+def print_branch_guard_warning(branch: str, repo_root: Path | None = None) -> None:
+    """Explain why the auto-commit was blocked and what to do instead."""
+    allowed = get_auto_commit_branches(repo_root)
+    shown = branch if branch else "(detached HEAD)"
+    print(
+        f"[WARN] Auto-commit blocked: current branch {shown!r} is not in "
+        f"auto_commit_branches {allowed!r}.",
+        file=sys.stderr,
+    )
+    print(
+        "[WARN] Trellis doc commits must not ride feature branches (ZOO-79).",
+        file=sys.stderr,
+    )
+    print(
+        "[WARN] Files were still written to disk; git was not touched.",
+        file=sys.stderr,
+    )
+    print(
+        "[WARN] Options: switch this workspace back to an allowed branch, "
+        "commit the files manually,",
+        file=sys.stderr,
+    )
+    print(
+        "[WARN] or add this branch to auto_commit_branches in "
+        ".trellis/config.yaml.",
+        file=sys.stderr,
+    )
 
 
 def safe_trellis_paths_to_add(
