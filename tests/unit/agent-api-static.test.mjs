@@ -71,12 +71,13 @@ test("chat lifecycle commands validate input and preserve ownership boundaries",
 });
 
 test("chat lifecycle controls lock while an Agent turn is streaming", () => {
-  const sidebar = read("apps/web/src/components/agent/AgentSidebar.tsx");
+  const sidebar = read("apps/web/src/components/shell/AISidebar.tsx");
+  const chatsHook = read("apps/web/src/lib/agent/use-agent-chats.ts");
   const switcher = read("apps/web/src/components/agent/ChatSwitcher.tsx");
 
-  assert.match(sidebar, /locked=\{store\.status === "sending"\}/);
-  assert.match(sidebar, /请等待当前回复完成后再清空会话/);
-  assert.match(sidebar, /请等待当前回复完成后再删除会话/);
+  assert.match(sidebar, /locked=\{agentChats\.store\.status === "sending"\}/);
+  assert.match(chatsHook, /请等待当前回复完成后再清空会话/);
+  assert.match(chatsHook, /请等待当前回复完成后再删除会话/);
   assert.match(switcher, /const busy = locked \|\| pendingChatId !== null/);
   assert.match(switcher, /disabled=\{loading \|\| busy\}/);
   assert.match(switcher, /disabled=\{busy\}/);

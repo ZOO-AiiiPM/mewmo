@@ -88,7 +88,7 @@ export function ChatSwitcher({
         }}
         aria-expanded={expanded}
         aria-label="历史会话"
-        disabled={loading}
+        disabled={loading || busy}
       >
         <PrototypeIcon name="history" size={17} />
       </button>
