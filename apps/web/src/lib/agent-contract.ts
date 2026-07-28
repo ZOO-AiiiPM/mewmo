@@ -84,6 +84,29 @@ export interface AgentActionProposal {
   error?: { code: string; message: string; retryable: boolean };
 }
 
+export const agentActionProposalSchema = z.object({
+  id: z.string().min(1),
+  toolName: z.string().min(1),
+  status: z.enum(["proposed", "confirmed", "executing", "succeeded", "failed", "cancelled"]),
+  riskLevel: z.enum(["low", "medium", "high"]),
+  executionMode: z.enum(["server", "client"]),
+  preview: z.object({
+    title: z.string().optional(),
+    summary: z.string().optional(),
+    diff: z.string().optional(),
+    targets: z.array(z.object({ type: z.string(), id: z.string(), title: z.string().optional() })).optional(),
+  }),
+  result: z.unknown().optional(),
+  clientEffect: z.object({
+    kind: z.literal("note_draft_patch"),
+    noteId: z.string().min(1),
+    baseVersion: z.number().int().nonnegative(),
+    title: z.string().optional(),
+    content: z.string().optional(),
+  }).optional(),
+  error: z.object({ code: z.string(), message: z.string(), retryable: z.boolean() }).optional(),
+});
+
 export interface AgentMessageResponse {
   userMessage: Pick<AgentChatMessage, "content"> & Partial<AgentChatMessage> & { clientRequestId?: string };
   assistantMessage: Pick<AgentChatMessage, "content"> & Partial<AgentChatMessage>;

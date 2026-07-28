@@ -203,8 +203,7 @@ describe("repositories", () => {
           include: { attachments: true },
         },
         turns: {
-          where: { status: "succeeded" },
-          select: { assistantEntryId: true, output: true },
+          select: { id: true, userEntryId: true, assistantEntryId: true, status: true, errorMessage: true, output: true },
         },
         messages: {
           where: { deletedAt: null },
@@ -266,10 +265,10 @@ describe("repositories", () => {
         payload: { message: { role: "assistant", content: [{ type: "text", text: "Pi answer" }] } },
         attachments: [],
       }],
-      turns: [{ assistantEntryId: "entry-1", output: { response: { proposals: [{ id: "action-1" }] } } }],
+      turns: [{ id: "turn-1", status: "succeeded", assistantEntryId: "entry-1", output: { response: { proposals: [{ id: "action-1" }] } } }],
     });
     const chat = await createAiChatsRepository({ aiChat: { findFirst } }).findById("user-1", "chat-1") as { messages: Array<{ id: string; content: string; metadata: unknown }> };
-    expect(chat.messages).toEqual([{ id: "entry-1", role: "assistant", content: "Pi answer", status: "completed", createdAt: new Date("2026-07-22T00:00:00.000Z"), metadata: { proposals: [{ id: "action-1" }] }, contextAttachments: [] }]);
+    expect(chat.messages).toEqual([{ id: "entry-1", turnId: "turn-1", role: "assistant", content: "Pi answer", status: "completed", createdAt: new Date("2026-07-22T00:00:00.000Z"), metadata: { proposals: [{ id: "action-1" }] }, contextAttachments: [] }]);
   });
 
   it("normalizes legacy context envelopes and hides tool-only assistant entries", async () => {
