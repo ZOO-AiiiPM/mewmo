@@ -62,6 +62,8 @@ export type PrototypeIconName =
   | "monitor"
   | "moon"
   | "sun"
+  | "history"
+  | "paperclip"
   | "import";
 
 interface PrototypeIconProps {
@@ -110,6 +112,11 @@ const PROTOTYPE_LINE_ICONS = {
   "copy": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><path fill=\"currentColor\" d=\"M19.739 4.261a6.867 6.867 0 0 0-9.711 0l-.72.721a.75.75 0 0 0 1.06 1.06l.72-.72a5.367 5.367 0 1 1 7.59 7.59l-.72.72a.75.75 0 0 0 1.06 1.06l.72-.72a6.867 6.867 0 0 0 0-9.71M6.043 9.307a.75.75 0 0 1 0 1.06l-.721.722a5.367 5.367 0 1 0 7.59 7.59l.72-.722a.75.75 0 0 1 1.06 1.06l-.72.722a6.867 6.867 0 0 1-9.71-9.711l.72-.72a.75.75 0 0 1 1.06 0\"/><path fill=\"currentColor\" d=\"M14.693 9.307a.75.75 0 0 1 0 1.06l-4.325 4.326a.75.75 0 1 1-1.06-1.06l4.324-4.326a.75.75 0 0 1 1.06 0\"/></svg>",
   "empty": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100%\" height=\"100%\" viewBox=\"0 0 24 24\" fill=\"currentColor\"><path fill=\"currentColor\" fill-rule=\"evenodd\" d=\"M11.943 1.25h.114c2.309 0 4.118 0 5.53.19c1.444.194 2.584.6 3.479 1.494c.895.895 1.3 2.035 1.494 3.48c.19 1.411.19 3.22.19 5.529v1.087c-.004 1.852-.027 3.35-.19 4.556c-.194 1.445-.6 2.585-1.494 3.48c-.895.895-2.035 1.3-3.48 1.494c-1.411.19-3.22.19-5.529.19h-.114c-2.309 0-4.118 0-5.53-.19c-1.444-.194-2.584-.6-3.479-1.494c-.895-.895-1.3-2.035-1.494-3.48c-.163-1.207-.186-2.704-.19-4.556v-1.087c0-2.309 0-4.118.19-5.53c.194-1.444.6-2.584 1.494-3.479c.895-.895 2.035-1.3 3.48-1.494c1.411-.19 3.22-.19 5.529-.19m-9.19 12.5c.01 1.503.045 2.68.173 3.636c.172 1.279.5 2.05 1.069 2.62c.57.569 1.34.896 2.619 1.068c1.3.174 3.008.176 5.386.176s4.086-.002 5.386-.176c1.279-.172 2.05-.5 2.62-1.069c.569-.57.896-1.34 1.068-2.619c.128-.956.163-2.133.172-3.636H18.84c-.974 0-1.229.016-1.442.114c-.214.099-.392.282-1.026 1.02l-.605.707l-.088.102c-.502.587-.9 1.052-1.45 1.305s-1.162.253-1.934.252h-.589c-.773 0-1.385.002-1.935-.252c-.55-.253-.948-.718-1.45-1.305l-.088-.102l-.605-.706c-.634-.74-.812-.922-1.026-1.02c-.213-.099-.468-.115-1.442-.115zm18.497-1.5h-2.544c-.773 0-1.385-.002-1.935.252c-.55.253-.948.718-1.45 1.305l-.088.102l-.605.706c-.634.74-.812.922-1.026 1.02c-.213.099-.468.115-1.442.115h-.32c-.974 0-1.229-.016-1.442-.114c-.214-.099-.392-.282-1.026-1.02l-.605-.707l-.088-.102c-.502-.587-.9-1.052-1.45-1.305c-.55-.254-1.162-.253-1.934-.252H2.75V12c0-2.378.002-4.086.176-5.386c.172-1.279.5-2.05 1.069-2.62c.57-.569 1.34-.896 2.619-1.068c1.3-.174 3.008-.176 5.386-.176s4.086.002 5.386.176c1.279.172 2.05.5 2.62 1.069c.569.57.896 1.34 1.068 2.619c.174 1.3.176 3.008.176 5.386z\" clip-rule=\"evenodd\"/></svg>",
   "send": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100%\" height=\"100%\" viewBox=\"0 0 24 24\" fill=\"currentColor\"><path fill=\"currentColor\" d=\"m18.636 15.67l1.716-5.15c1.5-4.498 2.25-6.747 1.062-7.934s-3.436-.438-7.935 1.062L8.33 5.364C4.7 6.574 2.885 7.18 2.37 8.067a2.72 2.72 0 0 0 0 2.73c.515.888 2.33 1.493 5.96 2.704c.45.15.957.042 1.294-.291l5.506-5.455a.79.79 0 1 1 1.11 1.122l-5.416 5.366a1.4 1.4 0 0 0-.324 1.427c1.21 3.63 1.816 5.446 2.703 5.962a2.72 2.72 0 0 0 2.731 0c.887-.516 1.492-2.331 2.703-5.962\"/></svg>"
+} as const satisfies Partial<Record<PrototypeIconName, string>>;
+
+const PROTOTYPE_EXTRA_LINE_ICONS = {
+  "history": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100%\" height=\"100%\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 3v5h5\"/><path d=\"M3.05 13A9 9 0 1 0 6 5.3L3 8\"/><path d=\"M12 7v5l4 2\"/></svg>",
+  "paperclip": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100%\" height=\"100%\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48\"/></svg>"
 } as const satisfies Partial<Record<PrototypeIconName, string>>;
 
 const PROTOTYPE_FILL_ICONS = {
@@ -256,6 +263,7 @@ function getPrototypeSvg(name: PrototypeIconName, filled: boolean, idSuffix: str
           PROTOTYPE_ACCOUNT_ICONS[name as keyof typeof PROTOTYPE_ACCOUNT_ICONS] ??
           PROTOTYPE_ACTION_ICONS[name as keyof typeof PROTOTYPE_ACTION_ICONS] ??
           PROTOTYPE_LINE_ICONS[name as keyof typeof PROTOTYPE_LINE_ICONS] ??
+          PROTOTYPE_EXTRA_LINE_ICONS[name as keyof typeof PROTOTYPE_EXTRA_LINE_ICONS] ??
           "";
     return uniquifyPrototypeSvgIds(svg, idSuffix);
   }
@@ -263,6 +271,7 @@ function getPrototypeSvg(name: PrototypeIconName, filled: boolean, idSuffix: str
   const svg =
     PROTOTYPE_CHROME_ICONS[name as keyof typeof PROTOTYPE_CHROME_ICONS] ??
     PROTOTYPE_LINE_ICONS[name as keyof typeof PROTOTYPE_LINE_ICONS] ??
+    PROTOTYPE_EXTRA_LINE_ICONS[name as keyof typeof PROTOTYPE_EXTRA_LINE_ICONS] ??
     PROTOTYPE_ACCOUNT_ICONS[name as keyof typeof PROTOTYPE_ACCOUNT_ICONS] ??
     PROTOTYPE_ACTION_ICONS[name as keyof typeof PROTOTYPE_ACTION_ICONS] ??
     "";
