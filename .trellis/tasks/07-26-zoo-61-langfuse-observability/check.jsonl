@@ -1,1 +1,3 @@
-{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file":".trellis/spec/agent/backend/index.md","reason":"Agent quality contract"}
+{"file":".trellis/spec/ai-workflows/backend/index.md","reason":"Workflow quality contract"}
+{"file":".trellis/tasks/07-26-zoo-61-langfuse-observability/research/langfuse-prompt-sync.md","reason":"API and idempotency verification"}

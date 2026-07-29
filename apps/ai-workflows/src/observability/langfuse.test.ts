@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { ClaimedAiRun } from "../contracts";
-import { createConfiguredWorkflowObservability, createLangfuseWorkflowObservability, privateWorkflowUserId } from "./langfuse";
+import { createConfiguredWorkflowObservability, createLangfuseWorkflowObservability, privateWorkflowUserId, redactWorkflowTraceData } from "./langfuse";
 
 const run: ClaimedAiRun = {
   id: "run-1",
@@ -52,19 +52,23 @@ function setup() {
 }
 
 describe("Workflow Langfuse observability", () => {
-  it("records a private run tree with model usage and no source payload", async () => {
+  it("records complete run/model payloads and managed prompt links", async () => {
     const fixture = setup();
     const observability = createLangfuseWorkflowObservability(config, fixture.dependencies as never);
 
-    const status = await observability.observeRun(run, async () => {
+    const status = await observability.observeRun(run, async (root) => {
+      root.input({ content: "source content" });
       const value = await observability.observeModelCall(
         {
           name: "workflow.generation.summary",
           purpose: "workflow.summary",
           type: "generation",
+          input: { system: "system prompt", user: "source content" },
+          prompt: { name: "workflow/article-summary.zh", version: 7, isFallback: false },
         },
         async () => ({
           value: "not-exported",
+          output: "generated summary",
           metadata: {
             profile: "workflow.summary",
             provider: "google",
@@ -82,6 +86,7 @@ describe("Workflow Langfuse observability", () => {
           },
         }),
       );
+      root.output({ summary: value });
       expect(value).toBe("not-exported");
       return "succeeded";
     });
@@ -100,6 +105,7 @@ describe("Workflow Langfuse observability", () => {
       }),
     });
     expect(fixture.modelUpdates.at(-1)).toMatchObject({
+      output: "generated summary",
       model: "response-model",
       usageDetails: {
         input: 10,
@@ -118,9 +124,11 @@ describe("Workflow Langfuse observability", () => {
       modelUpdates: fixture.modelUpdates,
     });
     expect(exported).not.toContain(run.userId);
-    expect(exported).not.toContain("not-exported");
-    expect(exported).not.toContain("prompt");
-    expect(exported).not.toContain("content");
+    expect(exported).toContain("source content");
+    expect(exported).toContain("generated summary");
+    expect(fixture.dependencies.startModel).toHaveBeenCalledWith(expect.objectContaining({
+      prompt: { name: "workflow/article-summary.zh", version: 7, isFallback: false },
+    }));
   });
 
   it("executes business work once when trace creation fails", async () => {
@@ -133,6 +141,28 @@ describe("Workflow Langfuse observability", () => {
     await expect(observability.observeRun(run, operation)).resolves.toBe("succeeded");
     expect(operation).toHaveBeenCalledOnce();
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("without tracing"));
+  });
+
+  it("masks credentials inside serialized payloads without hiding business content", () => {
+    const serialized = JSON.stringify({
+      content: "source content",
+      nested: {
+        authorization: "Bearer workflow-secret",
+        apiKey: "credential-value",
+        outputTokens: 17,
+        owner: "person@example.com",
+      },
+    });
+
+    expect(JSON.parse(String(redactWorkflowTraceData(serialized)))).toEqual({
+      content: "source content",
+      nested: {
+        authorization: "[REDACTED]",
+        apiKey: "[REDACTED]",
+        outputTokens: 17,
+        owner: "person@example.com",
+      },
+    });
   });
 
   it("executes a model call once when its observation cannot start", async () => {

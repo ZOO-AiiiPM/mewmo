@@ -6,7 +6,7 @@ import { NodeSDK } from "@opentelemetry/sdk-node";
 import { z } from "zod";
 
 import type { ClaimedAiRun, ModelMetadata } from "../contracts";
-import { createNoopWorkflowObservability, type WorkflowModelObservationInput, type WorkflowObservabilityPort, type WorkflowRunStatus } from "./port";
+import { createNoopWorkflowObservability, type WorkflowModelObservationInput, type WorkflowObservabilityPort, type WorkflowRunObservation, type WorkflowRunStatus } from "./port";
 
 const optionalValue = <Schema extends z.ZodType>(schema: Schema) => z.preprocess(emptyAsUndefined, schema.optional());
 
@@ -112,7 +112,7 @@ export function createLangfuseWorkflowObservability(config: WorkflowLangfuseConf
             },
             async () => {
               try {
-                const value = await operation();
+                const value = await operation(createRunObservation(root, warn));
                 outcome = { ok: true, value };
                 safely(() => updateRun(root, run, value), warn);
               } catch (error) {
@@ -137,14 +137,14 @@ export function createLangfuseWorkflowObservability(config: WorkflowLangfuseConf
         }
         if (outcome && !outcome.ok) throw outcome.error;
         warn("Langfuse run initialization failed; Workflow execution continued without tracing.");
-        return operation();
+        return operation(noopRunObservation);
       }
       if (outcome?.ok) return outcome.value;
       if (outcome && !outcome.ok) throw outcome.error;
       warn("Langfuse observer skipped the Workflow operation; execution continued without tracing.");
-      return operation();
+      return operation(noopRunObservation);
     },
-    async observeModelCall<T>(input: WorkflowModelObservationInput, operation: () => Promise<{ value: T; metadata: ModelMetadata }>) {
+    async observeModelCall<T>(input: WorkflowModelObservationInput, operation: () => Promise<{ value: T; metadata: ModelMetadata; output?: unknown }>) {
       let observation: ModelObservation | undefined;
       try {
         observation = dependencies.startModel(input);
@@ -154,7 +154,7 @@ export function createLangfuseWorkflowObservability(config: WorkflowLangfuseConf
       }
       try {
         const result = await operation();
-        safely(() => updateModel(observation, input, result.metadata), warn);
+        safely(() => updateModel(observation, input, result.metadata, result.output), warn);
         return result.value;
       } catch (error) {
         safely(
@@ -204,7 +204,11 @@ function defaultDependencies(config: WorkflowLangfuseConfig): WorkflowLangfuseDe
       }),
     startRun: (operation) => startActiveObservation("workflow.run", operation, { asType: "chain" }),
     startModel: (input) => {
-      const attributes = { metadata: { purpose: input.purpose } };
+      const attributes = {
+        ...(input.input === undefined ? {} : { input: input.input }),
+        ...(input.prompt ? { prompt: input.prompt } : {}),
+        metadata: { purpose: input.purpose },
+      };
       if (input.type === "generation") {
         return modelObservation(startObservation(input.name, attributes, { asType: "generation" }));
       }
@@ -240,9 +244,10 @@ function updateRun(root: LangfuseChain, run: ClaimedAiRun, status: WorkflowRunSt
   });
 }
 
-function updateModel(observation: ModelObservation, input: WorkflowModelObservationInput, metadata: ModelMetadata) {
+function updateModel(observation: ModelObservation, input: WorkflowModelObservationInput, metadata: ModelMetadata, output: unknown) {
   const usage = metadata.usage;
   observation.update({
+    ...(output === undefined ? {} : { output }),
     ...(input.type === "retriever"
       ? {}
       : {
@@ -281,8 +286,8 @@ function modelObservation(observation: { update(input: never): unknown; end(): u
   };
 }
 
-function redactWorkflowTraceData(data: unknown): unknown {
-  if (typeof data === "string") return redactString(data);
+export function redactWorkflowTraceData(data: unknown): unknown {
+  if (typeof data === "string") return redactStructuredString(data);
   if (Array.isArray(data)) return data.map(redactWorkflowTraceData);
   if (!isRecord(data)) return data;
   return Object.fromEntries(Object.entries(data).map(([key, value]) => [key, sensitiveKey(key) ? "[REDACTED]" : redactWorkflowTraceData(value)]));
@@ -290,13 +295,42 @@ function redactWorkflowTraceData(data: unknown): unknown {
 
 function redactString(value: string) {
   return value
-    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/giu, "[REDACTED_EMAIL]")
     .replace(/\bBearer\s+[^\s,;]+/giu, "Bearer [REDACTED]")
     .replace(/\b(?:sk|pk)[-_][A-Za-z0-9_-]{8,}\b/gu, "[REDACTED_KEY]");
 }
 
+function redactStructuredString(value: string) {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (typeof parsed !== "object" || parsed === null) return redactString(value);
+    return JSON.stringify(redactWorkflowTraceData(parsed));
+  } catch {
+    return redactString(value);
+  }
+}
+
 function sensitiveKey(key: string) {
-  return /(?:authorization|cookie|secret|token|api.?key|password|prompt|content|context|draft|args?|result|input|output|email)/iu.test(key);
+  const normalized = key.replace(/[^a-z0-9]/giu, "").toLowerCase();
+  return normalized === "authorization"
+    || normalized === "proxyauthorization"
+    || normalized === "cookie"
+    || normalized === "setcookie"
+    || normalized.endsWith("apikey")
+    || normalized.endsWith("secret")
+    || normalized.endsWith("token")
+    || normalized.endsWith("password")
+    || normalized.endsWith("credential")
+    || normalized.endsWith("credentials")
+    || normalized.endsWith("privatekey");
+}
+
+const noopRunObservation: WorkflowRunObservation = { input() {}, output() {} };
+
+function createRunObservation(root: LangfuseChain, warn: ObservabilityWarning): WorkflowRunObservation {
+  return {
+    input: (value) => safely(() => root.update({ input: value }), warn),
+    output: (value) => safely(() => root.update({ output: value }), warn),
+  };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

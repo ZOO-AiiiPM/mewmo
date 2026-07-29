@@ -114,9 +114,10 @@ describe("Agent Runtime observability", () => {
           [...entries.values()].filter((entry) => !type || entry.type === type),
       },
     });
+    const completed = vi.fn();
     const observability: AgentObservabilityPort = {
       async observeTurn(_input, operation) {
-        const result = await operation(throwingObservation());
+        const result = await operation(throwingObservation(completed));
         throw new Error(`export failed after ${String(result)}`);
       },
       async shutdown() {},
@@ -148,6 +149,14 @@ describe("Agent Runtime observability", () => {
         ([input]) => input.usage?.operation === "agent.response",
       ),
     ).toBe(true);
+    expect(completed).toHaveBeenCalledWith(expect.objectContaining({
+      output: expect.objectContaining({
+        text: "observable answer",
+        userEntryId: expect.any(String),
+        assistantEntryId: expect.any(String),
+        usage: expect.objectContaining({ inputTokens: expect.any(Number) }),
+      }),
+    }));
   });
 
   it("marks failures that happen before the Harness is created", async () => {
@@ -205,7 +214,7 @@ describe("Agent Runtime observability", () => {
   });
 });
 
-function throwingObservation(): AgentTurnObservation {
+function throwingObservation(completed: AgentTurnObservation["completed"]): AgentTurnObservation {
   const fail = () => {
     throw new Error("observer update failed");
   };
@@ -215,7 +224,7 @@ function throwingObservation(): AgentTurnObservation {
     generationCompleted: fail,
     toolStarted: fail,
     toolCompleted: fail,
-    completed: fail,
+    completed,
     failed: fail,
   };
 }

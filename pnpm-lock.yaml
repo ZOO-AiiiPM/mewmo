@@ -136,6 +136,9 @@ importers:
 
   apps/ai-workflows:
     dependencies:
+      '@langfuse/client':
+        specifier: 5.9.1
+        version: 5.9.1(@opentelemetry/api@1.9.0)
       '@langfuse/otel':
         specifier: 5.9.1
         version: 5.9.1(@opentelemetry/api@1.9.0)(@opentelemetry/core@2.9.0(@opentelemetry/api@1.9.0))(@opentelemetry/exporter-trace-otlp-http@0.220.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.9.0(@opentelemetry/api@1.9.0))
@@ -158,9 +161,6 @@ importers:
         specifier: 4.3.0
         version: 4.3.0
     devDependencies:
-      '@langfuse/client':
-        specifier: 5.9.1
-        version: 5.9.1(@opentelemetry/api@1.9.0)
       '@opentelemetry/api':
         specifier: 1.9.0
         version: 1.9.0

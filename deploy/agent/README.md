@@ -37,7 +37,9 @@ LANGFUSE_RELEASE=<构建镜像的完整 commit SHA>
 
 两个 key 必须同时存在；同时留空会安全关闭 tracing，误配为单个 key 时也会禁用 tracing 并输出不含凭据的 warning，不会阻止 Agent 启动。Local 使用 `LANGFUSE_ENVIRONMENT=development`，Production 使用 `production`，Preview 不部署 Agent、也不注入 Production key。密钥不得写入仓库、Linear、截图、日志、镜像层或任何 `NEXT_PUBLIC_*` 变量。
 
-每个非缓存 Turn 产生一个 `agent.turn` trace，模型调用和 Tool 是子 observation。默认只上传关联 ID、模型、状态、latency 与 Usage/Cost，不上传用户消息、模型正文、thinking、页面上下文、Tool 参数/结果或 email。Langfuse 初始化、导出或 shutdown 失败均为 fail-open，不参与 Turn 或 PostgreSQL `AiUsageEvent` 的完成条件。
+每个非缓存 Turn 产生一个 `agent.turn` trace，模型调用和 Tool 是子 observation。Production 会上传完整业务 Input/Output，包括 provider payload、assistant message、Tool args/result；processor 只屏蔽 credential/authorization material（凭据与授权材料）。Langfuse 初始化、导出或 shutdown 失败均为 fail-open，不参与 Turn 或 PostgreSQL `AiUsageEvent` 的完成条件。
+
+Prompt Markdown 仍以仓库为 source of truth（事实源）。发布镜像前由唯一 CI writer 执行 `pnpm langfuse:sync-prompts`；命令按内容 digest 去重，只在目标 label 内容变化时创建或复用 Langfuse Prompt version、移动 `LANGFUSE_PROMPT_LABEL`（默认取 `LANGFUSE_ENVIRONMENT`），并在所有临时文件写入成功后以 rename 分别原子替换两个 runtime manifest。同步失败不阻断 Agent 运行；CI 必须用 concurrency group 防止不同 runner 同时写同一 Langfuse project。
 
 ## 构建和传输镜像
 

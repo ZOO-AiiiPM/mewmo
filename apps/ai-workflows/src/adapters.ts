@@ -3,6 +3,7 @@ import { createAiRunService, createAiUsageService } from "@mewmo/application";
 import type { AiRuntimePort, AiWorkflowApplicationPort, ClaimedAiRun, WorkflowInput } from "./contracts";
 import { createConfiguredWorkflowObservability } from "./observability/langfuse";
 import type { AiWorkflowRuntimePorts } from "./runtime";
+import { loadWorkflowPromptLink } from "./prompt-manifest";
 
 export function createAiWorkflowRuntimePorts(): AiWorkflowRuntimePorts {
   const runtime = createAIRuntime(loadAIRuntimeConfig());
@@ -11,36 +12,39 @@ export function createAiWorkflowRuntimePorts(): AiWorkflowRuntimePorts {
   const usage = createAiUsageService();
   const ai: AiRuntimePort = {
     async generateText(input) {
-      return observability.observeModelCall({ name: "workflow.generation.summary", purpose: input.purpose, type: "generation" }, async () => {
+      const prompt = input.promptId ? await loadWorkflowPromptLink(input.promptId) : undefined;
+      return observability.observeModelCall({ name: "workflow.generation.summary", purpose: input.purpose, type: "generation", input: { system: input.system, user: input.user }, ...(prompt ? { prompt } : {}) }, async () => {
         const result = await runtime.generateText({ purpose: input.purpose, system: input.system, messages: [{ role: "user", content: input.user }] });
         const value = { text: result.text, metadata: metadata(result) };
-        return { value, metadata: value.metadata };
+        return { value, metadata: value.metadata, output: result.text };
       });
     },
     async rerank(input) {
-      return observability.observeModelCall({ name: "workflow.retriever.recommendation", purpose: input.purpose, type: "retriever" }, async () => {
+      return observability.observeModelCall({ name: "workflow.retriever.recommendation", purpose: input.purpose, type: "retriever", input: { query: input.query, documents: input.documents, topN: input.topN } }, async () => {
         const result = await runtime.rerank({ query: input.query, documents: input.documents, timeoutMs: input.timeoutMs, ...(input.topN === undefined ? {} : { topN: input.topN }) });
         return {
           value: { provider: result.provider, model: result.model, results: result.results, fellBack: result.fellBack, ...(result.fallbackReason ? { fallbackReason: result.fallbackReason } : {}) },
           metadata: { profile: input.purpose, provider: result.provider, model: result.model },
+          output: result,
         };
       });
     },
-    async generateObject<T>(input: { purpose: "workflow.note-insight"; schema: unknown; system: string; user: string; timeoutMs: number }) {
+    async generateObject<T>(input: { purpose: "workflow.note-insight"; schema: unknown; system: string; user: string; timeoutMs: number; promptId?: string }) {
       const schema = input.schema;
       if (!hasParser<T>(schema)) throw new Error("workflow structured schema must implement parse()");
-      return observability.observeModelCall({ name: "workflow.generation.note_insight", purpose: input.purpose, type: "generation" }, async () => {
+      const prompt = input.promptId ? await loadWorkflowPromptLink(input.promptId) : undefined;
+      return observability.observeModelCall({ name: "workflow.generation.note_insight", purpose: input.purpose, type: "generation", input: { system: input.system, user: input.user }, ...(prompt ? { prompt } : {}) }, async () => {
         const result = await runtime.generateObject<T>({ purpose: "workflow.note_insight", schema, system: input.system, messages: [{ role: "user", content: input.user }] });
         const attempts = result.attempts.map(metadata);
         const value = { value: result.object, metadata: metadata(result), attempts };
-        return { value, metadata: aggregateModelMetadata(attempts, value.metadata) };
+        return { value, metadata: aggregateModelMetadata(attempts, value.metadata), output: result.object };
       });
     },
     async embed(input) {
-      return observability.observeModelCall({ name: "workflow.embedding", purpose: input.purpose, type: "embedding" }, async () => {
+      return observability.observeModelCall({ name: "workflow.embedding", purpose: input.purpose, type: "embedding", input: input.values }, async () => {
         const result = await runtime.embed({ purpose: input.purpose, values: input.values });
         const model = metadata(result);
-        return { value: result.embeddings.map((vector) => ({ vector, dimensions: vector.length, metadata: model })), metadata: model };
+        return { value: result.embeddings.map((vector) => ({ vector, dimensions: vector.length, metadata: model })), metadata: model, output: result.embeddings };
       });
     },
   };
