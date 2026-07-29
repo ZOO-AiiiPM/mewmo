@@ -828,8 +828,8 @@ test("workspace shell preserves prototype AI rail proportions and resizer", () =
   );
   assert.match(
     appShell,
-    /\{!aiOpen && \(/,
-    "cat entry should disappear after opening so the rail close button is the only collapse affordance",
+    /\{!aiOpen && !onMewHome && \(/,
+    "cat entry should disappear after opening (and on /mew) so the rail close button is the only collapse affordance",
   );
   assert.match(
     appShell,
