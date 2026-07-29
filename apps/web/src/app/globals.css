@@ -4376,6 +4376,88 @@ html.light .mewmo-ai-related-modal__panel {
   background: var(--canvas);
 }
 
+/* Empty session: hide the brand row + transcript, center hero and input as one stack. */
+.mewmo-agent-home--empty .mewmo-agent-home__column {
+  padding-bottom: 9vh;
+}
+
+.mewmo-agent-home--empty .mewmo-agent-home__brand {
+  visibility: hidden;
+}
+
+.mewmo-agent-home--empty .mewmo-transcript {
+  display: none;
+}
+
+.mewmo-agent-home--empty .mewmo-agent-panel {
+  flex: none;
+  margin-bottom: auto;
+}
+
+.mewmo-agent-home__hero {
+  display: flex;
+  margin-top: auto;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 12px 24px;
+  text-align: center;
+}
+
+.mewmo-agent-home__hero-mark {
+  display: grid;
+  width: 56px;
+  height: 56px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 19px;
+  background: var(--raised);
+  color: var(--ink);
+  box-shadow: 0 10px 26px color-mix(in srgb, var(--canvas) 38%, transparent);
+}
+
+.mewmo-agent-home__hero-title {
+  margin: 16px 0 0;
+  color: var(--ink);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.mewmo-agent-home__hero-note {
+  display: grid;
+  margin: 9px 0 0;
+  color: var(--ink-faint);
+  font-size: 12.5px;
+  line-height: 1.75;
+}
+
+.mewmo-agent-home__hero-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.mewmo-agent-home__chip {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--raised);
+  color: var(--ink-soft);
+  padding: 7px 14px;
+  font-size: 12.5px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.mewmo-agent-home__chip:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.mewmo-agent-home__chip:disabled {
+  opacity: 0.55;
+}
+
 .mewmo-agent-panel {
   display: flex;
   min-width: 0;
