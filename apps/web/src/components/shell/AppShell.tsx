@@ -2,6 +2,7 @@
 
 import type { CSSProperties, PointerEvent, ReactNode } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
   AI_FAB_DEFAULT_BOTTOM,
@@ -39,6 +40,9 @@ function clampAiWidth(width: number) {
 export function AppShell({ children, user }: AppShellProps) {
   scopeWorkspaceDataCache(user?.id);
   const ts = useTranslations("shell");
+  const pathname = usePathname();
+  // /mew is itself a full-page agent surface; the AI fab would be redundant there.
+  const onMewHome = pathname.startsWith("/mew");
   const shellRef = useRef<HTMLDivElement>(null);
   const sidebarPeekTimer = useRef<number | null>(null);
   const aiFabDragRef = useRef<{
@@ -220,7 +224,7 @@ export function AppShell({ children, user }: AppShellProps) {
             onPointerDown={startAiResize}
             onDoubleClick={() => setAiWidth(AI_W_DEFAULT)}
           />
-          {!aiOpen && (
+          {!aiOpen && !onMewHome && (
             <button
               type="button"
               className={`mewmo-ai-fab ${aiFabDragging ? "mewmo-ai-fab--dragging" : ""}`}
