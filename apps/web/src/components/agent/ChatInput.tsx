@@ -10,6 +10,7 @@ interface ChatInputProps {
   chatReady: boolean;
   context: AISidebarContentContext | null;
   requestedSkill: string | null;
+  showInsight?: boolean;
   onSkillConsumed: () => void;
   onDeepInsight: () => void;
   onSend: (options: { content: string; skillId?: string; includeContext: boolean }) => void;
@@ -21,7 +22,7 @@ const MAX_TEXTAREA_HEIGHT = 168;
  * Bottom-pinned chat input: the box stacks a dismissible context chip, an
  * auto-growing textarea, and a toolbar row (upload / deep insight / send).
  */
-export function ChatInput({ status, chatReady, context, requestedSkill, onSkillConsumed, onDeepInsight, onSend }: ChatInputProps) {
+export function ChatInput({ status, chatReady, context, requestedSkill, showInsight = true, onSkillConsumed, onDeepInsight, onSend }: ChatInputProps) {
   const [input, setInput] = useState("");
   const [skillId, setSkillId] = useState<string | undefined>();
   const [attachedFile, setAttachedFile] = useState<string | null>(null);
@@ -123,15 +124,17 @@ export function ChatInput({ status, chatReady, context, requestedSkill, onSkillC
             >
               <PrototypeIcon name="paperclip" size={16} />
             </button>
-            <button
-              type="button"
-              className={`mewmo-chat-input__insight ${skillId ? "mewmo-chat-input__insight--active" : ""}`}
-              onClick={() => (skillId ? setSkillId(undefined) : onDeepInsight())}
-              disabled={disabled || (!skillId && !attachedContext)}
-              aria-pressed={Boolean(skillId)}
-            >
-              <PrototypeIcon name="spark" size={13} />深度洞察
-            </button>
+            {showInsight && (
+              <button
+                type="button"
+                className={`mewmo-chat-input__insight ${skillId ? "mewmo-chat-input__insight--active" : ""}`}
+                onClick={() => (skillId ? setSkillId(undefined) : onDeepInsight())}
+                disabled={disabled || (!skillId && !attachedContext)}
+                aria-pressed={Boolean(skillId)}
+              >
+                <PrototypeIcon name="spark" size={13} />深度洞察
+              </button>
+            )}
           </div>
           <button
             type="submit"
