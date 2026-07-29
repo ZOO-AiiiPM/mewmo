@@ -4332,6 +4332,54 @@ html.light .mewmo-ai-related-modal__panel {
   transform: none;
 }
 
+/* mew home: full-width agent conversation page (no page-reading context) */
+.mewmo-agent-home {
+  display: flex;
+  height: 100vh;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--canvas);
+}
+
+.mewmo-agent-home__column {
+  position: relative;
+  display: flex;
+  width: min(100%, 780px);
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0 20px;
+}
+
+.mewmo-agent-home__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 14px 0 4px;
+}
+
+.mewmo-agent-home__brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.mewmo-agent-home__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ink-faint);
+}
+
+.mewmo-agent-home .mewmo-chat-input {
+  background: var(--canvas);
+}
+
 .mewmo-agent-panel {
   display: flex;
   min-width: 0;
