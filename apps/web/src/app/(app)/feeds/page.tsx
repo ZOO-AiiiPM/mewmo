@@ -42,12 +42,9 @@ const feedTypes: Array<{
   type: FeedType;
   label: string;
   icon: PrototypeIconName;
-  deferred?: boolean;
 }> = [
   { type: "article", label: "文章", icon: "doc" },
   { type: "media", label: "媒体", icon: "media" },
-  { type: "video", label: "视频", icon: "video", deferred: true },
-  { type: "podcast", label: "播客", icon: "mic", deferred: true },
 ];
 
 const MODAL_EXIT_MS = 160;
@@ -128,7 +125,6 @@ export default function FeedsPage() {
   const entryId = searchParams.get("entryId");
   const addOpen = searchParams.get("add") === "1";
   const currentType = feedTypes.find((item) => item.type === type) ?? feedTypes[0]!;
-  const isDeferredType = Boolean(currentType.deferred);
 
   const initialFeeds = getCachedFeedSources<FeedSource>(type);
   const initialFeedId = feedId ?? initialFeeds?.[0]?.id ?? null;
@@ -199,11 +195,6 @@ export default function FeedsPage() {
       setFeeds([]);
       setFeedsLoaded(false);
     }
-    if (isDeferredType) {
-      setFeeds([]);
-      setFeedsLoaded(true);
-      return;
-    }
     try {
       const nextFeeds = await loadWorkspaceResource(workspaceResourceKeys.feedSources(type), async () => {
         const response = await fetch(`/api/feeds?type=${type}`);
@@ -216,16 +207,10 @@ export default function FeedsPage() {
     } finally {
       if (feedsRequestRef.current === requestId) setFeedsLoaded(true);
     }
-  }, [isDeferredType, type]);
+  }, [type]);
 
   const loadEntries = useCallback(async () => {
     const requestId = ++entriesRequestRef.current;
-    if (isDeferredType) {
-      setEntries([]);
-      setLoading(false);
-      setError("");
-      return;
-    }
     if (!effectiveFeedId && !feedsLoaded) {
       setLoading(true);
       setError("");
@@ -273,7 +258,7 @@ export default function FeedsPage() {
     } finally {
       if (entriesRequestRef.current === requestId) setLoading(false);
     }
-  }, [effectiveFeedId, feedsLoaded, isDeferredType, type]);
+  }, [effectiveFeedId, feedsLoaded, type]);
 
   useEffect(() => {
     void loadFeeds().catch(() => {
@@ -342,7 +327,6 @@ export default function FeedsPage() {
   };
 
   const refreshCurrent = useCallback(async () => {
-    if (isDeferredType) return;
     const target = effectiveFeedId ? "该订阅" : "全部订阅";
     showToast(`检查${target}更新...`, "loading");
     try {
@@ -359,7 +343,7 @@ export default function FeedsPage() {
     } catch {
       showToast("检查订阅更新失败", "error");
     }
-  }, [effectiveFeedId, isDeferredType, loadEntries, loadFeeds, showToast, type]);
+  }, [effectiveFeedId, loadEntries, loadFeeds, showToast, type]);
 
   const favoriteEntry = useCallback(async (entry: FeedEntry) => {
     if (entry.isFavorited) {
@@ -399,24 +383,11 @@ export default function FeedsPage() {
     <>
       {feedTypes
         .filter((item) => item.type !== type)
-        .map((item) =>
-          item.deferred ? (
-            <FloatingMenuButton
-              key={item.type}
-              icon={item.icon}
-              onClick={() => {
-                updateParams({ type: item.type, feedId: null, entryId: null });
-                showToast(`${item.label}订阅还在路上`, "error");
-              }}
-            >
-              {item.label}
-            </FloatingMenuButton>
-          ) : (
-            <FloatingMenuLink key={item.type} href={rememberedFeedTypeHrefs[item.type]} icon={item.icon} scroll={false}>
-              {item.label}
-            </FloatingMenuLink>
-          ),
-        )}
+        .map((item) => (
+          <FloatingMenuLink key={item.type} href={rememberedFeedTypeHrefs[item.type]} icon={item.icon} scroll={false}>
+            {item.label}
+          </FloatingMenuLink>
+        ))}
     </>
   );
 
@@ -439,9 +410,7 @@ export default function FeedsPage() {
         }
       >
         <div key={swapKey} className="mewmo-list-stack mewmo-feed-list-swap">
-          {isDeferredType ? (
-            <FeedPlaceholder icon={currentType.icon} title={`${currentType.label}订阅还在路上`} />
-          ) : error ? (
+          {error ? (
             <p className="mewmo-list-card text-coral">{error}</p>
           ) : loading ? (
             <ListContentSkeleton active variant="media" label="正在加载订阅" />
@@ -539,8 +508,8 @@ export default function FeedsPage() {
             </article>
           ) : (
             <article className="mewmo-document mewmo-document--empty">
-              <h1>{isDeferredType ? `${currentType.label}订阅待开发` : "选择一篇订阅条目"}</h1>
-              <p>{isDeferredType ? "这个分类先保留原型入口，真实抓取稍后接入。" : "从左侧条目流选择内容，阅读器会保持在当前工作台里。"}</p>
+              <h1>选择一篇订阅条目</h1>
+              <p>从左侧条目流选择内容，阅读器会保持在当前工作台里。</p>
             </article>
           )}
         </div>
@@ -549,7 +518,7 @@ export default function FeedsPage() {
 
       <AddFeedModal
         open={addOpen}
-        initialType={isDeferredType ? "article" : type}
+        initialType={type}
         autoDetectType={addOpen && !parsedType}
         onClose={closeAddModal}
         onAdded={(addedFeeds, close) => {
@@ -698,7 +667,7 @@ function AddFeedModal({
       setResults(nextResults);
       setSelectedUrls(nextResults[0] ? [nextResults[0].url] : []);
       setAddOutcomes({});
-      if (autoType && nextResults[0]?.type && !feedTypes.find((item) => item.type === nextResults[0]!.type)?.deferred) {
+      if (autoType && nextResults[0]?.type && feedTypes.some((item) => item.type === nextResults[0]!.type)) {
         setType(nextResults[0].type);
       }
       if (nextResults.length === 0) showToast("没有发现可添加的订阅源", "error");
@@ -828,7 +797,7 @@ function AddFeedModal({
                       setSelectedUrls((current) => toggleFeedUrl(current, result.url));
                       setCategoryMenuOpen(false);
                       setLimitMenuOpen(false);
-                      if (autoType && result.type && !feedTypes.find((item) => item.type === result.type)?.deferred) {
+                      if (autoType && result.type && feedTypes.some((item) => item.type === result.type)) {
                         setType(result.type);
                       }
                     }}
@@ -890,15 +859,13 @@ function AddFeedModal({
                       key={item.type}
                       icon={item.icon}
                       checked={type === item.type}
-                      disabled={Boolean(item.deferred)}
                       onClick={() => {
-                        if (item.deferred) return;
                         setAutoType(false);
                         setType(item.type);
                         setCategoryMenuOpen(false);
                       }}
                     >
-                      {item.deferred ? `${item.label} · 待开发` : item.label}
+                      {item.label}
                     </FloatingMenuButton>
                   ))}
                 </PopoverMenu>
