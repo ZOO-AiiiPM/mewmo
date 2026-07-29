@@ -35,3 +35,9 @@ Port 类型本身不包含 user content、system prompt、page context、thinkin
 ## Configuration And Verification
 
 真实 Secret 只进入被 Git 忽略的本地/服务器 Agent env，不进入仓库或 Linear。ZOO-61 用新 key 启动本地 Agent，发起至少一次含模型与 Tool 的 Turn，并在 Langfuse 查询 trace 层级和隐私字段；ZOO-73 从正式 main 构建镜像后注入 Production env、重启 Agent 并重复 smoke。任何截图或日志必须先检查不含 key、prompt、正文和 Tool payload。
+
+## 2026-07-29 Superseding Design
+
+Full business payload capture replaces the prior allowlist boundary. Pi `before_provider_payload` supplies generation input, assistant `message_end` supplies output, and the final `tool_execution_start`/`tool_execution_end` lifecycle supplies Tool args/results after hook processing. Workflow adapters pass system/user/values/results to observations. The processor mask is narrowed to credentials and authorization material while preserving token usage fields.
+
+Prompt Markdown remains code-owned. A deployment/CI single-writer sync command uses `@langfuse/client`, compares the labeled remote content, creates a version only on change, and emits a manifest containing name/version for runtime generation linking. Runtime prompt execution remains local and fail-open.

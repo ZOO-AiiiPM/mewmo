@@ -19,7 +19,8 @@
     "onboarding:cleanup": "tsx packages/db/scripts/cleanup-prototype-onboarding.ts",
     "onboarding:cleanup:apply": "tsx packages/db/scripts/cleanup-prototype-onboarding.ts --apply",
     "titles:cleanup": "tsx tooling/run-external-title-backfill.ts",
-    "titles:cleanup:apply": "tsx tooling/run-external-title-backfill.ts --apply"
+    "titles:cleanup:apply": "tsx tooling/run-external-title-backfill.ts --apply",
+    "langfuse:sync-prompts": "pnpm --filter @mewmo/ai-workflows sync:prompts"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.3.1",

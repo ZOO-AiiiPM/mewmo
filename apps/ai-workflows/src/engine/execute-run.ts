@@ -5,7 +5,7 @@ import type {
   WorkflowHandlerContext,
   WorkflowInput,
 } from "../contracts";
-import { createNoopWorkflowObservability, type WorkflowObservabilityPort } from "../observability/port";
+import { createNoopWorkflowObservability, type WorkflowObservabilityPort, type WorkflowRunObservation } from "../observability/port";
 import { runEmbeddingWorkflow } from "../workflows/embedding";
 import { runNoteInsightWorkflow } from "../workflows/note-insight";
 import { runRecommendationWorkflow } from "../workflows/recommendation";
@@ -28,7 +28,7 @@ export async function executeClaimedRun(input: {
   now: () => Date;
 }): Promise<"succeeded" | "retrying" | "failed" | "superseded"> {
   const observability = input.observability ?? createNoopWorkflowObservability();
-  return observability.observeRun(input.run, () => executeObservedRun(input));
+  return observability.observeRun(input.run, (observation) => executeObservedRun(input, observation));
 }
 
 async function executeObservedRun(input: {
@@ -38,10 +38,11 @@ async function executeObservedRun(input: {
   workerId: string;
   timeoutMs: number;
   now: () => Date;
-}): Promise<"succeeded" | "retrying" | "failed" | "superseded"> {
+}, observation: WorkflowRunObservation): Promise<"succeeded" | "retrying" | "failed" | "superseded"> {
   const { run, application, context } = input;
   try {
     const workflowInput = await application.getInput(run);
+    observation.input(workflowInput);
     if (!workflowInput) {
       await application.supersede({ runId: run.id, workerId: input.workerId, reason: "target_missing" });
       return "superseded";
@@ -54,6 +55,7 @@ async function executeObservedRun(input: {
       throw new Error("workflow_input_mismatch");
     }
     const result = await withTimeout(handlers[run.kind](workflowInput, context), input.timeoutMs);
+    observation.output(result);
     await recordModelCalls(application, run, result);
     await completeWorkflowResult(application, run, input.workerId, result);
     return "succeeded";

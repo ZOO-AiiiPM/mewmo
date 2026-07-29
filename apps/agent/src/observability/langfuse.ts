@@ -167,7 +167,7 @@ export function createLangfuseTurnObservation(
     configuredMaxRetries: input.configuredMaxRetries,
   };
 
-  root.update({ metadata: rootMetadata });
+  root.update({ ...(input.input === undefined ? {} : { input: input.input }), metadata: rootMetadata });
 
   return {
     configure(config) {
@@ -179,17 +179,23 @@ export function createLangfuseTurnObservation(
         `agent.generation.${start.sequence}`,
         {
           model: start.requestedModel,
+          ...(start.input === undefined ? {} : { input: start.input }),
+          ...(start.prompt ? { prompt: start.prompt } : {}),
           metadata: generationMetadata(start),
         },
         { asType: "generation" },
       );
       generations.set(start.sequence, { observation, start });
     },
+    generationInput({ sequence, input: generationInput }) {
+      generations.get(sequence)?.observation.update({ input: generationInput });
+    },
     generationCompleted(end) {
       const active = generations.get(end.sequence);
       if (!active) return;
       active.observation.update({
         model: end.responseModel ?? end.requestedModel,
+        ...(end.output === undefined ? {} : { output: end.output }),
         metadata: {
           ...generationMetadata(active.start),
           stopReason: end.stopReason,
@@ -218,6 +224,7 @@ export function createLangfuseTurnObservation(
       const observation = root.startObservation(
         `agent.tool.${start.toolName}`,
         {
+          ...(start.input === undefined ? {} : { input: start.input }),
           metadata: { toolCallId: start.toolCallId, toolName: start.toolName },
         },
         { asType: "tool" },
@@ -228,6 +235,7 @@ export function createLangfuseTurnObservation(
       const active = tools.get(end.toolCallId);
       if (!active) return;
       active.observation.update({
+        ...(end.output === undefined ? {} : { output: end.output }),
         metadata: {
           toolCallId: active.start.toolCallId,
           toolName: active.start.toolName,
@@ -240,9 +248,10 @@ export function createLangfuseTurnObservation(
       active.observation.end();
       tools.delete(end.toolCallId);
     },
-    completed({ providerCallCount, generationCount }) {
+    completed({ providerCallCount, generationCount, output }) {
       closeOpenObservations(generations, tools, false);
       root.update({
+        ...(output === undefined ? {} : { output }),
         statusMessage: "Agent turn completed",
         metadata: {
           ...rootMetadata,
@@ -363,7 +372,6 @@ async function withTimeout(operation: Promise<void>, timeoutMs: number) {
 
 function redactString(value: string) {
   return value
-    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/giu, "[REDACTED_EMAIL]")
     .replace(/\bBearer\s+[^\s,;]+/giu, "Bearer [REDACTED]")
     .replace(/\b(?:sk|pk)[-_][A-Za-z0-9_-]{8,}\b/gu, "[REDACTED_KEY]");
 }
@@ -380,9 +388,18 @@ function redactStructuredString(value: string) {
 }
 
 function sensitiveKey(key: string) {
-  return /(?:authorization|cookie|secret|token|api.?key|password|prompt|content|context|draft|args?|result|input|output|email)/iu.test(
-    key,
-  );
+  const normalized = key.replace(/[^a-z0-9]/giu, "").toLowerCase();
+  return normalized === "authorization"
+    || normalized === "proxyauthorization"
+    || normalized === "cookie"
+    || normalized === "setcookie"
+    || normalized.endsWith("apikey")
+    || normalized.endsWith("secret")
+    || normalized.endsWith("token")
+    || normalized.endsWith("password")
+    || normalized.endsWith("credential")
+    || normalized.endsWith("credentials")
+    || normalized.endsWith("privatekey");
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -5,7 +5,7 @@ import { createHarnessObservationBridge } from "./harness-bridge";
 import type { AgentTurnObservation } from "./port";
 
 describe("createHarnessObservationBridge", () => {
-  it("projects multiple generations and tools without raw payloads", () => {
+  it("projects complete generation and tool payloads", () => {
     const observation = fakeObservation();
     const bridge = createHarnessObservationBridge({
       observation,
@@ -16,6 +16,7 @@ describe("createHarnessObservationBridge", () => {
     });
 
     bridge.providerRequestStarted();
+    bridge.providerPayload({ messages: [{ role: "user", content: "private prompt" }] });
     bridge.event(assistantEnd("toolUse", 10, 2));
     bridge.event({
       type: "tool_execution_start",
@@ -52,18 +53,18 @@ describe("createHarnessObservationBridge", () => {
     expect(observation.toolStarted).toHaveBeenCalledWith({
       toolCallId: "tool-1",
       toolName: "content_read",
+      input: { content: "private note" },
     });
     expect(observation.toolCompleted).toHaveBeenCalledWith({
       toolCallId: "tool-1",
       toolName: "content_read",
       isError: false,
+      output: { content: "private result" },
     });
-    expect(
-      JSON.stringify({
-        starts: observation.toolStarted.mock.calls,
-        ends: observation.toolCompleted.mock.calls,
-      }),
-    ).not.toContain("private");
+    expect(observation.generationInput).toHaveBeenCalledWith({
+      sequence: 1,
+      input: { messages: [{ role: "user", content: "private prompt" }] },
+    });
   });
 
   it("records compaction as a separate generation", () => {
@@ -74,9 +75,16 @@ describe("createHarnessObservationBridge", () => {
       provider: "anthropic",
       requestedModel: "claude",
       pricingKnown: false,
+      prompt: { name: "agent/system.zh", version: 3, isFallback: false },
     });
-    const sequence = bridge.compactionStarted();
-    bridge.compactionCompleted(sequence, usage(30, 4));
+    const input = { messages: [{ role: "user", content: "full history" }] };
+    const result = {
+      summary: "compacted history",
+      tokensBefore: 3_000,
+      usage: usage(30, 4),
+    };
+    const sequence = bridge.compactionStarted(input);
+    bridge.compactionCompleted(sequence, result);
 
     expect(observation.generationCompleted).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -84,7 +92,12 @@ describe("createHarnessObservationBridge", () => {
         purpose: "agent.deep_insight",
         inputTokens: 30,
         outputTokens: 4,
+        output: result,
       }),
+    );
+    expect(observation.generationInput).toHaveBeenCalledWith({ sequence, input });
+    expect(observation.generationStarted).toHaveBeenCalledWith(
+      expect.not.objectContaining({ prompt: expect.anything() }),
     );
     expect(
       observation.generationCompleted.mock.calls[0]?.[0],
@@ -98,6 +111,7 @@ function fakeObservation() {
   return {
     configure: vi.fn(),
     generationStarted: vi.fn(),
+    generationInput: vi.fn(),
     generationCompleted: vi.fn(),
     toolStarted: vi.fn(),
     toolCompleted: vi.fn(),

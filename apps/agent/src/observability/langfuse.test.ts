@@ -25,7 +25,7 @@ const langfuseConfig = {
 };
 
 describe("Langfuse Agent observability", () => {
-  it("creates a private Turn hierarchy with usage and no content payload", async () => {
+  it("creates a private Turn hierarchy with complete business payloads", async () => {
     const root = fakeRoot();
     const sdk = { start: vi.fn(), shutdown: vi.fn(async () => {}) };
     const propagated: unknown[] = [];
@@ -44,6 +44,7 @@ describe("Langfuse Agent observability", () => {
         chatId: "chat-1",
         turnId: "turn-1",
         configuredMaxRetries: 2,
+        input: { content: "private prompt", context: { targetId: "note-1" } },
       },
       async (turn) => {
         turn.configure({
@@ -57,7 +58,9 @@ describe("Langfuse Agent observability", () => {
           purpose: "agent.chat",
           provider: "google",
           requestedModel: "gemini-flash",
+          prompt: { name: "agent/system.zh", version: 3, isFallback: false },
         });
+        turn.generationInput?.({ sequence: 1, input: { messages: [{ role: "user", content: "private prompt" }] } });
         turn.generationCompleted({
           sequence: 1,
           operation: "agent.response",
@@ -72,14 +75,16 @@ describe("Langfuse Agent observability", () => {
           cacheReadTokens: 2,
           cacheWriteTokens: 0,
           providerCostUsd: 0.01,
+          output: { role: "assistant", content: "private answer" },
         });
-        turn.toolStarted({ toolCallId: "tool-1", toolName: "content_read" });
+        turn.toolStarted({ toolCallId: "tool-1", toolName: "content_read", input: { targetId: "note-1" } });
         turn.toolCompleted({
           toolCallId: "tool-1",
           toolName: "content_read",
           isError: false,
+          output: { content: "private note" },
         });
-        turn.completed({ providerCallCount: 1, generationCount: 1 });
+        turn.completed({ providerCallCount: 1, generationCount: 1, output: { content: "private answer" } });
         return "answer";
       },
     );
@@ -97,12 +102,14 @@ describe("Langfuse Agent observability", () => {
       "agent.generation.1",
       expect.objectContaining({
         model: "gemini-flash",
+        prompt: { name: "agent/system.zh", version: 3, isFallback: false },
       }),
       { asType: "generation" },
     );
     expect(root.startObservation).toHaveBeenCalledWith(
       "agent.tool.content_read",
       {
+        input: { targetId: "note-1" },
         metadata: { toolCallId: "tool-1", toolName: "content_read" },
       },
       { asType: "tool" },
@@ -110,6 +117,7 @@ describe("Langfuse Agent observability", () => {
     expect(root.children[0]?.update).toHaveBeenCalledWith(
       expect.objectContaining({
         model: "gemini-flash-2026",
+        output: { role: "assistant", content: "private answer" },
         usageDetails: {
           input: 12,
           output: 4,
@@ -121,6 +129,7 @@ describe("Langfuse Agent observability", () => {
       }),
     );
     expect(root.children[1]?.update).toHaveBeenCalledWith({
+      output: { content: "private note" },
       metadata: {
         toolCallId: "tool-1",
         toolName: "content_read",
@@ -135,13 +144,11 @@ describe("Langfuse Agent observability", () => {
         }),
       }),
     );
-    expect(
-      JSON.stringify({
-        propagated,
-        root: root.calls(),
-        children: root.children.map((child) => child.calls()),
-      }),
-    ).not.toMatch(/raw-user-id|private note|prompt|args|result|email/iu);
+    const exported = JSON.stringify({ propagated, root: root.calls(), children: root.children.map((child) => child.calls()) });
+    expect(exported).not.toContain("raw-user-id");
+    expect(exported).toContain("private prompt");
+    expect(exported).toContain("private note");
+    expect(exported).toContain("private answer");
   });
 
   it("keeps raw identifiers stable only behind an HMAC", () => {
@@ -186,7 +193,7 @@ describe("Langfuse Agent observability", () => {
     expect(startTurn).toHaveBeenCalledOnce();
   });
 
-  it("redacts sensitive keys, credentials, bearer tokens, and email", () => {
+  it("redacts credentials while preserving business payload", () => {
     expect(
       redactLangfuseData({
         content: "private note",
@@ -194,15 +201,19 @@ describe("Langfuse Agent observability", () => {
           toolArgs: { noteId: "note-1" },
           owner: "person@example.com",
           authorization: "Bearer token-value",
+          accessToken: "credential-value",
+          inputTokens: 42,
           label: "key sk-1234567890",
         },
       }),
     ).toEqual({
-      content: "[REDACTED]",
+      content: "private note",
       nested: {
-        toolArgs: "[REDACTED]",
-        owner: "[REDACTED_EMAIL]",
+        toolArgs: { noteId: "note-1" },
+        owner: "person@example.com",
         authorization: "[REDACTED]",
+        accessToken: "[REDACTED]",
+        inputTokens: 42,
         label: "key [REDACTED_KEY]",
       },
     });
@@ -211,11 +222,19 @@ describe("Langfuse Agent observability", () => {
   it("redacts metadata after the tracing SDK serializes it", () => {
     const serialized = JSON.stringify({
       chatId: "chat-1",
-      nested: { content: "private note", email: "person@example.com" },
+      nested: {
+        content: "private note",
+        email: "person@example.com",
+        authorization: "Bearer agent-secret",
+      },
     });
     expect(JSON.parse(String(redactLangfuseData(serialized)))).toEqual({
       chatId: "chat-1",
-      nested: { content: "[REDACTED]", email: "[REDACTED]" },
+      nested: {
+        content: "private note",
+        email: "person@example.com",
+        authorization: "[REDACTED]",
+      },
     });
   });
 

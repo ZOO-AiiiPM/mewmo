@@ -1,7 +1,7 @@
 import type { AssistantMessage, Usage } from "@earendil-works/pi-ai";
-import type { AgentHarnessEvent } from "@earendil-works/pi-agent-core/node";
+import type { AgentHarnessEvent, CompactResult } from "@earendil-works/pi-agent-core/node";
 
-import type { AgentGenerationStart, AgentTurnObservation } from "./port";
+import type { AgentGenerationStart, AgentTurnObservation, ManagedPromptLink } from "./port";
 
 interface HarnessObservationBridgeOptions {
   observation: AgentTurnObservation;
@@ -9,14 +9,16 @@ interface HarnessObservationBridgeOptions {
   provider: string;
   requestedModel: string;
   pricingKnown: boolean;
+  prompt?: ManagedPromptLink;
 }
 
 export interface HarnessObservationBridge {
   generationCount(): number;
   providerCallCount(): number;
   providerRequestStarted(): number;
-  compactionStarted(): number;
-  compactionCompleted(sequence: number, usage: Usage | undefined): void;
+  providerPayload(payload: unknown): void;
+  compactionStarted(input: unknown): number;
+  compactionCompleted(sequence: number, result: CompactResult): void;
   event(event: AgentHarnessEvent): void;
 }
 
@@ -26,7 +28,6 @@ export function createHarnessObservationBridge(
   let nextSequence = 0;
   let providerCallCount = 0;
   const pendingResponseGenerations: number[] = [];
-
   const startGeneration = (operation: AgentGenerationStart["operation"]) => {
     const sequence = ++nextSequence;
     options.observation.generationStarted(
@@ -44,12 +45,22 @@ export function createHarnessObservationBridge(
       pendingResponseGenerations.push(sequence);
       return sequence;
     },
-    compactionStarted: () => startGeneration("agent.compaction"),
-    compactionCompleted(sequence, usage) {
+    providerPayload(payload) {
+      const sequence = pendingResponseGenerations.at(-1);
+      if (sequence === undefined) return;
+      options.observation.generationInput?.({ sequence, input: payload });
+    },
+    compactionStarted(input) {
+      const sequence = startGeneration("agent.compaction");
+      options.observation.generationInput?.({ sequence, input });
+      return sequence;
+    },
+    compactionCompleted(sequence, result) {
       options.observation.generationCompleted({
         ...generationBase(options, sequence, "agent.compaction"),
         stopReason: "stop",
-        ...usageFields(usage, options.pricingKnown),
+        output: result,
+        ...usageFields(result.usage, options.pricingKnown),
       });
     },
     event(event) {
@@ -62,6 +73,7 @@ export function createHarnessObservationBridge(
               ? { responseModel: event.message.responseModel }
               : {}),
             stopReason: event.message.stopReason,
+            output: event.message,
             ...usageFields(event.message.usage, options.pricingKnown),
           });
         }
@@ -71,6 +83,7 @@ export function createHarnessObservationBridge(
         options.observation.toolStarted({
           toolCallId: event.toolCallId,
           toolName: event.toolName,
+          input: event.args,
         });
         return;
       }
@@ -79,6 +92,7 @@ export function createHarnessObservationBridge(
           toolCallId: event.toolCallId,
           toolName: event.toolName,
           isError: event.isError,
+          output: event.result,
         });
       }
     },
@@ -96,6 +110,9 @@ function generationBase(
     purpose: options.purpose,
     provider: options.provider,
     requestedModel: options.requestedModel,
+    ...(operation === "agent.response" && options.prompt
+      ? { prompt: options.prompt }
+      : {}),
   };
 }
 

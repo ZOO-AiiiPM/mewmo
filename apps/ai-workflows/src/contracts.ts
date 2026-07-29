@@ -133,6 +133,7 @@ export interface AiRuntimePort {
     system: string;
     user: string;
     timeoutMs: number;
+    promptId?: string;
   }): Promise<TextGenerationResult>;
   rerank(input: {
     purpose: "workflow.recommendation";
@@ -147,6 +148,7 @@ export interface AiRuntimePort {
     system: string;
     user: string;
     timeoutMs: number;
+    promptId?: string;
   }): Promise<StructuredGenerationResult<T>>;
   embed(input: {
     purpose: "workflow.embedding";

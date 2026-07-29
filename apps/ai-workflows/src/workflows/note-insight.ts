@@ -28,6 +28,7 @@ export async function runNoteInsightWorkflow(
     system: prompt.content,
     user: buildNoteInsightUserPrompt(input),
     timeoutMs: 40_000,
+    promptId: prompt.metadata.id,
   });
   const insights = validateNoteInsights(generated.value);
   return { kind: "note_insight", insights, prompt: prompt.metadata, model: generated.metadata, modelCalls: generated.attempts };

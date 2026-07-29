@@ -47,3 +47,16 @@
 - Pi provider 内部网络 retry 没有独立 lifecycle event；首期记录运行时配置的 max retries、模型调用序号和 Turn retryable 状态，不伪造精确的 provider retry 次数。
 - 当前受控密钥索引没有 `LANGFUSE_*`；真实 smoke 只能使用用户重新生成并安全放置的新 key，不能复用此前已在对话中暴露的旧 Secret。
 - ZOO-70、ZOO-74 尚未提交；ZOO-61 独立实现后由 ZOO-73 统一整合和验证，避免当前分支相互污染。
+
+## 2026-07-29 Scope Extension (Superseding Decision)
+
+This section supersedes every conflicting privacy, acceptance, and out-of-scope statement above.
+
+The user explicitly requires complete Production Langfuse Input/Output. Agent generations include authoritative provider payload and assistant output; Tool observations include args/results; Workflow root/model observations include complete inputs/outputs. Credentials and authorization material remain forbidden.
+
+Agent base and preset Skill Markdown remain the source of truth. A single-writer sync command compares content before creating a Langfuse Prompt version, moves the environment label only when content changes, fails open, and links generations to the managed prompt name/version.
+
+- [ ] Production Agent and Workflow traces display complete business Input/Output.
+- [ ] Tool observations display complete args/results.
+- [ ] Unchanged prompts do not create duplicate versions; changed prompts create and link a new version.
+- [ ] Credential masking and fail-open behavior remain tested.

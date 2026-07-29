@@ -22,3 +22,12 @@
 - `apps/agent/src/index.ts`：shutdown 必须有界且 fail-open，不能因 exporter 卡死进程。
 - `apps/agent/src/config.ts`：缺少 Langfuse key 必须合法；半配置必须禁用并给出安全 warning，不能在错误中打印 key。
 - `pnpm-lock.yaml`：只允许现有 Langfuse/OpenTelemetry 依赖链接到 Agent importer，不升级无关包。
+
+## 2026-07-29 Extension Plan
+
+1. Extend Agent ports/Harness bridge for provider payload, assistant output, Tool args/results, and Turn IO.
+2. Extend Workflow adapters/observations for complete root and model IO.
+3. Add code-owned Agent Prompt metadata plus an idempotent single-writer Langfuse sync command.
+4. Link generations to synchronized managed prompt versions without making Langfuse a runtime dependency.
+5. Replace business-content redaction assertions with payload visibility tests while preserving credential masking.
+6. Run Agent and Workflow lint, test, and build; perform two sync smoke runs to prove idempotency.

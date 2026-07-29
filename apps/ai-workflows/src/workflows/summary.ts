@@ -16,6 +16,7 @@ export async function runSummaryWorkflow(
     system: prompt.content,
     user: buildSummaryUserPrompt(input),
     timeoutMs: 40_000,
+    promptId: prompt.metadata.id,
   });
   const summary = normalizeSummary(generated.text);
   assertValidSummary(summary);

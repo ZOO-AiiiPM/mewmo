@@ -17,6 +17,7 @@ import { AgentError, toAgentError } from "../errors";
 import { createHarnessObservationBridge, type HarnessObservationBridge } from "../observability/harness-bridge";
 import { observeAgentTurn, type AgentObservabilityPort } from "../observability/port";
 import { loadAgentSystemPrompt, loadPresetSkills, type AgentSkillResource } from "../prompt-loader";
+import { loadAgentPromptLink } from "../prompt-manifest";
 import type { AgentRuntimeEvent, AgentRuntimePort, ApplicationPort } from "../ports";
 import { ALL_TOOL_NAMES } from "../tools";
 import type { WebPort } from "../web/port";
@@ -42,6 +43,7 @@ export function createAgentRuntime(options: CreateAgentRuntimeOptions): AgentRun
         chatId: context.chatId,
         turnId: context.turnId,
         configuredMaxRetries: AGENT_PROVIDER_MAX_RETRIES,
+        input: context.request,
       }, async (observation) => {
         let observationBridge: HarnessObservationBridge | undefined;
         let env: NodeExecutionEnv | undefined;
@@ -62,7 +64,8 @@ export function createAgentRuntime(options: CreateAgentRuntimeOptions): AgentRun
           const model = options.ai.model(purpose);
           const pricing = options.ai.modelPricing(purpose);
           observation.configure({ purpose, provider: model.provider, requestedModel: model.id });
-          const bridge = createHarnessObservationBridge({ observation, purpose, provider: model.provider, requestedModel: model.id, pricingKnown: pricing.known });
+          const prompt = await loadAgentPromptLink(selected?.id === "preset:deep-insight" ? "agent/skills/deep-insight.zh" : "agent/system.zh");
+          const bridge = createHarnessObservationBridge({ observation, purpose, provider: model.provider, requestedModel: model.id, pricingKnown: pricing.known, ...(prompt ? { prompt } : {}) });
           observationBridge = bridge;
           const storage = new MewmoSessionStorage({
             application: options.application,
@@ -97,6 +100,10 @@ export function createAgentRuntime(options: CreateAgentRuntimeOptions): AgentRun
             bridge.providerRequestStarted();
             return undefined;
           });
+          harness.on("before_provider_payload", (event) => {
+            bridge.providerPayload(event.payload);
+            return undefined;
+          });
           harness.on("tool_call", (event) => {
             if (!activeToolNames.includes(event.toolName)) return { block: true, reason: "Tool is not permitted by the active Skill." };
           });
@@ -111,11 +118,12 @@ export function createAgentRuntime(options: CreateAgentRuntimeOptions): AgentRun
             : await harness.prompt(context.request.content);
           assertAgentResponseSucceeded(response);
           const branch = await session.getBranch();
-          const estimate = estimateContextTokens((await session.buildContext()).messages);
+          const compactionContext = await session.buildContext();
+          const estimate = estimateContextTokens(compactionContext.messages);
           if (shouldCompact(estimate.tokens, model.contextWindow, DEFAULT_COMPACTION_SETTINGS)) {
-            const compactionSequence = bridge.compactionStarted();
+            const compactionSequence = bridge.compactionStarted(compactionContext);
             const compacted = await harness.compact();
-            bridge.compactionCompleted(compactionSequence, compacted.usage);
+            bridge.compactionCompleted(compactionSequence, compacted);
             await onEvent?.({ type: "compaction" });
           }
           const userEntry = storage.getAppendedMessageEntry("user");
@@ -126,8 +134,7 @@ export function createAgentRuntime(options: CreateAgentRuntimeOptions): AgentRun
           ));
           if (!userEntry || !assistantEntry || assistantEntry.type !== "message") throw new AgentError("internal_error", "Pi session did not persist the completed turn.");
           await onEvent?.({ type: "end" });
-          observation.completed({ providerCallCount: bridge.providerCallCount(), generationCount: bridge.generationCount() });
-          return {
+          const result = {
             text: contentText(response.content),
             proposals,
             citations,
@@ -135,6 +142,8 @@ export function createAgentRuntime(options: CreateAgentRuntimeOptions): AgentRun
             assistantEntryId: assistantEntry.id,
             usage: viewUsage(response),
           };
+          observation.completed({ providerCallCount: bridge.providerCallCount(), generationCount: bridge.generationCount(), output: result });
+          return result;
         } catch (error) {
           const reported = isTimeout(error)
             ? new AgentError("timeout", "Agent request timed out.", { cause: error })
