@@ -4667,6 +4667,9 @@ html.light .mewmo-chat-switcher__item--active {
 }
 
 .mewmo-transcript__welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   color: var(--ink-faint);
   text-align: center;
   font-size: 11.5px;
@@ -4675,6 +4678,32 @@ html.light .mewmo-chat-switcher__item--active {
 
 .mewmo-transcript__welcome p {
   margin: 0;
+}
+
+.mewmo-transcript__welcome-mark {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: var(--raised);
+  color: var(--ink);
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--canvas) 38%, transparent);
+}
+
+.mewmo-transcript__welcome p.mewmo-transcript__welcome-title {
+  margin-top: 12px;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.mewmo-transcript__welcome p.mewmo-transcript__welcome-note {
+  display: grid;
+  margin-top: 6px;
+  line-height: 1.75;
 }
 
 .mewmo-transcript-row {
