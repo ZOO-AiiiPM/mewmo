@@ -59,26 +59,20 @@ interface SidebarProps {
   onMouseLeave?: (() => void) | undefined;
 }
 
-type NavEntryLabelKey = "notes" | "clips" | "pdf" | "ebook" | "feedArticle";
+type NavEntryLabelKey = "notes" | "clips" | "feedArticle";
 
-type NavEntry =
-  | { kind: "link"; href: string; labelKey: NavEntryLabelKey; icon: PrototypeIconName; badge?: string }
-  | { kind: "deferred"; labelKey: NavEntryLabelKey; icon: PrototypeIconName; badge?: string };
+type NavEntry = { kind: "link"; href: string; labelKey: NavEntryLabelKey; icon: PrototypeIconName; badge?: string };
 
 const collectionEntries: NavEntry[] = [
   { kind: "link", href: "/notes", labelKey: "notes", icon: "note" },
   { kind: "link", href: "/clips", labelKey: "clips", icon: "bookmark" },
-  { kind: "deferred", labelKey: "pdf", icon: "pdf", badge: "deferred" },
-  { kind: "deferred", labelKey: "ebook", icon: "shelf", badge: "deferred" },
 ];
 
 type FeedType = "article" | "media" | "video" | "podcast";
 
-const feedTypes: Array<{ type: FeedType; labelKey: string; icon: PrototypeIconName; deferred?: boolean }> = [
+const feedTypes: Array<{ type: FeedType; labelKey: string; icon: PrototypeIconName }> = [
   { type: "article", labelKey: "feedArticle", icon: "doc" },
   { type: "media", labelKey: "feedMedia", icon: "media" },
-  { type: "video", labelKey: "feedVideo", icon: "video", deferred: true },
-  { type: "podcast", labelKey: "feedPodcast", icon: "mic", deferred: true },
 ];
 const FEED_ICON_PRELOAD_TIMEOUT_MS = 450;
 const preloadedFeedIcons = new Set<string>();
@@ -257,7 +251,7 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
   }, [activeKnowledgeBaseId, knowledgeBases, pathname]);
 
   useEffect(() => {
-    if (!feedDrawer || feedTypes.find((item) => item.type === feedDrawer)?.deferred) return;
+    if (!feedDrawer) return;
 
     let cancelled = false;
     const cachedSources = getCachedFeedSources<SidebarFeed>(feedDrawer);
@@ -295,16 +289,7 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
   }, [feedDrawer]);
 
   const openFeedType = (type: FeedType) => {
-    const meta = feedTypes.find((item) => item.type === type);
     setKnowledgeDrawer(null);
-    if (meta?.deferred) {
-      setFeedDrawer(type);
-      const href = getRememberedFeedTypeHref(type, `/feeds?type=${type}`);
-      beginNavigation(href);
-      router.push(href, { scroll: false });
-      showToast(t("feedComingSoon", { type: t(meta.labelKey) }), "error");
-      return;
-    }
     setFeedDrawer(type);
     const href = getRememberedFeedTypeHref(type, `/feeds?type=${type}`);
     beginNavigation(href);
@@ -704,9 +689,7 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
           collapsed={Boolean(collapsedGroups.collection)}
           onToggle={toggleGroup}
         >
-          {collectionEntries.map((entry) =>
-            renderEntry(entry, pathname, defer, rememberedWorkspaceHrefs, t, tc),
-          )}
+          {collectionEntries.map((entry) => renderEntry(entry, pathname, rememberedWorkspaceHrefs, t))}
         </SidebarGroup>
 
         <SidebarGroup
@@ -728,8 +711,6 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
               key={entry.type}
               icon={entry.icon}
               label={t(entry.labelKey)}
-              badge={entry.deferred ? tc("deferred") : undefined}
-              muted={Boolean(entry.deferred)}
               active={pathname.startsWith("/feeds") && activeFeedType === entry.type}
               onClick={() => openFeedType(entry.type)}
             />
@@ -817,12 +798,7 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
                 <span className="mewmo-nav-row__label">{t(feedDrawerMeta.labelKey)}</span>
               </button>
             </div>
-            {feedDrawerMeta.deferred ? (
-              <div className="mewmo-feed-empty">
-                <PrototypeIcon name={feedDrawerMeta.icon} size={38} />
-                <span>{t("feedComingSoon", { type: t(feedDrawerMeta.labelKey) })}</span>
-              </div>
-            ) : feeds.length === 0 ? (
+            {feeds.length === 0 ? (
               <div className="mewmo-feed-empty">
                 <PrototypeIcon name="rss" size={38} />
                 <span>{t("noFeedSources")}</span>
@@ -1000,6 +976,16 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
               </AccountSubmenuRow>
             </div>
           </AccountSubmenu>
+          <AccountSubmenu label={ta("language")} icon="language">
+            <div className="acct-submenu">
+              <AccountSubmenuRow icon="monitor" active={locale === "zh"} onClick={() => handleLocaleSwitch("zh")}>
+                {ta("languageZh")}
+              </AccountSubmenuRow>
+              <AccountSubmenuRow icon="monitor" active={locale === "en"} onClick={() => handleLocaleSwitch("en")}>
+                {ta("languageEn")}
+              </AccountSubmenuRow>
+            </div>
+          </AccountSubmenu>
           <AccountSubmenu label={ta("fontAndSize")} icon="font-size">
             <div className="acct-submenu">
               <div className="acct-sub__label">{ta("fontLabel")}</div>
@@ -1064,22 +1050,6 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
           <div className="mewmo-menu-separator" />
           <FloatingMenuLink href="/settings" icon="user">{ta("settings")}</FloatingMenuLink>
           <FloatingMenuButton icon="info" onClick={defer}>{ta("helpSupport")}</FloatingMenuButton>
-          <AccountSubmenu label={ta("importExport")} icon="import-export">
-            <div className="acct-submenu">
-              <AccountSubmenuRow icon="import" onClick={defer}>{ta("import")}</AccountSubmenuRow>
-              <AccountSubmenuRow icon="export" onClick={defer}>{ta("export")}</AccountSubmenuRow>
-            </div>
-          </AccountSubmenu>
-          <AccountSubmenu label={ta("language")} icon="appearance">
-            <div className="acct-submenu">
-              <AccountSubmenuRow icon="monitor" active={locale === "zh"} onClick={() => handleLocaleSwitch("zh")}>
-                {ta("languageZh")}
-              </AccountSubmenuRow>
-              <AccountSubmenuRow icon="monitor" active={locale === "en"} onClick={() => handleLocaleSwitch("en")}>
-                {ta("languageEn")}
-              </AccountSubmenuRow>
-            </div>
-          </AccountSubmenu>
           <div className="mewmo-menu-separator" />
           <FloatingMenuButton icon="logout" onClick={() => setLogoutOpen(true)}>{ta("logout")}</FloatingMenuButton>
         </FloatingMenu>
@@ -1227,16 +1197,11 @@ function AccountSubmenuRow({
 function renderEntry(
   entry: NavEntry,
   pathname: string,
-  defer: () => void,
   rememberedWorkspaceHrefs: Record<WorkspaceSection, string>,
   t: (key: NavEntryLabelKey) => string,
-  tc: (key: "deferred") => string,
 ) {
   const label = t(entry.labelKey);
-  const badge = entry.badge === "deferred" ? tc("deferred") : entry.badge;
-  if (entry.kind === "deferred") {
-    return <SidebarButton key={entry.labelKey} icon={entry.icon} label={label} badge={badge} onClick={defer} muted />;
-  }
+  const badge = entry.badge;
   const section = workspaceSectionForEntryHref(entry.href);
   const href =
     section === "notes" || section === "clips"

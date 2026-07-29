@@ -1542,7 +1542,7 @@ test("all popover menu items expose a prototype icon slot", () => {
     /FloatingMenuButton[\s\S]*icon=\{item\.icon\}/,
     "feed quick-switch buttons should use the shared floating menu button with an icon slot",
   );
-  for (const icon of ["palette", "appearance", "font-size", "info", "import-export", "logout", "monitor", "moon", "sun", "import"]) {
+  for (const icon of ["palette", "appearance", "font-size", "info", "logout", "monitor", "moon", "sun", "import"]) {
     assert.match(
       prototypeIcon,
       new RegExp(`"${icon}"`),
@@ -1553,7 +1553,6 @@ test("all popover menu items expose a prototype icon slot", () => {
     [/<AccountSubmenu label=\{ta\("appearance"\)\} icon="appearance">/, "appearance"],
     [/<AccountSubmenu label=\{ta\("fontAndSize"\)\} icon="font-size">/, "fontAndSize"],
     [/<FloatingMenuButton icon="info"[\s\S]*\{ta\("helpSupport"\)\}/, "helpSupport"],
-    [/<AccountSubmenu label=\{ta\("importExport"\)\} icon="import-export">/, "importExport"],
     [/<FloatingMenuButton icon="logout"[\s\S]*\{ta\("logout"\)\}/, "logout"],
   ]) {
     assert.match(
@@ -1634,7 +1633,6 @@ test("account menu restores prototype right-side submenus", () => {
   for (const [key, icon] of [
     ["appearance", "appearance"],
     ["fontAndSize", "font-size"],
-    ["importExport", "import-export"],
   ]) {
     assert.match(
       sidebar,
@@ -1651,8 +1649,6 @@ test("account menu restores prototype right-side submenus", () => {
     ["monitor", "themeSystem"],
     ["moon", "themeDark"],
     ["sun", "themeLight"],
-    ["import", "import"],
-    ["export", "export"],
   ]) {
     assert.match(
       sidebar,
@@ -2391,10 +2387,10 @@ test("add feed category selector uses the prototype popover card", () => {
     /FloatingMenuButton[\s\S]*icon=\{item\.icon\}[\s\S]*checked=\{type === item\.type\}/,
     "each add-feed category option should have an icon slot and selected state",
   );
-  assert.match(
+  assert.doesNotMatch(
     feedsPage,
-    /disabled=\{Boolean\(item\.deferred\)\}/,
-    "deferred category placeholders should stay visible but disabled in the menu",
+    /deferred/,
+    "deferred feed placeholders (video/podcast) should be fully removed from the feeds page",
   );
   assert.match(
     floatingMenu,
