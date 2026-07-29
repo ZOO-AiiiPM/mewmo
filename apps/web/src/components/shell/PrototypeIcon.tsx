@@ -4,6 +4,7 @@ import { useId } from "react";
 
 export type PrototypeIconName =
   | "home"
+  | "cat"
   | "calendar"
   | "mewmo-logo"
   | "groups-collapse"
@@ -115,11 +116,13 @@ const PROTOTYPE_LINE_ICONS = {
 } as const satisfies Partial<Record<PrototypeIconName, string>>;
 
 const PROTOTYPE_EXTRA_LINE_ICONS = {
+  "cat": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100%\" height=\"100%\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4.75 10.4V5.32c0-.63.72-.99 1.22-.6l2.9 2.24A11.3 11.3 0 0 1 12 6.5c1.09 0 2.14.16 3.13.46l2.9-2.24c.5-.39 1.22-.03 1.22.6v5.08c.65 1.03 1 2.22 1 3.5c0 3.87-3.7 6.35-8.25 6.35S3.75 17.77 3.75 13.9c0-1.28.35-2.47 1-3.5Z\"/><path d=\"M12 15.6v1M10.4 17.4h3.2\" stroke-width=\"1.5\"/><circle cx=\"9.1\" cy=\"12.9\" r=\"0.55\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"14.9\" cy=\"12.9\" r=\"0.55\" fill=\"currentColor\" stroke=\"none\"/></svg>",
   "history": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100%\" height=\"100%\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 3v5h5\"/><path d=\"M3.05 13A9 9 0 1 0 6 5.3L3 8\"/><path d=\"M12 7v5l4 2\"/></svg>",
   "paperclip": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100%\" height=\"100%\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48\"/></svg>"
 } as const satisfies Partial<Record<PrototypeIconName, string>>;
 
 const PROTOTYPE_FILL_ICONS = {
+  "cat": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100%\" height=\"100%\" viewBox=\"0 0 24 24\" fill=\"currentColor\"><path fill=\"currentColor\" fill-rule=\"evenodd\" d=\"M5.51 3.53c-.99-.77-2.44-.07-2.44 1.19v5.24A7.6 7.6 0 0 0 2.05 13.9c0 2.5 1.21 4.5 3.05 5.84c1.83 1.33 4.28 2.01 6.9 2.01s5.07-.68 6.9-2.01c1.84-1.34 3.05-3.34 3.05-5.84c0-1.44-.36-2.78-1.02-3.94V4.72c0-1.26-1.45-1.96-2.44-1.19l-2.62 2.03A13 13 0 0 0 12 5.15c-1.34 0-2.63.14-3.87.41zM9.1 12.05a.85.85 0 1 0 0 1.7a.85.85 0 0 0 0-1.7m5.8 0a.85.85 0 1 0 0 1.7a.85.85 0 0 0 0-1.7m-3.65 3.55a.75.75 0 0 1 .75.75v.3h.85a.75.75 0 0 1 0 1.5h-3.2a.75.75 0 0 1 0-1.5h.85v-.3a.75.75 0 0 1 .75-.75\" clip-rule=\"evenodd\"/></svg>",
   "home": "<svg width=\"100%\" height=\"100%\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><path fill=\"currentColor\" fill-rule=\"evenodd\" d=\"M2.52 7.823C2 8.77 2 9.915 2 12.203v1.522c0 3.9 0 5.851 1.172 7.063S6.229 22 10 22h4c3.771 0 5.657 0 6.828-1.212S22 17.626 22 13.725v-1.521c0-2.289 0-3.433-.52-4.381c-.518-.949-1.467-1.537-3.364-2.715l-2-1.241C14.111 2.622 13.108 2 12 2s-2.11.622-4.116 1.867l-2 1.241C3.987 6.286 3.038 6.874 2.519 7.823m6.927 7.575a.75.75 0 1 0-.894 1.204A5.77 5.77 0 0 0 12 17.75a5.77 5.77 0 0 0 3.447-1.148a.75.75 0 1 0-.894-1.204A4.27 4.27 0 0 1 12 16.25a4.27 4.27 0 0 1-2.553-.852\" clip-rule=\"evenodd\"/></svg>",
   "calendar": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100%\" height=\"100%\" viewBox=\"0 0 24 24\" fill=\"currentColor\"><path fill=\"currentColor\" d=\"M7.75 2.5a.75.75 0 0 0-1.5 0v1.58c-1.44.115-2.384.397-3.078 1.092c-.695.694-.977 1.639-1.093 3.078h19.842c-.116-1.44-.398-2.384-1.093-3.078c-.694-.695-1.639-.977-3.078-1.093V2.5a.75.75 0 0 0-1.5 0v1.513C15.585 4 14.839 4 14 4h-4c-.839 0-1.585 0-2.25.013z\"/><path fill=\"currentColor\" fill-rule=\"evenodd\" d=\"M22 12v2c0 3.771 0 5.657-1.172 6.828S17.771 22 14 22h-4c-3.771 0-5.657 0-6.828-1.172S2 17.771 2 14v-2c0-.839 0-1.585.013-2.25h19.974C22 10.415 22 11.161 22 12m-5.5 6a1.5 1.5 0 1 0 0-3a1.5 1.5 0 0 0 0 3\" clip-rule=\"evenodd\"/></svg>",
   "caret": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100%\" height=\"100%\" viewBox=\"0 0 24 24\" fill=\"currentColor\"><path fill=\"currentColor\" d=\"m12.37 15.835l6.43-6.63C19.201 8.79 18.958 8 18.43 8H5.57c-.528 0-.771.79-.37 1.205l6.43 6.63c.213.22.527.22.74 0\"/></svg>",

@@ -689,7 +689,7 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
 
       <div className={`mewmo-sidebar__stage ${stageDrilled ? "mewmo-sidebar__stage--drilled" : ""} ${stageModeClass}`}>
       <nav className="mewmo-sidebar__nav" aria-label="Workspace">
-        <SidebarButton icon="home" label={t("home")} onClick={defer} />
+        <SidebarLink href="/mew" icon="cat" label={t("home")} active={pathname.startsWith("/mew")} />
         <SidebarLink
           href={rememberedWorkspaceHrefs.today}
           icon="calendar"

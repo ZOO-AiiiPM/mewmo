@@ -11,11 +11,12 @@ interface AgentSidebarProps {
   agentChats: AgentChats;
   context: AISidebarContentContext | null;
   requestedSkill: string | null;
+  showInsight?: boolean;
   onSkillConsumed: () => void;
   onDeepInsight: () => void;
 }
 
-export function AgentSidebar({ agentChats, context, requestedSkill, onSkillConsumed, onDeepInsight }: AgentSidebarProps) {
+export function AgentSidebar({ agentChats, context, requestedSkill, showInsight = true, onSkillConsumed, onDeepInsight }: AgentSidebarProps) {
   const { activeChatId, loadingChats, chatError, store, dismissError } = agentChats;
 
   const handleSend = useCallback((options: { content: string; skillId?: string; includeContext: boolean }) => {
@@ -32,7 +33,7 @@ export function AgentSidebar({ agentChats, context, requestedSkill, onSkillConsu
     <div className="mewmo-agent-panel">
       {chatError && <div className="mewmo-agent-panel__error" role="alert">{chatError}<button type="button" onClick={dismissError} aria-label="关闭提示">×</button></div>}
       <TranscriptList stableRows={store.stableRows} liveRow={store.liveRow} context={context} onProposalChange={store.updateProposal} onRetry={store.retry} {...(store.failedRequest ? { retryTurnId: store.failedRequest.turnId } : {})} />
-      <ChatInput status={store.status} chatReady={chatReady} context={context} requestedSkill={requestedSkill} onSkillConsumed={onSkillConsumed} onDeepInsight={onDeepInsight} onSend={handleSend} />
+      <ChatInput status={store.status} chatReady={chatReady} context={context} requestedSkill={requestedSkill} showInsight={showInsight} onSkillConsumed={onSkillConsumed} onDeepInsight={onDeepInsight} onSend={handleSend} />
     </div>
   );
 }
