@@ -1,1 +1,22 @@
-{}
+{
+  "agent/system.zh": {
+    "name": "agent/system.zh",
+    "version": 1
+  },
+  "agent/skills/deep-insight.zh": {
+    "name": "agent/skills/deep-insight.zh",
+    "version": 1
+  },
+  "workflow.article-summary.zh": {
+    "name": "workflow/article-summary.zh",
+    "version": 1
+  },
+  "workflow.note-insight.zh": {
+    "name": "workflow/note-insight.zh",
+    "version": 1
+  },
+  "eval.summary-judge.zh": {
+    "name": "eval/summary-judge.zh",
+    "version": 1
+  }
+}
