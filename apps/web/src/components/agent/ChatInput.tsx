@@ -12,9 +12,14 @@ interface ChatInputProps {
   chatReady: boolean;
   context: AISidebarContentContext | null;
   requestedSkill: string | null;
+  /** Edit-and-resend payload: refills the textarea (new object per request). */
+  prefill: { text: string } | null;
   showInsight?: boolean;
   onSkillConsumed: () => void;
+  onPrefillConsumed: () => void;
   onDeepInsight: () => void;
+  /** Stop the current streaming reply (shown in place of send while sending). */
+  onStop: () => void;
   onSend: (options: { content: string; skillId?: string; includeContext: boolean }) => void;
 }
 
@@ -23,8 +28,9 @@ const MAX_TEXTAREA_HEIGHT = 168;
 /**
  * Bottom-pinned chat input: the box stacks a dismissible context chip, an
  * auto-growing textarea, and a toolbar row (upload / deep insight / send).
+ * While a reply is streaming the send button becomes a stop button.
  */
-export function ChatInput({ status, chatReady, context, requestedSkill, showInsight = true, onSkillConsumed, onDeepInsight, onSend }: ChatInputProps) {
+export function ChatInput({ status, chatReady, context, requestedSkill, prefill, showInsight = true, onSkillConsumed, onPrefillConsumed, onDeepInsight, onStop, onSend }: ChatInputProps) {
   const [input, setInput] = useState("");
   const [skillId, setSkillId] = useState<string | undefined>();
   const [attachedFile, setAttachedFile] = useState<string | null>(null);
@@ -43,6 +49,19 @@ export function ChatInput({ status, chatReady, context, requestedSkill, showInsi
     setInput((current) => current || "请对当前内容进行深度洞察，指出关键联系、盲点、反例和下一步思考方向。");
     onSkillConsumed();
   }, [onSkillConsumed, requestedSkill]);
+
+  // Edit-and-resend: refill the textarea with an earlier user message.
+  useEffect(() => {
+    if (!prefill) return;
+    setInput(prefill.text);
+    onPrefillConsumed();
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (!el || el.disabled) return;
+      el.focus();
+      el.setSelectionRange(el.value.length, el.value.length);
+    });
+  }, [onPrefillConsumed, prefill]);
 
   // Auto-grow the textarea with the draft, capped so long messages scroll.
   useEffect(() => {
@@ -145,14 +164,26 @@ export function ChatInput({ status, chatReady, context, requestedSkill, showInsi
               </button>
             )}
           </div>
-          <button
-            type="submit"
-            className="mewmo-chat-input__send"
-            disabled={!input.trim() || disabled}
-            aria-label="发送"
-          >
-            <PrototypeIcon name="send" size={14} />
-          </button>
+          {status === "sending" ? (
+            <button
+              type="button"
+              className="mewmo-chat-input__send mewmo-chat-input__send--stop"
+              onClick={onStop}
+              aria-label="停止生成"
+              title="停止生成"
+            >
+              <span className="mewmo-chat-input__stop-icon" aria-hidden="true" />
+            </button>
+          ) : (
+            <button
+              type="submit"
+              className="mewmo-chat-input__send"
+              disabled={!input.trim() || disabled}
+              aria-label="发送"
+            >
+              <PrototypeIcon name="send" size={14} />
+            </button>
+          )}
         </div>
       </form>
     </div>

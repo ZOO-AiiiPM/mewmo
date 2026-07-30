@@ -119,6 +119,8 @@ export interface TranscriptRow {
   proposals: AgentActionProposal[];
   contextChip?: TranscriptContextChip;
   error?: { message: string; retryable: boolean };
+  /** True when the user stopped generation client-side (reply may be partial). */
+  stopped?: boolean;
   createdAt?: string;
 }
 
