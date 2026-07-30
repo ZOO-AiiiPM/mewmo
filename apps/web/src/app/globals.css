@@ -3515,6 +3515,15 @@ html.light .mewmo-share-page {
   line-height: 1.78;
 }
 
+/* 深色模式下正文用 --ink（近白）提升可读性；:not(.light) 兼容 SSR 首帧无主题类的默认深色 */
+html:not(.light) .mewmo-clip-prose,
+html:not(.light) .mewmo-clip-prose p,
+html:not(.light) .mewmo-clip-prose li,
+html:not(.light) .mewmo-clip-prose td,
+html:not(.light) .mewmo-clip-prose th {
+  color: var(--ink);
+}
+
 .mewmo-clip-prose > *:first-child {
   margin-top: 0;
 }
@@ -4214,6 +4223,11 @@ html.light .mewmo-ai-related-modal__panel {
   border-top-left-radius: 4px;
   background: var(--s2);
   color: var(--ink-soft);
+}
+
+/* 深色模式下 assistant 消息用 --ink（近白），与正文可读性规则保持一致 */
+html:not(.light) .mewmo-ai-message--assistant {
+  color: var(--ink);
 }
 
 .mewmo-ai-message--user {
