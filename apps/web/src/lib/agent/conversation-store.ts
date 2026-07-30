@@ -8,6 +8,7 @@
  * - deduplication by (turnId, seq)
  * - optimistic user message + pending assistant
  * - failure/retry in-place
+ * - user-initiated stop (client-side stream abort; see stop())
  */
 
 "use client";
@@ -62,6 +63,12 @@ export interface SendOptions {
 export interface ConversationStore extends ConversationStoreState {
   send: (options: SendOptions) => void;
   retry: () => void;
+  /**
+   * Stop the current streaming turn client-side. The server has no turn-abort
+   * endpoint, so generation continues remotely and the persisted reply may be
+   * longer than what stays on screen; the local row is committed as stopped.
+   */
+  stop: () => void;
   reload: () => void;
   updateProposal: (proposal: AgentActionProposal) => void;
 }
@@ -79,6 +86,7 @@ export function useConversationStore(chatId: string | null): ConversationStore {
 
   const liveTurnRef = useRef<LiveTurnState | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const stopRequestedRef = useRef(false);
   const generationRef = useRef(0);
   const chatIdRef = useRef(chatId);
   chatIdRef.current = chatId;
@@ -117,6 +125,7 @@ export function useConversationStore(chatId: string | null): ConversationStore {
   useEffect(() => {
     generationRef.current += 1;
     // Abort any in-flight stream from previous chat
+    stopRequestedRef.current = false;
     abortRef.current?.abort();
     abortRef.current = null;
     liveTurnRef.current = null;
@@ -144,6 +153,7 @@ export function useConversationStore(chatId: string | null): ConversationStore {
     const turnId = `live-${request.clientRequestId}`;
     const controller = new AbortController();
     abortRef.current = controller;
+    stopRequestedRef.current = false;
 
     // Create live turn accumulator
     const liveTurn = createLiveTurn(targetChatId, turnId, request.options.content);
@@ -159,6 +169,25 @@ export function useConversationStore(chatId: string | null): ConversationStore {
     });
     setStatus("sending");
     setFailedRequest(null);
+
+    // User pressed stop: keep whatever streamed so far as a completed row.
+    // The server keeps generating (no turn-abort endpoint); reload() would
+    // reveal the full persisted reply.
+    const commitStoppedRow = () => {
+      stopRequestedRef.current = false;
+      const finalTurn = liveTurnRef.current;
+      const stoppedRow: TranscriptRow = {
+        turnId: finalTurn?.turnId ?? turnId,
+        userContent: request.options.content,
+        assistant: finalTurn?.blocks ?? [],
+        status: "completed",
+        proposals: finalTurn?.proposals ?? [],
+        stopped: true,
+      };
+      commitRow(stoppedRow);
+      setFailedRequest(null);
+      setStatus("idle");
+    };
 
     try {
       const result = await sendAndStream(
@@ -192,6 +221,12 @@ export function useConversationStore(chatId: string | null): ConversationStore {
 
       // Guard: ensure we're still on the same chat
       if (chatIdRef.current !== targetChatId || generationRef.current !== generation) return;
+
+      // Stream loop exited because the user stopped generation
+      if (controller.signal.aborted && stopRequestedRef.current) {
+        commitStoppedRow();
+        return;
+      }
 
       const finalTurn = liveTurnRef.current;
       if (!finalTurn) return;
@@ -257,7 +292,11 @@ export function useConversationStore(chatId: string | null): ConversationStore {
       }
     } catch (error) {
       if (chatIdRef.current !== targetChatId || generationRef.current !== generation) return;
-      if (controller.signal.aborted) return; // Intentional abort (chat switch)
+      if (controller.signal.aborted) {
+        // User-initiated stop keeps the partial reply; chat-switch aborts stay silent.
+        if (stopRequestedRef.current) commitStoppedRow();
+        return;
+      }
 
       const message = publicErrorMessage(error instanceof Error ? error.message : null);
       const finalTurn = liveTurnRef.current;
@@ -305,7 +344,15 @@ export function useConversationStore(chatId: string | null): ConversationStore {
     void performSend(newRequest);
   }, [failedRequest, performSend]);
 
+  const stop = useCallback(() => {
+    const controller = abortRef.current;
+    if (!controller || controller.signal.aborted) return;
+    stopRequestedRef.current = true;
+    controller.abort();
+  }, []);
+
   const reload = useCallback(() => {
+    stopRequestedRef.current = false;
     abortRef.current?.abort();
     abortRef.current = null;
     liveTurnRef.current = null;
@@ -364,6 +411,7 @@ export function useConversationStore(chatId: string | null): ConversationStore {
     proposals,
     send,
     retry,
+    stop,
     reload,
     updateProposal,
   };

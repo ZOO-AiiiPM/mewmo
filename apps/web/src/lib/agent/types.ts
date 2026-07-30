@@ -109,6 +109,8 @@ export interface TranscriptRow {
   status: TranscriptRowStatus;
   proposals: AgentActionProposal[];
   error?: { message: string; retryable: boolean };
+  /** True when the user stopped generation client-side (reply may be partial). */
+  stopped?: boolean;
   createdAt?: string;
 }
 

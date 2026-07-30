@@ -7433,3 +7433,137 @@ html.light .acct-submenu {
     padding-top: 80px;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * Agent conversation polish (message action bars + loading transitions)
+ * ------------------------------------------------------------------------- */
+
+/* Message groups keep the bubble + its hover action bar aligned as one unit. */
+.mewmo-message-group {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mewmo-message-group--user {
+  align-items: flex-end;
+}
+
+.mewmo-message-group--assistant {
+  align-items: flex-start;
+}
+
+.mewmo-message-group--user .mewmo-ai-message--user,
+.mewmo-message-group--assistant .mewmo-ai-message--assistant {
+  align-self: auto;
+}
+
+/* Hover action bar: space is reserved so revealing it never shifts layout. */
+.mewmo-message-actions {
+  display: flex;
+  min-height: 22px;
+  align-items: center;
+  gap: 2px;
+  padding: 0 2px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.mewmo-message-group:hover .mewmo-message-actions,
+.mewmo-message-actions:focus-within,
+.mewmo-message-actions--visible {
+  opacity: 1;
+}
+
+/* Touch devices have no hover: keep the actions visible. */
+@media (hover: none) {
+  .mewmo-message-actions {
+    opacity: 1;
+  }
+}
+
+.mewmo-message-actions__button {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.mewmo-message-actions__button:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+/* Client-side stop marker on a partially streamed reply. */
+.mewmo-transcript-stopped {
+  color: var(--ink-faint);
+  font-size: 10.5px;
+}
+
+/* Stop button replaces send while a reply is streaming. */
+.mewmo-chat-input__send--stop {
+  opacity: 1;
+}
+
+.mewmo-chat-input__stop-icon {
+  display: block;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+/* Transcript loading skeleton: reuses the shared .mewmo-skeleton-block sweep. */
+.mewmo-transcript-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 4px;
+  animation: mewmo-agent-fade-in 0.2s ease;
+}
+
+.mewmo-transcript-skeleton__bubble {
+  width: 46%;
+  height: 30px;
+  align-self: flex-end;
+  border-top-right-radius: 4px;
+  margin-top: 6px;
+}
+
+.mewmo-transcript-skeleton__line {
+  width: 78%;
+  height: 12px;
+}
+
+.mewmo-transcript-skeleton__line--short {
+  width: 52%;
+}
+
+/* Soft entrance for the agent panel and each transcript row. */
+.mewmo-agent-panel {
+  animation: mewmo-agent-fade-in 0.18s ease;
+}
+
+.mewmo-transcript-row {
+  animation: mewmo-agent-fade-in 0.22s ease;
+}
+
+@keyframes mewmo-agent-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mewmo-agent-panel,
+  .mewmo-transcript-row,
+  .mewmo-transcript-skeleton {
+    animation: none;
+  }
+}
