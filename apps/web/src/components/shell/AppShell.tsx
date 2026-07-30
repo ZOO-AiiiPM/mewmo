@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
   AI_FAB_DEFAULT_BOTTOM,
+  AI_FAB_LONG_PRESS_MS,
   clampAiFabBottom,
   isAiFabDragMoved,
 } from "../../lib/ai-fab-position";
@@ -49,8 +50,10 @@ export function AppShell({ children, user }: AppShellProps) {
     startX: number;
     startY: number;
     startBottom: number;
-    moved: boolean;
+    active: boolean;
+    cancelled: boolean;
   } | null>(null);
+  const aiFabPressTimer = useRef<number | null>(null);
   const suppressAiFabClickRef = useRef(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarPeek, setSidebarPeek] = useState(false);
@@ -132,6 +135,14 @@ export function AppShell({ children, user }: AppShellProps) {
     window.addEventListener("pointerup", onAiUp);
   };
 
+  const clearAiFabPressTimer = useCallback(() => {
+    if (aiFabPressTimer.current === null) return;
+    window.clearTimeout(aiFabPressTimer.current);
+    aiFabPressTimer.current = null;
+  }, []);
+
+  useEffect(() => clearAiFabPressTimer, [clearAiFabPressTimer]);
+
   const startAiFabDrag = (event: PointerEvent<HTMLButtonElement>) => {
     if (event.button !== 0) return;
     try {
@@ -148,29 +159,45 @@ export function AppShell({ children, user }: AppShellProps) {
       startX: event.clientX,
       startY: event.clientY,
       startBottom: aiFabBottom,
-      moved: false,
+      active: false,
+      cancelled: false,
     };
-    setAiFabDragging(true);
+    // Drag mode arms only after a deliberate hold; until then the FAB never
+    // moves, so a quick tap reads as a clean click with zero visual nudge.
+    clearAiFabPressTimer();
+    aiFabPressTimer.current = window.setTimeout(() => {
+      aiFabPressTimer.current = null;
+      const drag = aiFabDragRef.current;
+      if (!drag || drag.cancelled) return;
+      drag.active = true;
+      setAiFabDragging(true);
+    }, AI_FAB_LONG_PRESS_MS);
   };
 
   const moveAiFab = (event: PointerEvent<HTMLButtonElement>) => {
     const drag = aiFabDragRef.current;
     if (!drag) return;
 
-    const delta = drag.startY - event.clientY;
-    if (!drag.moved && isAiFabDragMoved(drag.startX, drag.startY, event.clientX, event.clientY)) {
-      drag.moved = true;
+    if (drag.active) {
+      setAiFabBottom(
+        clampAiFabBottom(drag.startBottom + (drag.startY - event.clientY), window.innerHeight),
+      );
+      return;
     }
-    setAiFabBottom(
-      clampAiFabBottom(drag.startBottom + delta, window.innerHeight),
-    );
+    // Not in drag mode yet: sub-threshold jitter is a tap in progress; larger
+    // travel means this was a swipe, not a long press — void the gesture.
+    if (!drag.cancelled && isAiFabDragMoved(drag.startX, drag.startY, event.clientX, event.clientY)) {
+      drag.cancelled = true;
+      clearAiFabPressTimer();
+    }
   };
 
   const endAiFabDrag = (event: PointerEvent<HTMLButtonElement>) => {
     const drag = aiFabDragRef.current;
     if (!drag) return;
 
-    suppressAiFabClickRef.current = drag.moved;
+    clearAiFabPressTimer();
+    suppressAiFabClickRef.current = drag.active || drag.cancelled;
     aiFabDragRef.current = null;
     setAiFabDragging(false);
     try {

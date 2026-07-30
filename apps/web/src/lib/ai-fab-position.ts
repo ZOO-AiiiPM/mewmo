@@ -12,6 +12,14 @@ export const AI_FAB_EDGE_GAP = 16;
 export const AI_FAB_DRAG_THRESHOLD = 10;
 
 /**
+ * Hold duration (ms) before a press on the AI FAB enters drag mode. The FAB
+ * stays put until this fires, so a quick tap never nudges it visually: click
+ * opens, long-press repositions. Movement beyond AI_FAB_DRAG_THRESHOLD before
+ * the timer fires voids the gesture (it was a swipe, not a long press).
+ */
+export const AI_FAB_LONG_PRESS_MS = 300;
+
+/**
  * Decide whether a FAB gesture has moved far enough to count as a drag.
  * Uses the larger of the horizontal/vertical deltas so jitter on either axis is
  * tolerated up to the threshold. Pure + exported for unit testing.
