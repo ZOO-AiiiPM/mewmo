@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   AI_FAB_DEFAULT_BOTTOM,
   AI_FAB_DRAG_THRESHOLD,
+  AI_FAB_LONG_PRESS_MS,
   clampAiFabBottom,
   isAiFabDragMoved,
 } from "./ai-fab-position";
@@ -42,5 +43,12 @@ describe("isAiFabDragMoved (ZOO-54 click-vs-drag discrimination)", () => {
   it("respects a custom threshold", () => {
     expect(isAiFabDragMoved(0, 0, 5, 0, 4)).toBe(true);
     expect(isAiFabDragMoved(0, 0, 3, 0, 4)).toBe(false);
+  });
+});
+
+describe("AI_FAB_LONG_PRESS_MS (long-press arms drag)", () => {
+  it("requires a deliberate hold no quick tap can reach", () => {
+    // Drag mode must never arm during a normal tap (~100ms press).
+    expect(AI_FAB_LONG_PRESS_MS).toBe(300);
   });
 });
