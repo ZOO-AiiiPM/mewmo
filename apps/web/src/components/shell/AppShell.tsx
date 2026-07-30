@@ -60,6 +60,12 @@ export function AppShell({ children, user }: AppShellProps) {
   const [aiFabBottom, setAiFabBottom] = useState(AI_FAB_DEFAULT_BOTTOM);
   const [aiFabDragging, setAiFabDragging] = useState(false);
 
+  // The /mew page is a full-width agent surface; keeping the AI rail open
+  // alongside it would show two chats at once, so close it on entry.
+  useEffect(() => {
+    if (onMewHome) setAiOpen(false);
+  }, [onMewHome]);
+
 
   const clearSidebarPeekTimer = useCallback(() => {
     if (sidebarPeekTimer.current === null) return;

@@ -62,6 +62,13 @@ function toChatView(value: unknown) {
 }
 
 function toChatSummary(value: unknown) {
-  const chat = value as { id?: unknown; title?: unknown; createdAt?: unknown; updatedAt?: unknown };
-  return { id: chat.id, title: chat.title, createdAt: chat.createdAt, updatedAt: chat.updatedAt };
+  const chat = value as {
+    id?: unknown;
+    title?: unknown;
+    createdAt?: unknown;
+    updatedAt?: unknown;
+    _count?: { sessionEntries?: number; messages?: number };
+  };
+  const messageCount = (chat._count?.sessionEntries ?? 0) + (chat._count?.messages ?? 0);
+  return { id: chat.id, title: chat.title, createdAt: chat.createdAt, updatedAt: chat.updatedAt, messageCount };
 }

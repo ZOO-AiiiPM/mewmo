@@ -121,6 +121,8 @@ export interface ChatSummary {
   title: string;
   createdAt?: string;
   updatedAt?: string;
+  /** Total persisted messages; lets the UI reuse an untouched chat instead of stacking empties. */
+  messageCount?: number;
 }
 
 // ---------------------------------------------------------------------------
