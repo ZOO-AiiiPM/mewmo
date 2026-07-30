@@ -277,8 +277,11 @@ async function executeServerAction(services: Services, agentActor: AgentActor, a
     return actionView(await services.actions.recordResult(appActor, { actionId, executionMode: "server", succeeded: true, result }));
   } catch (error) {
     const normalized = normalizeError(error);
-    await services.actions.recordResult(appActor, { actionId, executionMode: "server", succeeded: false, errorCode: normalized.code, errorMessage: normalized.message });
-    throw normalized;
+    const recorded = await services.actions.recordResult(appActor, { actionId, executionMode: "server", succeeded: false, errorCode: normalized.code, errorMessage: normalized.message });
+    // Return the failed action view instead of throwing, so the frontend gets
+    // a 200 with the action in "failed" state (retryable). Previously this
+    // threw a 409 "conflict" which the web mapped to "会话正在处理另一条消息".
+    return actionView(recorded);
   }
 }
 

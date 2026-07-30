@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { AgentConfig } from "./config";
 import { signIdentityForTest } from "./identity";
-import { buildAgentServer } from "./server";
+import { actionResultMessage, buildAgentServer } from "./server";
 import { TEST_ACTOR, createApplicationStub } from "./testing";
 
 const config: AgentConfig = {
@@ -155,6 +155,79 @@ describe("Agent HTTP server", () => {
     expect(confirmed.json()).toMatchObject({ action: { status: "confirmed", executionMode: "client" } });
     const completed = await app.inject({ method: "POST", url: "/v1/actions/action-1/result", headers, payload: { status: "succeeded", result: { version: 4 } } });
     expect(completed.json()).toMatchObject({ action: { id: "action-1", status: "succeeded" } });
+  });
+
+  it("returns a succeeded action with a resultMessage after confirm (A1 no throw + A2 result message)", async () => {
+    const confirm = vi.fn(async ({ actionId }) => ({
+      id: actionId,
+      toolName: "knowledge_base_create" as const,
+      preview: { title: "创建知识库", summary: "创建「阅读笔记」知识库" },
+      riskLevel: "low" as const,
+      status: "succeeded" as const,
+      executionMode: "server" as const,
+      result: { id: "kb-1" },
+    }));
+    const application = createApplicationStub({ actions: { ...createApplicationStub().actions, confirm } });
+    const app = buildAgentServer({ config, runtime: { run: vi.fn() }, application });
+    const token = await signIdentityForTest(TEST_ACTOR, identityOptions());
+    const headers = { authorization: `Bearer ${token}` };
+    const response = await app.inject({ method: "POST", url: "/v1/actions/action-1/confirm", headers, payload: { executionMode: "server" } });
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.action.status).toBe("succeeded");
+    expect(body.resultMessage).toContain("已创建知识库");
+    expect(body.resultMessage).toContain("创建知识库");
+  });
+
+  it("returns a failed action in 200 instead of throwing 409 (A1 session lock fix)", async () => {
+    const confirm = vi.fn(async ({ actionId }) => ({
+      id: actionId,
+      toolName: "note_move_to_trash" as const,
+      preview: { title: "移入废纸篓" },
+      riskLevel: "high" as const,
+      status: "failed" as const,
+      executionMode: "server" as const,
+      error: { code: "conflict", message: "note version changed", retryable: true },
+    }));
+    const application = createApplicationStub({ actions: { ...createApplicationStub().actions, confirm } });
+    const app = buildAgentServer({ config, runtime: { run: vi.fn() }, application });
+    const token = await signIdentityForTest(TEST_ACTOR, identityOptions());
+    const headers = { authorization: `Bearer ${token}` };
+    const response = await app.inject({ method: "POST", url: "/v1/actions/action-1/confirm", headers, payload: { executionMode: "server" } });
+    // Should be 200 with the failed action, NOT 409
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.action.status).toBe("failed");
+    expect(body.action.error.code).toBe("conflict");
+    expect(body.action.error.retryable).toBe(true);
+    // No resultMessage for failed actions
+    expect(body.resultMessage).toBeUndefined();
+  });
+});
+
+describe("actionResultMessage", () => {
+  it("generates a confirmation message with tool label and preview title", () => {
+    const message = actionResultMessage({
+      id: "a1",
+      toolName: "note_create",
+      preview: { title: "创建笔记", summary: "新建「读书心得」笔记" },
+      riskLevel: "low",
+      status: "succeeded",
+      executionMode: "server",
+    });
+    expect(message).toBe("已创建笔记「创建笔记」— 新建「读书心得」笔记");
+  });
+
+  it("falls back to a generic message when preview is empty", () => {
+    const message = actionResultMessage({
+      id: "a2",
+      toolName: "knowledge_item_remove",
+      preview: {},
+      riskLevel: "medium",
+      status: "succeeded",
+      executionMode: "server",
+    });
+    expect(message).toBe("已移除知识条目");
   });
 });
 

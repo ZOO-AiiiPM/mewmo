@@ -8,7 +8,24 @@ import type {
 } from "../observability/port";
 import type { ApplicationPort, SessionEntryRecord } from "../ports";
 import { TEST_ACTOR, createApplicationStub } from "../testing";
-import { assertAgentResponseSucceeded, assertSafeToolConfiguration, createAgentRuntime, pageContextInstruction } from "./runtime";
+import { assertAgentResponseSucceeded, assertSafeToolConfiguration, createAgentRuntime, currentDateTimeInstruction, pageContextInstruction } from "./runtime";
+
+describe("currentDateTimeInstruction", () => {
+  it("includes the current date formatted in Asia/Shanghai timezone", () => {
+    const now = new Date("2026-07-30T10:30:00Z"); // 2026-07-30 18:30 in Shanghai
+    const result = currentDateTimeInstruction(now);
+    expect(result).toContain("当前时间：");
+    expect(result).toContain("2026");
+    expect(result).toMatch(/07.*30/);
+  });
+
+  it("defaults to the current time when no argument is provided", () => {
+    const result = currentDateTimeInstruction();
+    expect(result).toContain("当前时间：");
+    // Should contain the current year
+    expect(result).toContain(String(new Date().getFullYear()));
+  });
+});
 
 describe("pageContextInstruction", () => {
   it("keeps page metadata out of the persisted user prompt", () => {

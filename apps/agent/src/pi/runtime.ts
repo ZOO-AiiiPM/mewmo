@@ -207,7 +207,26 @@ async function buildSystemPrompt(
   current: { targetType: string; targetId: string; draft?: unknown } | null,
 ) {
   const base = await loadAgentSystemPrompt();
-  return `${base}\n\n${pageContextInstruction(current)}\n\n${formatSkillsForSystemPrompt(skills as Skill[])}`;
+  return `${base}\n\n${currentDateTimeInstruction()}\n\n${pageContextInstruction(current)}\n\n${formatSkillsForSystemPrompt(skills as Skill[])}`;
+}
+
+/**
+ * Injects the current date and time (Asia/Shanghai) into the system prompt so
+ * the model can handle relative time expressions like "今天" or "最近一周".
+ */
+export function currentDateTimeInstruction(now?: Date): string {
+  const date = now ?? new Date();
+  const formatter = new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    weekday: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  return `当前时间：${formatter.format(date)}`;
 }
 
 export function pageContextInstruction(current: { targetType: string; targetId: string; draft?: unknown } | null) {
