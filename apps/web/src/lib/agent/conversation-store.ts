@@ -30,6 +30,7 @@ import type {
   ConversationEvent,
   LegacyStreamEvent,
   PersistedChat,
+  TranscriptContextChip,
   TranscriptRow,
 } from "./types";
 
@@ -145,8 +146,11 @@ export function useConversationStore(chatId: string | null): ConversationStore {
     const controller = new AbortController();
     abortRef.current = controller;
 
+    // #6: chip shown on the user message when the send carries page context
+    const contextChip = sendContextChip(request.options);
+
     // Create live turn accumulator
-    const liveTurn = createLiveTurn(targetChatId, turnId, request.options.content);
+    const liveTurn = createLiveTurn(targetChatId, turnId, request.options.content, contextChip);
     liveTurnRef.current = liveTurn;
 
     // Set optimistic live row
@@ -156,6 +160,7 @@ export function useConversationStore(chatId: string | null): ConversationStore {
       assistant: [],
       status: "streaming",
       proposals: [],
+      ...(contextChip ? { contextChip } : {}),
     });
     setStatus("sending");
     setFailedRequest(null);
@@ -249,6 +254,7 @@ export function useConversationStore(chatId: string | null): ConversationStore {
           status: "failed",
           proposals: [],
           error: { message: "Agent 未返回完整结果", retryable: true },
+          ...(finalTurn.contextChip ? { contextChip: finalTurn.contextChip } : {}),
         };
         setLiveRow(null);
         commitRow(emptyRow);
@@ -268,6 +274,7 @@ export function useConversationStore(chatId: string | null): ConversationStore {
         status: "failed",
         proposals: [],
         error: { message, retryable: true },
+        ...(contextChip ? { contextChip } : {}),
       };
       setLiveRow(null);
       commitRow(failedRow);
@@ -347,6 +354,7 @@ export function useConversationStore(chatId: string | null): ConversationStore {
       assistant: turn.blocks,
       status: rowStatus,
       proposals: turn.proposals,
+      ...(turn.contextChip ? { contextChip: turn.contextChip } : {}),
     });
   }
 
@@ -372,6 +380,13 @@ export function useConversationStore(chatId: string | null): ConversationStore {
 // ---------------------------------------------------------------------------
 // Utilities
 // ---------------------------------------------------------------------------
+
+/** #6: derive the transcript chip from the context attached to a send. */
+export function sendContextChip(options: SendOptions): TranscriptContextChip | undefined {
+  const resource = options.context?.resource;
+  if (!resource) return undefined;
+  return { kind: resource.type, title: resource.title ?? "" };
+}
 
 function extractProposals(rows: TranscriptRow[]): AgentActionProposal[] {
   const map = new Map<string, AgentActionProposal>();

@@ -36,6 +36,7 @@ import {
   setWorkspaceResource,
 } from "../../lib/workspace-data-cache";
 import { workspaceResourceKeys } from "../../lib/workspace-resource-keys";
+import { WORKSPACE_REFRESH_EVENT, workspaceRefreshAffects } from "../../lib/workspace-refresh";
 import { useWorkspaceNavigation } from "../../lib/workspace-navigation";
 import {
   getRememberedFeedTypeHref,
@@ -234,6 +235,31 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
 
     return () => {
       cancelled = true;
+    };
+  }, []);
+
+  // #10-F: agent write actions broadcast list changes; refetch the knowledge
+  // base list so the sidebar reflects e.g. a freshly created knowledge base.
+  useEffect(() => {
+    let cancelled = false;
+    const handleWorkspaceRefresh = (event: Event) => {
+      const key = workspaceResourceKeys.knowledgeBases();
+      if (!workspaceRefreshAffects((event as CustomEvent).detail, key)) return;
+      loadWorkspaceResource(key, async () => {
+        const response = await fetch("/api/knowledge-bases");
+        if (!response.ok) throw new Error("Failed to load knowledge bases");
+        return (await response.json()) as SidebarKnowledgeBase[];
+      })
+        .then((data) => {
+          if (!cancelled) setKnowledgeBases(Array.isArray(data) ? data : []);
+        })
+        .catch(() => undefined);
+    };
+
+    window.addEventListener(WORKSPACE_REFRESH_EVENT, handleWorkspaceRefresh);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(WORKSPACE_REFRESH_EVENT, handleWorkspaceRefresh);
     };
   }, []);
 

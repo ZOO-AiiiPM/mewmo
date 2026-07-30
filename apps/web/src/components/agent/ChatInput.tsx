@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { PrototypeIcon } from "../shell/PrototypeIcon";
 import type { AISidebarContentContext } from "../shell/AISidebar";
 import type { SendStatus } from "../../lib/agent/conversation-store";
+import { shouldSendOnEnter } from "../../lib/agent/composer-send-key";
+import { contextChipIcon, contextChipLabel } from "../../lib/agent/context-display";
 
 interface ChatInputProps {
   status: SendStatus;
@@ -81,9 +83,9 @@ export function ChatInput({ status, chatReady, context, requestedSkill, showInsi
       >
         {attachedContext && (
           <div className="mewmo-chat-input__context">
-            <PrototypeIcon name={contextIcon(attachedContext.kind)} size={13} />
+            <PrototypeIcon name={contextChipIcon(attachedContext.kind)} size={13} />
             <span className="mewmo-chat-input__context-title" title={attachedContext.title}>{attachedContext.title}</span>
-            <em>{attachedContext.kind === "note" ? "笔记 · 使用最新草稿" : contextLabel(attachedContext.kind)}</em>
+            <em>{attachedContext.kind === "note" ? "笔记 · 使用最新草稿" : contextChipLabel(attachedContext.kind)}</em>
             <button type="button" onClick={() => { setContextDropped(true); setSkillId(undefined); }} aria-label="本次发送不附带当前内容">
               <PrototypeIcon name="close" size={12} />
             </button>
@@ -94,12 +96,19 @@ export function ChatInput({ status, chatReady, context, requestedSkill, showInsi
           value={input}
           onChange={(event) => setInput(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              send();
-            }
+            // #2: while an IME composition is active (拼音候选未上屏), Enter
+            // confirms the candidate — it must never send the message.
+            if (event.key !== "Enter") return;
+            if (!shouldSendOnEnter({
+              key: event.key,
+              shiftKey: event.shiftKey,
+              isComposing: event.nativeEvent.isComposing,
+              keyCode: event.keyCode,
+            })) return;
+            event.preventDefault();
+            send();
           }}
-          placeholder={attachedContext ? `让 Agent 处理当前${contextLabel(attachedContext.kind)}` : "让 Agent 搜索或处理工作区内容"}
+          placeholder={attachedContext ? `让 Agent 处理当前${contextChipLabel(attachedContext.kind)}` : "让 Agent 搜索或处理工作区内容"}
           disabled={disabled}
           rows={1}
         />
@@ -148,16 +157,4 @@ export function ChatInput({ status, chatReady, context, requestedSkill, showInsi
       </form>
     </div>
   );
-}
-
-function contextLabel(kind: AISidebarContentContext["kind"]) {
-  if (kind === "clip") return "剪藏";
-  if (kind === "feed_entry") return "订阅文章";
-  return "笔记";
-}
-
-function contextIcon(kind: AISidebarContentContext["kind"]) {
-  if (kind === "clip") return "bookmark";
-  if (kind === "feed_entry") return "rss";
-  return "note";
 }

@@ -49,7 +49,11 @@ test("chat history strips context snapshots and leaves a pagination contract", (
   assert.match(collection, /pageInfo:\s*\{ nextCursor: null \}/);
   assert.doesNotMatch(collection, /contextAttachments:/);
   assert.match(detail, /pageInfo:\s*\{ nextCursor: null \}/);
-  assert.doesNotMatch(detail, /contextAttachments/);
+  // #6: the detail route may expose only the sanitized chip projection
+  // (targetType + title) — stored snapshot/extract payloads must not leak.
+  assert.match(detail, /sanitizeContextAttachments/);
+  assert.match(detail, /return \[\{ targetType, title \}\];/);
+  assert.doesNotMatch(detail, /contentSnapshot|extractedText/);
 });
 
 test("chat lifecycle commands validate input and preserve ownership boundaries", () => {
