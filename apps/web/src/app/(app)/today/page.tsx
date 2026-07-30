@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { NoteSaveSnapshot } from "../../../components/editor/note-draft-sync";
+import { ClipContentRenderer } from "../../../components/clips/ClipContentRenderer";
 import { ListColumn } from "../../../components/shell/ListColumn";
 import { NoteCardPreview } from "../../../components/shell/NoteCardPreview";
 import { PrototypeIcon, type PrototypeIconName } from "../../../components/shell/PrototypeIcon";
@@ -244,7 +245,6 @@ export default function TodayPage() {
   const selected = selectedListItem
     ? mergeTodayDetail(selectedListItem, selectedDetail)
     : null;
-  const selectedPreview = selected ? todayPreview(selected) : "";
   const selectedSource = selected ? readerSourceLabel(selected) : "";
   const quickSwitch = (
     <>
@@ -483,7 +483,7 @@ export default function TodayPage() {
               </div>
             )
           ) : selected ? (
-            <article className="mewmo-document mewmo-document--empty">
+            <article className="mewmo-document mewmo-document--clip">
               <h1>{selected.title}</h1>
               <div className="mewmo-doc-meta">
                 <span>{typeLabels[selected.type]}</span>
@@ -497,8 +497,29 @@ export default function TodayPage() {
                   <b aria-hidden="true">·</b>
                   {metaTime(selected)}
                 </span>
+                {selected.url && (
+                  <span>
+                    <b aria-hidden="true">·</b>
+                    <a
+                      className="mewmo-doc-meta__link"
+                      href={selected.url}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      原文
+                    </a>
+                  </span>
+                )}
               </div>
-              <p>{selectedPreview || "这条内容暂时没有摘要。"}</p>
+              {selected.summary && (
+                <p className="mewmo-feed-reader__summary">{selected.summary}</p>
+              )}
+              <ClipContentRenderer
+                html={selected.content ?? ""}
+                sourceUrl={selected.url ?? selected.href}
+                contentKey={`${selected.type}-${selected.id}`}
+                loading={selectedDetailLoading}
+              />
             </article>
           ) : loading ? (
             <ReaderContentSkeleton active showTitle label="正在加载今天" />
