@@ -100,7 +100,21 @@ export function createAiChatsRepository(client: unknown = getPrisma()) {
       return db.aiChat.findMany({
         where: activeByUser(userId),
         orderBy: { updatedAt: "desc" },
-        select: { id: true, title: true, createdAt: true, updatedAt: true },
+        select: {
+          id: true,
+          title: true,
+          createdAt: true,
+          updatedAt: true,
+          // Message presence lives in two places: session entries (current
+          // runtime) and legacy aiMessage rows. Count both so callers can
+          // tell an empty chat apart without loading transcripts.
+          _count: {
+            select: {
+              sessionEntries: { where: { type: "message" } },
+              messages: { where: { deletedAt: null } },
+            },
+          },
+        },
       });
     },
 

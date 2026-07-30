@@ -17,7 +17,8 @@ const SUGGESTIONS = ["总结我最近的剪藏", "把今天的笔记整理成清
  * takes over.
  */
 export default function MewHomePage() {
-  const agentChats = useAgentChats();
+  // Every visit lands on a fresh conversation (an untouched one is reused).
+  const agentChats = useAgentChats({ startFresh: true });
   const sessionEmpty = agentChats.store.stableRows.length === 0 && agentChats.store.liveRow === null;
   const chatReady = agentChats.activeChatId !== null && !agentChats.loadingChats && agentChats.store.status !== "loading";
 

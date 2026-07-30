@@ -20,11 +20,21 @@ export interface AgentChats {
   dismissError: () => void;
 }
 
+export interface AgentChatsOptions {
+  /**
+   * Start on a fresh conversation instead of resuming the latest one. An
+   * untouched (zero-message) latest chat is reused so repeated visits don't
+   * pile up empty sessions.
+   */
+  startFresh?: boolean;
+}
+
 /**
  * Owns the agent chat list plus the active conversation store, so both the
  * sidebar header (history / new chat) and the agent panel share one source.
  */
-export function useAgentChats(): AgentChats {
+export function useAgentChats(options?: AgentChatsOptions): AgentChats {
+  const startFresh = options?.startFresh ?? false;
   const [chats, setChats] = useState<ChatSummary[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [loadingChats, setLoadingChats] = useState(true);
@@ -54,6 +64,7 @@ export function useAgentChats(): AgentChats {
         if (!response.ok) throw new Error(data?.error?.message ?? "无法加载会话");
         let nextChats = data?.chats ?? [];
         if (nextChats.length === 0) nextChats = [await createChat(true)];
+        else if (startFresh && (nextChats[0]?.messageCount ?? 1) > 0) nextChats = [await createChat(), ...nextChats];
         if (cancelled) return;
         setChats(nextChats);
         setActiveChatId((current) => nextChats.some((chat) => chat.id === current) ? current : nextChats[0]?.id ?? null);
@@ -65,7 +76,7 @@ export function useAgentChats(): AgentChats {
       }
     })();
     return () => { cancelled = true; };
-  }, [createChat]);
+  }, [createChat, startFresh]);
 
   const newChat = useCallback(async () => {
     setPendingChatId("new");
