@@ -55,6 +55,10 @@ import {
   setCachedWorkspaceSelection,
   updateCachedWorkspaceItem,
 } from "../../../../lib/workspace-data-cache";
+import {
+  WORKSPACE_REFRESH_EVENT,
+  workspaceRefreshAffects,
+} from "../../../../lib/workspace-refresh";
 import { useWorkspaceAccountId } from "../../../../lib/workspace-account";
 import { workspaceResourceKeys } from "../../../../lib/workspace-resource-keys";
 import {
@@ -264,6 +268,42 @@ export function NoteEditorPage({
       cancelled = true;
     };
   }, [initialNotes.length]);
+
+  // #10-F: agent write actions broadcast list changes; refetch the notes list
+  // so a note created/moved by the agent appears without a manual reload.
+  useEffect(() => {
+    let cancelled = false;
+    const handleWorkspaceRefresh = (event: Event) => {
+      const key = workspaceResourceKeys.notesList();
+      if (!workspaceRefreshAffects((event as CustomEvent).detail, key)) return;
+      loadWorkspaceResource(key, async () => {
+        const response = await fetch("/api/notes");
+        if (!response.ok) throw new Error("Failed to load notes");
+        return (await response.json()) as NoteListItem[];
+      })
+        .then((data) => {
+          setCachedWorkspaceList("notes", data);
+          if (cancelled) return;
+          setNotes((current) =>
+            data.map((item) => {
+              const local = current.find((entry) => entry.id === item.id);
+              if (local?.content !== undefined) {
+                return { ...item, ...local, updatedAt: item.updatedAt };
+              }
+              const detail = getCachedWorkspaceDetail<NoteListItem>("notes", item.id);
+              return detail ? { ...item, ...detail, updatedAt: item.updatedAt } : item;
+            }),
+          );
+        })
+        .catch(() => undefined);
+    };
+
+    window.addEventListener(WORKSPACE_REFRESH_EVENT, handleWorkspaceRefresh);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(WORKSPACE_REFRESH_EVENT, handleWorkspaceRefresh);
+    };
+  }, []);
 
   useEffect(() => {
     if (initialNotes.length === 0 && !note) return;

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { AgentActionProposal } from "../../lib/agent-contract";
+import { refreshWorkspaceAfterAgentAction } from "../../lib/agent/agent-action-refresh";
 import { publicErrorMessage } from "../../lib/agent/tool-display";
 import type { AISidebarContentContext } from "../shell/AISidebar";
 import { PrototypeIcon } from "../shell/PrototypeIcon";
@@ -21,6 +22,13 @@ export function ConfirmationCard({ proposal, context, onChange }: ConfirmationCa
   const [phase, setPhase] = useState<"idle" | "requesting" | "saving">("idle");
   const [localError, setLocalError] = useState<string | null>(null);
 
+  // #10-F: once a write action reaches "succeeded", invalidate the affected
+  // workspace caches and tell mounted lists to refetch — no manual reload.
+  const applyChange = (next: AgentActionProposal) => {
+    refreshWorkspaceAfterAgentAction(next);
+    onChange(next);
+  };
+
   const command = async (name: "confirm" | "cancel" | "retry") => {
     const requestId = crypto.randomUUID();
     const isClient = (name === "confirm" || name === "retry") && proposal.clientEffect?.kind === "note_draft_patch";
@@ -38,25 +46,25 @@ export function ConfirmationCard({ proposal, context, onChange }: ConfirmationCa
       });
       const data = await response.json().catch(() => null) as { action?: AgentActionProposal; error?: { message?: string } } | null;
       if (!response.ok || !data?.action) throw new Error(data?.error?.message ?? "操作失败");
-      onChange(data.action);
+      applyChange(data.action);
 
       if (isClient && proposal.clientEffect && context?.kind === "note" && context.applyDraftPatch) {
         setPhase("saving");
         try {
           const result = await context.applyDraftPatch(proposal.clientEffect);
           const completed = await reportClientResult(proposal.id, requestId, { status: "succeeded", result });
-          onChange(completed ?? { ...data.action, status: "succeeded" });
+          applyChange(completed ?? { ...data.action, status: "succeeded" });
         } catch (error) {
           const message = publicErrorMessage(error instanceof Error ? error.message : null, "draft_save_failed");
           const failed = await reportClientResult(proposal.id, requestId, { status: "failed", error: { code: "draft_save_failed", message } });
-          onChange(failed ?? { ...data.action, status: "failed", error: { code: "draft_save_failed", message, retryable: true } });
+          applyChange(failed ?? { ...data.action, status: "failed", error: { code: "draft_save_failed", message, retryable: true } });
         }
       }
     } catch (error) {
       const response = await fetch(`/api/agent/actions/${encodeURIComponent(proposal.id)}`, { cache: "no-store" }).catch(() => null);
       const payload = await response?.json().catch(() => null) as { action?: AgentActionProposal } | null;
       const message = publicErrorMessage(error instanceof Error ? error.message : null, "action_request_failed");
-      onChange(payload?.action ?? { ...proposal, error: { code: "action_request_failed", message, retryable: true } });
+      applyChange(payload?.action ?? { ...proposal, error: { code: "action_request_failed", message, retryable: true } });
     } finally {
       setPhase("idle");
     }

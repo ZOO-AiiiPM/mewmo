@@ -2,6 +2,7 @@
 
 import type { AgentActionProposal } from "../../lib/agent-contract";
 import type { AssistantBlock, TranscriptRow } from "../../lib/agent/types";
+import { contextChipIcon, contextChipLabel } from "../../lib/agent/context-display";
 import type { AISidebarContentContext } from "../shell/AISidebar";
 import { PrototypeIcon } from "../shell/PrototypeIcon";
 import { ConfirmationCard } from "./ConfirmationCard";
@@ -28,6 +29,17 @@ export function AssistantRow({ row, context, onProposalChange, onRetry }: Assist
 
   return (
     <div className={`mewmo-transcript-row ${isFailed ? "mewmo-transcript-row--failed" : ""}`}>
+      {/* #6: context chip — messages sent with page context show what was attached */}
+      {row.userContent && row.contextChip && (
+        <div className="mewmo-ai-context-chip">
+          <PrototypeIcon name={contextChipIcon(row.contextChip.kind)} size={12} />
+          <span className="mewmo-ai-context-chip__title" title={row.contextChip.title}>
+            {row.contextChip.title}
+          </span>
+          <em>{contextChipLabel(row.contextChip.kind)}</em>
+        </div>
+      )}
+
       {/* User message */}
       {row.userContent && (
         <div className="mewmo-ai-message mewmo-ai-message--user">{row.userContent}</div>

@@ -4237,6 +4237,36 @@ html:not(.light) .mewmo-ai-message--assistant {
   color: var(--accent-ink);
 }
 
+/* #6：对话流用户消息上方的上下文芯片，复用输入框芯片（.mewmo-chat-input__context）的视觉语言，小尺寸右对齐 */
+.mewmo-ai-context-chip {
+  display: inline-flex;
+  max-width: 86%;
+  min-width: 0;
+  align-self: flex-end;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--s3);
+  color: var(--ink-faint);
+  padding: 4px 8px;
+  font-size: 10.5px;
+}
+
+.mewmo-ai-context-chip__title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.mewmo-ai-context-chip em {
+  flex: none;
+  font-style: normal;
+}
+
 .mewmo-ai-proposal {
   display: grid;
   gap: 8px;
