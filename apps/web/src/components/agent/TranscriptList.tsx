@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import type { AgentActionProposal } from "../../lib/agent-contract";
 import type { TranscriptRow } from "../../lib/agent/types";
 import type { AISidebarContentContext } from "../shell/AISidebar";
+import { PrototypeIcon } from "../shell/PrototypeIcon";
 import { AssistantRow } from "./AssistantRow";
 
 interface TranscriptListProps {
@@ -44,8 +45,14 @@ export function TranscriptList({ stableRows, liveRow, context, onProposalChange,
     return (
       <div className="mewmo-transcript mewmo-transcript--empty" ref={containerRef}>
         <div className="mewmo-transcript__welcome">
-          <p>我可以搜索、创建、修改、润色、移动和整理你的内容。</p>
-          <p>写操作会先展示预览，由你确认后执行。</p>
+          <div className="mewmo-transcript__welcome-mark">
+            <PrototypeIcon name="cat" size={20} />
+          </div>
+          <p className="mewmo-transcript__welcome-title">想整理点什么？</p>
+          <p className="mewmo-transcript__welcome-note">
+            <span>搜索、创建、润色、移动、归类，都交给 mew。</span>
+            <span>写操作先出预览，你确认才执行。</span>
+          </p>
         </div>
       </div>
     );
