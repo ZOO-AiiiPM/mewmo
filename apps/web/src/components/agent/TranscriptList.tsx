@@ -18,7 +18,8 @@ interface TranscriptListProps {
 
 /**
  * Renders the full transcript: stable rows + live streaming row.
- * Auto-scrolls to bottom on new content.
+ * Auto-scrolls to bottom on new content. The outer shell applies a CSS mask
+ * so content fades out at the top/bottom edges while scrolling.
  */
 export function TranscriptList({ stableRows, liveRow, context, onProposalChange, onRetry, retryTurnId }: TranscriptListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -43,40 +44,44 @@ export function TranscriptList({ stableRows, liveRow, context, onProposalChange,
 
   if (allRows.length === 0) {
     return (
-      <div className="mewmo-transcript mewmo-transcript--empty" ref={containerRef}>
-        <div className="mewmo-transcript__welcome">
-          <div className="mewmo-transcript__welcome-mark">
-            <PrototypeIcon name="cat" size={20} />
+      <div className="mewmo-transcript-shell">
+        <div className="mewmo-transcript mewmo-transcript--empty" ref={containerRef}>
+          <div className="mewmo-transcript__welcome">
+            <div className="mewmo-transcript__welcome-mark">
+              <PrototypeIcon name="cat" size={20} />
+            </div>
+            <p className="mewmo-transcript__welcome-title">想整理点什么？</p>
+            <p className="mewmo-transcript__welcome-note">
+              <span>搜索、创建、润色、移动、归类，都交给 mew。</span>
+              <span>写操作先出预览，你确认才执行。</span>
+            </p>
           </div>
-          <p className="mewmo-transcript__welcome-title">想整理点什么？</p>
-          <p className="mewmo-transcript__welcome-note">
-            <span>搜索、创建、润色、移动、归类，都交给 mew。</span>
-            <span>写操作先出预览，你确认才执行。</span>
-          </p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="mewmo-transcript" ref={containerRef} onScroll={handleScroll}>
-      {stableRows.map((row) => (
-        <AssistantRow
-          key={row.turnId}
-          row={row}
-          context={context}
-          onProposalChange={onProposalChange}
-          {...(row.status === "failed" && row.turnId === retryTurnId ? { onRetry } : {})}
-        />
-      ))}
-      {liveRow && (
-        <AssistantRow
-          key={liveRow.turnId}
-          row={liveRow}
-          context={context}
-          onProposalChange={onProposalChange}
-        />
-      )}
+    <div className="mewmo-transcript-shell">
+      <div className="mewmo-transcript" ref={containerRef} onScroll={handleScroll}>
+        {stableRows.map((row) => (
+          <AssistantRow
+            key={row.turnId}
+            row={row}
+            context={context}
+            onProposalChange={onProposalChange}
+            {...(row.status === "failed" && row.turnId === retryTurnId ? { onRetry } : {})}
+          />
+        ))}
+        {liveRow && (
+          <AssistantRow
+            key={liveRow.turnId}
+            row={liveRow}
+            context={context}
+            onProposalChange={onProposalChange}
+          />
+        )}
+      </div>
     </div>
   );
 }

@@ -62,6 +62,28 @@ function toChatView(value: unknown) {
 }
 
 function toChatSummary(value: unknown) {
-  const chat = value as { id?: unknown; title?: unknown; createdAt?: unknown; updatedAt?: unknown };
-  return { id: chat.id, title: chat.title, createdAt: chat.createdAt, updatedAt: chat.updatedAt };
+  const chat = value as {
+    id?: unknown;
+    title?: unknown;
+    createdAt?: unknown;
+    updatedAt?: unknown;
+    preview?: unknown;
+    _count?: { sessionEntries?: unknown; messages?: unknown };
+  };
+  const entryCount = typeof chat._count?.sessionEntries === "number" ? chat._count.sessionEntries : null;
+  const messageCount = typeof chat._count?.messages === "number" ? chat._count.messages : null;
+  return {
+    id: chat.id,
+    title: chat.title,
+    createdAt: chat.createdAt,
+    updatedAt: chat.updatedAt,
+    // Additive field: total persisted messages, so the client can hide
+    // never-used chats. Omitted when counts are unavailable.
+    ...(entryCount !== null || messageCount !== null
+      ? { messageCount: (entryCount ?? 0) + (messageCount ?? 0) }
+      : {}),
+    // Additive field: first user message text, used as a fallback list title
+    // for chats still named the default "新会话". Omitted when unavailable.
+    ...(typeof chat.preview === "string" && chat.preview ? { preview: chat.preview } : {}),
+  };
 }

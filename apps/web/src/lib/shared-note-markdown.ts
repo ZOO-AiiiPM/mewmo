@@ -2,18 +2,28 @@ export type SharedNoteMarkdownInline =
   | { type: "text"; value: string }
   | { type: "strong"; children: SharedNoteMarkdownInline[] }
   | { type: "emphasis"; children: SharedNoteMarkdownInline[] }
+  | { type: "strikethrough"; children: SharedNoteMarkdownInline[] }
   | { type: "code"; value: string }
   | { type: "link"; href: string; children: SharedNoteMarkdownInline[] }
   | { type: "image"; src: string; alt: string };
+
+export interface SharedNoteMarkdownListItem {
+  children: SharedNoteMarkdownInline[];
+  /** Nesting level derived from leading indentation (2 spaces per level). */
+  depth: number;
+  /** Present only for task-list items (`- [ ]` / `- [x]`). */
+  task?: "unchecked" | "checked";
+}
 
 export type SharedNoteMarkdownBlock =
   | { type: "heading"; level: 1 | 2 | 3 | 4 | 5 | 6; children: SharedNoteMarkdownInline[] }
   | { type: "paragraph"; children: SharedNoteMarkdownInline[] }
   | { type: "blockquote"; children: SharedNoteMarkdownInline[] }
-  | { type: "list"; ordered: boolean; items: SharedNoteMarkdownInline[][] }
+  | { type: "list"; ordered: boolean; items: SharedNoteMarkdownListItem[] }
   | { type: "code"; language: string | null; code: string }
   | { type: "image"; src: string; alt: string }
-  | { type: "table"; headers: SharedNoteMarkdownInline[][]; rows: SharedNoteMarkdownInline[][][] };
+  | { type: "table"; headers: SharedNoteMarkdownInline[][]; rows: SharedNoteMarkdownInline[][][] }
+  | { type: "divider" };
 
 export function parseSharedNoteMarkdown(markdown: string): SharedNoteMarkdownBlock[] {
   const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
@@ -51,6 +61,14 @@ export function parseSharedNoteMarkdown(markdown: string): SharedNoteMarkdownBlo
         level: heading[1].length as 1 | 2 | 3 | 4 | 5 | 6,
         children: parseSharedNoteInlineMarkdown(heading[2]),
       });
+      index += 1;
+      continue;
+    }
+
+    // Thematic break — must run before list/table detection so `---` never
+    // becomes a stray list/paragraph.
+    if (isDividerLine(line)) {
+      blocks.push({ type: "divider" });
       index += 1;
       continue;
     }
@@ -143,6 +161,11 @@ export function parseSharedNoteInlineMarkdown(value: string): SharedNoteMarkdown
         type: "strong",
         children: parseSharedNoteInlineMarkdown(token.value),
       });
+    } else if (token.type === "strikethrough") {
+      result.push({
+        type: "strikethrough",
+        children: parseSharedNoteInlineMarkdown(token.value),
+      });
     } else {
       result.push({
         type: "emphasis",
@@ -156,12 +179,47 @@ export function parseSharedNoteInlineMarkdown(value: string): SharedNoteMarkdown
   return mergeAdjacentText(result);
 }
 
+export interface SharedNoteMarkdownListNode {
+  item: SharedNoteMarkdownListItem;
+  children: SharedNoteMarkdownListNode[];
+}
+
+/**
+ * Fold the flat, depth-annotated list items into a tree so renderers can emit
+ * properly nested ul/ol markup.
+ */
+export function buildSharedNoteListTree(items: SharedNoteMarkdownListItem[]): SharedNoteMarkdownListNode[] {
+  const roots: SharedNoteMarkdownListNode[] = [];
+  const stack: Array<{ depth: number; node: SharedNoteMarkdownListNode }> = [];
+
+  for (const item of items) {
+    const node: SharedNoteMarkdownListNode = { item, children: [] };
+    while (stack.length > 0 && (stack[stack.length - 1]?.depth ?? 0) >= item.depth) {
+      stack.pop();
+    }
+    const parent = stack[stack.length - 1];
+    if (parent) {
+      parent.node.children.push(node);
+    } else {
+      roots.push(node);
+    }
+    stack.push({ depth: item.depth, node });
+  }
+
+  return roots;
+}
+
+function isDividerLine(line: string) {
+  return /^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/.test(line);
+}
+
 function shouldContinueParagraph(lines: string[], index: number) {
   const line = lines[index] ?? "";
   if (!line.trim()) return false;
   if (/^\s*```/.test(line)) return false;
   if (/^#{1,6}\s+/.test(line)) return false;
   if (/^>\s?/.test(line)) return false;
+  if (isDividerLine(line)) return false;
   if (/^\s*(?:[-*+]|\d+[.)])\s+/.test(line)) return false;
   const blockImage = line.match(
     /^!\[[^\]]*]\(([^)\s]+)(?:\s+"[^"]*")?\)\s*$/,
@@ -171,26 +229,56 @@ function shouldContinueParagraph(lines: string[], index: number) {
   return true;
 }
 
+const UNORDERED_ITEM_PATTERN = /^(\s*)[-*+]\s+(.+)$/;
+const ORDERED_ITEM_PATTERN = /^(\s*)\d+[.)]\s+(.+)$/;
+const TASK_PATTERN = /^\[( |x|X)\]\s+(.*)$/;
+
 function parseList(lines: string[], startIndex: number) {
   const first = lines[startIndex] ?? "";
-  const ordered = /^\s*\d+[.)]\s+/.test(first);
-  if (!ordered && !/^\s*[-*+]\s+/.test(first)) return null;
+  if (isDividerLine(first)) return null;
+  const ordered = ORDERED_ITEM_PATTERN.test(first);
+  if (!ordered && !UNORDERED_ITEM_PATTERN.test(first)) return null;
 
-  const items: SharedNoteMarkdownInline[][] = [];
+  const baseIndent = indentWidth(first.match(/^(\s*)/)?.[1] ?? "");
+  const items: SharedNoteMarkdownListItem[] = [];
   let index = startIndex;
-  const pattern = ordered ? /^\s*\d+[.)]\s+(.+)$/ : /^\s*[-*+]\s+(.+)$/;
 
   while (index < lines.length) {
-    const match = (lines[index] ?? "").match(pattern);
+    const line = lines[index] ?? "";
+    if (isDividerLine(line)) break;
+    const match = line.match(UNORDERED_ITEM_PATTERN) ?? line.match(ORDERED_ITEM_PATTERN);
     if (!match) break;
-    items.push(parseSharedNoteInlineMarkdown((match[1] ?? "").trim()));
+    const lineOrdered = ORDERED_ITEM_PATTERN.test(line) && !UNORDERED_ITEM_PATTERN.test(line);
+    const depth = Math.max(0, Math.floor((indentWidth(match[1] ?? "") - baseIndent) / 2));
+    // A top-level marker of the other list kind starts a fresh block.
+    if (depth === 0 && lineOrdered !== ordered && index > startIndex) break;
+
+    let content = (match[2] ?? "").trim();
+    let task: SharedNoteMarkdownListItem["task"];
+    const taskMatch = content.match(TASK_PATTERN);
+    if (taskMatch) {
+      task = taskMatch[1] === " " ? "unchecked" : "checked";
+      content = (taskMatch[2] ?? "").trim();
+    }
+
+    items.push({
+      children: parseSharedNoteInlineMarkdown(content),
+      depth,
+      ...(task ? { task } : {}),
+    });
     index += 1;
   }
+
+  if (items.length === 0) return null;
 
   return {
     block: { type: "list", ordered, items } satisfies SharedNoteMarkdownBlock,
     nextIndex: index,
   };
+}
+
+function indentWidth(indent: string) {
+  return indent.replace(/\t/g, "  ").length;
 }
 
 function parseTable(lines: string[], startIndex: number) {
@@ -231,7 +319,7 @@ type InlineToken =
   | { type: "code"; index: number; raw: string; value: string }
   | { type: "image"; index: number; raw: string; src: string; alt: string }
   | { type: "link"; index: number; raw: string; href: string; label: string }
-  | { type: "strong" | "emphasis"; index: number; raw: string; value: string };
+  | { type: "strong" | "emphasis" | "strikethrough"; index: number; raw: string; value: string };
 
 function findNextInlineToken(value: string): InlineToken | null {
   const tokens = [
@@ -239,6 +327,7 @@ function findNextInlineToken(value: string): InlineToken | null {
     findImageToken(value),
     findLinkToken(value),
     findStrongToken(value),
+    findStrikethroughToken(value),
     findEmphasisToken(value),
   ].filter((token): token is InlineToken => Boolean(token));
 
@@ -284,6 +373,17 @@ function findStrongToken(value: string): InlineToken | null {
     index: match.index,
     raw: match[0],
     value: match[1] ?? match[2] ?? "",
+  };
+}
+
+function findStrikethroughToken(value: string): InlineToken | null {
+  const match = /~~([^~\n]+)~~/.exec(value);
+  if (!match || match.index < 0) return null;
+  return {
+    type: "strikethrough",
+    index: match.index,
+    raw: match[0],
+    value: match[1] ?? "",
   };
 }
 

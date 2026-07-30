@@ -121,6 +121,10 @@ export interface ChatSummary {
   title: string;
   createdAt?: string;
   updatedAt?: string;
+  /** Total persisted messages; used to hide never-used chats in the history panel. */
+  messageCount?: number;
+  /** First user message text; fallback list title when title is still the default. */
+  preview?: string;
 }
 
 // ---------------------------------------------------------------------------
