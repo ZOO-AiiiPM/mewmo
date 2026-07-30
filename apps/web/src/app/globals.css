@@ -3515,6 +3515,15 @@ html.light .mewmo-share-page {
   line-height: 1.78;
 }
 
+/* 深色模式下正文用 --ink（近白）提升可读性；:not(.light) 兼容 SSR 首帧无主题类的默认深色 */
+html:not(.light) .mewmo-clip-prose,
+html:not(.light) .mewmo-clip-prose p,
+html:not(.light) .mewmo-clip-prose li,
+html:not(.light) .mewmo-clip-prose td,
+html:not(.light) .mewmo-clip-prose th {
+  color: var(--ink);
+}
+
 .mewmo-clip-prose > *:first-child {
   margin-top: 0;
 }
@@ -4216,6 +4225,11 @@ html.light .mewmo-ai-related-modal__panel {
   color: var(--ink-soft);
 }
 
+/* 深色模式下 assistant 消息用 --ink（近白），与正文可读性规则保持一致 */
+html:not(.light) .mewmo-ai-message--assistant {
+  color: var(--ink);
+}
+
 .mewmo-ai-message--user {
   align-self: flex-end;
   border-top-right-radius: 4px;
@@ -4778,6 +4792,8 @@ html.light .mewmo-chat-switcher__item--active {
 .mewmo-thinking-block summary { padding: 6px 8px; cursor: pointer; }
 
 .mewmo-md { min-width: 0; color: var(--ink-soft); }
+/* 深色模式下 agent 消息 markdown 正文用 --ink（近白），否则会盖掉气泡容器上的颜色 */
+html:not(.light) .mewmo-md { color: var(--ink); }
 .mewmo-md__paragraph,
 .mewmo-md__quote { margin: 0; white-space: pre-wrap; }
 .mewmo-md__paragraph + .mewmo-md__paragraph,
