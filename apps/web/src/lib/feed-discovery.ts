@@ -1,4 +1,4 @@
-import { normalizeExternalTitle } from "@mewmo/content";
+import { normalizeExternalTitle, parseFeedDocument } from "@mewmo/content";
 import { decodeHTMLStrict } from "entities";
 
 export type FeedType = "article" | "media" | "video" | "podcast";
@@ -89,9 +89,9 @@ async function discoverFromUrl(url: string, fetchFeed: typeof fetch, fallback?: 
   if (isFeedDocument(contentType, text)) {
     const siteUrl = readFeedLink(text);
     const description = readFeedDescription(text) ?? fallback?.description;
-    const favicon = siteUrl
-      ? await readSiteFavicon(siteUrl, finalUrl, fetchFeed)
-      : undefined;
+    const favicon =
+      readChannelImage(text) ??
+      (siteUrl ? await readSiteFavicon(siteUrl, finalUrl, fetchFeed) : undefined);
     return [
       {
         title: readFeedTitle(text) ?? normalizedTitle(fallback?.title) ?? hostname(finalUrl),
@@ -141,6 +141,14 @@ async function readSiteFavicon(siteUrl: string, feedUrl: string, fetchFeed: type
     const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
     if (contentType && !contentType.includes("text/html")) return undefined;
     return readFavicon(await response.text(), finalUrl);
+  } catch {
+    return undefined;
+  }
+}
+
+function readChannelImage(xml: string) {
+  try {
+    return parseFeedDocument(xml, 0).imageUrl;
   } catch {
     return undefined;
   }

@@ -228,6 +228,38 @@ describe("processFeed", () => {
     );
   });
 
+  it("backfills the feed favicon from the channel image on refresh", async () => {
+    fetchFeed.mockResolvedValue({
+      entries: [
+        {
+          title: "New RSS title",
+          url: "https://example.com/new",
+          content: "New RSS body",
+          publishedAt: new Date("2026-07-16T00:05:00.000Z"),
+        },
+      ],
+      imageUrl: "https://mmbiz.qpic.cn/mmbiz_png/avatar/0?wx_fmt=png",
+    });
+
+    const result = await processFeed(feed, dependencies());
+
+    expect(result.status).toBe("success");
+    expect(updateMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          favicon: "https://mmbiz.qpic.cn/mmbiz_png/avatar/0?wx_fmt=png",
+        }),
+      }),
+    );
+  });
+
+  it("leaves the favicon untouched when the feed has no channel image", async () => {
+    await processFeed(feed, dependencies());
+
+    const lastData = (updateMany.mock.calls.at(-1)?.[0] as { data: Record<string, unknown> }).data;
+    expect(lastData).not.toHaveProperty("favicon");
+  });
+
   it("skips when another process already claimed the feed", async () => {
     updateMany.mockResolvedValueOnce({ count: 0 });
     await expect(processFeed(feed, dependencies())).resolves.toEqual({
