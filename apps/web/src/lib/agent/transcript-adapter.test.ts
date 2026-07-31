@@ -44,7 +44,7 @@ describe("agent transcript adapter", () => {
       chatId: "chat-1",
       turnId: "turn-1",
       seq: 4,
-      message: { id: "assistant-1", content: "你好。", status: "completed" },
+      message: { id: "assistant-1", role: "assistant", content: "你好。", status: "completed", createdAt: "2026-07-29T00:00:00.000Z" },
     });
 
     expect(state.hasSequenceGap).toBe(true);
@@ -133,7 +133,7 @@ describe("agent transcript adapter", () => {
       chatId: "chat-1",
       turnId: "turn-1",
       seq: 2,
-      message: { id: "assistant-1", content: "准备好了。", status: "completed" },
+      message: { id: "assistant-1", role: "assistant", content: "准备好了。", status: "completed", createdAt: "2026-07-29T00:00:00.000Z" },
     });
 
     const merged = mergeResultIntoTerminal(state.terminal!, {

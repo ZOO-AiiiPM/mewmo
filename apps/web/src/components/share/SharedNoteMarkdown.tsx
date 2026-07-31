@@ -1,7 +1,9 @@
 import {
+  buildSharedNoteListTree,
   parseSharedNoteMarkdown,
   type SharedNoteMarkdownBlock,
   type SharedNoteMarkdownInline,
+  type SharedNoteMarkdownListNode,
 } from "../../lib/shared-note-markdown";
 
 export function SharedNoteMarkdown({ content }: { content: string }) {
@@ -32,16 +34,8 @@ function renderBlock(block: SharedNoteMarkdownBlock, index: number) {
           <p>{renderInline(block.children)}</p>
         </blockquote>
       );
-    case "list": {
-      const Tag = block.ordered ? "ol" : "ul";
-      return (
-        <Tag key={index}>
-          {block.items.map((item, itemIndex) => (
-            <li key={itemIndex}>{renderInline(item)}</li>
-          ))}
-        </Tag>
-      );
-    }
+    case "list":
+      return <ListNodes key={index} nodes={buildSharedNoteListTree(block.items)} ordered={block.ordered} />;
     case "code":
       return (
         <pre key={index}>
@@ -50,6 +44,8 @@ function renderBlock(block: SharedNoteMarkdownBlock, index: number) {
       );
     case "image":
       return <img key={index} src={block.src} alt={block.alt} loading="lazy" />;
+    case "divider":
+      return <hr key={index} />;
     case "table":
       return (
         <table key={index}>
@@ -74,6 +70,23 @@ function renderBlock(block: SharedNoteMarkdownBlock, index: number) {
   }
 }
 
+function ListNodes({ nodes, ordered }: { nodes: SharedNoteMarkdownListNode[]; ordered: boolean }) {
+  const Tag = ordered ? "ol" : "ul";
+  return (
+    <Tag>
+      {nodes.map((node, index) => (
+        <li key={index} className={node.item.task ? "mewmo-shared-note-markdown__task" : undefined}>
+          {node.item.task && (
+            <input type="checkbox" checked={node.item.task === "checked"} readOnly disabled aria-hidden="true" />
+          )}
+          {renderInline(node.item.children)}
+          {node.children.length > 0 && <ListNodes nodes={node.children} ordered={ordered} />}
+        </li>
+      ))}
+    </Tag>
+  );
+}
+
 function renderInline(items: SharedNoteMarkdownInline[]) {
   return items.map((item, index) => {
     switch (item.type) {
@@ -83,6 +96,8 @@ function renderInline(items: SharedNoteMarkdownInline[]) {
         return <strong key={index}>{renderInline(item.children)}</strong>;
       case "emphasis":
         return <em key={index}>{renderInline(item.children)}</em>;
+      case "strikethrough":
+        return <del key={index}>{renderInline(item.children)}</del>;
       case "code":
         return <code key={index}>{item.value}</code>;
       case "link":

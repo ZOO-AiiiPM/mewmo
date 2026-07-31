@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { relativeTime, resolveChatTitle } from "../../lib/agent/chat-display";
 import type { ChatSummary } from "../../lib/agent/types";
 import { PrototypeIcon } from "../shell/PrototypeIcon";
 
@@ -19,8 +20,9 @@ interface ChatSwitcherProps {
 }
 
 /**
- * Header history button: slides in a right-side drawer listing all chat
- * sessions with select / rename / clear / delete actions.
+ * Header history button: slides in a right-side drawer listing chat sessions
+ * with select / rename / clear / delete actions. Rows show a relative update
+ * time; empty never-used chats (except the active one) are hidden.
  */
 export function ChatSwitcher({
   chats,
@@ -41,6 +43,11 @@ export function ChatSwitcher({
   const rootRef = useRef<HTMLDivElement>(null);
   const renamingRef = useRef(false);
   const busy = locked || pendingChatId !== null;
+
+  // Hide empty sessions ("新会话" noise): never used and not currently active.
+  const visibleChats = chats.filter(
+    (chat) => chat.id === activeChatId || chat.messageCount !== 0,
+  );
 
   useEffect(() => {
     if (!expanded) return;
@@ -108,24 +115,26 @@ export function ChatSwitcher({
               </button>
             </div>
             <div className="mewmo-chat-switcher__list" role="listbox" aria-label="会话列表">
-              {chats.map((chat) => {
+              {visibleChats.map((chat) => {
                 const pending = pendingChatId === chat.id;
+                const menuOpen = menuChatId === chat.id;
                 return (
                   <div key={chat.id} className={`mewmo-chat-switcher__item ${chat.id === activeChatId ? "mewmo-chat-switcher__item--active" : ""}`} role="option" aria-selected={chat.id === activeChatId}>
                     {renamingId === chat.id ? (
                       <input className="mewmo-chat-switcher__rename-input" value={renameValue} onChange={(event) => setRenameValue(event.target.value)} onBlur={() => void handleRename(chat.id)} onKeyDown={(event) => { if (event.key === "Enter") void handleRename(chat.id); if (event.key === "Escape") setRenamingId(null); }} autoFocus maxLength={80} disabled={busy} />
                     ) : (
                       <button type="button" className="mewmo-chat-switcher__item-button" onClick={() => { onSelectChat(chat.id); setExpanded(false); }} disabled={busy}>
-                        <span className="mewmo-chat-switcher__item-title">{chat.title}</span>
+                        <span className="mewmo-chat-switcher__item-title">{resolveChatTitle(chat.title, chat.preview)}</span>
+                        <span className="mewmo-chat-switcher__item-time">{relativeTime(chat.updatedAt)}</span>
                       </button>
                     )}
-                    <button type="button" className="mewmo-chat-switcher__item-menu" onClick={(event) => { event.stopPropagation(); setMenuChatId(menuChatId === chat.id ? null : chat.id); }} aria-label="会话操作" disabled={busy}>
+                    <button type="button" className={`mewmo-chat-switcher__item-menu ${menuOpen || pending ? "mewmo-chat-switcher__item-menu--visible" : ""}`} onClick={(event) => { event.stopPropagation(); setMenuChatId(menuOpen ? null : chat.id); }} aria-label="会话操作" disabled={busy}>
                       <PrototypeIcon name={pending ? "sync" : "more-horizontal"} size={14} />
                     </button>
 
-                    {menuChatId === chat.id && (
+                    {menuOpen && (
                       <div className="mewmo-chat-switcher__menu">
-                        <button type="button" disabled={busy} onClick={() => { setRenamingId(chat.id); setRenameValue(chat.title); setMenuChatId(null); }}>重命名</button>
+                        <button type="button" disabled={busy} onClick={() => { setRenamingId(chat.id); setRenameValue(resolveChatTitle(chat.title, chat.preview)); setMenuChatId(null); }}>重命名</button>
                         <button type="button" disabled={busy} onClick={() => { setMenuChatId(null); if (window.confirm("确定清空这个会话的全部消息吗？")) void onClear(chat.id); }}>清空消息</button>
                         <button type="button" className="mewmo-chat-switcher__menu-danger" disabled={busy} onClick={() => { setMenuChatId(null); if (window.confirm("确定删除这个会话吗？此操作无法撤销。")) void onDelete(chat.id); }}>删除会话</button>
                       </div>
@@ -133,7 +142,7 @@ export function ChatSwitcher({
                   </div>
                 );
               })}
-              {chats.length === 0 && <div className="mewmo-chat-switcher__empty">暂无会话</div>}
+              {visibleChats.length === 0 && <div className="mewmo-chat-switcher__empty">暂无会话</div>}
             </div>
           </div>
         </>

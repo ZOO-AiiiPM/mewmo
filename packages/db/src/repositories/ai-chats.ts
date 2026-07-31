@@ -97,7 +97,7 @@ export function createAiChatsRepository(client: unknown = getPrisma()) {
     },
 
     async findByUserId(userId: string) {
-      return db.aiChat.findMany({
+      const chats = await db.aiChat.findMany({
         where: activeByUser(userId),
         orderBy: { updatedAt: "desc" },
         select: {
@@ -114,8 +114,24 @@ export function createAiChatsRepository(client: unknown = getPrisma()) {
               messages: { where: { deletedAt: null } },
             },
           },
+          // A few leading messages so the client can show a preview title for
+          // chats still carrying the default name (auto-naming only fixes the
+          // chat open during a session, not historical rows in the list).
+          sessionEntries: {
+            where: { type: "message" },
+            orderBy: { entrySeq: "asc" },
+            take: 4,
+            select: { payload: true },
+          },
+          messages: {
+            where: { deletedAt: null },
+            orderBy: { createdAt: "asc" },
+            take: 4,
+            select: { role: true, content: true },
+          },
         },
       });
+      return Array.isArray(chats) ? chats.map(attachChatPreview) : chats;
     },
 
     async findById(userId: string, id: string) {
@@ -238,6 +254,42 @@ function messageText(content: unknown) {
     .filter((part) => part.type === "text" && typeof part.text === "string")
     .map((part) => part.text)
     .join("");
+}
+
+/** Cap for the raw preview text sent to the client; it truncates again for display. */
+const CHAT_PREVIEW_MAX_LENGTH = 120;
+
+/**
+ * Strip the leading-message relations off a list row and fold them into a
+ * single `preview` string: the first user message text (hidden context
+ * removed). New-protocol session entries win; legacy aiMessage rows are the
+ * fallback. Returns the row unchanged when no user text exists.
+ */
+function attachChatPreview(value: unknown): unknown {
+  if (!isRecord(value)) return value;
+  const { sessionEntries, messages, ...rest } = value;
+  const preview = firstUserMessagePreview(sessionEntries, messages);
+  return preview ? { ...rest, preview } : rest;
+}
+
+function firstUserMessagePreview(sessionEntries: unknown, messages: unknown): string | null {
+  if (Array.isArray(sessionEntries)) {
+    for (const entry of sessionEntries) {
+      if (!isRecord(entry) || !isRecord(entry.payload) || !isRecord(entry.payload.message)) continue;
+      const message = entry.payload.message;
+      if (message.role !== "user") continue;
+      const text = visibleAgentUserContent(messageText(message.content)).trim();
+      if (text) return text.slice(0, CHAT_PREVIEW_MAX_LENGTH);
+    }
+  }
+  if (Array.isArray(messages)) {
+    for (const message of messages) {
+      if (!isRecord(message) || message.role !== "user" || typeof message.content !== "string") continue;
+      const text = visibleAgentUserContent(message.content).trim();
+      if (text) return text.slice(0, CHAT_PREVIEW_MAX_LENGTH);
+    }
+  }
+  return null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

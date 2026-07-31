@@ -133,8 +133,10 @@ export interface ChatSummary {
   title: string;
   createdAt?: string;
   updatedAt?: string;
-  /** Total persisted messages; lets the UI reuse an untouched chat instead of stacking empties. */
+  /** Total persisted messages; lets the UI reuse an untouched chat and hide never-used chats. */
   messageCount?: number;
+  /** First user message text; fallback list title when title is still the default. */
+  preview?: string;
 }
 
 // ---------------------------------------------------------------------------
