@@ -63,6 +63,13 @@ export interface SendOptions {
 
 export interface ConversationStore extends ConversationStoreState {
   send: (options: SendOptions) => void;
+  /**
+   * Edit/regenerate fork semantics: truncate the chat from `turnId` (that turn
+   * and everything after it) before sending, so the new message replaces the
+   * original instead of appending. Falls back to a plain append when the
+   * truncate call fails, so the send is never blocked.
+   */
+  sendReplacing: (turnId: string, options: SendOptions) => void;
   retry: () => void;
   /**
    * Stop the current streaming turn client-side. The server has no turn-abort
@@ -339,6 +346,34 @@ export function useConversationStore(chatId: string | null): ConversationStore {
     void performSend(request);
   }, [performSend, status]);
 
+  const sendReplacing = useCallback((turnId: string, options: SendOptions) => {
+    const content = options.content.trim();
+    if (!content || !chatIdRef.current || status === "sending") return;
+    const targetChatId = chatIdRef.current;
+    void (async () => {
+      // Truncate failures degrade gracefully: the resend just appends instead.
+      const truncated = await fetch(`/api/agent/chats/${encodeURIComponent(targetChatId)}/truncate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ turnId }),
+      }).then((response) => response.ok, () => false);
+      if (chatIdRef.current !== targetChatId) return;
+      if (truncated) {
+        setStableRows((rows) => {
+          const index = rows.findIndex((row) => row.turnId === turnId);
+          return index === -1 ? rows : rows.slice(0, index);
+        });
+      }
+      const request: FailedRequest = {
+        clientRequestId: crypto.randomUUID(),
+        options: { ...options, content },
+        turnId: "",
+        attempt: 1,
+      };
+      await performSend(request);
+    })();
+  }, [performSend, status]);
+
   const retry = useCallback(() => {
     if (!failedRequest) return;
     const newRequest: FailedRequest = {
@@ -418,6 +453,7 @@ export function useConversationStore(chatId: string | null): ConversationStore {
     failedRequest,
     proposals,
     send,
+    sendReplacing,
     retry,
     stop,
     reload,

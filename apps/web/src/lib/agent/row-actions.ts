@@ -19,13 +19,15 @@ export function assistantRowCopyText(row: TranscriptRow): string {
 
 /**
  * Whether a stable row qualifies for the regenerate action.
- * Only the last completed turn (with an original prompt, no live stream) can
- * be regenerated: the backend has no truncate/regenerate endpoint, so retry
- * re-sends the same prompt as a new turn.
+ * Regenerate truncates the chat from this turn and re-runs the prompt, so any
+ * completed row with a real server turn id qualifies (optimistic `live-` /
+ * `failed-` ids cannot be located server-side). Failed rows keep their
+ * dedicated retry path.
  */
-export function canRegenerateRow(row: TranscriptRow, isLastStableRow: boolean, hasLiveRow: boolean): boolean {
-  return isLastStableRow
-    && !hasLiveRow
+export function canRegenerateRow(row: TranscriptRow, hasLiveRow: boolean): boolean {
+  return !hasLiveRow
     && row.status === "completed"
-    && row.userContent.trim().length > 0;
+    && row.userContent.trim().length > 0
+    && !row.turnId.startsWith("live-")
+    && !row.turnId.startsWith("failed-");
 }

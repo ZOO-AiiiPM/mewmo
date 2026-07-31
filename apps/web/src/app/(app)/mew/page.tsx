@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import { AgentSidebar } from "../../../components/agent/AgentSidebar";
 import { ChatSwitcher } from "../../../components/agent/ChatSwitcher";
 import { PrototypeIcon } from "../../../components/shell/PrototypeIcon";
@@ -19,6 +21,8 @@ const SUGGESTIONS = ["总结我最近的剪藏", "把今天的笔记整理成清
 export default function MewHomePage() {
   // Every visit lands on a fresh conversation (an untouched one is reused).
   const agentChats = useAgentChats({ startFresh: true });
+  // Deep insight works here too — without page context it targets recent workspace content.
+  const [requestedSkill, setRequestedSkill] = useState<string | null>(null);
   const sessionEmpty = agentChats.store.stableRows.length === 0 && agentChats.store.liveRow === null;
   const chatReady = agentChats.activeChatId !== null && !agentChats.loadingChats && agentChats.store.status !== "loading";
 
@@ -80,10 +84,9 @@ export default function MewHomePage() {
         <AgentSidebar
           agentChats={agentChats}
           context={null}
-          requestedSkill={null}
-          showInsight={false}
-          onSkillConsumed={() => {}}
-          onDeepInsight={() => {}}
+          requestedSkill={requestedSkill}
+          onSkillConsumed={() => setRequestedSkill(null)}
+          onDeepInsight={() => setRequestedSkill("deep-insight")}
         />
       </div>
     </div>

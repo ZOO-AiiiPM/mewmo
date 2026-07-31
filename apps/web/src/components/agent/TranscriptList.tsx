@@ -15,10 +15,10 @@ interface TranscriptListProps {
   context: AISidebarContentContext | null;
   onProposalChange: (proposal: AgentActionProposal) => void;
   onRetry: () => void;
-  /** Re-send a prompt as a new turn (regenerate for the last completed reply). */
-  onResend: (content: string) => void;
-  /** Refill the composer with a user message for edit-and-resend. */
-  onEditUser: (content: string) => void;
+  /** Regenerate a row: truncate the chat from that turn and re-run its prompt. */
+  onResend: (row: TranscriptRow) => void;
+  /** Refill the composer with a user message for edit-and-resend (replaces the turn). */
+  onEditUser: (content: string, turnId: string) => void;
   retryTurnId?: string;
 }
 
@@ -52,14 +52,16 @@ export function TranscriptList({ stableRows, liveRow, loading, context, onPropos
 
   if (loading && allRows.length === 0) {
     return (
-      <div className="mewmo-transcript mewmo-transcript--loading" ref={containerRef} aria-busy="true">
-        <div className="mewmo-transcript-skeleton" aria-hidden="true">
-          <span className="mewmo-skeleton-block mewmo-transcript-skeleton__bubble" />
-          <span className="mewmo-skeleton-block mewmo-transcript-skeleton__line" />
-          <span className="mewmo-skeleton-block mewmo-transcript-skeleton__line mewmo-transcript-skeleton__line--short" />
-          <span className="mewmo-skeleton-block mewmo-transcript-skeleton__bubble" />
-          <span className="mewmo-skeleton-block mewmo-transcript-skeleton__line" />
-          <span className="mewmo-skeleton-block mewmo-transcript-skeleton__line mewmo-transcript-skeleton__line--short" />
+      <div className="mewmo-transcript-shell">
+        <div className="mewmo-transcript mewmo-transcript--loading" ref={containerRef} aria-busy="true">
+          <div className="mewmo-transcript-skeleton" aria-hidden="true">
+            <span className="mewmo-skeleton-block mewmo-transcript-skeleton__bubble" />
+            <span className="mewmo-skeleton-block mewmo-transcript-skeleton__line" />
+            <span className="mewmo-skeleton-block mewmo-transcript-skeleton__line mewmo-transcript-skeleton__line--short" />
+            <span className="mewmo-skeleton-block mewmo-transcript-skeleton__bubble" />
+            <span className="mewmo-skeleton-block mewmo-transcript-skeleton__line" />
+            <span className="mewmo-skeleton-block mewmo-transcript-skeleton__line mewmo-transcript-skeleton__line--short" />
+          </div>
         </div>
       </div>
     );
@@ -87,16 +89,16 @@ export function TranscriptList({ stableRows, liveRow, loading, context, onPropos
   return (
     <div className="mewmo-transcript-shell">
       <div className="mewmo-transcript" ref={containerRef} onScroll={handleScroll}>
-        {stableRows.map((row, index) => (
+        {stableRows.map((row) => (
           <AssistantRow
             key={row.turnId}
             row={row}
             context={context}
             onProposalChange={onProposalChange}
-            onEditUser={onEditUser}
+            onEditUser={(content) => onEditUser(content, row.turnId)}
             {...(row.status === "failed" && row.turnId === retryTurnId ? { onRetry } : {})}
-            {...(canRegenerateRow(row, index === stableRows.length - 1, liveRow !== null)
-              ? { onRegenerate: () => onResend(row.userContent) }
+            {...(canRegenerateRow(row, liveRow !== null)
+              ? { onRegenerate: () => onResend(row) }
               : {})}
           />
         ))}
@@ -106,7 +108,7 @@ export function TranscriptList({ stableRows, liveRow, loading, context, onPropos
             row={liveRow}
             context={context}
             onProposalChange={onProposalChange}
-            onEditUser={onEditUser}
+            onEditUser={(content) => onEditUser(content, liveRow.turnId)}
           />
         )}
       </div>

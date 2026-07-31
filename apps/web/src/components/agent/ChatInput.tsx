@@ -13,14 +13,14 @@ interface ChatInputProps {
   context: AISidebarContentContext | null;
   requestedSkill: string | null;
   /** Edit-and-resend payload: refills the textarea (new object per request). */
-  prefill: { text: string } | null;
+  prefill: { text: string; turnId?: string } | null;
   showInsight?: boolean;
   onSkillConsumed: () => void;
   onPrefillConsumed: () => void;
   onDeepInsight: () => void;
   /** Stop the current streaming reply (shown in place of send while sending). */
   onStop: () => void;
-  onSend: (options: { content: string; skillId?: string; includeContext: boolean }) => void;
+  onSend: (options: { content: string; skillId?: string; includeContext: boolean; editTurnId?: string }) => void;
 }
 
 const MAX_TEXTAREA_HEIGHT = 168;
@@ -35,8 +35,23 @@ export function ChatInput({ status, chatReady, context, requestedSkill, prefill,
   const [skillId, setSkillId] = useState<string | undefined>();
   const [attachedFile, setAttachedFile] = useState<string | null>(null);
   const [contextDropped, setContextDropped] = useState(false);
+  // Editing an earlier message: sending will replace that turn instead of appending.
+  const [editTurnId, setEditTurnId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // #A1: after the stop button swaps back into a send button in place, a
+  // double-click / late second click can land on the fresh send button and
+  // fire an unintended submit. Briefly guard the click-submit path when
+  // status leaves "sending" (Enter-to-send is unaffected).
+  const sendGuardUntilRef = useRef(0);
+  const prevStatusRef = useRef(status);
+
+  useEffect(() => {
+    if (prevStatusRef.current === "sending" && status !== "sending") {
+      sendGuardUntilRef.current = Date.now() + 500;
+    }
+    prevStatusRef.current = status;
+  }, [status]);
 
   useEffect(() => {
     setContextDropped(false);
@@ -46,14 +61,18 @@ export function ChatInput({ status, chatReady, context, requestedSkill, prefill,
     if (!requestedSkill) return;
     setSkillId(requestedSkill);
     setContextDropped(false);
-    setInput((current) => current || "请对当前内容进行深度洞察，指出关键联系、盲点、反例和下一步思考方向。");
+    // Without page context the skill runs against recent workspace content.
+    setInput((current) => current || (context
+      ? "请对当前内容进行深度洞察，指出关键联系、盲点、反例和下一步思考方向。"
+      : "请对我工作区的最近内容进行深度洞察，指出关键联系、盲点、反例和下一步思考方向。"));
     onSkillConsumed();
-  }, [onSkillConsumed, requestedSkill]);
+  }, [context, onSkillConsumed, requestedSkill]);
 
   // Edit-and-resend: refill the textarea with an earlier user message.
   useEffect(() => {
     if (!prefill) return;
     setInput(prefill.text);
+    setEditTurnId(prefill.turnId ?? null);
     onPrefillConsumed();
     requestAnimationFrame(() => {
       const el = textareaRef.current;
@@ -76,16 +95,27 @@ export function ChatInput({ status, chatReady, context, requestedSkill, prefill,
   const send = () => {
     const content = input.trim();
     if (!content || !chatReady || status === "sending") return;
-    onSend({ content, ...(skillId ? { skillId } : {}), includeContext: attachedContext !== null });
+    onSend({ content, ...(skillId ? { skillId } : {}), includeContext: attachedContext !== null, ...(editTurnId ? { editTurnId } : {}) });
     setInput("");
     setSkillId(undefined);
     setAttachedFile(null);
+    setEditTurnId(null);
   };
 
   const disabled = !chatReady || status === "loading" || status === "sending";
 
   return (
     <div className="mewmo-chat-input">
+      {editTurnId && (
+        <div className="mewmo-chat-input__editing">
+          <PrototypeIcon name="pen-new-square" size={12} />
+          <span>正在编辑之前的消息</span>
+          <em>发送后将替换原轮次及之后的回复</em>
+          <button type="button" onClick={() => { setEditTurnId(null); setInput(""); }} aria-label="取消编辑">
+            <PrototypeIcon name="close" size={12} />
+          </button>
+        </div>
+      )}
       {attachedFile && (
         <div className="mewmo-chat-input__attachment">
           <PrototypeIcon name="paperclip" size={12} />
@@ -98,7 +128,11 @@ export function ChatInput({ status, chatReady, context, requestedSkill, prefill,
       )}
       <form
         className="mewmo-chat-input__box"
-        onSubmit={(event) => { event.preventDefault(); send(); }}
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (Date.now() < sendGuardUntilRef.current) return;
+          send();
+        }}
       >
         {attachedContext && (
           <div className="mewmo-chat-input__context">
@@ -157,7 +191,7 @@ export function ChatInput({ status, chatReady, context, requestedSkill, prefill,
                 type="button"
                 className={`mewmo-chat-input__insight ${skillId ? "mewmo-chat-input__insight--active" : ""}`}
                 onClick={() => (skillId ? setSkillId(undefined) : onDeepInsight())}
-                disabled={disabled || (!skillId && !attachedContext)}
+                disabled={disabled}
                 aria-pressed={Boolean(skillId)}
               >
                 <PrototypeIcon name="spark" size={13} />深度洞察

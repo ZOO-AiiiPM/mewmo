@@ -45,9 +45,11 @@ interface AiChatsClient {
     updateMany(args: unknown): Promise<unknown>;
   };
   aiSessionEntry: {
+    findFirst(args: unknown): Promise<unknown>;
     deleteMany(args: unknown): Promise<unknown>;
   };
   aiTurn: {
+    findFirst(args: unknown): Promise<unknown>;
     deleteMany(args: unknown): Promise<unknown>;
   };
   aiContextAttachment: {
@@ -177,6 +179,48 @@ export function createAiChatsRepository(client: unknown = getPrisma()) {
       });
     },
 
+    /**
+     * Edit/regenerate fork semantics: drop the given turn and everything after
+     * it. Entries append linearly (entrySeq), so deleting the suffix and
+     * rolling activeLeafId back to the last surviving entry makes the next
+     * model call rebuild its context without the truncated turns.
+     */
+    truncateFromTurn(userId: string, chatId: string, turnId: string) {
+      return db.$transaction(async (transaction) => {
+        const turn = await transaction.aiTurn.findFirst({
+          where: { id: turnId, chatId, userId },
+          select: { userEntryId: true, createdAt: true },
+        }) as { userEntryId?: string | null; createdAt?: Date } | null;
+        if (!turn?.userEntryId || !turn.createdAt) return { count: 0 };
+        const cutEntry = await transaction.aiSessionEntry.findFirst({
+          where: { chatId, entryId: turn.userEntryId },
+          select: { entrySeq: true },
+        }) as { entrySeq?: number } | null;
+        if (typeof cutEntry?.entrySeq !== "number") return { count: 0 };
+
+        const owned = await transaction.aiChat.updateMany({
+          where: { id: chatId, ...activeByUser(userId) },
+          data: { version: { increment: 1 } },
+        }) as { count?: number };
+        if (!owned.count) return owned;
+
+        await transaction.aiSessionEntry.deleteMany({ where: { chatId, entrySeq: { gte: cutEntry.entrySeq } } });
+        await transaction.aiTurn.deleteMany({ where: { chatId, userId, createdAt: { gte: turn.createdAt } } });
+
+        const lastEntry = await transaction.aiSessionEntry.findFirst({
+          where: { chatId },
+          orderBy: { entrySeq: "desc" },
+          select: { entryId: true, type: true, payload: true },
+        }) as { entryId?: string; type?: string; payload?: unknown } | null;
+        // Mirror appendEntry's leaf rule: a "leaf" entry points at its target.
+        const activeLeafId = lastEntry
+          ? (lastEntry.type === "leaf" ? leafTargetId(lastEntry.payload) : lastEntry.entryId ?? null)
+          : null;
+        await transaction.aiChat.updateMany({ where: { id: chatId }, data: { activeLeafId } });
+        return owned;
+      });
+    },
+
     clearMessages(userId: string, chatId: string) {
       return db.$transaction(async (transaction) => {
         const owned = await transaction.aiChat.updateMany({
@@ -244,6 +288,11 @@ function projectSessionMessages(value: unknown): unknown {
     }];
   });
   return { ...chat, messages };
+}
+
+function leafTargetId(payload: unknown): string | null {
+  if (isRecord(payload) && typeof payload.targetId === "string") return payload.targetId;
+  return null;
 }
 
 function messageText(content: unknown) {

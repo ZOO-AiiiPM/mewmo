@@ -39,23 +39,24 @@ describe("assistantRowCopyText", () => {
 });
 
 describe("canRegenerateRow", () => {
-  it("allows the last completed row with a prompt", () => {
-    expect(canRegenerateRow(baseRow(), true, false)).toBe(true);
+  it("allows any completed row with a prompt", () => {
+    expect(canRegenerateRow(baseRow(), false)).toBe(true);
   });
 
-  it("rejects non-last rows", () => {
-    expect(canRegenerateRow(baseRow(), false, false)).toBe(false);
+  it("rejects optimistic rows without a server turn id", () => {
+    expect(canRegenerateRow(baseRow({ turnId: "live-3" }), false)).toBe(false);
+    expect(canRegenerateRow(baseRow({ turnId: "failed-2" }), false)).toBe(false);
   });
 
   it("rejects while a live row is streaming", () => {
-    expect(canRegenerateRow(baseRow(), true, true)).toBe(false);
+    expect(canRegenerateRow(baseRow(), true)).toBe(false);
   });
 
   it("rejects failed rows (they use the dedicated retry path)", () => {
-    expect(canRegenerateRow(baseRow({ status: "failed" }), true, false)).toBe(false);
+    expect(canRegenerateRow(baseRow({ status: "failed" }), false)).toBe(false);
   });
 
   it("rejects rows without an original prompt", () => {
-    expect(canRegenerateRow(baseRow({ userContent: " " }), true, false)).toBe(false);
+    expect(canRegenerateRow(baseRow({ userContent: " " }), false)).toBe(false);
   });
 });
