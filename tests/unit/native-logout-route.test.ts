@@ -84,6 +84,17 @@ describe("POST /api/auth/native/logout", () => {
     expect(serviceMock.revokeSession).toHaveBeenCalledWith("user-1", "sess-1");
   });
 
+  it("returns 204 for a lone format-valid but unknown/rotated refresh (idempotent, no bearer)", async () => {
+    // 原 ZOO-88 契约：未知/已轮换 refresh 幂等成功，避免泄漏会话是否存在
+    serviceMock.revokeByRefreshToken.mockResolvedValue(false);
+
+    const res = await POST(logoutRequest({ refreshToken: "unknown-refresh-00000000" }));
+
+    expect(res.status).toBe(204);
+    expect(serviceMock.revokeByRefreshToken).toHaveBeenCalledWith("unknown-refresh-00000000");
+    expect(serviceMock.resolveAccessToken).not.toHaveBeenCalled();
+  });
+
   it("returns 400 when no identity (no bearer and no refresh) is supplied", async () => {
     const res = await POST(logoutRequest({}));
     expect(res.status).toBe(400);

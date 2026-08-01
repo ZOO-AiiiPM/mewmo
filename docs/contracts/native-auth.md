@@ -123,8 +123,11 @@
 响应 `204`。语义：
 
 - **有效 refresh 一次性吊销会话 → 204**：即使同时携带 bearer，也不得因「会话已注销导致 bearer 解析失败」把已成功的注销翻成 401。
-- **无有效 refresh 时，bearer 是唯一身份**：bearer 必须有效才放行，否则 `401 unauthorized`（不可绕过）。
-- 未知 / 已轮换 / 已注销的 refresh 未定位到会话；此时若带 bearer 则按 bearer 判定，无有效身份则 `400 invalid_request`。
+- **格式有效但未知 / 已轮换的 refresh（未定位到会话）**：
+  - 单独提交（无 bearer）→ 幂等 **204**（不泄漏会话是否存在）。
+  - 同时携带 bearer → 未知 refresh 不能掩盖 bearer：bearer 必须有效，否则 `401 unauthorized`（不可绕过）。
+- **无有效 refresh 时，bearer 是唯一身份**：bearer 必须有效才放行，否则 `401 unauthorized`。
+- 完全无身份（无 refresh 也无 bearer）→ `400 invalid_request`。
 
 错误：`400 invalid_request` / `401 unauthorized`（无权威 refresh 时 bearer 无效）。
 

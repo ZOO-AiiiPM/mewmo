@@ -7,11 +7,13 @@ import { NextResponse } from "next/server";
  *
  * 支持两种定位方式（可同时存在，都以调用者自己的会话为界）：
  * - body.refreshToken → 按 refresh 哈希定位并吊销（**权威路径**）。
- * - Authorization: Bearer <access> → 按 access 中的 sessionId 吊销（refresh 不可用时兜底）。
+ * - Authorization: Bearer <access> → 按 access 中的 sessionId 吊销。
  *
  * 语义：
  * - 有效 refresh 一旦吊销会话，注销即已成功 → 204，不再让后续 bearer 解析失败覆盖成 401。
- * - 无有效 refresh 时，bearer 是唯一身份，必须有效才放行（无效 bearer 不可绕过）。
+ * - 格式有效但未知 / 已轮换的 refresh（未定位到会话）：
+ *   - 单独提交（无 bearer）→ 幂等 204（不泄漏会话是否存在，沿 ZOO-88 原契约）。
+ *   - 同时携带 bearer → 未命中 refresh 不能掩盖 bearer：bearer 必须有效，否则 401。
  */
 export async function POST(request: Request) {
   const parsed = nativeLogoutBodySchema.safeParse(await request.json().catch(() => null));
@@ -27,7 +29,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "缺少身份标识", code: "invalid_request" }, { status: 400 });
     }
 
-    // 权威路径：有效 refresh 定位并吊销会话 → 注销完成，与 bearer 无关。
+    // 权威路径：格式有效且定位到会话 → 吊销并 204，与 bearer 无关。
     if (parsed.success && parsed.data.refreshToken) {
       const revoked = await service.revokeByRefreshToken(parsed.data.refreshToken);
       if (revoked) {
@@ -35,7 +37,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // refresh 缺失或未定位到会话（未知/已轮换）：bearer 兜底，且必须有效，否则不可绕过。
+    // 携带 bearer：身份校验以 bearer 为准（未知/已轮换 refresh 不掩盖无效 bearer）。
     if (bearer) {
       const identity = await service.resolveAccessToken(bearer);
       if (!identity) {
@@ -48,7 +50,12 @@ export async function POST(request: Request) {
       return new NextResponse(null, { status: 204 });
     }
 
-    // 既无有效 refresh 也无有效 bearer：无法完成注销 → 400（无 bearer 且 refresh 未命中时唯一身份缺失）
+    // 无 bearer 且 refresh 格式有效（未知/已轮换）：幂等 204，不泄漏会话是否存在。
+    if (parsed.success && parsed.data.refreshToken) {
+      return new NextResponse(null, { status: 204 });
+    }
+
+    // 理论上不可达（上面 hasRefresh 已覆盖 refresh；bearer 已覆盖）。防御性 400。
     return NextResponse.json({ error: "缺少有效身份标识", code: "invalid_request" }, { status: 400 });
   } catch (e) {
     if (e instanceof NativeAuthError) {
