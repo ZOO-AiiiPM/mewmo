@@ -184,8 +184,8 @@ Mac 映射：用 SwiftUI 内建 shape/style（`RoundedRectangle(cornerRadius:)` 
 
 ### 5.1 Web 现状
 
-- Sidebar 承载导航层级（品牌、分组、feeds drill-in、knowledge、账号控制），【Sidebar.tsx】结构与 sidebars 的 section。
-- 列表选中由各页面自持：notes 的 `selectedSlug`（【NoteEditorPage.tsx:141-147】），clips 的 `selectedClipId`（【clips/page.tsx:122】），feeds 的 `effectiveFeedId + selectedEntry`（【feeds/page.tsx:142,~306】）。
+- Sidebar 承载导航层级：`<aside className="mewmo-sidebar">` 外壳 + 品牌（`mewmo-sidebar__brand`）+ `nav`（`mewmo-sidebar__nav`）+ feeds drill-in（`mewmo-feed-pane`）+ knowledge drill-in + 账号入口（`mewmo-sidebar__footer` 内 `mewmo-account` 按钮）。【Sidebar.tsx:685-702（brand 687-689、nav 702）、feed pane 809、knowledge pane 886、account 977-978】
+- 列表选中由各页面自持：notes 的 `selectedSlug`（【NoteEditorPage.tsx:141-147】），clips 的 `selectedClipId`（【clips/page.tsx:122】），feeds 的 `effectiveFeedId + selectedEntry`（【feeds/page.tsx:142,146】）。
 - 导航会写入 URL（`pushStableSelectionUrl`），goback/forward（`popstate`）恢复选择。【NoteEditorPage.tsx:326-335,499-506】
 - Sidebar 支持 drill-in（如 feeds → 单 feed → feed entries），见 `mewmo-sidebar__stage--drilled`。【globals.css:1143-1198】
 
@@ -226,7 +226,7 @@ Mac 映射：用 SwiftUI 内建 shape/style（`RoundedRectangle(cornerRadius:)` 
 | queued/fetching | 列表卡片同步角标 `mewmo-sync-status`【clips/page.tsx:441-443】；详情骨架【clips/page.tsx:496-497】 | 进度指示/`redacted` |
 | fetch error | 卡片 `mewmo-sync-status--error` 抓取失败【clips/page.tsx:444-446】 | 卡片错误角标 + 可重试 |
 | selected | `ClipContentRenderer` 渲染清洗后 HTML【clips/page.tsx:520-524】（sanitize 链 `apps/web/src/lib/clip-content.ts`，见 dev-frontend） | 原生 web/content 渲染（Semantic parity；剪藏正文按 Web 清洗结果渲染） |
-| 检查更新 | `refreshClip` → toast 失败【clips/page.tsx:~354】 | 工具栏「检查更新」 |
+| 检查更新 | `refreshClip` 函数 + 失败 toast【clips/page.tsx:330-356】 | 工具栏「检查更新」 |
 
 ## 8. Feeds / Feed entries 状态矩阵
 
@@ -246,7 +246,7 @@ Mac 映射：用 SwiftUI 内建 shape/style（`RoundedRectangle(cornerRadius:)` 
 
 ### 9.1 Toolbar（Web 现状 → Mac）
 
-- 列表栏 header：标题 + 搜索 + 剪藏 URL 输入 + 新建按钮（`ListColumn`）。【ListColumn.tsx】每个页面的 action 图标不同（notes `pen-new-square`、clips 剪藏）。
+- 列表栏 header：标题 + 搜索 + 剪藏 URL 输入 + 新建按钮（`ListColumn`）。结构于【ListColumn.tsx:144-258】：`mewmo-list-column__bar`（标题/quick-switch 146-192、`action` 194、clip URL 输入 195-226、search 227-252、body 255-257）。每个页面用 `listColumn` 的 `action`/`clipUrlInput` 传不同 entry：notes 传 `pen-new-square` 新建笔记按钮【NoteEditorPage.tsx:658-665】，clips 开 `clipUrlInput`【clips/page.tsx:371-477,374】。
 - 阅读器 toolbar：`ReaderToolbar`——左侧 nav（列表折叠/返回）、中间标题（滚动后浮现，`useReaderToolbarTitleVisibility`）、右侧工具组（删除/置顶/分享/复制/导出/菜单）。【NoteEditorPage.tsx:747-765】【globals.css:2488-2546】
 - Mac 映射：用原生 `.toolbar`——左侧（macOS native back/列表折叠）、标题 toolbar item、右侧工具组。危险操作（删除）放 `Menu`/右键与确认弹窗（macOS native）。
 
@@ -289,7 +289,7 @@ Mac 映射：用 SwiftUI 内建 shape/style（`RoundedRectangle(cornerRadius:)` 
 
 ## 11. 可访问性与 motion
 
-- 颜色对比：全部内容使用语义 token（§3），浅色纯黑白灰不变色；校验无暖色。危险色 `--coral`/danger 仅在对世界面。
+- 颜色对比：全部内容使用语义 token（§3），浅色纯黑白灰不变色；校验无暖色。危险色 `--coral`/danger 仅在对应用到的语义界面（danger 按钮/危险色块）。
 - VoiceOver：三栏为可读的 `accessibilityElement(children: .contain)`；列表行聚合为单个可读元素（title + preview + time）；工具栏 actions 有 label；tab strip 暴露为标签组并朗读激活 tab。
 - Motion：`@Environment(\.accessibilityReduceMotion)` reduce → 禁用 skeleton 扫光/过渡动画；对应 Web `prefers-reduced-motion: reduce` 全局 0.001ms 策略【globals.css:8310-8314】。
 - Focus visibility：键盘 focus 用系统高亮 ring，不隐藏。
@@ -300,7 +300,7 @@ Mac 映射：用 SwiftUI 内建 shape/style（`RoundedRectangle(cornerRadius:)` 
 **Shell / 窗口**
 - 三栏默认宽对齐 §2.2；窗口最小尺寸满足 §2.2 W-4。
 - 侧栏/列表折叠语义与 Web 一致；hover peek 为可选。
-- 四种档位（compact/regular/wide）行为符合 §2.3。
+- 三种档位（compact/regular/wide）行为符合 §2.3。
 
 **主题**
 - 深色 token 全部映射 §3.1；浅色纯黑白灰 §3.2，视觉审查无暖黄/米色/奶油。
