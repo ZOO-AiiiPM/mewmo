@@ -11,15 +11,17 @@
 - AI Runtime（`packages/ai/src/runtime/env.ts`）原生支持 `AI_PROVIDER=deepseek`，对应 `DEEPSEEK_API_KEY` 与 `DEEPSEEK_BASE_URL`（缺省 `https://api.deepseek.com`），聊天/深度洞察模型走 `AI_MODEL_AGENT_CHAT`/`AI_MODEL_DEEP_INSIGHT`。
 - Agent 配置校验在 `apps/agent/src/config.ts`（envSchema），`AGENT_IDENTITY_SECRET` 至少 32 字符，`AGENT_CHAT_THINKING_LEVEL` 是合法枚举配置。
 - 本地环境文件 `deploy/agent/.env.agent`（gitignore，mode 600）仅含 Agent process 的配置与 DeepSeek 凭据；不含 Workflow 模型变量（`AI_MODEL_RECOMMENDATION`/`AI_MODEL_NOTE_INSIGHT`/`AI_MODEL_SUMMARY`/`AI_MODEL_EMBEDDING` 等）。
-- 本机已有 Docker 容器（PostgreSQL 多实例 + Redis），ZOO-102 要求只读复用，不停止/重建/删除。
+- **本地 DB 指向（更正后）**：orchestrator 已注入 ZOO-102 专属**本地 Docker PostgreSQL** `127.0.0.1:55432`（库 `mewmo_zoo102`）与本地 Redis `127.0.0.1:56379`，与既有容器隔离、不动既有容器。先前一版 env 曾指向远端 Neon，已在冒烟前识别并停止（未发鉴权请求）。
+- 本机已有 Docker 容器（PostgreSQL 多实例 + Redis），ZOO-102 要求只读复用/隔离使用，不停止/重建/删除。
 
 ## 范围
 
 - 复用当前本机 Docker PostgreSQL/Redis，先做只读连接与端口验证，不停止或重建已有容器。
 - 为 Agent 本地进程配置 `AI_PROVIDER=deepseek`、DeepSeek 官方 base URL、Agent chat/deep-insight 模型与本地密钥。凭据只进入 gitignored 本地 env 文件，不写入 Git/Linear/日志/截图/进程参数。
-- 安装/复核依赖与 Prisma client，执行 migration status。
+- 安装/复核依赖与 Prisma client，执行 migration（deploy/status 针对本地隔离库 `mewmo_zoo102`）。
 - 启动 Agent 服务并验证 `/health`。
 - 使用合法短时身份 token 完成一次真实 Agent chat/SSE 冒烟，确认实际 provider/model；记录失败证据与 blocker。
+- **前置安全闸（关键）**：任何鉴权 Agent 冒烟前必须机械校验 Agent `DATABASE_URL` 指向**本地 Docker PostgreSQL**（host 为 `127.0.0.1`，port=55432）；若指向远端库（如 Neon `*.neon.tech`），**不发任何鉴权请求**，立即停止并记录 blocker。
 
 ## 非目标
 

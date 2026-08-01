@@ -35,8 +35,9 @@
 
 - 端口：确认目标 `AGENT_PORT` 空闲或按需选空闲端口（严禁 kill 其他进程占用；被占则换空闲端口）。
 - Docker：`docker ps`（只读）确认 PostgreSQL/Redis 容器存在且在运行；不 stop/rm/recreate。
-- 数据库连通：用只读连接（连接串来自 env，不打印）做一次 `pg_isready`/表层查询，验证可连。
-- 迁移状态：`prisma migrate status` 只读输出。
+- **DB 指向闸（关键）**：确认 Agent `DATABASE_URL` 指向**本地 Docker PostgreSQL**（`127.0.0.1:55432`，库 `mewmo_zoo102`），机械校验 host=127.0.0.1 && port=55432（不打印凭据）。若指向远端（Neon `*.neon.tech`），仅允许只读连通/迁移检查，**严禁对其实发鉴权 Agent 请求**，记录 blocker 并停止。首轮 env 曾指向远端 Neon → 已在冒烟前识别并停止；orchestrator 更正后放行。
+- 数据库连通：用只读连接（连接串来自 env，不打印）做一次表层查询，验证可连。
+- 迁移状态/部署：对本地隔离库执行 `prisma migrate deploy` + `migrate status`（只读复核）。
 
 ## 5. 启动与 `/health`
 
@@ -46,9 +47,10 @@
 
 ## 6. 鉴权冒烟
 
+- **前置安全闸**：仅当 Agent `DATABASE_URL` 机械校验为本地 Docker PostgreSQL（`127.0.0.1:55432` / `mewmo_zoo102`）时，才进行鉴权冒烟。
 - 用 `signIdentityForTest`（或等价的 jose HS256 本地签名，密钥来自 env 不落盘）签发短期 token（sub/sid/source=web_bff）。
 - `POST /v1/chats/:chatId/stream`，body `{ content, clientRequestId }`，`Authorization: Bearer <token>`，观察 SSE 事件中的 `turn.completed` / `assistant.text.delta`，确认 provider 为 deepseek 且模型如配置。
-- 若因密钥/DB/网络 blocker 无法完成真实请求，则记录精确、sanitized 的 blocker 与失败证据，不臆造结果。
+- 若因密钥/DB/网络 blocker 无法完成真实请求，则记录精确、sanitized 的 blocker 与失败证据，不臆造结果。对远端库不给任何鉴权请求。
 
 ## 7. 证据与安全
 
