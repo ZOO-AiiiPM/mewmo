@@ -1,0 +1,2 @@
+{"file":".trellis/spec/dev-apple.md","reason":"Apple 技术栈、共享代码、本地缓存、URLSession 与 Keychain 约束"}
+{"file":".trellis/tasks/08-01-zoo-86-apple-foundation/design.md","reason":"ZOO-86 target 结构、依赖边界和兼容性决策"}

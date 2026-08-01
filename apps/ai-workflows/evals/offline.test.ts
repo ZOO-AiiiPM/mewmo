@@ -2,7 +2,11 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 import { parseWorkflowPrompt } from "../src/prompts";
-import { assertValidSummary, summaryCharacterCount } from "../src/workflows/summary";
+import {
+  assertValidSummary,
+  SUMMARY_MAX_CHARACTERS,
+  summaryCharacterCount,
+} from "../src/workflows/summary";
 import { evaluateSummaryOutput, hasLiveEvalRegression, judgeSummaryOutput, loadLocalSummaryCases } from "./summary-eval";
 
 describe("AI Workflow offline eval contracts", () => {
@@ -14,13 +18,26 @@ describe("AI Workflow offline eval contracts", () => {
     expect(prompt.metadata.revision).toHaveLength(16);
   });
 
-  it("rejects summaries that violate the 240-character product contract", () => {
-    const valid = `${"摘要内容".repeat(50)}。`;
-    expect(summaryCharacterCount(valid)).toBeLessThanOrEqual(240);
+  it("rejects summaries that violate the 800-character product contract", () => {
+    const valid = `${"摘".repeat(SUMMARY_MAX_CHARACTERS - 1)}。`;
+    expect(summaryCharacterCount(valid)).toBe(SUMMARY_MAX_CHARACTERS);
     expect(() => assertValidSummary(valid)).not.toThrow();
-    expect(() => assertValidSummary(`${"过长".repeat(121)}。`)).toThrow("summary_too_long");
+    expect(() => assertValidSummary(`${"摘".repeat(SUMMARY_MAX_CHARACTERS)}。`)).toThrow("summary_too_long");
     expect(() => assertValidSummary("没有完整结尾")).toThrow("summary_incomplete_sentence");
     expect(() => assertValidSummary('{"summary":"错误格式。"}')).toThrow("summary_invalid_format");
+  });
+
+  it("keeps summary prompts aligned with the runtime character limit", async () => {
+    const [summarySource, judgeSource] = await Promise.all([
+      readFile(new URL("../prompts/article-summary.zh.md", import.meta.url), "utf8"),
+      readFile(new URL("../prompts/summary-judge.zh.md", import.meta.url), "utf8"),
+    ]);
+    expect(parseWorkflowPrompt(summarySource).content).toContain(
+      `绝对不得超过 ${SUMMARY_MAX_CHARACTERS} 个字符（不计空白）`,
+    );
+    expect(parseWorkflowPrompt(judgeSource).content).toContain(
+      `不超过 ${SUMMARY_MAX_CHARACTERS} 个字符（不计空白）`,
+    );
   });
 
   it("keeps a versioned dataset for insufficient text, injection, and mixed-language cases", async () => {

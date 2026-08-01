@@ -4,7 +4,7 @@
 > **Owner**: zoo（PM + 验收）
 > **Status**: 草案
 > **Last Updated**: 2026-07-20
-> **关联文档**: [`02-architecture.md`](02-architecture.md)（技术架构）· [`03-agent-tasks.md`](03-agent-tasks.md)（Agent 分工）· [`agent.md`](../agent.md)（工程入口）
+> **关联文档**: [`02-architecture.md`](02-architecture.md)（技术架构）· [`03-agent-tasks.md`](03-agent-tasks.md)（Agent 分工）· [`AGENTS.md`](../AGENTS.md)（工程入口）
 
 ---
 

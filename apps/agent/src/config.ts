@@ -11,6 +11,8 @@ const envSchema = z.object({
   AGENT_MAX_STEPS: z.coerce.number().int().min(1).max(12).default(6),
   AGENT_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(120_000).default(45_000),
   AGENT_WORKER_ID: z.string().min(1).default("mewmo-agent"),
+  // Thinking level for normal agent.chat turns. Deep-insight stays at "medium" regardless.
+  AGENT_CHAT_THINKING_LEVEL: z.enum(["off", "minimal", "low", "medium", "high"]).default("off"),
   AGENT_TURN_LEASE_MS: z.coerce.number().int().min(10_000).max(10 * 60_000).default(120_000),
   // Web access tools (Jina Reader/Search). Empty key disables the tools.
   JINA_API_KEY: z.string().default(""),

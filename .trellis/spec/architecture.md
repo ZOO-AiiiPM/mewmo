@@ -1,6 +1,6 @@
 # mewmo 架构（目录结构地图 + 数据架构）
 
-> 本文件由 `agent.md` 抽出的项目专属层。协作层与写作哲学仍在 `agent.md`。
+> 本文件由 `AGENTS.md` 抽出的项目专属层。协作层与写作哲学仍在 `AGENTS.md`。
 
 ## 目录结构地图
 
@@ -38,7 +38,7 @@ mewmo/                              ← 项目根（协作元层）
 ├── tooling/                        ← 工程标准化（ESLint/TS/Tailwind/Prettier 共享配置）
 ├── .github/workflows/              ← CI/CD
 │
-├── agent.md                        ← 冷启动协作入口
+├── AGENTS.md                       ← 冷启动协作入口
 ├── docs/                           ← 产品文档 + bug 索引
 ├── lessons/                        ← 踩坑复盘
 ├── turbo.json                      ← Turborepo 构建编排

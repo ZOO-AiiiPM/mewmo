@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 
 import type { AgentActionProposal } from "../../lib/agent-contract";
 import { assistantRowCopyText } from "../../lib/agent/row-actions";
@@ -31,8 +31,10 @@ interface AssistantRowProps {
  * Consecutive terminal tool blocks are folded into a collapsible group.
  * Failed turns show error + retry in-place.
  * Hover action bars: copy/edit on the user message, copy/regenerate on the reply.
+ * Memoized so streaming updates to the live row don't re-render (and
+ * re-parse the markdown of) every stable row in the transcript.
  */
-export function AssistantRow({ row, context, onProposalChange, onRetry, onEditUser, onRegenerate }: AssistantRowProps) {
+export const AssistantRow = memo(function AssistantRow({ row, context, onProposalChange, onRetry, onEditUser, onRegenerate }: AssistantRowProps) {
   const [copied, setCopied] = useState<"user" | "assistant" | null>(null);
   const isStreaming = row.status === "streaming";
   const isFailed = row.status === "failed";
@@ -171,7 +173,7 @@ export function AssistantRow({ row, context, onProposalChange, onRetry, onEditUs
       </div>
     </div>
   );
-}
+});
 
 function ThinkingDots() {
   return (
@@ -203,7 +205,7 @@ function BlockRenderer({
 
     case "thinking":
       return (
-        <details className="mewmo-thinking-block">
+        <details className="mewmo-thinking-block" open={streaming}>
           <summary>思考过程</summary>
           <div className="mewmo-thinking-block__content">{block.content}</div>
         </details>

@@ -1,0 +1,1179 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>mewmo visual refresh prototype</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --review-bg: #0a0a0a;
+        --review-ink: #f5f5f5;
+        --review-muted: #969696;
+        --review-line: #333333;
+        --ui: -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", sans-serif;
+        --display: "Avenir Next", "PingFang SC", "Segoe UI", sans-serif;
+        --reader: "Iowan Old Style", "Songti SC", "STSong", Georgia, serif;
+        --mono: ui-monospace, "SFMono-Regular", Menlo, monospace;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 100%;
+        min-height: 100%;
+        margin: 0;
+      }
+
+      body {
+        min-width: 320px;
+        overflow-x: hidden;
+        background: var(--review-bg);
+        color: var(--review-ink);
+        font-family: var(--ui);
+        letter-spacing: 0;
+      }
+
+      button,
+      a {
+        font: inherit;
+      }
+
+      button:focus-visible,
+      a:focus-visible {
+        outline: 2px solid #ffffff;
+        outline-offset: 3px;
+      }
+
+      .review-bar {
+        position: fixed;
+        top: 0;
+        right: 0;
+        left: 0;
+        z-index: 50;
+        display: flex;
+        min-height: 58px;
+        align-items: center;
+        gap: 20px;
+        border-bottom: 1px solid var(--review-line);
+        background: rgba(13, 17, 16, 0.94);
+        padding: 9px 18px;
+        backdrop-filter: blur(16px);
+      }
+
+      .review-brand {
+        display: flex;
+        align-items: baseline;
+        gap: 9px;
+        white-space: nowrap;
+      }
+
+      .review-brand strong {
+        font-family: var(--display);
+        font-size: 15px;
+      }
+
+      .review-brand span {
+        color: var(--review-muted);
+        font-family: var(--mono);
+        font-size: 10px;
+      }
+
+      .mode-switcher {
+        display: flex;
+        align-items: center;
+        gap: 3px;
+        border: 1px solid var(--review-line);
+        border-radius: 7px;
+        background: #151515;
+        padding: 3px;
+      }
+
+      .mode-switcher button {
+        min-height: 32px;
+        border: 0;
+        border-radius: 5px;
+        background: transparent;
+        color: var(--review-muted);
+        padding: 0 12px;
+        cursor: pointer;
+      }
+
+      .mode-switcher button:hover {
+        color: var(--review-ink);
+      }
+
+      .mode-switcher button[aria-pressed="true"] {
+        background: #343434;
+        color: var(--review-ink);
+      }
+
+      .palette {
+        display: flex;
+        min-width: 0;
+        align-items: center;
+        gap: 12px;
+        margin-left: auto;
+      }
+
+      .swatch {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--review-muted);
+        font-family: var(--mono);
+        font-size: 10px;
+        white-space: nowrap;
+      }
+
+      .swatch::before {
+        width: 15px;
+        height: 15px;
+        flex: none;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 4px;
+        background: var(--swatch);
+        content: "";
+      }
+
+      .prototype {
+        min-height: 100dvh;
+        padding-top: 58px;
+      }
+
+      .view {
+        display: none;
+        min-height: calc(100dvh - 58px);
+      }
+
+      body[data-view="landing"] .view--landing,
+      body[data-view="app-light"] .view--app-light,
+      body[data-view="app-dark"] .view--app-dark {
+        display: block;
+      }
+
+      /* Marketing: a real product scene, not a split hero or a floating card. */
+      .landing {
+        --landing-ink: #f7f7f7;
+        --landing-muted: #b1b1b1;
+        --landing-line: rgba(255, 255, 255, 0.24);
+        position: relative;
+        min-height: calc(100dvh - 58px);
+        overflow: hidden;
+        background: #080808;
+        color: var(--landing-ink);
+      }
+
+      .landing-media {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: 76% center;
+        opacity: 0.64;
+        filter: grayscale(1) contrast(1.14);
+        transform: scale(1.12);
+      }
+
+      .landing::after {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.5);
+        content: "";
+      }
+
+      .landing-nav,
+      .landing-copy,
+      .context-spine,
+      .landing-next {
+        position: relative;
+        z-index: 2;
+      }
+
+      .landing-nav {
+        display: flex;
+        width: min(1240px, calc(100% - 64px));
+        height: 76px;
+        margin: 0 auto;
+        align-items: center;
+        border-bottom: 1px solid var(--landing-line);
+      }
+
+      .wordmark {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .cat-mark {
+        display: grid;
+        width: 31px;
+        height: 31px;
+        place-items: center;
+        border: 1px solid currentColor;
+        border-radius: 7px;
+        font-family: var(--mono);
+        font-size: 13px;
+      }
+
+      .wordmark strong {
+        font-family: var(--display);
+        font-size: 18px;
+        font-weight: 720;
+      }
+
+      .landing-nav-links {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-left: auto;
+      }
+
+      .landing-nav-links a {
+        border-radius: 6px;
+        color: var(--landing-muted);
+        padding: 8px 11px;
+        text-decoration: none;
+      }
+
+      .landing-nav-links .landing-signup {
+        background: var(--landing-ink);
+        color: #0a0a0a;
+        font-weight: 680;
+      }
+
+      .landing-copy {
+        width: min(1240px, calc(100% - 64px));
+        margin: 0 auto;
+        padding-top: max(72px, 10vh);
+      }
+
+      .landing-copy h1 {
+        margin: 0;
+        font-family: var(--display);
+        font-size: 108px;
+        font-weight: 760;
+        line-height: 0.9;
+      }
+
+      .landing-thesis {
+        max-width: 690px;
+        margin: 28px 0 0;
+        font-family: var(--reader);
+        font-size: 32px;
+        font-weight: 600;
+        line-height: 1.34;
+      }
+
+      .landing-lede {
+        max-width: 580px;
+        margin: 20px 0 0;
+        color: var(--landing-muted);
+        font-size: 15px;
+        line-height: 1.75;
+      }
+
+      .landing-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 28px;
+      }
+
+      .landing-actions a {
+        display: inline-flex;
+        min-height: 42px;
+        align-items: center;
+        border: 1px solid var(--landing-line);
+        border-radius: 7px;
+        color: var(--landing-ink);
+        padding: 0 16px;
+        text-decoration: none;
+      }
+
+      .landing-actions a:first-child {
+        border-color: #ffffff;
+        background: #ffffff;
+        color: #0a0a0a;
+        font-weight: 700;
+      }
+
+      .context-spine {
+        position: absolute;
+        right: max(32px, calc((100vw - 1240px) / 2));
+        bottom: 118px;
+        display: grid;
+        width: min(480px, 44vw);
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        border-left: 3px double rgba(255, 255, 255, 0.72);
+        padding-left: 18px;
+      }
+
+      .spine-step {
+        position: relative;
+        border-top: 1px solid var(--landing-line);
+        color: var(--landing-muted);
+        padding: 18px 16px 0 0;
+        font-family: var(--mono);
+        font-size: 11px;
+      }
+
+      .spine-step::before {
+        position: absolute;
+        top: -5px;
+        left: 0;
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: #ffffff;
+        content: "";
+      }
+
+      .spine-step:nth-child(2)::before {
+        background: #a8a8a8;
+      }
+
+      .spine-step:last-child::before {
+        background: #555555;
+      }
+
+      .spine-step strong {
+        display: block;
+        margin-bottom: 5px;
+        color: var(--landing-ink);
+        font-family: var(--ui);
+        font-size: 14px;
+      }
+
+      .landing-next {
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        display: flex;
+        min-height: 82px;
+        align-items: center;
+        gap: 24px;
+        border-top: 1px solid var(--landing-line);
+        background: rgba(8, 8, 8, 0.9);
+        padding: 0 max(32px, calc((100vw - 1240px) / 2));
+      }
+
+      .landing-next span {
+        color: #ffffff;
+        font-family: var(--mono);
+        font-size: 11px;
+      }
+
+      .landing-next strong {
+        font-size: 17px;
+      }
+
+      .landing-next p {
+        margin: 0 0 0 auto;
+        color: var(--landing-muted);
+        font-size: 13px;
+      }
+
+      /* App preview. All hierarchy comes from shared semantic variables. */
+      .app-preview {
+        --canvas: #e6e6e6;
+        --sidebar: #f3f3f3;
+        --panel: #ededed;
+        --reader-bg: #ffffff;
+        --raised: #f7f7f7;
+        --hover: #e2e2e2;
+        --selected: #d7d7d7;
+        --ink: #171717;
+        --ink-soft: #616161;
+        --ink-faint: #949494;
+        --line: #c8c8c8;
+        --line-soft: #dedede;
+        --accent: #111111;
+        --accent-soft: #dddddd;
+        --signal: #4a4a4a;
+        --signal-soft: #e4e4e4;
+        height: calc(100dvh - 58px);
+        min-height: 640px;
+        overflow: hidden;
+        background: var(--canvas);
+        color: var(--ink);
+      }
+
+      .view--app-dark .app-preview {
+        color-scheme: dark;
+        --canvas: #101010;
+        --sidebar: #121212;
+        --panel: #191919;
+        --reader-bg: #1e1e1e;
+        --raised: #272727;
+        --hover: #2e2e2e;
+        --selected: #383838;
+        --ink: #f1f1f1;
+        --ink-soft: #a4a4a4;
+        --ink-faint: #707070;
+        --line: #3c3c3c;
+        --line-soft: #2e2e2e;
+        --accent: #ffffff;
+        --accent-soft: #303030;
+        --signal: #cfcfcf;
+        --signal-soft: #333333;
+      }
+
+      .app-shell {
+        display: grid;
+        height: 100%;
+        grid-template-columns: 218px minmax(250px, 330px) minmax(430px, 1fr) 292px;
+        gap: 6px;
+        padding: 6px;
+      }
+
+      .app-sidebar,
+      .app-list,
+      .app-reader,
+      .app-ai {
+        min-width: 0;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+      }
+
+      .app-sidebar {
+        display: flex;
+        flex-direction: column;
+        background: color-mix(in srgb, var(--sidebar) 92%, transparent);
+        padding: 12px 10px;
+      }
+
+      .app-brand {
+        display: flex;
+        height: 38px;
+        align-items: center;
+        gap: 9px;
+        border-bottom: 1px solid var(--line-soft);
+        padding: 0 7px 10px;
+        font-weight: 730;
+      }
+
+      .app-brand .cat-mark {
+        width: 24px;
+        height: 24px;
+        border-color: var(--accent);
+        color: var(--accent);
+        font-size: 10px;
+      }
+
+      .app-nav {
+        display: grid;
+        gap: 3px;
+        margin-top: 14px;
+      }
+
+      .nav-label {
+        margin: 13px 8px 5px;
+        color: var(--ink-faint);
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      .nav-row {
+        position: relative;
+        display: flex;
+        min-height: 34px;
+        align-items: center;
+        gap: 10px;
+        border-radius: 6px;
+        color: var(--ink-soft);
+        padding: 0 9px;
+        font-size: 13px;
+      }
+
+      .nav-row::before {
+        width: 6px;
+        height: 6px;
+        flex: none;
+        border: 1px solid currentColor;
+        border-radius: 2px;
+        content: "";
+      }
+
+      .nav-row.active {
+        background: var(--selected);
+        color: var(--ink);
+        font-weight: 680;
+      }
+
+      .nav-row.active::after {
+        position: absolute;
+        top: 7px;
+        bottom: 7px;
+        left: 0;
+        width: 2px;
+        background: var(--accent);
+        content: "";
+      }
+
+      .app-account {
+        display: flex;
+        min-height: 46px;
+        align-items: center;
+        gap: 9px;
+        margin-top: auto;
+        border-top: 1px solid var(--line-soft);
+        color: var(--ink-soft);
+        padding: 10px 7px 0;
+        font-size: 11px;
+      }
+
+      .avatar {
+        display: grid;
+        width: 27px;
+        height: 27px;
+        flex: none;
+        place-items: center;
+        border-radius: 50%;
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-weight: 800;
+      }
+
+      .app-list {
+        background: var(--panel);
+        padding: 15px 12px;
+      }
+
+      .panel-head {
+        display: flex;
+        height: 40px;
+        align-items: center;
+        gap: 10px;
+        border-bottom: 1px solid var(--line);
+        padding: 0 3px 12px;
+      }
+
+      .panel-head strong {
+        font-size: 15px;
+      }
+
+      .panel-head span {
+        margin-left: auto;
+        color: var(--accent);
+        font-family: var(--mono);
+        font-size: 11px;
+      }
+
+      .note-list {
+        display: grid;
+        gap: 3px;
+        margin-top: 8px;
+      }
+
+      .note-row {
+        position: relative;
+        min-height: 112px;
+        border-bottom: 1px solid var(--line-soft);
+        padding: 14px 10px;
+      }
+
+      .note-row.selected {
+        border: 1px solid color-mix(in srgb, var(--accent) 46%, var(--line));
+        border-radius: 7px;
+        background: var(--selected);
+      }
+
+      .note-row h3 {
+        margin: 0;
+        font-size: 13px;
+        line-height: 1.45;
+      }
+
+      .note-row p {
+        display: -webkit-box;
+        margin: 8px 0 0;
+        overflow: hidden;
+        color: var(--ink-soft);
+        font-size: 11.5px;
+        line-height: 1.55;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+      }
+
+      .note-meta {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        margin-top: 10px;
+        color: var(--ink-faint);
+        font-family: var(--mono);
+        font-size: 9px;
+      }
+
+      .app-reader {
+        display: flex;
+        flex-direction: column;
+        background: var(--reader-bg);
+      }
+
+      .reader-toolbar {
+        display: flex;
+        min-height: 50px;
+        align-items: center;
+        gap: 8px;
+        border-bottom: 1px solid var(--line-soft);
+        color: var(--ink-faint);
+        padding: 0 22px;
+        font-family: var(--mono);
+        font-size: 11px;
+      }
+
+      .reader-toolbar span:last-child {
+        margin-left: auto;
+      }
+
+      .reader-body {
+        position: relative;
+        width: min(680px, calc(100% - 56px));
+        margin: 0 auto;
+        overflow: hidden;
+        padding: 48px 0 64px 34px;
+      }
+
+      .reader-body::before {
+        position: absolute;
+        top: 48px;
+        bottom: 64px;
+        left: 15px;
+        border-left: 1px dashed var(--line);
+        content: "";
+      }
+
+      .reader-body::after {
+        position: absolute;
+        top: 54px;
+        left: 1px;
+        color: var(--ink-faint);
+        content: "03\A\A 06\A\A 09";
+        font-family: var(--mono);
+        font-size: 7px;
+        line-height: 72px;
+        white-space: pre;
+      }
+
+      .reader-kicker {
+        color: var(--accent);
+        font-family: var(--mono);
+        font-size: 10px;
+        font-weight: 700;
+      }
+
+      .reader-body h1 {
+        margin: 13px 0 16px;
+        font-family: var(--reader);
+        font-size: 38px;
+        font-weight: 680;
+        line-height: 1.16;
+      }
+
+      .reader-info {
+        display: flex;
+        gap: 12px;
+        color: var(--ink-faint);
+        font-family: var(--mono);
+        font-size: 10px;
+      }
+
+      .reader-body p {
+        margin: 27px 0 0;
+        color: var(--ink-soft);
+        font-family: var(--reader);
+        font-size: 16px;
+        line-height: 1.9;
+      }
+
+      .reader-quote {
+        margin-top: 30px;
+        border-left: 3px solid var(--accent);
+        background: var(--raised);
+        color: var(--ink);
+        padding: 15px 18px;
+        font-family: var(--reader);
+        font-size: 15px;
+        line-height: 1.7;
+      }
+
+      .reader-signal {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        margin-top: 24px;
+        color: var(--ink-soft);
+        font-size: 11px;
+        font-weight: 700;
+      }
+
+      .reader-signal::before {
+        width: 7px;
+        height: 7px;
+        border: 1px solid var(--ink-soft);
+        background: transparent;
+        content: "";
+      }
+
+      .app-ai {
+        display: flex;
+        flex-direction: column;
+        background: var(--panel);
+        padding: 15px 14px;
+      }
+
+      .ai-brand {
+        display: flex;
+        height: 38px;
+        align-items: center;
+        gap: 9px;
+        border-bottom: 1px solid var(--line);
+        font-weight: 720;
+      }
+
+      .ai-brand .cat-mark {
+        width: 25px;
+        height: 25px;
+        border-color: var(--accent);
+        color: var(--accent);
+        font-size: 9px;
+      }
+
+      .ai-label {
+        margin-top: 22px;
+        color: var(--ink-faint);
+        font-family: var(--mono);
+        font-size: 9px;
+      }
+
+      .ai-answer {
+        margin-top: 10px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: var(--raised);
+        padding: 13px;
+      }
+
+      .ai-answer strong {
+        display: block;
+        margin-bottom: 7px;
+        font-size: 12px;
+      }
+
+      .ai-answer p {
+        margin: 0;
+        color: var(--ink-soft);
+        font-size: 11px;
+        line-height: 1.65;
+      }
+
+      .related-row {
+        margin-top: 10px;
+        border-bottom: 1px solid var(--line-soft);
+        padding: 10px 2px;
+      }
+
+      .related-row strong {
+        display: block;
+        font-size: 11.5px;
+      }
+
+      .related-row span {
+        display: block;
+        margin-top: 4px;
+        color: var(--ink-faint);
+        font-size: 10px;
+      }
+
+      .ai-input {
+        min-height: 72px;
+        margin-top: auto;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: var(--reader-bg);
+        color: var(--ink-faint);
+        padding: 11px;
+        font-size: 11px;
+      }
+
+      @media (max-width: 1120px) {
+        .palette {
+          display: none;
+        }
+
+        .landing-copy h1 {
+          font-size: 82px;
+        }
+
+        .landing-thesis {
+          font-size: 27px;
+        }
+
+        .app-shell {
+          grid-template-columns: 190px 280px minmax(400px, 1fr);
+        }
+
+        .app-ai {
+          display: none;
+        }
+      }
+
+      @media (max-width: 760px) {
+        .review-bar {
+          align-items: flex-start;
+          flex-direction: column;
+          gap: 8px;
+          padding: 9px 12px;
+        }
+
+        .review-brand span {
+          display: none;
+        }
+
+        .mode-switcher {
+          width: 100%;
+        }
+
+        .mode-switcher button {
+          min-width: 0;
+          flex: 1;
+          padding: 0 6px;
+        }
+
+        .prototype {
+          padding-top: 98px;
+        }
+
+        .view,
+        .landing,
+        .app-preview {
+          min-height: calc(100dvh - 98px);
+          height: calc(100dvh - 98px);
+        }
+
+        .landing-nav,
+        .landing-copy {
+          width: calc(100% - 32px);
+        }
+
+        .landing-media {
+          opacity: 0.3;
+        }
+
+        .landing::after {
+          background: rgba(0, 0, 0, 0.72);
+        }
+
+        .landing-nav {
+          height: 62px;
+        }
+
+        .landing-nav-links a:first-child {
+          display: none;
+        }
+
+        .landing-copy {
+          padding-top: 54px;
+        }
+
+        .landing-copy h1 {
+          font-size: 58px;
+        }
+
+        .landing-thesis {
+          max-width: 13em;
+          font-size: 23px;
+        }
+
+        .landing-lede {
+          max-width: 31em;
+          font-size: 13px;
+        }
+
+        .context-spine {
+          right: 16px;
+          bottom: 96px;
+          left: 16px;
+          width: auto;
+        }
+
+        .spine-step {
+          padding-right: 7px;
+          font-size: 9px;
+        }
+
+        .spine-step strong {
+          font-size: 12px;
+        }
+
+        .landing-next {
+          min-height: 70px;
+          padding: 0 16px;
+        }
+
+        .landing-next p {
+          display: none;
+        }
+
+        .app-shell {
+          grid-template-columns: 66px minmax(0, 1fr);
+          overflow: hidden;
+        }
+
+        .app-brand strong,
+        .nav-label,
+        .nav-row span,
+        .app-account span:last-child {
+          display: none;
+        }
+
+        .app-brand,
+        .nav-row,
+        .app-account {
+          justify-content: center;
+        }
+
+        .nav-row {
+          padding: 0;
+        }
+
+        .app-list,
+        .app-ai {
+          display: none;
+        }
+
+        .app-reader {
+          min-width: 0;
+        }
+
+        .reader-body {
+          width: calc(100% - 32px);
+          padding-top: 34px;
+        }
+
+        .reader-body h1 {
+          font-size: 30px;
+        }
+      }
+
+      @media (prefers-reduced-motion: no-preference) {
+        .landing-copy,
+        .context-spine {
+          animation: settle 0.7s cubic-bezier(0.2, 0.75, 0.25, 1) both;
+        }
+
+        .context-spine {
+          animation-delay: 0.12s;
+        }
+
+        @keyframes settle {
+          from {
+            opacity: 0;
+            transform: translateY(14px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      }
+    </style>
+  </head>
+  <body data-view="landing">
+    <header class="review-bar">
+      <div class="review-brand">
+        <strong>mewmo 配色原型</strong>
+        <span>achromatic proof</span>
+      </div>
+      <div class="mode-switcher" role="group" aria-label="原型视图">
+        <button type="button" data-mode="landing" aria-pressed="true">官网</button>
+        <button type="button" data-mode="app-light" aria-pressed="false">App 浅色</button>
+        <button type="button" data-mode="app-dark" aria-pressed="false">App 深色</button>
+      </div>
+      <div class="palette" aria-label="推荐配色">
+        <span class="swatch" style="--swatch: #f7f7f7">纸白 #F7F7F7</span>
+        <span class="swatch" style="--swatch: #e6e6e6">雾灰 #E6E6E6</span>
+        <span class="swatch" style="--swatch: #1b1b1b">石墨 #1B1B1B</span>
+        <span class="swatch" style="--swatch: #0a0a0a">纯黑 #0A0A0A</span>
+      </div>
+    </header>
+
+    <main class="prototype">
+      <section class="view view--landing" aria-label="官网配色原型">
+        <div class="landing">
+          <img
+            class="landing-media"
+            src="../../apps/web/public/mewmo-workspace-preview.png"
+            alt="mewmo 工作区，包含侧栏、笔记列表和阅读界面"
+          />
+          <nav class="landing-nav" aria-label="主导航">
+            <a class="wordmark" href="#">
+              <span class="cat-mark">m</span>
+              <strong>mewmo</strong>
+            </a>
+            <div class="landing-nav-links">
+              <a href="#">登录</a>
+              <a class="landing-signup" href="#">免费开始</a>
+            </div>
+          </nav>
+          <div class="landing-copy">
+            <h1>mewmo</h1>
+            <p class="landing-thesis">把散落的信息，变成可以继续的思考。</p>
+            <p class="landing-lede">
+              收藏网页、订阅内容、写下笔记，再让 mew 在你的上下文里搜索、整理与行动。
+            </p>
+            <div class="landing-actions">
+              <a href="#">建立我的工作区</a>
+              <a href="#">登录</a>
+            </div>
+          </div>
+          <div class="context-spine" aria-label="mewmo 工作流">
+            <div class="spine-step"><strong>收进来</strong>笔记 · 剪藏 · 订阅</div>
+            <div class="spine-step"><strong>读进去</strong>今日 · 阅读器</div>
+            <div class="spine-step"><strong>找回来</strong>知识库 · mew</div>
+          </div>
+          <div class="landing-next">
+            <span>接下来</span>
+            <strong>一条不需要先整理的收集路径</strong>
+            <p>真实产品能力，沿工作流逐段展开</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="view view--app-light" aria-label="App 浅色配色原型">
+        <div class="app-preview">
+          <div class="app-shell">
+            <AppSidebar></AppSidebar>
+            <AppList></AppList>
+            <AppReader></AppReader>
+            <AppAi></AppAi>
+          </div>
+        </div>
+      </section>
+
+      <section class="view view--app-dark" aria-label="App 深色配色原型">
+        <div class="app-preview">
+          <div class="app-shell">
+            <AppSidebar></AppSidebar>
+            <AppList></AppList>
+            <AppReader></AppReader>
+            <AppAi></AppAi>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <template id="app-sidebar">
+      <aside class="app-sidebar">
+        <div class="app-brand"><span class="cat-mark">m</span><strong>mewmo</strong></div>
+        <div class="app-nav">
+          <div class="nav-row"><span>mew</span></div>
+          <div class="nav-row"><span>今天</span></div>
+          <div class="nav-label">收集箱</div>
+          <div class="nav-row active"><span>笔记</span></div>
+          <div class="nav-row"><span>剪藏</span></div>
+          <div class="nav-label">订阅</div>
+          <div class="nav-row"><span>文章</span></div>
+          <div class="nav-row"><span>媒体</span></div>
+          <div class="nav-label">知识库</div>
+          <div class="nav-row"><span>产品设计</span></div>
+          <div class="nav-row"><span>技术笔记</span></div>
+        </div>
+        <div class="app-account"><span class="avatar">Z</span><span>文曦 · 个人空间</span></div>
+      </aside>
+    </template>
+
+    <template id="app-list">
+      <section class="app-list">
+        <div class="panel-head"><strong>笔记</strong><span>12</span></div>
+        <div class="note-list">
+          <article class="note-row selected">
+            <h3>产品定位：一只猫的陪伴感从哪来</h3>
+            <p>不是把 AI 做成助手图标，而是让它像桌上真的趴着一只猫。</p>
+            <div class="note-meta"><span>18 分钟前</span></div>
+          </article>
+          <article class="note-row">
+            <h3>2.0 数据层验收清单</h3>
+            <p>数据库、认证、队列与存储的验证状态，记录到同一个上下文里。</p>
+            <div class="note-meta"><span>1 小时前</span></div>
+          </article>
+          <article class="note-row">
+            <h3>读《Thinking in Systems》摘录</h3>
+            <p>存量与流量的区别：库存是某一时刻的快照。</p>
+            <div class="note-meta"><span>昨天</span></div>
+          </article>
+        </div>
+      </section>
+    </template>
+
+    <template id="app-reader">
+      <article class="app-reader">
+        <div class="reader-toolbar"><span>‹</span><span>›</span><span>阅读模式 ···</span></div>
+        <div class="reader-body">
+          <div class="reader-kicker">写作中的笔记</div>
+          <h1>产品定位：一只猫的陪伴感从哪来</h1>
+          <div class="reader-info"><span>更新于 18 分钟前</span><span>1,640 字</span></div>
+          <p>
+            真正需要解决的不是“功能够不够”，而是打开它的时候，面对的是一座冷冰冰的数据库，还是有一个东西记得你正在想什么。
+          </p>
+          <div class="reader-quote">陪伴感不是一个功能，而是无数个细节叠加出来的气质。</div>
+          <p>
+            mew 默认安静，在需要的时候才出现。它知道当前这篇笔记，也能把过去收藏的线索带回到眼前。
+          </p>
+          <div class="reader-signal">2 条相关内容可继续阅读</div>
+        </div>
+      </article>
+    </template>
+
+    <template id="app-ai">
+      <aside class="app-ai">
+        <div class="ai-brand"><span class="cat-mark">m</span><span>mew</span></div>
+        <div class="ai-label">当前笔记</div>
+        <div class="ai-answer">
+          <strong>你正在梳理“陪伴感”的来源</strong>
+          <p>这篇笔记把产品气质拆成安静、记忆和适时主动三个层次。</p>
+        </div>
+        <div class="ai-label">相关内容 · 2</div>
+        <div class="related-row"><strong>AI-native note app</strong><span>剪藏 · 主题重叠</span></div>
+        <div class="related-row"><strong>AI 工具的祛魅时刻</strong><span>订阅 · 最近阅读</span></div>
+        <div class="ai-input">询问当前内容…</div>
+      </aside>
+    </template>
+
+    <script>
+      const components = {
+        AppSidebar: "app-sidebar",
+        AppList: "app-list",
+        AppReader: "app-reader",
+        AppAi: "app-ai",
+      };
+
+      Object.entries(components).forEach(([tag, templateId]) => {
+        document.querySelectorAll(tag).forEach((node) => {
+          node.replaceWith(document.getElementById(templateId).content.cloneNode(true));
+        });
+      });
+
+      const modeButtons = [...document.querySelectorAll("[data-mode]")];
+      modeButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          document.body.dataset.view = button.dataset.mode;
+          modeButtons.forEach((item) => {
+            item.setAttribute("aria-pressed", String(item === button));
+          });
+        });
+      });
+    </script>
+  </body>
+</html>

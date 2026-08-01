@@ -6,6 +6,8 @@ import { loadRerankerConfig } from "../rerank/env";
 // OpenAI-compatible sub-path (see runtime.ts) since Pi has no embedding port.
 const GOOGLE_NATIVE_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
 
+const DEEPSEEK_NATIVE_BASE_URL = "https://api.deepseek.com";
+
 const purposes: Array<[ModelPurpose, string[]]> = [
   ["agent.chat", ["AI_MODEL_AGENT_CHAT", "AI_CHAT_MODEL"]],
   ["agent.deep_insight", ["AI_MODEL_DEEP_INSIGHT", "AI_MODEL_AGENT_CHAT", "AI_CHAT_MODEL"]],
@@ -49,14 +51,15 @@ export function loadAIRuntimeConfig(input: AIEnvironment = process.env): AIRunti
 
 function parseProvider(value: string | undefined): AIProvider {
   if (!value || value === "openai") return "openai";
-  if (value === "anthropic" || value === "custom" || value === "google") return value;
-  throw new Error("AI_PROVIDER must be openai, anthropic, custom, or google");
+  if (value === "anthropic" || value === "custom" || value === "google" || value === "deepseek") return value;
+  throw new Error("AI_PROVIDER must be openai, anthropic, custom, google, or deepseek");
 }
 
 function apiKeyFor(provider: AIProvider, input: AIEnvironment) {
   if (provider === "anthropic") return input.ANTHROPIC_API_KEY;
   if (provider === "custom") return input.CUSTOM_AI_API_KEY;
   if (provider === "google") return input.GEMINI_API_KEY;
+  if (provider === "deepseek") return input.DEEPSEEK_API_KEY;
   return input.OPENAI_API_KEY;
 }
 
@@ -64,6 +67,7 @@ function baseUrlFor(provider: AIProvider, input: AIEnvironment) {
   if (provider === "anthropic") return input.ANTHROPIC_BASE_URL ?? "https://api.anthropic.com/v1";
   if (provider === "custom") return input.CUSTOM_AI_BASE_URL;
   if (provider === "google") return input.GEMINI_BASE_URL ?? GOOGLE_NATIVE_BASE_URL;
+  if (provider === "deepseek") return input.DEEPSEEK_BASE_URL ?? DEEPSEEK_NATIVE_BASE_URL;
   return input.OPENAI_BASE_URL ?? "https://api.openai.com/v1";
 }
 
@@ -71,6 +75,7 @@ function apiKeyName(provider: AIProvider) {
   if (provider === "anthropic") return "ANTHROPIC_API_KEY";
   if (provider === "custom") return "CUSTOM_AI_API_KEY";
   if (provider === "google") return "GEMINI_API_KEY";
+  if (provider === "deepseek") return "DEEPSEEK_API_KEY";
   return "OPENAI_API_KEY";
 }
 
@@ -78,6 +83,7 @@ function baseUrlName(provider: AIProvider) {
   if (provider === "anthropic") return "ANTHROPIC_BASE_URL";
   if (provider === "custom") return "CUSTOM_AI_BASE_URL";
   if (provider === "google") return "GEMINI_BASE_URL";
+  if (provider === "deepseek") return "DEEPSEEK_BASE_URL";
   return "OPENAI_BASE_URL";
 }
 
@@ -96,5 +102,6 @@ function usesBuiltinProvider(provider: AIProvider, baseUrl: string | undefined) 
   if (provider === "openai") return normalized === "https://api.openai.com/v1";
   if (provider === "anthropic") return normalized === "https://api.anthropic.com/v1";
   if (provider === "google") return normalized === GOOGLE_NATIVE_BASE_URL;
+  if (provider === "deepseek") return normalized === DEEPSEEK_NATIVE_BASE_URL;
   return false;
 }

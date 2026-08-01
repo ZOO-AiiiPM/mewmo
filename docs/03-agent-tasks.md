@@ -1,7 +1,7 @@
 # mewmo 2.0 — Agent 分工任务书
 
 > 给每个 coding agent 的任务书。按顺序执行，前置依赖标注在每个任务开头。
-> 所有 agent 开始前先读 `agent.md`（或 `.claude/worktrees/2.0/agent.md`）了解完整架构。
+> 所有 agent 开始前先读项目根 `AGENTS.md` 了解完整架构。
 
 ---
 

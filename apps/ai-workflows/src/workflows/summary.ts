@@ -5,6 +5,7 @@ import type {
 } from "../contracts";
 
 const COMPLETE_SENTENCE = /[。！？.!?」』）)]$/u;
+export const SUMMARY_MAX_CHARACTERS = 800;
 
 export async function runSummaryWorkflow(
   input: SummaryWorkflowInput,
@@ -45,7 +46,7 @@ export function summaryCharacterCount(value: string) {
 
 export function assertValidSummary(value: string) {
   if (!value) throw new Error("summary_empty");
-  if (summaryCharacterCount(value) > 240) throw new Error("summary_too_long");
+  if (summaryCharacterCount(value) > SUMMARY_MAX_CHARACTERS) throw new Error("summary_too_long");
   if (/^#{1,6}\s/m.test(value) || /^\s*[[{]/.test(value)) throw new Error("summary_invalid_format");
   if (!COMPLETE_SENTENCE.test(value)) throw new Error("summary_incomplete_sentence");
 }

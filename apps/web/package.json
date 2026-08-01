@@ -26,6 +26,7 @@
     "@tanstack/react-virtual": "^3.14.3",
     "entities": "7.0.1",
     "ioredis": "5.10.1",
+    "lucide-react": "^1.27.0",
     "next": "16.2.9",
     "next-auth": "5.0.0-beta.31",
     "next-intl": "^4.13.3",

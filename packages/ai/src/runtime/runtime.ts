@@ -16,6 +16,7 @@ import * as anthropicMessagesApi from "@earendil-works/pi-ai/api/anthropic-messa
 import * as googleGenerativeAIApi from "@earendil-works/pi-ai/api/google-generative-ai";
 import * as openAICompletionsApi from "@earendil-works/pi-ai/api/openai-completions";
 import { anthropicProvider } from "@earendil-works/pi-ai/providers/anthropic";
+import { deepseekProvider } from "@earendil-works/pi-ai/providers/deepseek";
 import { googleProvider } from "@earendil-works/pi-ai/providers/google";
 import { openaiProvider } from "@earendil-works/pi-ai/providers/openai";
 
@@ -260,6 +261,10 @@ function createBuiltinProvider(definition: ProviderDefinition, models: ModelDefi
   }
   if (definition.provider === "google") {
     const provider = googleProvider();
+    return models.every((model) => provider.getModels().some((candidate) => candidate.id === model.model)) ? provider : undefined;
+  }
+  if (definition.provider === "deepseek") {
+    const provider = deepseekProvider();
     return models.every((model) => provider.getModels().some((candidate) => candidate.id === model.model)) ? provider : undefined;
   }
   return undefined;

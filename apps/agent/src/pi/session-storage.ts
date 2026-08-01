@@ -3,6 +3,7 @@ import { SessionError, type SessionMetadata, type SessionStorage, type SessionTr
 
 import type { AgentActor } from "../contracts";
 import type { ApplicationPort, SessionEntryRecord, SessionUsageInput } from "../ports";
+import { stripThinkTags } from "./think-tags";
 
 interface MewmoSessionStorageOptions {
   application: ApplicationPort;
@@ -156,8 +157,18 @@ function findLatestMessageEntry(entries: SessionTreeEntry[], role: "user" | "ass
 }
 
 function toRecord(entry: SessionTreeEntry): Omit<SessionEntryRecord, "entrySeq"> {
-  const { id, parentId, timestamp, type, ...payload } = entry;
+  const { id, parentId, timestamp, type, ...payload } = sanitizeEntry(entry);
   return { entryId: id, parentId, timestamp, type, payload };
+}
+
+// Inline <think> reasoning (MiniMax-style relays) must never reach persisted
+// transcripts: they feed both the UI history and future model replays.
+function sanitizeEntry(entry: SessionTreeEntry): SessionTreeEntry {
+  if (entry.type !== "message" || entry.message.role !== "assistant") return entry;
+  const content = entry.message.content.map((block) => (
+    block.type === "text" ? { ...block, text: stripThinkTags(block.text) } : block
+  ));
+  return { ...entry, message: { ...entry.message, content } };
 }
 
 function fromRecord(entry: SessionEntryRecord): SessionTreeEntry {

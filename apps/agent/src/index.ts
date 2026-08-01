@@ -23,6 +23,7 @@ const runtime = createAgentRuntime({
   application: adapters.application,
   maxSteps: config.AGENT_MAX_STEPS,
   timeoutMs: config.AGENT_TIMEOUT_MS,
+  chatThinkingLevel: config.AGENT_CHAT_THINKING_LEVEL,
   observability,
   ...(web ? { web, webSearchBudget: config.AGENT_WEB_SEARCH_BUDGET, webFetchBudget: config.AGENT_WEB_FETCH_BUDGET } : {}),
 });

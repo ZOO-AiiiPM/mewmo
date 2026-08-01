@@ -1,6 +1,6 @@
 # mewmo 开发规范 · 后端（Next.js API + Server Actions）
 
-> 本文件由 `agent.md` 抽出的项目专属层。每条规范必须带 why。
+> 本文件由 `AGENTS.md` 抽出的项目专属层。每条规范必须带 why。
 
 - **API Route 用于外部调用**（Apple App、扩展、webhook），返回 JSON。Server Actions 用于 Web 前端内部调用（表单提交等）。因为 Server Actions 不能被非 Web 客户端调用。
 - **每个 API 必须验证 userId ownership**：查 note 时 `WHERE userId = currentUser.id`，不能只靠 noteId 查。因为猜测 ID 就能看到别人数据 = 严重安全漏洞。

@@ -1,6 +1,6 @@
 # mewmo 开发规范 · 通用
 
-> 本文件由 `agent.md` 抽出的项目专属层。每条规范必须带 why：没有理由的规则会被先验覆盖。
+> 本文件由 `AGENTS.md` 抽出的项目专属层。每条规范必须带 why：没有理由的规则会被先验覆盖。
 
 - **TypeScript strict mode**：所有 packages 和 apps 开启 `strict: true`，因为松散类型在多 package monorepo 里会让错误跨包传播。
 - **Zod schema 校验所有外部输入**：API 入参、环境变量、第三方返回。定义在 `packages/shared/src/validators/` 里前后端共享。因为 TypeScript 类型只在编译时存在，运行时不校验 = 脏数据进库。

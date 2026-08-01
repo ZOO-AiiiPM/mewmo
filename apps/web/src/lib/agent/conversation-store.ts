@@ -97,6 +97,7 @@ export function useConversationStore(chatId: string | null): ConversationStore {
   const abortRef = useRef<AbortController | null>(null);
   const stopRequestedRef = useRef(false);
   const generationRef = useRef(0);
+  const flushHandleRef = useRef<number | null>(null);
   const chatIdRef = useRef(chatId);
   chatIdRef.current = chatId;
 
@@ -138,6 +139,7 @@ export function useConversationStore(chatId: string | null): ConversationStore {
     abortRef.current?.abort();
     abortRef.current = null;
     liveTurnRef.current = null;
+    cancelLiveRowSync();
     setLiveRow(null);
     setStableRows([]);
     setProposals([]);
@@ -149,6 +151,9 @@ export function useConversationStore(chatId: string | null): ConversationStore {
       setStatus("idle");
     }
   }, [chatId, loadTranscript]);
+
+  // Cancel any pending live-row flush on unmount
+  useEffect(() => () => cancelLiveRowSync(), []);
 
   // -------------------------------------------------------------------------
   // Send message
@@ -218,16 +223,18 @@ export function useConversationStore(chatId: string | null): ConversationStore {
             const current = liveTurnRef.current;
             if (!current) return;
             const updated = applyLegacyEvent(current, event);
+            if (updated === current) return;
             liveTurnRef.current = updated;
-            syncLiveRow(updated, "streaming");
+            scheduleLiveRowSync();
           },
           onConversationEvent: (event: ConversationEvent) => {
             if (chatIdRef.current !== targetChatId || generationRef.current !== generation) return;
             const current = liveTurnRef.current;
             if (!current) return;
             const updated = applyConversationEvent(current, event);
+            if (updated === current) return;
             liveTurnRef.current = updated;
-            syncLiveRow(updated, updated.terminal?.status ?? "streaming");
+            scheduleLiveRowSync();
           },
         },
         controller.signal,
@@ -395,6 +402,7 @@ export function useConversationStore(chatId: string | null): ConversationStore {
     abortRef.current?.abort();
     abortRef.current = null;
     liveTurnRef.current = null;
+    cancelLiveRowSync();
     setLiveRow(null);
     setStableRows([]);
     setProposals([]);
@@ -426,18 +434,45 @@ export function useConversationStore(chatId: string | null): ConversationStore {
   // Helpers
   // -------------------------------------------------------------------------
 
-  function syncLiveRow(turn: LiveTurnState, rowStatus: "streaming" | "completed" | "failed") {
+  /**
+   * Coalesce high-frequency stream events into at most one React commit per
+   * animation frame. Every delta re-parses the growing markdown, so per-event
+   * setState freezes the main thread on long replies (O(n²)).
+   */
+  function scheduleLiveRowSync() {
+    if (flushHandleRef.current !== null) return;
+    if (typeof requestAnimationFrame !== "function") {
+      flushLiveRow();
+      return;
+    }
+    flushHandleRef.current = requestAnimationFrame(() => {
+      flushHandleRef.current = null;
+      flushLiveRow();
+    });
+  }
+
+  function flushLiveRow() {
+    const turn = liveTurnRef.current;
+    if (!turn) return;
     setLiveRow({
       turnId: turn.turnId,
       userContent: turn.userContent,
       assistant: turn.blocks,
-      status: rowStatus,
+      status: turn.terminal?.status ?? "streaming",
       proposals: turn.proposals,
       ...(turn.contextChip ? { contextChip: turn.contextChip } : {}),
     });
   }
 
+  function cancelLiveRowSync() {
+    if (flushHandleRef.current !== null && typeof cancelAnimationFrame === "function") {
+      cancelAnimationFrame(flushHandleRef.current);
+    }
+    flushHandleRef.current = null;
+  }
+
   function commitRow(row: TranscriptRow) {
+    cancelLiveRowSync();
     setLiveRow(null);
     setStableRows((rows) => upsertTranscriptRow(rows, row));
     setProposals((current) => mergeProposals(current, row.proposals));

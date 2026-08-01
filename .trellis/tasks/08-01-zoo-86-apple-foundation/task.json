@@ -1,0 +1,32 @@
+{
+  "id": "zoo-86-apple-foundation",
+  "name": "zoo-86-apple-foundation",
+  "title": "ZOO-86 Apple 三端工程骨架",
+  "description": "建立 macOS、iPhone、iPad 共用的 SwiftUI 工程骨架",
+  "status": "planning",
+  "dev_type": "feature",
+  "scope": "apps/apple",
+  "package": null,
+  "priority": "P1",
+  "creator": "zoo",
+  "assignee": "zoo",
+  "createdAt": "2026-08-01",
+  "completedAt": null,
+  "branch": "issue-ZOO-86-apple-foundation",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "apps/apple",
+    ".trellis/spec/dev-apple.md"
+  ],
+  "notes": "Linear: ZOO-86",
+  "meta": {
+    "linearIssue": "ZOO-86",
+    "linearUrl": "https://linear.app/zoos-agent-lib/issue/ZOO-86/搭建-apple-三端工程骨架"
+  }
+}

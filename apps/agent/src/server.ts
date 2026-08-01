@@ -58,6 +58,7 @@ export function buildAgentServer(dependencies: AgentServerDependencies): Fastify
       return dependencies.application.turns.complete({ actor: request.agentActor, turnId: started.turnId, workerId, assistantEntryId: result.assistantEntryId, proposals: result.proposals, citations: result.citations });
     } catch (error) {
       const normalized = toAgentError(error);
+      logAgentFailure("message", request.id, normalized);
       await dependencies.application.turns.fail({ actor: request.agentActor, turnId: started.turnId, workerId, code: normalized.code, message: normalized.message, interrupted: isInterrupted(error) });
       throw normalized;
     }
@@ -91,6 +92,7 @@ export function buildAgentServer(dependencies: AgentServerDependencies): Fastify
       send("result", response);
     } catch (error) {
       const normalized = toAgentError(error);
+      logAgentFailure("stream", request.id, normalized);
       await dependencies.application.turns.fail({ actor: request.agentActor, turnId: started.turnId, workerId, code: normalized.code, message: normalized.message, interrupted: isInterrupted(error) });
       conversation.emit({
         type: "turn.failed",
@@ -117,6 +119,7 @@ export function buildAgentServer(dependencies: AgentServerDependencies): Fastify
 
   app.setErrorHandler((unknownError, request, reply) => {
     const error = unknownError instanceof ZodError ? new AgentError("bad_request", "Invalid request body.", { cause: unknownError }) : toAgentError(unknownError);
+    logAgentFailure("handler", request.id, error);
     void reply.status(error.statusCode).send(errorBody(error, request.id));
   });
   return app;
@@ -155,6 +158,11 @@ function streamRuntimeEvent(
   if (event.type === "text_delta") {
     conversation.emit({ type: "assistant.text.delta", delta: event.delta });
     // ZOO-74 removes these legacy events after the Web consumes the stable contract.
+    send(event.type, event);
+    return;
+  }
+  if (event.type === "thinking_delta") {
+    conversation.emit({ type: "assistant.thinking.delta", delta: event.delta });
     send(event.type, event);
     return;
   }
@@ -267,6 +275,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isInterrupted(error: unknown) { return error instanceof Error && error.name === "AbortError"; }
+
+// Fastify logging is disabled, so surface server-side failures (with cause chain) for diagnosis.
+function logAgentFailure(scope: string, requestId: string, error: AgentError) {
+  if (error.statusCode < 500) return;
+  console.error(`[agent] ${scope} request=${requestId} code=${error.code}`, error);
+}
 
 declare module "fastify" {
   interface FastifyRequest { agentActor: import("./contracts").AgentActor; }

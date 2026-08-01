@@ -1,5 +1,5 @@
 import type { AIRuntime } from "@mewmo/ai";
-import { contentText, type AssistantMessage } from "@earendil-works/pi-ai";
+import { contentText, type AssistantMessage, type ModelThinkingLevel } from "@earendil-works/pi-ai";
 import {
   AgentHarness,
   DEFAULT_COMPACTION_SETTINGS,
@@ -22,6 +22,7 @@ import type { AgentRuntimeEvent, AgentRuntimePort, ApplicationPort } from "../po
 import { ALL_TOOL_NAMES } from "../tools";
 import type { WebPort } from "../web/port";
 import { MewmoSessionStorage } from "./session-storage";
+import { createThinkTagStreamFilter, stripThinkTags } from "./think-tags";
 import { createPiToolRegistry, type WebBudget } from "./tools";
 
 export interface CreateAgentRuntimeOptions {
@@ -30,6 +31,7 @@ export interface CreateAgentRuntimeOptions {
   maxSteps: number;
   timeoutMs: number;
   observability?: AgentObservabilityPort;
+  chatThinkingLevel?: ModelThinkingLevel;
   web?: WebPort;
   webSearchBudget?: number;
   webFetchBudget?: number;
@@ -94,6 +96,7 @@ export function createAgentRuntime(options: CreateAgentRuntimeOptions): AgentRun
             streamOptions: { timeoutMs: options.timeoutMs, maxRetries: AGENT_PROVIDER_MAX_RETRIES, cacheRetention: "short" },
           });
           let providerTurns = 0;
+          const thinkFilter: ThinkFilterHolder = { fn: createThinkTagStreamFilter() };
           harness.on("before_provider_request", () => {
             providerTurns += 1;
             if (providerTurns > options.maxSteps) throw new AgentError("conflict", "Agent reached the configured turn limit.");
@@ -109,7 +112,7 @@ export function createAgentRuntime(options: CreateAgentRuntimeOptions): AgentRun
           });
           harness.subscribe(async (event) => {
             bridge.event(event);
-            await emitRuntimeEvent(event, onEvent);
+            await emitRuntimeEvent(event, thinkFilter, onEvent);
           });
 
           await onEvent?.({ type: "start" });
@@ -135,7 +138,7 @@ export function createAgentRuntime(options: CreateAgentRuntimeOptions): AgentRun
           if (!userEntry || !assistantEntry || assistantEntry.type !== "message") throw new AgentError("internal_error", "Pi session did not persist the completed turn.");
           await onEvent?.({ type: "end" });
           const result = {
-            text: contentText(response.content),
+            text: stripThinkTags(contentText(response.content)),
             proposals,
             citations,
             userEntryId: userEntry.id,
@@ -251,10 +254,20 @@ function viewUsage(message: AssistantMessage) {
   };
 }
 
-async function emitRuntimeEvent(event: AgentHarnessEvent, listener?: (event: AgentRuntimeEvent) => Promise<void> | void) {
+interface ThinkFilterHolder {
+  fn: ReturnType<typeof createThinkTagStreamFilter>;
+}
+
+async function emitRuntimeEvent(event: AgentHarnessEvent, thinkFilter: ThinkFilterHolder, listener?: (event: AgentRuntimeEvent) => Promise<void> | void) {
   if (!listener) return;
   if (event.type === "message_update") {
-    if (event.assistantMessageEvent.type === "text_delta") await listener({ type: "text_delta", delta: event.assistantMessageEvent.delta });
+    // Each text block gets a fresh filter so a truncated think block cannot
+    // poison the next assistant message in the same turn.
+    if (event.assistantMessageEvent.type === "text_start") thinkFilter.fn = createThinkTagStreamFilter();
+    if (event.assistantMessageEvent.type === "text_delta") {
+      const delta = thinkFilter.fn(event.assistantMessageEvent.delta);
+      if (delta) await listener({ type: "text_delta", delta });
+    }
     if (event.assistantMessageEvent.type === "thinking_delta") await listener({ type: "thinking_delta", delta: event.assistantMessageEvent.delta });
     return;
   }

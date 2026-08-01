@@ -2,6 +2,7 @@
 
 import { useLocale } from "next-intl";
 import { useRouter } from "next/navigation";
+import { Globe2 } from "lucide-react";
 import { useTransition } from "react";
 import { setLocaleAction } from "../i18n/actions";
 
@@ -28,12 +29,7 @@ export function LocaleSwitcher({ className }: { className?: string }) {
       aria-label={`Switch to ${nextLocale === "zh" ? "中文" : "English"}`}
       title={locale === "zh" ? "切换到 English" : "Switch to 中文"}
     >
-      <span className="mewmo-locale-switcher__icon" aria-hidden="true">
-        <span className="mewmo-locale-switcher__zh">文</span>
-        <span className="mewmo-locale-switcher__divider">/</span>
-        <span className="mewmo-locale-switcher__en">A</span>
-      </span>
-      <span className="mewmo-locale-switcher__indicator" data-active={locale === "zh" ? "zh" : "en"} />
+      <Globe2 className="mewmo-locale-switcher__icon" size={17} aria-hidden="true" />
     </button>
   );
 }
