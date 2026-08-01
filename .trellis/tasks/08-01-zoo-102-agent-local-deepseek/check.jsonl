@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/release.md", "reason": "验收：确证未动 Production/worker、验证范围与证据要求"}
+{"file": ".trellis/spec/gotchas.md", "reason": "反直觉坑：monorepo 根目录安装、依赖方向"}
