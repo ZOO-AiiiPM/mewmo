@@ -214,6 +214,9 @@ importers:
       '@mewmo/storage':
         specifier: workspace:*
         version: link:../../packages/storage
+      '@mewmo/sync':
+        specifier: workspace:*
+        version: link:../../packages/sync
       '@mewmo/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -397,6 +400,9 @@ importers:
 
   packages/shared:
     dependencies:
+      '@mewmo/sync':
+        specifier: workspace:*
+        version: link:../sync
       zod:
         specifier: 4.3.0
         version: 4.3.0
@@ -412,9 +418,9 @@ importers:
 
   packages/sync:
     dependencies:
-      '@mewmo/shared':
-        specifier: workspace:*
-        version: link:../shared
+      zod:
+        specifier: 4.3.0
+        version: 4.3.0
 
   packages/ui:
     dependencies:
