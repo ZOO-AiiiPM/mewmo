@@ -1,0 +1,30 @@
+{
+  "id": "zoo-92-apple-image-cache",
+  "name": "zoo-92-apple-image-cache",
+  "title": "ZOO-92 Apple 图片缓存基础设施",
+  "description": "内存与磁盘图片缓存、下载和离线回退",
+  "status": "in_progress",
+  "dev_type": "feature",
+  "scope": "apple-image-infrastructure",
+  "package": null,
+  "priority": "P2",
+  "creator": "zoo",
+  "assignee": "zoo",
+  "createdAt": "2026-08-01",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "apps/apple/project.yml",
+    "apps/apple/Sources/Image/",
+    "apps/apple/Tests/Image/"
+  ],
+  "notes": "",
+  "meta": {}
+}
