@@ -221,18 +221,23 @@ function createNativeAuthService(deps: NativeAuthDeps = {}) {
     };
   }
 
-  /** 按 refresh token 吊销该会话（logout 主路径）。 */
-  async function revokeByRefreshToken(refreshToken: string): Promise<void> {
+  /**
+   * 按 refresh token 吊销该会话（logout 主路径）。
+   * 返回 `true` = 会话被定位并吊销（有效的注销凭证）；`false` = 未知 / 已轮换，未定位到会话。
+   * 已注销但同一 token 再次使用仍匹配该行，视为幂等吊销，返回 `true`。
+   */
+  async function revokeByRefreshToken(refreshToken: string): Promise<boolean> {
     if (!refreshToken) {
       throw new NativeAuthError("缺少 refresh token", 400, NATIVE_ERR_INVALID_REQUEST);
     }
     const hash = hashRefreshToken(refreshToken, secret);
     const session = (await repo.findActiveByRefreshHash(hash)) as { id: string } | null;
     if (!session) {
-      // 已经轮换 / 已注销 / 未知：视为幂等成功，避免泄漏会话是否已失效。
-      return;
+      // 已轮换 / 未知：未定位到会话，返回 false，交给调用方决定（bearer 路径兜底）。
+      return false;
     }
     await repo.revoke(session.id, nowFn());
+    return true;
   }
 
   /** 吊销某用户自己的会话（logout 的 bearer 定位路径，落实 user ownership）。 */

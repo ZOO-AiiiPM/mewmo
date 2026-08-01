@@ -236,9 +236,17 @@ describe("native refresh rotation", () => {
     const { service } = setup();
     const login = (await service.login({ email: "a@b.com", password: "right" }, makeRequest()))!;
 
-    await service.revokeByRefreshToken(login.refreshToken);
+    // 有效 refresh 定位并吊销 → 返回 true；注销后 refresh 不可再用
+    await expect(service.revokeByRefreshToken(login.refreshToken)).resolves.toBe(true);
     await expect(service.refresh(login.refreshToken, makeRequest())).rejects.toMatchObject({ status: 401 });
-    await expect(service.revokeByRefreshToken(login.refreshToken)).resolves.toBeUndefined();
+    // 同一 token 幂等再注销仍定位到该行 → true
+    await expect(service.revokeByRefreshToken(login.refreshToken)).resolves.toBe(true);
+  });
+
+  it("returns false for unknown refresh tokens so bearer can still be authoritative", async () => {
+    const { service } = setup();
+    await expect(service.revokeByRefreshToken("does-not-exist-0000abcdef")).resolves.toBe(false);
+    await expect(service.revokeByRefreshToken("")).rejects.toMatchObject({ status: 400 });
   });
 
   it("rejects unknown or malformed refresh tokens", async () => {

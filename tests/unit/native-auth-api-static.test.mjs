@@ -131,3 +131,22 @@ test("refresh endpoint is rate-limited with a stable rate_limited contract", () 
   assert.match(svc, /refreshRateLimiter\?\.\s*recordFailure/);
   assert.match(svc, /refreshRateLimiter\?\.\s*clear/);
 });
+
+test("logout prioritizes a valid refresh as authoritative and keeps invalid bearer non-bypassable", () => {
+  const logout = read("apps/web/src/app/api/auth/native/logout/route.ts");
+  const svc = read("apps/web/src/lib/native-auth.ts");
+
+  // 有效 refresh 定位并吊销会话后立即 204，不让后续 bearer 解析失败翻成 401
+  assert.match(logout, /revokeByRefreshToken/);
+  assert.match(logout, /if\s*\(\s*revoked\s*\)/);
+  assert.match(logout, /status:\s*204/);
+
+  // 无权威 refresh 时，bearer 必须有效，无效 → 401（不可绕过）
+  assert.match(logout, /if\s*\(\s*!identity\s*\)/);
+  assert.match(logout, /status:\s*401/);
+
+  // 服务返回是否真正吊销了会话（供路由区分权威路径）
+  assert.match(svc, /revokeByRefreshToken\(refreshToken: string\): Promise<boolean>/);
+  assert.match(svc, /return true;/);
+  assert.match(svc, /return false;/);
+});

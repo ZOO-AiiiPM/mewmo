@@ -117,10 +117,16 @@
 
 吊销当前会话的 refresh 与 access 能力。支持两种定位（可同时，均只作用调用者自己的会话）：
 
-- body：`{ "refreshToken": "…" }`
-- 或 header：`Authorization: Bearer <accessToken>`
+- body：`{ "refreshToken": "…" }` — **权威路径**：有效 refresh 一找到并吊销会话即注销成功。
+- 或 header：`Authorization: Bearer <accessToken>` — refresh 缺失/未命中时的兜底身份。
 
-响应 `204`。未知 / 已轮换 / 已注销视为幂等成功（不泄漏会话状态）。
+响应 `204`。语义：
+
+- **有效 refresh 一次性吊销会话 → 204**：即使同时携带 bearer，也不得因「会话已注销导致 bearer 解析失败」把已成功的注销翻成 401。
+- **无有效 refresh 时，bearer 是唯一身份**：bearer 必须有效才放行，否则 `401 unauthorized`（不可绕过）。
+- 未知 / 已轮换 / 已注销的 refresh 未定位到会话；此时若带 bearer 则按 bearer 判定，无有效身份则 `400 invalid_request`。
+
+错误：`400 invalid_request` / `401 unauthorized`（无权威 refresh 时 bearer 无效）。
 
 ### `GET /api/auth/native/session`
 
