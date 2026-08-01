@@ -2595,6 +2595,14 @@ html.light .mewmo-reader-menu {
   color: #f87171;
 }
 
+/* ZOO-100: preserve the pre-refactor responsive behavior — on narrow readers the
+ * trash surface hides its toolbar nav so restore/delete actions keep header room. */
+@media (max-width: 900px) {
+  .mewmo-reader-surface--trash .mewmo-reader-toolbar__nav {
+    display: none;
+  }
+}
+
 .mewmo-reader-scroll {
   min-height: 0;
   flex: 1;

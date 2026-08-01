@@ -109,7 +109,7 @@ test("shell chrome uses the exact prototype-baked header and reader icons", () =
   );
   assert.match(
     prototypeIcon,
-    /mewmo-logo[\s\S]*M7 11 4 5l6 2\.5/,
+    /mewmo-logo[\s\S]*M273 84c-61 10-109 57-123 119/,
     "brand logo should copy the prototype cat head SVG",
   );
   assert.doesNotMatch(
