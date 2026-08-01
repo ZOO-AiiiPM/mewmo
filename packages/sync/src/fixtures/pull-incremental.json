@@ -1,0 +1,44 @@
+{
+  "description": "Incremental pull: records changed strictly after {cursor} are returned; the server returns a new nextCursor aligned to the last returned record.",
+  "contractVersion": 1,
+  "request": {
+    "contractVersion": 1,
+    "cursor": "2026-07-03T10:00:00.000Z"
+  },
+  "expectedResponse": {
+    "contractVersion": 1,
+    "cursor": "2026-07-03T12:30:00.000Z",
+    "nextCursor": "2026-07-03T12:30:00.000Z",
+    "hasMore": false,
+    "limit": 200,
+    "records": {
+      "note": [
+        {
+          "id": "note-1",
+          "version": 1,
+          "createdAt": "2026-07-01T08:00:00.000Z",
+          "updatedAt": "2026-07-03T10:30:00.000Z",
+          "deletedAt": null,
+          "userId": "user-1",
+          "slug": "morning-notes",
+          "title": "Morning notes",
+          "content": "# Hi"
+        }
+      ],
+      "clip": [],
+      "feed": [
+        {
+          "id": "feed-1",
+          "version": 2,
+          "createdAt": "2026-07-02T08:00:00.000Z",
+          "updatedAt": "2026-07-03T12:30:00.000Z",
+          "deletedAt": null,
+          "userId": "user-1",
+          "url": "https://example.com/feed.xml",
+          "title": "Example feed"
+        }
+      ],
+      "feed_entry": []
+    }
+  }
+}

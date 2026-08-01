@@ -1,0 +1,66 @@
+{
+  "description": "Pagination: with more changed records than the requested limit, the first page reports hasMore=true and a nextCursor aligned to the last returned record; advancing the cursor returns the rest.",
+  "contractVersion": 1,
+  "requestPage1": {
+    "contractVersion": 1,
+    "cursor": "2026-01-01T00:00:00.000Z",
+    "limit": 2
+  },
+  "expectedResponsePage1": {
+    "contractVersion": 1,
+    "cursor": "2026-07-01T09:00:00.000Z",
+    "nextCursor": "2026-07-01T09:00:00.000Z",
+    "hasMore": true,
+    "limit": 2,
+    "records": {
+      "note": [
+        {
+          "id": "note-a",
+          "version": 1,
+          "createdAt": "2026-06-01T00:00:00.000Z",
+          "updatedAt": "2026-07-01T08:00:00.000Z",
+          "deletedAt": null,
+          "userId": "user-1"
+        },
+        {
+          "id": "note-b",
+          "version": 1,
+          "createdAt": "2026-06-02T00:00:00.000Z",
+          "updatedAt": "2026-07-01T09:00:00.000Z",
+          "deletedAt": null,
+          "userId": "user-1"
+        }
+      ],
+      "clip": [],
+      "feed": [],
+      "feed_entry": []
+    }
+  },
+  "requestPage2": {
+    "contractVersion": 1,
+    "cursor": "2026-07-01T09:00:00.000Z",
+    "limit": 2
+  },
+  "expectedResponsePage2": {
+    "contractVersion": 1,
+    "cursor": "2026-07-02T10:00:00.000Z",
+    "nextCursor": "2026-07-02T10:00:00.000Z",
+    "hasMore": false,
+    "limit": 2,
+    "records": {
+      "note": [
+        {
+          "id": "note-c",
+          "version": 1,
+          "createdAt": "2026-06-03T00:00:00.000Z",
+          "updatedAt": "2026-07-02T10:00:00.000Z",
+          "deletedAt": null,
+          "userId": "user-1"
+        }
+      ],
+      "clip": [],
+      "feed": [],
+      "feed_entry": []
+    }
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "description": "Idempotent create: pushing the same client-supplied id twice must not create a duplicate. The first push applies create; the second (same id) is a no-op returning the same record.",
+  "contractVersion": 1,
+  "firstPush": {
+    "contractVersion": 1,
+    "mutations": [
+      {
+        "entity": "note",
+        "op": "create",
+        "id": "note-new-1",
+        "clientMutationId": "m-1",
+        "data": { "title": "One note", "content": "body" }
+      }
+    ]
+  },
+  "expectedFirstResponse": {
+    "contractVersion": 1,
+    "applied": [
+      {
+        "index": 0,
+        "entity": "note",
+        "op": "create",
+        "clientMutationId": "m-1",
+        "record": { "id": "note-new-1", "version": 1, "deletedAt": null, "userId": "user-1" }
+      }
+    ],
+    "errors": []
+  },
+  "secondPush": {
+    "contractVersion": 1,
+    "mutations": [
+      {
+        "entity": "note",
+        "op": "create",
+        "id": "note-new-1",
+        "clientMutationId": "m-2",
+        "data": { "title": "One note", "content": "body" }
+      }
+    ]
+  },
+  "expectedSecondResponse": {
+    "contractVersion": 1,
+    "applied": [
+      {
+        "index": 0,
+        "entity": "note",
+        "op": "create",
+        "clientMutationId": "m-2",
+        "record": { "id": "note-new-1", "version": 1, "deletedAt": null, "userId": "user-1" }
+      }
+    ],
+    "errors": []
+  }
+}

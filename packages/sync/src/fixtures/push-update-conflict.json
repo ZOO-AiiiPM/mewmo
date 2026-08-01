@@ -1,0 +1,53 @@
+{
+  "description": "Version conflict: an update carrying a stale expectedVersion is rejected with code version_conflict and the current server record is echoed back so the client can rebase. A retry with the fresh expectedVersion succeeds.",
+  "contractVersion": 1,
+  "stalePush": {
+    "contractVersion": 1,
+    "mutations": [
+      {
+        "entity": "note",
+        "op": "update",
+        "id": "note-1",
+        "clientMutationId": "m-stale",
+        "data": { "title": "Edited", "expectedVersion": 1 }
+      }
+    ]
+  },
+  "expectedStaleResponse": {
+    "contractVersion": 1,
+    "applied": [],
+    "errors": [
+      {
+        "index": 0,
+        "code": "version_conflict",
+        "clientMutationId": "m-stale",
+        "record": { "id": "note-1", "version": 3, "deletedAt": null, "userId": "user-1" }
+      }
+    ]
+  },
+  "freshPush": {
+    "contractVersion": 1,
+    "mutations": [
+      {
+        "entity": "note",
+        "op": "update",
+        "id": "note-1",
+        "clientMutationId": "m-fresh",
+        "data": { "title": "Edited", "expectedVersion": 3 }
+      }
+    ]
+  },
+  "expectedFreshResponse": {
+    "contractVersion": 1,
+    "applied": [
+      {
+        "index": 0,
+        "entity": "note",
+        "op": "update",
+        "clientMutationId": "m-fresh",
+        "record": { "id": "note-1", "version": 4, "deletedAt": null, "userId": "user-1" }
+      }
+    ],
+    "errors": []
+  }
+}

@@ -1,0 +1,77 @@
+{
+  "description": "Error codes: mutations that fail are reported in the errors array with a stable code, and other mutations still apply.",
+  "contractVersion": 1,
+  "request": {
+    "contractVersion": 1,
+    "mutations": [
+      {
+        "entity": "note",
+        "op": "update",
+        "id": "note-missing",
+        "clientMutationId": "m1",
+        "data": { "title": "Nope", "expectedVersion": 1 }
+      },
+      {
+        "entity": "note",
+        "op": "update",
+        "clientMutationId": "m2",
+        "data": { "title": "No id" }
+      },
+      {
+        "entity": "feed",
+        "op": "update",
+        "id": "feed-1",
+        "clientMutationId": "m3",
+        "data": { "title": "Unsupported entity mutation" }
+      },
+      {
+        "entity": "note",
+        "op": "create",
+        "id": "note-ok",
+        "clientMutationId": "m4",
+        "data": { "title": "Fine" }
+      },
+      {
+        "entity": "feed_entry",
+        "op": "update",
+        "id": "entry-1",
+        "clientMutationId": "m5",
+        "data": { "readAt": "2026-07-05T00:00:00.000Z" }
+      }
+    ]
+  },
+  "expectedResponse": {
+    "contractVersion": 1,
+    "applied": [
+      {
+        "index": 3,
+        "entity": "note",
+        "op": "create",
+        "clientMutationId": "m4",
+        "record": { "id": "note-ok", "version": 1, "deletedAt": null, "userId": "user-1" }
+      }
+    ],
+    "errors": [
+      {
+        "index": 0,
+        "code": "not_found",
+        "clientMutationId": "m1"
+      },
+      {
+        "index": 1,
+        "code": "missing_id",
+        "clientMutationId": "m2"
+      },
+      {
+        "index": 2,
+        "code": "unsupported_entity",
+        "clientMutationId": "m3"
+      },
+      {
+        "index": 4,
+        "code": "unsupported_operation",
+        "clientMutationId": "m5"
+      }
+    ]
+  }
+}
