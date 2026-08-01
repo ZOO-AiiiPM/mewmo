@@ -16,6 +16,7 @@ export const agentMessageRequestSchema = z.object({
   clientRequestId: z.string().min(8).max(128),
   content: z.string().trim().min(1).max(8000),
   skillId: z.string().min(1).max(80).optional(),
+  thinking: z.boolean().optional(),
   context: z
     .object({
       resource: agentResourceSchema,

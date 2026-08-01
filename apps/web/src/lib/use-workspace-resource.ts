@@ -7,6 +7,7 @@ import {
   refreshWorkspaceResource,
   setWorkspaceResource,
 } from "./workspace-data-cache";
+import { WORKSPACE_REFRESH_EVENT, workspaceRefreshAffects } from "./workspace-refresh";
 
 export interface WorkspaceResourceState<T> {
   data: T;
@@ -105,6 +106,17 @@ export function useWorkspaceResource<T>({
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // #10-F: refetch when a background writer (e.g. an agent write action)
+  // broadcasts that this resource changed while the view is mounted.
+  useEffect(() => {
+    if (!enabled) return;
+    const handler = (event: Event) => {
+      if (workspaceRefreshAffects((event as CustomEvent).detail, key)) void refresh();
+    };
+    window.addEventListener(WORKSPACE_REFRESH_EVENT, handler);
+    return () => window.removeEventListener(WORKSPACE_REFRESH_EVENT, handler);
+  }, [enabled, key, refresh]);
 
   const update = useCallback((updater: T | ((current: T) => T)) => {
     setState((current) => {

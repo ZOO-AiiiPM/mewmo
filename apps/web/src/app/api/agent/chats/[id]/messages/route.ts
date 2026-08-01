@@ -23,6 +23,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const upstreamBody = {
     clientRequestId: parsed.data.clientRequestId,
     content: parsed.data.content,
+    thinking: parsed.data.thinking,
     skill: parsed.data.skillId === "deep-insight" ? "deep-insight" : "general",
     context: context
       ? {

@@ -1,0 +1,4 @@
+{"file":".trellis/tasks/07-31-mew-chat-interaction-fixes/prd.md","reason":"Check every implementation and test result against ZOO-84 acceptance criteria."}
+{"file":".trellis/tasks/07-31-mew-chat-interaction-fixes/design.md","reason":"Verify boundaries, fail-closed replacement and mode independence."}
+{"file":".trellis/tasks/07-31-mew-chat-interaction-fixes/implement.md","reason":"Verify the ordered quality gates and PR handoff are complete."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Trace request and persistence fields across every affected layer."}

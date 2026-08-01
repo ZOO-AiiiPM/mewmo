@@ -17,6 +17,7 @@ import type {
   LegacyResultPayload,
   LegacyStreamEvent,
   PersistedMessage,
+  TranscriptContextChip,
   TranscriptRow,
 } from "./types";
 
@@ -29,6 +30,7 @@ export interface LiveTurnState {
   turnId: string;
   serverTurnId?: string;
   userContent: string;
+  contextChip?: TranscriptContextChip;
   blocks: AssistantBlock[];
   proposals: AgentActionProposal[];
   lastSeq: number;
@@ -36,8 +38,22 @@ export interface LiveTurnState {
   terminal?: TranscriptRow;
 }
 
-export function createLiveTurn(chatId: string, turnId: string, userContent: string): LiveTurnState {
-  return { chatId, turnId, userContent, blocks: [], proposals: [], lastSeq: 0, hasSequenceGap: false };
+export function createLiveTurn(
+  chatId: string,
+  turnId: string,
+  userContent: string,
+  contextChip?: TranscriptContextChip,
+): LiveTurnState {
+  return {
+    chatId,
+    turnId,
+    userContent,
+    ...(contextChip ? { contextChip } : {}),
+    blocks: [],
+    proposals: [],
+    lastSeq: 0,
+    hasSequenceGap: false,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -138,6 +154,7 @@ export function finalizeLegacyTurn(
     return {
       turnId: state.turnId,
       userContent: state.userContent,
+      ...(state.contextChip ? { contextChip: state.contextChip } : {}),
       assistant: state.blocks,
       status: "failed",
       proposals: state.proposals,
@@ -163,6 +180,7 @@ export function finalizeLegacyTurn(
   return {
     turnId: state.turnId,
     userContent: state.userContent,
+    ...(state.contextChip ? { contextChip: state.contextChip } : {}),
     assistant: [...blocks, ...confirmationBlocks],
     status: "completed",
     proposals,
@@ -249,6 +267,7 @@ export function applyConversationEvent(
       const terminal: TranscriptRow = {
         turnId: event.turnId,
         userContent: withSeq.userContent,
+        ...(withSeq.contextChip ? { contextChip: withSeq.contextChip } : {}),
         assistant: [
           ...blocks,
           ...proposals.map((proposal) => ({ kind: "confirmation" as const, proposal })),
@@ -264,6 +283,7 @@ export function applyConversationEvent(
       const terminal: TranscriptRow = {
         turnId: event.turnId,
         userContent: withSeq.userContent,
+        ...(withSeq.contextChip ? { contextChip: withSeq.contextChip } : {}),
         assistant: withSeq.blocks,
         status: "failed",
         proposals: withSeq.proposals,
@@ -394,10 +414,13 @@ function buildRowFromPair(
   const rawError = assistant?.error ?? user.error;
   const error = rawError ? { ...rawError, message: publicErrorMessage(rawError.message) } : rawError;
   const missingAssistant = !assistant;
+  // #6: a persisted context attachment on the user message becomes the chip.
+  const attachment = user.contextAttachments?.[0];
 
   return {
     turnId: assistant?.turnId ?? user.turnId ?? assistant?.id ?? user.id,
     userContent: user.content,
+    ...(attachment ? { contextChip: { kind: attachment.targetType, title: attachment.title } } : {}),
     assistant: blocks,
     status: assistant?.status === "failed" || user.status === "failed" || missingAssistant ? "failed" : "completed",
     proposals,

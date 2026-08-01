@@ -1,0 +1,33 @@
+{
+  "id": "mew-chat-interaction-fixes",
+  "name": "mew-chat-interaction-fixes",
+  "title": "ZOO-84 Mew 对话交互修复与验收",
+  "description": "接管暂停的 Qoder 会话，完成并验收 Mew 对话交互修复批 A。",
+  "status": "in_progress",
+  "dev_type": "bugfix",
+  "scope": "cross-layer",
+  "package": "web",
+  "priority": "P2",
+  "creator": "zoo",
+  "assignee": "zoo",
+  "createdAt": "2026-07-31",
+  "completedAt": null,
+  "branch": "codex/issue-ZOO-84-mew-chat-interactions",
+  "base_branch": "codex/mew-chat-interaction-fixes",
+  "worktree_path": "/Users/zoo/.ao/data/worktrees/mewmo/mewmo-11",
+  "commit": "999ae16b",
+  "pr_url": "https://github.com/ZOO-AiiiPM/mewmo/pull/62",
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "Legacy Qoder implementation baseline: ad543ecf. Root main checkout is dirty and out of bounds. AO Codex worker was terminated after the user retired its costly key; the primary Codex session took over the preserved worktree.",
+  "meta": {
+    "linear_issue": "ZOO-84",
+    "linear_url": "https://linear.app/zoos-agent-lib/issue/ZOO-84/codex-gpt-56-sol-完成-mew-对话交互修复与验收",
+    "qoder_session": "task-8b62b88cfb574dfb8385",
+    "baseline_commit": "ad543ecf",
+    "ao_session": "mewmo-11",
+    "ao_session_status": "terminated_after_takeover"
+  }
+}

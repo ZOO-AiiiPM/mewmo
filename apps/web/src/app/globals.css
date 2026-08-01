@@ -3745,8 +3745,8 @@ html:not(.light) .mewmo-clip-prose th {
 .mewmo-ai-rail__head {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 14px 16px 12px;
+  gap: 9px;
+  padding: 14px 16px 10px;
 }
 
 .mewmo-ai-rail__head .mewmo-ai-rail__head-actions {
@@ -3803,11 +3803,18 @@ html:not(.light) .mewmo-clip-prose th {
     border-color 0.14s;
 }
 
-.mewmo-ai-rail__tab:hover,
-.mewmo-ai-rail__tab--active {
-  border-color: color-mix(in srgb, var(--accent) 36%, var(--line));
+.mewmo-ai-rail__tab:hover {
+  border-color: color-mix(in srgb, var(--ink-faint) 42%, var(--line));
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.mewmo-ai-rail__tab--active,
+.mewmo-ai-rail__tab--active:hover {
+  border-color: color-mix(in srgb, var(--accent) 46%, var(--line));
   background: var(--accent-2);
   color: var(--ink);
+  font-weight: 650;
 }
 
 .mewmo-ai-rail__body {
@@ -4211,18 +4218,16 @@ html.light .mewmo-ai-related-modal__panel {
 }
 
 .mewmo-ai-message {
-  max-width: 86%;
-  border-radius: 14px;
-  padding: 9px 13px;
-  font-size: 12.8px;
+  min-width: 0;
+  font-size: 13px;
   line-height: 1.65;
 }
 
+/* Assistant turns sit directly on the canvas: no card, primary ink. */
 .mewmo-ai-message--assistant {
-  align-self: flex-start;
-  border-top-left-radius: 4px;
-  background: var(--s2);
-  color: var(--ink-soft);
+  align-self: stretch;
+  max-width: 100%;
+  color: var(--ink);
 }
 
 /* 深色模式下 assistant 消息用 --ink（近白），与正文可读性规则保持一致 */
@@ -4230,11 +4235,47 @@ html:not(.light) .mewmo-ai-message--assistant {
   color: var(--ink);
 }
 
+/* User turns are compact right-aligned bubbles. */
 .mewmo-ai-message--user {
   align-self: flex-end;
-  border-top-right-radius: 4px;
-  background: var(--accent);
-  color: var(--accent-ink);
+  max-width: 78%;
+  border-radius: 14px;
+  border-bottom-right-radius: 6px;
+  background: var(--hover);
+  color: var(--ink);
+  padding: 8px 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* #6：对话流用户消息上方的上下文芯片，复用输入框芯片（.mewmo-chat-input__context）的视觉语言，小尺寸右对齐 */
+.mewmo-ai-context-chip {
+  display: inline-flex;
+  max-width: 86%;
+  min-width: 0;
+  align-self: flex-end;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--s3);
+  color: var(--ink-faint);
+  padding: 4px 8px;
+  font-size: 10.5px;
+}
+
+.mewmo-ai-context-chip__title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.mewmo-ai-context-chip em {
+  flex: none;
+  font-style: normal;
 }
 
 .mewmo-ai-proposal {
@@ -4399,7 +4440,7 @@ html:not(.light) .mewmo-ai-message--assistant {
   visibility: hidden;
 }
 
-.mewmo-agent-home--empty .mewmo-transcript {
+.mewmo-agent-home--empty .mewmo-transcript-shell {
   display: none;
 }
 
@@ -4415,6 +4456,18 @@ html:not(.light) .mewmo-ai-message--assistant {
   align-items: center;
   padding: 0 12px 24px;
   text-align: center;
+  /* #2: a fresh conversation eases in instead of popping. */
+  animation: mewmo-fade-rise 0.48s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+/* The input stack follows the hero with a slight stagger. */
+.mewmo-agent-home--empty .mewmo-agent-panel {
+  animation: mewmo-fade-rise 0.48s cubic-bezier(0.22, 0.61, 0.36, 1) 0.09s both;
+}
+
+@keyframes mewmo-fade-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
 }
 
 .mewmo-agent-home__hero-mark {
@@ -4440,8 +4493,8 @@ html:not(.light) .mewmo-ai-message--assistant {
 .mewmo-agent-home__hero-note {
   display: grid;
   margin: 9px 0 0;
-  color: var(--ink-faint);
-  font-size: 12.5px;
+  color: var(--ink-soft);
+  font-size: 13px;
   line-height: 1.75;
 }
 
@@ -4456,14 +4509,15 @@ html:not(.light) .mewmo-ai-message--assistant {
 .mewmo-agent-home__chip {
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: var(--raised);
+  background: transparent;
   color: var(--ink-soft);
   padding: 7px 14px;
   font-size: 12.5px;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
 .mewmo-agent-home__chip:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--ink-faint) 42%, var(--line));
   background: var(--hover);
   color: var(--ink);
 }
@@ -4517,6 +4571,15 @@ html:not(.light) .mewmo-ai-message--assistant {
   height: 30px;
   place-items: center;
   border-radius: 8px;
+  opacity: 0;
+  transition: opacity 0.14s ease;
+}
+
+/* Row menu button only appears on hover / focus / while pending or open. */
+.mewmo-chat-switcher__item:hover .mewmo-chat-switcher__item-menu,
+.mewmo-chat-switcher__item-menu:focus-visible,
+.mewmo-chat-switcher__item-menu--visible {
+  opacity: 1;
 }
 
 .mewmo-chat-switcher__current:hover:not(:disabled),
@@ -4597,14 +4660,38 @@ html:not(.light) .mewmo-ai-message--assistant {
   background: var(--hl);
 }
 
+/* Active row gets a slim accent bar on the left edge. */
+.mewmo-chat-switcher__item--active::before {
+  content: "";
+  position: absolute;
+  top: 9px;
+  bottom: 9px;
+  left: 0;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
 html.light .mewmo-chat-switcher__item--active {
   background: var(--selected);
 }
 
 .mewmo-chat-switcher__item-button {
+  display: flex;
   min-width: 0;
-  height: 32px;
-  padding: 0 8px;
+  height: 36px;
+  align-items: center;
+  gap: 8px;
+  border-radius: 6px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.mewmo-chat-switcher__item-time {
+  flex: none;
+  color: var(--ink-faint);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
 }
 
 .mewmo-chat-switcher__rename-input {
@@ -4664,16 +4751,38 @@ html.light .mewmo-chat-switcher__item--active {
   cursor: pointer;
 }
 
+/* Wrapper so the scroll area fades out at top/bottom edges (Codex-style). */
+.mewmo-transcript-shell {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 28px,
+    #000 calc(100% - 28px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 28px,
+    #000 calc(100% - 28px),
+    transparent 100%
+  );
+}
+
 .mewmo-transcript {
   display: flex;
   min-height: 0;
   flex: 1;
   flex-direction: column;
-  gap: 14px;
+  gap: 28px;
   overflow-y: auto;
   overscroll-behavior: contain;
   margin-right: -14px;
-  padding: 12px 16px 12px 2px;
+  padding: 20px 16px 24px 2px;
 }
 
 .mewmo-transcript--empty {
@@ -4688,6 +4797,7 @@ html.light .mewmo-chat-switcher__item--active {
   text-align: center;
   font-size: 11.5px;
   line-height: 1.6;
+  animation: mewmo-fade-rise 0.48s cubic-bezier(0.22, 0.61, 0.36, 1) both;
 }
 
 .mewmo-transcript__welcome p {
@@ -4724,13 +4834,12 @@ html.light .mewmo-chat-switcher__item--active {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 7px;
+  gap: 10px;
 }
 
 .mewmo-transcript-row .mewmo-ai-message--assistant {
   display: grid;
-  max-width: 94%;
-  gap: 8px;
+  gap: 10px;
   overflow-wrap: anywhere;
 }
 
@@ -4763,7 +4872,6 @@ html.light .mewmo-chat-switcher__item--active {
   50% { opacity: 0.28; transform: translateY(-2px); }
 }
 
-.mewmo-tool-block,
 .mewmo-thinking-block {
   border: 1px solid var(--line);
   border-radius: 7px;
@@ -4772,41 +4880,173 @@ html.light .mewmo-chat-switcher__item--active {
   font-size: 10.5px;
 }
 
-.mewmo-tool-block__header {
-  display: flex;
-  width: 100%;
-  align-items: center;
-  gap: 6px;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  padding: 6px 8px;
-  cursor: pointer;
-}
-
-.mewmo-tool-block__label { min-width: 0; flex: 1; text-align: left; }
-.mewmo-tool-block__chevron { transition: transform 0.14s; }
-.mewmo-tool-block__chevron--open { transform: rotate(180deg); }
-.mewmo-tool-block__detail,
 .mewmo-thinking-block__content { border-top: 1px solid var(--line); padding: 6px 8px; }
 .mewmo-thinking-block summary { padding: 6px 8px; cursor: pointer; }
 
-.mewmo-md { min-width: 0; color: var(--ink-soft); }
-/* 深色模式下 agent 消息 markdown 正文用 --ink（近白），否则会盖掉气泡容器上的颜色 */
-html:not(.light) .mewmo-md { color: var(--ink); }
+/* Codex-style inline tool status line: icon + label (+ elapsed timer). */
+.mewmo-tool-line {
+  display: flex;
+  min-height: 20px;
+  align-items: center;
+  gap: 7px;
+  color: var(--ink-faint);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.mewmo-tool-line__icon {
+  display: grid;
+  width: 14px;
+  height: 14px;
+  flex: none;
+  place-items: center;
+}
+
+.mewmo-tool-line__label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.mewmo-tool-line__elapsed {
+  font-variant-numeric: tabular-nums;
+}
+
+.mewmo-tool-line--error {
+  color: color-mix(in srgb, #ef7770 78%, var(--ink));
+}
+
+.mewmo-tool-line__spin {
+  animation: mewmo-ai-spin 0.86s linear infinite;
+}
+
+/* Shimmer sweep for running labels (background-clip: text). */
+.mewmo-tool-line__label--shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--ink-faint) 30%,
+    var(--ink) 50%,
+    var(--ink-faint) 70%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: mewmo-tool-shimmer 1.8s linear infinite;
+}
+
+@keyframes mewmo-tool-shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+/* Aggregated run of finished tool steps. */
+.mewmo-tool-group {
+  display: grid;
+  gap: 2px;
+}
+
+.mewmo-tool-group__summary {
+  display: flex;
+  width: fit-content;
+  min-height: 20px;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: pointer;
+  padding: 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.mewmo-tool-group__summary:hover {
+  color: var(--ink-soft);
+}
+
+.mewmo-tool-group__summary--error {
+  color: color-mix(in srgb, #ef7770 78%, var(--ink));
+}
+
+.mewmo-tool-group__summary-icon {
+  display: grid;
+  width: 14px;
+  height: 14px;
+  flex: none;
+  place-items: center;
+}
+
+.mewmo-tool-group__caret {
+  transition: transform 0.14s;
+}
+
+.mewmo-tool-group__caret--open {
+  transform: rotate(180deg);
+}
+
+.mewmo-tool-group__rows {
+  display: grid;
+  gap: 2px;
+}
+
+/* Bottom "working…" status line while streaming with a non-text tail. */
+.mewmo-working-line {
+  display: flex;
+  min-height: 20px;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+/* Assistant markdown: primary ink body, comfortable reading density. */
+.mewmo-md { min-width: 0; color: var(--ink); font-size: 13.5px; line-height: 1.7; }
 .mewmo-md__paragraph,
 .mewmo-md__quote { margin: 0; white-space: pre-wrap; }
 .mewmo-md__paragraph + .mewmo-md__paragraph,
-.mewmo-md__list + .mewmo-md__paragraph { margin-top: 7px; }
-.mewmo-md__heading { display: block; color: var(--ink); margin: 3px 0 5px; }
-.mewmo-md__list { margin: 5px 0; padding-left: 20px; }
-.mewmo-md__quote { border-left: 2px solid var(--line); padding-left: 8px; color: var(--ink-faint); }
-.mewmo-md__code-block { max-width: 100%; overflow: auto; border-radius: 6px; background: var(--s1); padding: 8px; font-family: var(--mono); font-size: 10.5px; white-space: pre; }
-.mewmo-md__inline-code { border-radius: 4px; background: var(--s1); padding: 1px 4px; font-family: var(--mono); }
-.mewmo-md__table-wrap { max-width: 100%; overflow-x: auto; }
-.mewmo-md table { border-collapse: collapse; font-size: 10.5px; }
+.mewmo-md__list + .mewmo-md__paragraph,
+.mewmo-md__table-wrap + .mewmo-md__paragraph { margin-top: 10px; }
+.mewmo-md__heading { display: block; margin: 14px 0 6px; color: var(--ink); line-height: 1.45; }
+.mewmo-md__heading:first-child { margin-top: 0; }
+.mewmo-md__heading--1 { font-size: 15.5px; font-weight: 700; }
+.mewmo-md__heading--2 { font-size: 14.5px; font-weight: 650; }
+.mewmo-md__heading--3 { font-size: 13.5px; font-weight: 650; }
+.mewmo-md__list { margin: 6px 0; padding-left: 22px; }
+.mewmo-md__list .mewmo-md__list { margin: 3px 0; }
+.mewmo-md__list li + li { margin-top: 3px; }
+.mewmo-md__task { list-style: none; margin-left: -16px; }
+.mewmo-md__task-box { margin-right: 7px; vertical-align: -1.5px; accent-color: var(--accent); pointer-events: none; }
+.mewmo-md__quote {
+  border-left: 2px solid color-mix(in srgb, var(--ink-faint) 55%, var(--line));
+  border-radius: 0 8px 8px 0;
+  background: color-mix(in srgb, var(--hover) 60%, transparent);
+  padding: 6px 12px;
+  color: var(--ink-soft);
+}
+.mewmo-md__divider { margin: 14px 0; border: 0; border-top: 1px solid var(--line); }
+.mewmo-md__code-block {
+  max-width: 100%;
+  overflow: auto;
+  margin: 8px 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--s1);
+  padding: 12px;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre;
+}
+.mewmo-md__inline-code { border-radius: 5px; background: var(--s1); padding: 1.5px 5px; font-family: var(--mono); font-size: 0.92em; }
+.mewmo-md__table-wrap { max-width: 100%; overflow-x: auto; margin: 8px 0; }
+.mewmo-md table { border-collapse: collapse; font-size: 12.5px; }
 .mewmo-md th,
-.mewmo-md td { border: 1px solid var(--line); padding: 4px 6px; text-align: left; }
+.mewmo-md td { border: 1px solid var(--line); padding: 6px 9px; text-align: left; }
+.mewmo-md thead th { background: var(--s1); color: var(--ink); }
+.mewmo-md tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--s1) 55%, transparent); }
+.mewmo-md a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.mewmo-md del { color: var(--ink-faint); }
 .mewmo-md__image,
 .mewmo-md__inline-image { max-width: 100%; height: auto; border-radius: 6px; }
 .mewmo-md__cursor { display: inline-block; width: 2px; height: 1em; margin-left: 2px; background: var(--ink-faint); vertical-align: text-bottom; animation: mewmo-md-cursor 0.8s steps(1) infinite; }
@@ -4857,19 +5097,52 @@ html:not(.light) .mewmo-md { color: var(--ink); }
   cursor: pointer;
 }
 
+/* Editing an earlier message: mirrors the attachment chip, accent border. */
+.mewmo-chat-input__editing {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 45%, var(--line));
+  border-radius: 8px;
+  color: var(--ink-soft);
+  padding: 5px 9px;
+  font-size: 11px;
+}
+
+.mewmo-chat-input__editing em {
+  flex: none;
+  color: var(--ink-faint);
+  font-style: normal;
+  font-size: 10px;
+}
+
+.mewmo-chat-input__editing button {
+  display: grid;
+  flex: none;
+  place-items: center;
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  color: var(--ink-faint);
+  padding: 0;
+  cursor: pointer;
+}
+
 .mewmo-chat-input__box {
   display: flex;
   flex-direction: column;
   gap: 4px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 14px;
   background: var(--s2);
-  padding: 9px 9px 7px;
-  transition: border-color 0.14s;
+  padding: 10px 10px 8px;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
 }
 
 .mewmo-chat-input__box:focus-within {
   border-color: color-mix(in srgb, var(--accent) 46%, var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 .mewmo-chat-input__context {
@@ -4930,6 +5203,10 @@ html:not(.light) .mewmo-md { color: var(--ink); }
   line-height: 1.45;
 }
 
+.mewmo-chat-input__box textarea::placeholder {
+  color: var(--ink-faint);
+}
+
 .mewmo-chat-input__toolbar {
   display: flex;
   align-items: center;
@@ -4967,7 +5244,8 @@ html:not(.light) .mewmo-md { color: var(--ink); }
   color: var(--ink);
 }
 
-.mewmo-chat-input__insight {
+.mewmo-chat-input__insight,
+.mewmo-chat-input__thinking {
   display: inline-flex;
   height: 28px;
   flex: none;
@@ -4983,18 +5261,21 @@ html:not(.light) .mewmo-md { color: var(--ink); }
   transition: background 0.14s, color 0.14s, border-color 0.14s, opacity 0.14s;
 }
 
-.mewmo-chat-input__insight:hover:not(:disabled) {
+.mewmo-chat-input__insight:hover:not(:disabled),
+.mewmo-chat-input__thinking:hover:not(:disabled) {
   background: var(--hover);
   color: var(--ink);
 }
 
-.mewmo-chat-input__insight--active {
+.mewmo-chat-input__insight--active,
+.mewmo-chat-input__thinking--active {
   border-color: color-mix(in srgb, var(--accent) 34%, var(--line));
   background: var(--accent-2);
   color: var(--ink);
 }
 
-.mewmo-chat-input__insight:disabled {
+.mewmo-chat-input__insight:disabled,
+.mewmo-chat-input__thinking:disabled {
   cursor: default;
   opacity: 0.4;
 }
@@ -5002,11 +5283,17 @@ html:not(.light) .mewmo-md { color: var(--ink); }
 .mewmo-chat-input__send {
   background: var(--accent);
   color: var(--accent-ink);
-  opacity: 0.85;
+  opacity: 0.55;
+}
+
+/* Ready-to-send state: full-strength accent with a soft glow. */
+.mewmo-chat-input__send:not(:disabled) {
+  opacity: 1;
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--accent) 28%, transparent);
 }
 
 .mewmo-chat-input__send:hover:not(:disabled) {
-  opacity: 1;
+  box-shadow: 0 3px 14px color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
 .mewmo-chat-input__upload:disabled,
@@ -7431,5 +7718,142 @@ html.light .acct-submenu {
   .mewmo-account-settings-loading {
     width: calc(100% - 28px);
     padding-top: 80px;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Agent conversation polish (message action bars + loading transitions)
+ * ------------------------------------------------------------------------- */
+
+/* Message groups keep the bubble + its hover action bar aligned as one unit. */
+.mewmo-message-group {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mewmo-message-group--user {
+  align-items: flex-end;
+}
+
+.mewmo-message-group--assistant {
+  align-items: flex-start;
+}
+
+.mewmo-message-group--user .mewmo-ai-message--user,
+.mewmo-message-group--assistant .mewmo-ai-message--assistant {
+  align-self: auto;
+}
+
+/* Hover action bar: space is reserved so revealing it never shifts layout. */
+.mewmo-message-actions {
+  display: flex;
+  min-height: 22px;
+  align-items: center;
+  gap: 2px;
+  padding: 0 2px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.mewmo-message-group:hover .mewmo-message-actions,
+.mewmo-message-actions:focus-within,
+.mewmo-message-actions--visible {
+  opacity: 1;
+}
+
+/* Touch devices have no hover: keep the actions visible. */
+@media (hover: none) {
+  .mewmo-message-actions {
+    opacity: 1;
+  }
+}
+
+.mewmo-message-actions__button {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.mewmo-message-actions__button:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+/* Client-side stop marker on a partially streamed reply. */
+.mewmo-transcript-stopped {
+  color: var(--ink-faint);
+  font-size: 10.5px;
+}
+
+/* Stop button replaces send while a reply is streaming. */
+.mewmo-chat-input__send--stop {
+  opacity: 1;
+}
+
+.mewmo-chat-input__stop-icon {
+  display: block;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+/* Transcript loading skeleton: reuses the shared .mewmo-skeleton-block sweep. */
+.mewmo-transcript-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 4px;
+  animation: mewmo-agent-fade-in 0.2s ease;
+}
+
+.mewmo-transcript-skeleton__bubble {
+  width: 46%;
+  height: 30px;
+  align-self: flex-end;
+  border-top-right-radius: 4px;
+  margin-top: 6px;
+}
+
+.mewmo-transcript-skeleton__line {
+  width: 78%;
+  height: 12px;
+}
+
+.mewmo-transcript-skeleton__line--short {
+  width: 52%;
+}
+
+/* Soft entrance for the agent panel and each transcript row. */
+.mewmo-agent-panel {
+  animation: mewmo-agent-fade-in 0.18s ease;
+}
+
+.mewmo-transcript-row {
+  animation: mewmo-agent-fade-in 0.22s ease;
+}
+
+@keyframes mewmo-agent-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mewmo-agent-panel,
+  .mewmo-agent-home--empty .mewmo-agent-panel,
+  .mewmo-agent-home__hero,
+  .mewmo-transcript__welcome,
+  .mewmo-transcript-row,
+  .mewmo-transcript-skeleton {
+    animation: none;
   }
 }

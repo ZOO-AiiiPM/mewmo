@@ -15,3 +15,5 @@ if (proxy) {
   const { setGlobalDispatcher, EnvHttpProxyAgent } = await import("undici");
   setGlobalDispatcher(new EnvHttpProxyAgent());
 }
+
+export {};

@@ -8,3 +8,40 @@
 - **会话与流式已迁入 Pi**：`AiSessionEntry` 是 Session Tree 真源，`AiTurn` 提供 lease、崩溃恢复和 `clientRequestId` 幂等；Agent SSE 只暴露带 `chatId`、`turnId`、递增 `seq` 的稳定产品事件，thinking、原始工具参数和结果留在服务端，避免内部推理与领域数据泄漏。`ai_chats`/Web DTO 是产品投影，不应重新作为 Harness 会话真源。
 - **Memory 与凭据尚未完成**：当前只有会话 Session、compaction、页面上下文和通过 Tool 读取知识库；没有独立长期 Memory、语义记忆召回或专用向量数据库。`packages/ai` 类型预留 Pi `CredentialStore`，但生产仍使用服务端环境变量 API key，尚未接通用户 OAuth、BYOK 管理或 token refresh。
 - **Usage 不等于 Langfuse**：`AiUsageEvent` 已记录 Agent/Workflow 的 token、cache、reasoning、provider/model 与可验证成本；Langfuse 目前只用于 `apps/ai-workflows/evals/live.ts` 的 `eval:live`，Production Runtime tracing 与告警尚未接入。
+
+## Scenario: replace a chat turn and opt into Deep Thinking
+
+### 1. Scope / Trigger
+
+Editing or regenerating a persisted Mew turn replaces that turn and its suffix. Deep Thinking is an independent per-turn option and must not select the `deep-insight` Skill.
+
+### 2. Signatures
+
+- `POST /api/agent/chats/{chatId}/truncate` with `{ turnId: string }`.
+- `truncateFromTurn(userId, chatId, turnId)` returns `{ count: number }`.
+- Web and Agent message requests may carry `thinking?: boolean` independently of `skillId?: string`.
+
+### 3. Contracts
+
+A successful truncate atomically deletes `AiSessionEntry` rows from the target `entrySeq`, deletes the matching `AiTurn` suffix, and rolls `activeLeafId` back to the last surviving entry or leaf target. The replacement stream starts only after this succeeds. `thinking: true` maps to runtime thinking level `medium`; omission maps to `off` regardless of Skill.
+
+### 4. Validation & Error Matrix
+
+- Missing session -> HTTP 401.
+- Empty or invalid `turnId` -> HTTP 400.
+- Foreign or missing chat/turn -> HTTP 404 and no mutation.
+- Truncate network/non-OK failure -> keep local transcript and draft; do not append.
+
+### 5. Good/Base/Bad Cases
+
+- Good: truncate an owned early turn, rebuild from the surviving leaf, then send the replacement.
+- Base: send without `thinking`; runtime uses `off` and existing Skill behavior is unchanged.
+- Bad: append replacement content after a failed truncate, or infer thinking from `deep-insight`.
+
+### 6. Tests Required
+
+Cover ownership, missing targets, transaction suffix deletion, leaf rollback, local fail-closed behavior, request-field propagation, and independent runtime thinking selection. Stop/send pointer tests must also protect the draft from the button swap.
+
+### 7. Wrong vs Correct
+
+Wrong: catch truncate failure and call the normal append path. Correct: return `false`, keep the draft/transcript recoverable, and start `performSend` without awaiting the full stream only after persistence truncation succeeds.

@@ -45,9 +45,12 @@ interface AiChatsClient {
     updateMany(args: unknown): Promise<unknown>;
   };
   aiSessionEntry: {
+    findFirst(args: unknown): Promise<unknown>;
+    findMany(args: unknown): Promise<unknown>;
     deleteMany(args: unknown): Promise<unknown>;
   };
   aiTurn: {
+    findFirst(args: unknown): Promise<unknown>;
     deleteMany(args: unknown): Promise<unknown>;
   };
   aiContextAttachment: {
@@ -97,7 +100,7 @@ export function createAiChatsRepository(client: unknown = getPrisma()) {
     },
 
     async findByUserId(userId: string) {
-      return db.aiChat.findMany({
+      const chats = await db.aiChat.findMany({
         where: activeByUser(userId),
         orderBy: { updatedAt: "desc" },
         select: {
@@ -114,8 +117,24 @@ export function createAiChatsRepository(client: unknown = getPrisma()) {
               messages: { where: { deletedAt: null } },
             },
           },
+          // A few leading messages so the client can show a preview title for
+          // chats still carrying the default name (auto-naming only fixes the
+          // chat open during a session, not historical rows in the list).
+          sessionEntries: {
+            where: { type: "message" },
+            orderBy: { entrySeq: "asc" },
+            take: 4,
+            select: { payload: true },
+          },
+          messages: {
+            where: { deletedAt: null },
+            orderBy: { createdAt: "asc" },
+            take: 4,
+            select: { role: true, content: true },
+          },
         },
       });
+      return Array.isArray(chats) ? chats.map(attachChatPreview) : chats;
     },
 
     async findById(userId: string, id: string) {
@@ -158,6 +177,53 @@ export function createAiChatsRepository(client: unknown = getPrisma()) {
           messageId,
           ...input,
         },
+      });
+    },
+
+    /**
+     * Edit/regenerate fork semantics: drop the given turn and everything after
+     * it. Entries append linearly (entrySeq), so deleting the suffix and
+     * rolling activeLeafId back to the last surviving entry makes the next
+     * model call rebuild its context without the truncated turns.
+     */
+    truncateFromTurn(userId: string, chatId: string, turnId: string) {
+      return db.$transaction(async (transaction) => {
+        const turn = await transaction.aiTurn.findFirst({
+          where: { id: turnId, chatId, userId },
+          select: { userEntryId: true },
+        }) as { userEntryId?: string | null } | null;
+        if (!turn?.userEntryId) return { count: 0 };
+        const cutEntry = await transaction.aiSessionEntry.findFirst({
+          where: { chatId, entryId: turn.userEntryId },
+          select: { entrySeq: true },
+        }) as { entrySeq?: number } | null;
+        if (typeof cutEntry?.entrySeq !== "number") return { count: 0 };
+
+        const owned = await transaction.aiChat.updateMany({
+          where: { id: chatId, ...activeByUser(userId) },
+          data: { version: { increment: 1 } },
+        }) as { count?: number };
+        if (!owned.count) return owned;
+
+        const suffixEntries = await transaction.aiSessionEntry.findMany({
+          where: { chatId, entrySeq: { gte: cutEntry.entrySeq } },
+          select: { entryId: true },
+        }) as Array<{ entryId: string }>;
+        const suffixEntryIds = suffixEntries.map((entry) => entry.entryId);
+        await transaction.aiSessionEntry.deleteMany({ where: { chatId, entrySeq: { gte: cutEntry.entrySeq } } });
+        await transaction.aiTurn.deleteMany({ where: { chatId, userId, userEntryId: { in: suffixEntryIds } } });
+
+        const lastEntry = await transaction.aiSessionEntry.findFirst({
+          where: { chatId },
+          orderBy: { entrySeq: "desc" },
+          select: { entryId: true, type: true, payload: true },
+        }) as { entryId?: string; type?: string; payload?: unknown } | null;
+        // Mirror appendEntry's leaf rule: a "leaf" entry points at its target.
+        const activeLeafId = lastEntry
+          ? (lastEntry.type === "leaf" ? leafTargetId(lastEntry.payload) : lastEntry.entryId ?? null)
+          : null;
+        await transaction.aiChat.updateMany({ where: { id: chatId }, data: { activeLeafId } });
+        return owned;
       });
     },
 
@@ -230,6 +296,11 @@ function projectSessionMessages(value: unknown): unknown {
   return { ...chat, messages };
 }
 
+function leafTargetId(payload: unknown): string | null {
+  if (isRecord(payload) && typeof payload.targetId === "string") return payload.targetId;
+  return null;
+}
+
 function messageText(content: unknown) {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return "";
@@ -238,6 +309,42 @@ function messageText(content: unknown) {
     .filter((part) => part.type === "text" && typeof part.text === "string")
     .map((part) => part.text)
     .join("");
+}
+
+/** Cap for the raw preview text sent to the client; it truncates again for display. */
+const CHAT_PREVIEW_MAX_LENGTH = 120;
+
+/**
+ * Strip the leading-message relations off a list row and fold them into a
+ * single `preview` string: the first user message text (hidden context
+ * removed). New-protocol session entries win; legacy aiMessage rows are the
+ * fallback. Returns the row unchanged when no user text exists.
+ */
+function attachChatPreview(value: unknown): unknown {
+  if (!isRecord(value)) return value;
+  const { sessionEntries, messages, ...rest } = value;
+  const preview = firstUserMessagePreview(sessionEntries, messages);
+  return preview ? { ...rest, preview } : rest;
+}
+
+function firstUserMessagePreview(sessionEntries: unknown, messages: unknown): string | null {
+  if (Array.isArray(sessionEntries)) {
+    for (const entry of sessionEntries) {
+      if (!isRecord(entry) || !isRecord(entry.payload) || !isRecord(entry.payload.message)) continue;
+      const message = entry.payload.message;
+      if (message.role !== "user") continue;
+      const text = visibleAgentUserContent(messageText(message.content)).trim();
+      if (text) return text.slice(0, CHAT_PREVIEW_MAX_LENGTH);
+    }
+  }
+  if (Array.isArray(messages)) {
+    for (const message of messages) {
+      if (!isRecord(message) || message.role !== "user" || typeof message.content !== "string") continue;
+      const text = visibleAgentUserContent(message.content).trim();
+      if (text) return text.slice(0, CHAT_PREVIEW_MAX_LENGTH);
+    }
+  }
+  return null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

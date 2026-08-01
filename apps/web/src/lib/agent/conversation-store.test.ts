@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AgentActionProposal } from "../agent-contract";
-import { replaceTranscriptProposals, upsertTranscriptRow } from "./conversation-store";
+import { replaceTranscriptProposals, truncatePersistedConversation, truncateTranscriptRows, upsertTranscriptRow } from "./conversation-store";
 import type { TranscriptRow } from "./types";
 
 const row = (turnId: string, status: TranscriptRow["status"]): TranscriptRow => ({
@@ -34,6 +34,34 @@ describe("conversation row reconciliation", () => {
 
     expect(rows[0]?.proposals).toEqual([current]);
     expect(rows[0]?.assistant).toEqual([{ kind: "confirmation", proposal: current }]);
+  });
+});
+
+describe("conversation replacement", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("removes the target turn and its local suffix", () => {
+    expect(truncateTranscriptRows([row("turn-1", "completed"), row("turn-2", "completed"), row("turn-3", "completed")], "turn-2"))
+      .toEqual([row("turn-1", "completed")]);
+  });
+
+  it("leaves local history untouched when the target is absent", () => {
+    const rows = [row("turn-1", "completed")];
+    expect(truncateTranscriptRows(rows, "missing")).toBe(rows);
+  });
+
+  it("fails closed on non-OK and network truncate failures", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: false })
+      .mockRejectedValueOnce(new Error("offline"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(truncatePersistedConversation("chat/1", "turn-2")).resolves.toBe(false);
+    await expect(truncatePersistedConversation("chat/1", "turn-2")).resolves.toBe(false);
+    expect(fetchMock).toHaveBeenCalledWith("/api/agent/chats/chat%2F1/truncate", expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({ turnId: "turn-2" }),
+    }));
   });
 });
 

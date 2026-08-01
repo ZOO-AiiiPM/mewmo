@@ -1,0 +1,6 @@
+{"file":".trellis/tasks/07-31-mew-chat-interaction-fixes/prd.md","reason":"Authoritative ZOO-84 requirements, scope and acceptance criteria."}
+{"file":".trellis/tasks/07-31-mew-chat-interaction-fixes/design.md","reason":"Cross-layer contracts for stop, replace, Deep Thinking, Deep Insight and rollback."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"A2 and A3 cross UI, API, persistence and runtime boundaries."}
+{"file":".trellis/spec/web/frontend/index.md","reason":"Web frontend guideline index for affected shared input and transcript UI."}
+{"file":".trellis/spec/web/backend/index.md","reason":"Web route guideline index for truncate and message/stream contracts."}
+{"file":".trellis/spec/db/backend/index.md","reason":"Persistence guideline index for transactional conversation truncation."}

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { DEFAULT_CHAT_TITLE, deriveChatTitle } from "./chat-display";
 import { useConversationStore, type ConversationStore } from "./conversation-store";
 import type { ChatSummary } from "./types";
 
@@ -77,6 +78,43 @@ export function useAgentChats(options?: AgentChatsOptions): AgentChats {
     })();
     return () => { cancelled = true; };
   }, [createChat, startFresh]);
+
+  // Auto-naming (R4): when the active chat's transcript first goes from 0 to
+  // >0 stable rows and its title is still the default "新会话", rename it to
+  // the first user message truncated to 24 chars. Silent on failure — this
+  // must never surface an error banner or lock the UI.
+  const autoTitleRef = useRef<{ chatId: string | null; rowCount: number }>({ chatId: null, rowCount: 0 });
+  const autoRenamedRef = useRef(new Set<string>());
+  const chatsRef = useRef(chats);
+  chatsRef.current = chats;
+
+  useEffect(() => {
+    const chatId = activeChatIdRef.current;
+    const rows = store.stableRows;
+    const previous = autoTitleRef.current;
+    autoTitleRef.current = { chatId, rowCount: rows.length };
+    if (!chatId || previous.chatId !== chatId) return;
+    if (previous.rowCount !== 0 || rows.length === 0) return;
+    if (autoRenamedRef.current.has(chatId)) return;
+    const chat = chatsRef.current.find((item) => item.id === chatId);
+    if (!chat || chat.title !== DEFAULT_CHAT_TITLE) return;
+    const title = deriveChatTitle(rows[0]?.userContent ?? "");
+    if (!title || title === chat.title) return;
+    autoRenamedRef.current.add(chatId);
+    void (async () => {
+      try {
+        const response = await fetch(`/api/agent/chats/${encodeURIComponent(chatId)}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title }),
+        });
+        if (!response.ok) return;
+        setChats((current) => current.map((item) => (item.id === chatId ? { ...item, title } : item)));
+      } catch {
+        // Silent: auto-naming is best-effort only.
+      }
+    })();
+  }, [store.stableRows]);
 
   const newChat = useCallback(async () => {
     setPendingChatId("new");

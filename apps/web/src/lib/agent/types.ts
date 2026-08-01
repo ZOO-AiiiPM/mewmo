@@ -102,13 +102,25 @@ export type AssistantBlock =
 
 export type TranscriptRowStatus = "streaming" | "completed" | "failed";
 
+/**
+ * #6: context chip shown on the user message when the message was sent with
+ * a page context attached (note / clip / feed entry).
+ */
+export interface TranscriptContextChip {
+  kind: string;
+  title: string;
+}
+
 export interface TranscriptRow {
   turnId: string;
   userContent: string;
   assistant: AssistantBlock[];
   status: TranscriptRowStatus;
   proposals: AgentActionProposal[];
+  contextChip?: TranscriptContextChip;
   error?: { message: string; retryable: boolean };
+  /** True when the user stopped generation client-side (reply may be partial). */
+  stopped?: boolean;
   createdAt?: string;
 }
 
@@ -121,8 +133,10 @@ export interface ChatSummary {
   title: string;
   createdAt?: string;
   updatedAt?: string;
-  /** Total persisted messages; lets the UI reuse an untouched chat instead of stacking empties. */
+  /** Total persisted messages; lets the UI reuse an untouched chat and hide never-used chats. */
   messageCount?: number;
+  /** First user message text; fallback list title when title is still the default. */
+  preview?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -137,6 +151,8 @@ export interface PersistedMessage {
   status?: string;
   createdAt?: string;
   metadata?: { proposals?: AgentActionProposal[] };
+  /** Persisted context attachments (targetType + title) captured at send time. */
+  contextAttachments?: Array<{ targetType: string; title: string }>;
   error?: { message: string; retryable: boolean };
 }
 

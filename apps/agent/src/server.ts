@@ -13,6 +13,7 @@ import {
   confirmActionBodySchema,
   sendMessageBodySchema,
   type AgentActionProposal,
+  type AgentActionView,
   type AgentMessageResponse,
 } from "./contracts";
 import { AgentError, errorBody, toAgentError } from "./errors";
@@ -102,10 +103,16 @@ export function buildAgentServer(dependencies: AgentServerDependencies): Fastify
     }
   });
 
-  app.post<{ Params: { id: string } }>("/v1/actions/:id/confirm", async (request) => ({ action: await dependencies.application.actions.confirm({ actor: request.agentActor, actionId: request.params.id, executionMode: confirmActionBodySchema.parse(request.body).executionMode }) }));
+  app.post<{ Params: { id: string } }>("/v1/actions/:id/confirm", async (request) => {
+    const action = await dependencies.application.actions.confirm({ actor: request.agentActor, actionId: request.params.id, executionMode: confirmActionBodySchema.parse(request.body).executionMode });
+    return { action, ...(action.status === "succeeded" ? { resultMessage: actionResultMessage(action) } : {}) };
+  });
   app.get<{ Params: { id: string } }>("/v1/actions/:id", async (request) => ({ action: await dependencies.application.actions.get({ actor: request.agentActor, actionId: request.params.id }) }));
   app.post<{ Params: { id: string } }>("/v1/actions/:id/cancel", async (request) => ({ action: await dependencies.application.actions.cancel({ actor: request.agentActor, actionId: request.params.id }) }));
-  app.post<{ Params: { id: string } }>("/v1/actions/:id/retry", async (request) => ({ action: await dependencies.application.actions.retry({ actor: request.agentActor, actionId: request.params.id, executionMode: confirmActionBodySchema.parse(request.body).executionMode }) }));
+  app.post<{ Params: { id: string } }>("/v1/actions/:id/retry", async (request) => {
+    const action = await dependencies.application.actions.retry({ actor: request.agentActor, actionId: request.params.id, executionMode: confirmActionBodySchema.parse(request.body).executionMode });
+    return { action, ...(action.status === "succeeded" ? { resultMessage: actionResultMessage(action) } : {}) };
+  });
   app.post<{ Params: { id: string } }>("/v1/actions/:id/result", async (request) => ({ action: await dependencies.application.actions.reportResult({ actor: request.agentActor, actionId: request.params.id, ...actionResultBodySchema.parse(request.body) }) }));
 
   app.setErrorHandler((unknownError, request, reply) => {
@@ -219,6 +226,34 @@ const actionTitles: Partial<Record<string, string>> = {
   knowledge_item_move: "确认移动知识条目",
   knowledge_item_remove: "确认移除知识条目",
 };
+
+const actionCompletedLabels: Record<string, string> = {
+  note_create: "已创建笔记",
+  note_update: "已更新笔记",
+  note_move: "已移动笔记",
+  note_move_to_trash: "已移入废纸篓",
+  note_restore: "已恢复笔记",
+  knowledge_base_create: "已创建知识库",
+  knowledge_base_rename: "已重命名知识库",
+  knowledge_item_move: "已移动知识条目",
+  knowledge_item_remove: "已移除知识条目",
+};
+
+/**
+ * Generates a brief confirmation message summarizing the completed action.
+ * This allows the frontend to show an immediate result confirmation in the
+ * conversation after a server-side action executes successfully.
+ */
+export function actionResultMessage(action: AgentActionView): string {
+  const label = actionCompletedLabels[action.toolName] ?? "操作已完成";
+  const preview = isRecord(action.preview) ? action.preview : {};
+  const title = typeof preview.title === "string" && preview.title.trim() ? preview.title.trim() : "";
+  const summary = typeof preview.summary === "string" && preview.summary.trim() ? preview.summary.trim() : "";
+  const parts = [label];
+  if (title) parts.push(`「${title}」`);
+  if (summary) parts.push(`— ${summary}`);
+  return parts.join("");
+}
 
 function toolLabel(toolName: string, state: "started" | "completed" | "failed") {
   const active = toolLabels[toolName] ?? "正在处理请求";

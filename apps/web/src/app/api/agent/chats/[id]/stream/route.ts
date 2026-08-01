@@ -19,6 +19,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       clientRequestId: parsed.data.clientRequestId,
       content: parsed.data.content,
       skillId: parsed.data.skillId,
+      thinking: parsed.data.thinking,
       context: context ? { targetType: context.resource.type, targetId: context.resource.id, ...(context.draft ? { draft: context.draft } : {}) } : null,
     }),
   }));

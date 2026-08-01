@@ -8,6 +8,7 @@
  * - deduplication by (turnId, seq)
  * - optimistic user message + pending assistant
  * - failure/retry in-place
+ * - user-initiated stop (client-side stream abort; see stop())
  */
 
 "use client";
@@ -30,6 +31,7 @@ import type {
   ConversationEvent,
   LegacyStreamEvent,
   PersistedChat,
+  TranscriptContextChip,
   TranscriptRow,
 } from "./types";
 
@@ -53,6 +55,7 @@ export interface FailedRequest {
 export interface SendOptions {
   content: string;
   skillId?: string;
+  thinking?: boolean;
   context?: {
     resource: { type: string; id: string; title?: string };
     draft?: unknown;
@@ -60,8 +63,21 @@ export interface SendOptions {
 }
 
 export interface ConversationStore extends ConversationStoreState {
-  send: (options: SendOptions) => void;
+  send: (options: SendOptions) => boolean;
+  /**
+   * Edit/regenerate fork semantics: truncate the chat from `turnId` (that turn
+   * and everything after it) before sending, so the new message replaces the
+   * original instead of appending. Fails closed when persistence cannot be
+   * truncated, leaving the local transcript untouched.
+   */
+  sendReplacing: (turnId: string, options: SendOptions) => Promise<boolean>;
   retry: () => void;
+  /**
+   * Stop the current streaming turn client-side. The server has no turn-abort
+   * endpoint, so generation continues remotely and the persisted reply may be
+   * longer than what stays on screen; the local row is committed as stopped.
+   */
+  stop: () => void;
   reload: () => void;
   updateProposal: (proposal: AgentActionProposal) => void;
 }
@@ -79,6 +95,7 @@ export function useConversationStore(chatId: string | null): ConversationStore {
 
   const liveTurnRef = useRef<LiveTurnState | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const stopRequestedRef = useRef(false);
   const generationRef = useRef(0);
   const chatIdRef = useRef(chatId);
   chatIdRef.current = chatId;
@@ -117,6 +134,7 @@ export function useConversationStore(chatId: string | null): ConversationStore {
   useEffect(() => {
     generationRef.current += 1;
     // Abort any in-flight stream from previous chat
+    stopRequestedRef.current = false;
     abortRef.current?.abort();
     abortRef.current = null;
     liveTurnRef.current = null;
@@ -144,9 +162,13 @@ export function useConversationStore(chatId: string | null): ConversationStore {
     const turnId = `live-${request.clientRequestId}`;
     const controller = new AbortController();
     abortRef.current = controller;
+    stopRequestedRef.current = false;
+
+    // #6: chip shown on the user message when the send carries page context
+    const contextChip = sendContextChip(request.options);
 
     // Create live turn accumulator
-    const liveTurn = createLiveTurn(targetChatId, turnId, request.options.content);
+    const liveTurn = createLiveTurn(targetChatId, turnId, request.options.content, contextChip);
     liveTurnRef.current = liveTurn;
 
     // Set optimistic live row
@@ -156,9 +178,29 @@ export function useConversationStore(chatId: string | null): ConversationStore {
       assistant: [],
       status: "streaming",
       proposals: [],
+      ...(contextChip ? { contextChip } : {}),
     });
     setStatus("sending");
     setFailedRequest(null);
+
+    // User pressed stop: keep whatever streamed so far as a completed row.
+    // The server keeps generating (no turn-abort endpoint); reload() would
+    // reveal the full persisted reply.
+    const commitStoppedRow = () => {
+      stopRequestedRef.current = false;
+      const finalTurn = liveTurnRef.current;
+      const stoppedRow: TranscriptRow = {
+        turnId: finalTurn?.turnId ?? turnId,
+        userContent: request.options.content,
+        assistant: finalTurn?.blocks ?? [],
+        status: "completed",
+        proposals: finalTurn?.proposals ?? [],
+        stopped: true,
+      };
+      commitRow(stoppedRow);
+      setFailedRequest(null);
+      setStatus("idle");
+    };
 
     try {
       const result = await sendAndStream(
@@ -167,6 +209,7 @@ export function useConversationStore(chatId: string | null): ConversationStore {
           clientRequestId: request.clientRequestId,
           content: request.options.content,
           ...(request.options.skillId ? { skillId: request.options.skillId } : {}),
+          ...(request.options.thinking ? { thinking: true } : {}),
           context: request.options.context ?? null,
         },
         {
@@ -192,6 +235,12 @@ export function useConversationStore(chatId: string | null): ConversationStore {
 
       // Guard: ensure we're still on the same chat
       if (chatIdRef.current !== targetChatId || generationRef.current !== generation) return;
+
+      // Stream loop exited because the user stopped generation
+      if (controller.signal.aborted && stopRequestedRef.current) {
+        commitStoppedRow();
+        return;
+      }
 
       const finalTurn = liveTurnRef.current;
       if (!finalTurn) return;
@@ -249,6 +298,7 @@ export function useConversationStore(chatId: string | null): ConversationStore {
           status: "failed",
           proposals: [],
           error: { message: "Agent 未返回完整结果", retryable: true },
+          ...(finalTurn.contextChip ? { contextChip: finalTurn.contextChip } : {}),
         };
         setLiveRow(null);
         commitRow(emptyRow);
@@ -257,7 +307,11 @@ export function useConversationStore(chatId: string | null): ConversationStore {
       }
     } catch (error) {
       if (chatIdRef.current !== targetChatId || generationRef.current !== generation) return;
-      if (controller.signal.aborted) return; // Intentional abort (chat switch)
+      if (controller.signal.aborted) {
+        // User-initiated stop keeps the partial reply; chat-switch aborts stay silent.
+        if (stopRequestedRef.current) commitStoppedRow();
+        return;
+      }
 
       const message = publicErrorMessage(error instanceof Error ? error.message : null);
       const finalTurn = liveTurnRef.current;
@@ -268,6 +322,7 @@ export function useConversationStore(chatId: string | null): ConversationStore {
         status: "failed",
         proposals: [],
         error: { message, retryable: true },
+        ...(contextChip ? { contextChip } : {}),
       };
       setLiveRow(null);
       commitRow(failedRow);
@@ -283,7 +338,7 @@ export function useConversationStore(chatId: string | null): ConversationStore {
 
   const send = useCallback((options: SendOptions) => {
     const content = options.content.trim();
-    if (!content || !chatIdRef.current || status === "sending") return;
+    if (!content || !chatIdRef.current || status === "sending") return false;
     const request: FailedRequest = {
       clientRequestId: crypto.randomUUID(),
       options: { ...options, content },
@@ -291,6 +346,29 @@ export function useConversationStore(chatId: string | null): ConversationStore {
       attempt: 1,
     };
     void performSend(request);
+    return true;
+  }, [performSend, status]);
+
+  const sendReplacing = useCallback(async (turnId: string, options: SendOptions) => {
+    const content = options.content.trim();
+    if (!content || !chatIdRef.current || status === "sending") return false;
+    const targetChatId = chatIdRef.current;
+    setStatus("loading");
+    const truncated = await truncatePersistedConversation(targetChatId, turnId);
+    if (chatIdRef.current !== targetChatId) return false;
+    if (!truncated) {
+      setStatus("failed");
+      return false;
+    }
+    setStableRows((rows) => truncateTranscriptRows(rows, turnId));
+    const request: FailedRequest = {
+      clientRequestId: crypto.randomUUID(),
+      options: { ...options, content },
+      turnId: "",
+      attempt: 1,
+    };
+    void performSend(request);
+    return true;
   }, [performSend, status]);
 
   const retry = useCallback(() => {
@@ -305,7 +383,15 @@ export function useConversationStore(chatId: string | null): ConversationStore {
     void performSend(newRequest);
   }, [failedRequest, performSend]);
 
+  const stop = useCallback(() => {
+    const controller = abortRef.current;
+    if (!controller || controller.signal.aborted) return;
+    stopRequestedRef.current = true;
+    controller.abort();
+  }, []);
+
   const reload = useCallback(() => {
+    stopRequestedRef.current = false;
     abortRef.current?.abort();
     abortRef.current = null;
     liveTurnRef.current = null;
@@ -347,6 +433,7 @@ export function useConversationStore(chatId: string | null): ConversationStore {
       assistant: turn.blocks,
       status: rowStatus,
       proposals: turn.proposals,
+      ...(turn.contextChip ? { contextChip: turn.contextChip } : {}),
     });
   }
 
@@ -363,7 +450,9 @@ export function useConversationStore(chatId: string | null): ConversationStore {
     failedRequest,
     proposals,
     send,
+    sendReplacing,
     retry,
+    stop,
     reload,
     updateProposal,
   };
@@ -372,6 +461,13 @@ export function useConversationStore(chatId: string | null): ConversationStore {
 // ---------------------------------------------------------------------------
 // Utilities
 // ---------------------------------------------------------------------------
+
+/** #6: derive the transcript chip from the context attached to a send. */
+export function sendContextChip(options: SendOptions): TranscriptContextChip | undefined {
+  const resource = options.context?.resource;
+  if (!resource) return undefined;
+  return { kind: resource.type, title: resource.title ?? "" };
+}
 
 function extractProposals(rows: TranscriptRow[]): AgentActionProposal[] {
   const map = new Map<string, AgentActionProposal>();
@@ -419,4 +515,22 @@ export function upsertTranscriptRow(rows: TranscriptRow[], row: TranscriptRow): 
   const index = rows.findIndex((item) => item.turnId === row.turnId);
   if (index === -1) return [...rows, row];
   return [...rows.slice(0, index), row, ...rows.slice(index + 1)];
+}
+
+export function truncateTranscriptRows(rows: TranscriptRow[], turnId: string): TranscriptRow[] {
+  const index = rows.findIndex((row) => row.turnId === turnId);
+  return index === -1 ? rows : rows.slice(0, index);
+}
+
+export async function truncatePersistedConversation(chatId: string, turnId: string): Promise<boolean> {
+  try {
+    const response = await fetch(`/api/agent/chats/${encodeURIComponent(chatId)}/truncate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ turnId }),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
 }

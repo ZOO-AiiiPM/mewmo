@@ -49,12 +49,17 @@ test("chat history strips context snapshots and leaves a pagination contract", (
   assert.match(collection, /pageInfo:\s*\{ nextCursor: null \}/);
   assert.doesNotMatch(collection, /contextAttachments:/);
   assert.match(detail, /pageInfo:\s*\{ nextCursor: null \}/);
-  assert.doesNotMatch(detail, /contextAttachments/);
+  // #6: the detail route may expose only the sanitized chip projection
+  // (targetType + title) — stored snapshot/extract payloads must not leak.
+  assert.match(detail, /sanitizeContextAttachments/);
+  assert.match(detail, /return \[\{ targetType, title \}\];/);
+  assert.doesNotMatch(detail, /contentSnapshot|extractedText/);
 });
 
 test("chat lifecycle commands validate input and preserve ownership boundaries", () => {
   const detail = read("apps/web/src/app/api/agent/chats/[id]/route.ts");
   const clear = read("apps/web/src/app/api/agent/chats/[id]/clear/route.ts");
+  const truncate = read("apps/web/src/app/api/agent/chats/[id]/truncate/route.ts");
   const repository = read("packages/db/src/repositories/ai-chats.ts");
 
   assert.match(detail, /auth\(\)/);
@@ -66,8 +71,40 @@ test("chat lifecycle commands validate input and preserve ownership boundaries",
   assert.match(detail, /status: 404/);
   assert.match(clear, /auth\(\)/);
   assert.match(clear, /clearMessages\(session\.user\.id, id\)/);
+  assert.match(truncate, /auth\(\)/);
+  assert.match(truncate, /truncateFromTurn\(session\.user\.id, id, parsed\.data\.turnId\)/);
+  assert.match(truncate, /status: 404/);
   assert.match(repository, /where: \{ id, \.\.\.activeByUser\(userId\) \}/);
   assert.match(repository, /where: \{ id: chatId, \.\.\.activeByUser\(userId\) \}/);
+});
+
+test("Mew chat interaction contracts keep stop, thinking, insight, and hero behavior distinct", () => {
+  const input = read("apps/web/src/components/agent/ChatInput.tsx");
+  const sidebar = read("apps/web/src/components/agent/AgentSidebar.tsx");
+  const store = read("apps/web/src/lib/agent/conversation-store.ts");
+  const home = read("apps/web/src/app/(app)/mew/page.tsx");
+  const contract = read("apps/web/src/lib/agent-contract.ts");
+  const streamRoute = read("apps/web/src/app/api/agent/chats/[id]/stream/route.ts");
+  const messageRoute = read("apps/web/src/app/api/agent/chats/[id]/messages/route.ts");
+  const runtime = read("apps/agent/src/pi/runtime.ts");
+  const css = read("apps/web/src/app/globals.css");
+
+  assert.match(input, /const disabled = !chatReady \|\| status === "loading";/, "streaming must leave the next draft editable");
+  assert.match(input, /sendGuardUntilRef\.current = Date\.now\(\) \+ STOP_POINTER_GUARD_MS;\s+onStop\(\);/);
+  assert.match(store, /setStableRows\(\(rows\) => truncateTranscriptRows\(rows, turnId\)\);[\s\S]*?void performSend\(request\);\s+return true;/, "replacement must acknowledge stream start without waiting for completion");
+  assert.match(input, /深度思考/);
+  assert.match(input, /\.\.\.\(thinking \? \{ thinking: true \} : \{\}\)/);
+  assert.match(sidebar, /\.\.\.\(options\.thinking \? \{ thinking: true \} : \{\}\)/);
+  assert.match(contract, /thinking: z\.boolean\(\)\.optional\(\)/);
+  assert.match(streamRoute, /thinking: parsed\.data\.thinking/);
+  assert.match(messageRoute, /thinking: parsed\.data\.thinking/);
+  assert.match(runtime, /thinkingLevelForRequest\(context\.request\.thinking\)/);
+
+  assert.match(home, /context=\{null\}/);
+  assert.match(home, /setRequestedSkill\("deep-insight"\)/);
+  assert.match(input, /我工作区的最近内容进行深度洞察/);
+  assert.match(css, /animation: mewmo-fade-rise/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.mewmo-agent-home__hero,[\s\S]*?animation: none;/);
 });
 
 test("chat lifecycle controls lock while an Agent turn is streaming", () => {

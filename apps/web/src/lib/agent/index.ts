@@ -9,3 +9,4 @@ export * from "./tool-display";
 export * from "./transcript-adapter";
 export * from "./stream-client";
 export * from "./conversation-store";
+export * from "./row-actions";
