@@ -28,4 +28,5 @@ This file captures raw observations from this task. Keep evidence and uncertaint
 - 驳回点 2：pipeline 增加 `public let urlCache: URLCache` 持有生产 URLCache；`clearDisk()`/`removeAllCaches()` 同时 `urlCache.removeAllCachedResponses()`。测试用 `storeCachedResponse` seed URLCache 再断言被清空——比 URLProtocol+网络喂 URLCache 更稳（URLProtocol serve URLCache 的生产 DataLoader 组合在 `URLSessionConfiguration.default` 下不拦截 https，会真联网报 TLS -1200；避免）。
 - 驳回点 3：`DataCache(path:)` 创建失败不再 `try?`，显式抛 `ImageCacheSetupError.dataCacheInitializationFailed(path:message:)`（新的 Sendable/Equatable public enum）。失败路径测试：在 dataCache 目录路径放一个普通文件，令 `FileManager.createDirectory` 失败 → 断言抛该分类 error。
 - `ImageCacheSetupError` 关联值存 `String`（path/message）而非 `any Error`，保证 `Sendable`/`Equatable`，便于测试 `guard case` 匹配。
+- LoopbackHTTPServer 两个测试助手防 flaky 点：`stop()` 必须**幂等**——`defer server.stop()` 与 `deinit` 各调一次，重复 `close` 同一 fd 在描述符被复用时会误关无关资源；应在锁内用 `stopped` 标志保证只首次关闭。`writeResponse` 要**循环写直到全部字节写完**（`write` 对长 body 可能短写/部分写），不能假设一次写完。
 - 注意：URLCache 用 sqlite 备份磁盘缓存时，removeItem 整个临时目录会打印 `BUG IN CLIENT OF libsqlite3` 日志——测试绿、非失败；如要根除可在 tearDown 前让 pipeline/URLCache 出作用域。

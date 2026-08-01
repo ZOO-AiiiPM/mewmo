@@ -151,9 +151,21 @@ final class LoopbackHTTPServer: @unchecked Sendable {
 
     deinit { stop() }
 
+    /// 幂等停服：只在第一次调用时关闭 `fd`（`defer stop()` 与 `deinit` 会各调一次，
+    /// 重复 `close` 同一描述符在描述符被复用时会误关无关资源并造成随机 flaky）。
     func stop() {
-        lock.lock(); stopped = true; lock.unlock()
-        close(fd)
+        let shouldClose: Bool
+        lock.lock()
+        if stopped {
+            shouldClose = false
+        } else {
+            stopped = true
+            shouldClose = true
+        }
+        lock.unlock()
+        if shouldClose {
+            close(fd)
+        }
     }
 
     private func acceptLoop() {
@@ -213,8 +225,13 @@ final class LoopbackHTTPServer: @unchecked Sendable {
         head += "Content-Length: \(body.count)\r\nConnection: close\r\n\r\n"
         var out = Data(head.utf8)
         out.append(body)
-        _ = out.withUnsafeBytes { raw in
-            write(client, raw.baseAddress!, raw.count)
+        var total = 0
+        while total < out.count {
+            let written = out.withUnsafeBytes { raw -> Int in
+                write(client, raw.baseAddress!.advanced(by: total), out.count - total)
+            }
+            if written <= 0 { break }   // 连接关闭或错误，无法继续
+            total += written
         }
     }
 
