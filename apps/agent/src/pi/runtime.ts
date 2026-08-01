@@ -90,7 +90,7 @@ export function createAgentRuntime(options: CreateAgentRuntimeOptions): AgentRun
             tools,
             resources: { skills },
             activeToolNames,
-            thinkingLevel: selected?.modelPurpose === "agent.deep_insight" ? "medium" : "off",
+            thinkingLevel: thinkingLevelForRequest(context.request.thinking),
             streamOptions: { timeoutMs: options.timeoutMs, maxRetries: AGENT_PROVIDER_MAX_RETRIES, cacheRetention: "short" },
           });
           let providerTurns = 0;
@@ -164,6 +164,10 @@ export function createAgentRuntime(options: CreateAgentRuntimeOptions): AgentRun
       });
     },
   };
+}
+
+export function thinkingLevelForRequest(thinking: boolean | undefined): "medium" | "off" {
+  return thinking ? "medium" : "off";
 }
 
 const AGENT_PROVIDER_MAX_RETRIES = 2;

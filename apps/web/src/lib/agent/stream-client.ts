@@ -150,6 +150,7 @@ export async function sendAndStream(
     clientRequestId: string;
     content: string;
     skillId?: string;
+    thinking?: boolean;
     context?: { resource: { type: string; id: string; title?: string }; draft?: unknown } | null;
   },
   callbacks: StreamCallbacks,

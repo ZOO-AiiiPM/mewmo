@@ -5244,7 +5244,8 @@ html.light .mewmo-chat-switcher__item--active {
   color: var(--ink);
 }
 
-.mewmo-chat-input__insight {
+.mewmo-chat-input__insight,
+.mewmo-chat-input__thinking {
   display: inline-flex;
   height: 28px;
   flex: none;
@@ -5260,18 +5261,21 @@ html.light .mewmo-chat-switcher__item--active {
   transition: background 0.14s, color 0.14s, border-color 0.14s, opacity 0.14s;
 }
 
-.mewmo-chat-input__insight:hover:not(:disabled) {
+.mewmo-chat-input__insight:hover:not(:disabled),
+.mewmo-chat-input__thinking:hover:not(:disabled) {
   background: var(--hover);
   color: var(--ink);
 }
 
-.mewmo-chat-input__insight--active {
+.mewmo-chat-input__insight--active,
+.mewmo-chat-input__thinking--active {
   border-color: color-mix(in srgb, var(--accent) 34%, var(--line));
   background: var(--accent-2);
   color: var(--ink);
 }
 
-.mewmo-chat-input__insight:disabled {
+.mewmo-chat-input__insight:disabled,
+.mewmo-chat-input__thinking:disabled {
   cursor: default;
   opacity: 0.4;
 }

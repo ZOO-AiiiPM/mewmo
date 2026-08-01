@@ -22,20 +22,21 @@ export function AgentSidebar({ agentChats, context, requestedSkill, showInsight 
   // Edit-and-resend: a new object per request so repeated edits of the same text still refill.
   const [prefill, setPrefill] = useState<{ text: string; turnId?: string } | null>(null);
 
-  const handleSend = useCallback((options: { content: string; skillId?: string; includeContext: boolean; editTurnId?: string }) => {
+  const handleSend = useCallback(async (options: { content: string; skillId?: string; thinking?: boolean; includeContext: boolean; editTurnId?: string }) => {
     const sendOptions = {
       content: options.content,
       ...(options.skillId ? { skillId: options.skillId } : {}),
+      ...(options.thinking ? { thinking: true } : {}),
       context: options.includeContext && context ? { resource: { type: context.kind, id: context.id, title: context.title }, ...(context.kind === "note" ? { draft: context.draft } : {}) } : null,
     };
     // Edited message: replace the original turn (and everything after it).
-    if (options.editTurnId) store.sendReplacing(options.editTurnId, sendOptions);
-    else store.send(sendOptions);
+    if (options.editTurnId) return store.sendReplacing(options.editTurnId, sendOptions);
+    return store.send(sendOptions);
   }, [context, store]);
 
   // Regenerate: truncate the chat from this turn, then re-run the same prompt in place.
   const handleResend = useCallback((row: TranscriptRow) => {
-    store.sendReplacing(row.turnId, { content: row.userContent, context: null });
+    void store.sendReplacing(row.turnId, { content: row.userContent, context: null });
   }, [store]);
 
   // Optimistic rows (`live-` / `failed-`) have no server turn to replace; edit them as a plain refill.

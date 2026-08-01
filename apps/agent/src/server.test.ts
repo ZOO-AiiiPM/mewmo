@@ -43,6 +43,23 @@ describe("Agent HTTP server", () => {
     expect(complete).toHaveBeenCalledWith(expect.objectContaining({ assistantEntryId: "entry-assistant" }));
   });
 
+  it("passes Deep Thinking and Deep Insight independently to the runtime", async () => {
+    const run = vi.fn(async () => ({ text: "ok", proposals: [], citations: [], userEntryId: "entry-user", assistantEntryId: "entry-assistant" }));
+    const app = buildAgentServer({ config, runtime: { run }, application: createApplicationStub() });
+    const token = await signIdentityForTest(TEST_ACTOR, identityOptions());
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/chats/chat-1/messages",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { ...validMessage(), thinking: true, skillId: "deep-insight" },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(run).toHaveBeenCalledWith(expect.objectContaining({
+      request: expect.objectContaining({ thinking: true, skillId: "deep-insight" }),
+    }));
+  });
+
   it("returns a cached idempotent turn without calling the model", async () => {
     const run = vi.fn();
     const cached = completedResponse("cached");

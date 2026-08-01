@@ -8,7 +8,7 @@ import type {
 } from "../observability/port";
 import type { ApplicationPort, SessionEntryRecord } from "../ports";
 import { TEST_ACTOR, createApplicationStub } from "../testing";
-import { assertAgentResponseSucceeded, assertSafeToolConfiguration, createAgentRuntime, currentDateTimeInstruction, pageContextInstruction } from "./runtime";
+import { assertAgentResponseSucceeded, assertSafeToolConfiguration, createAgentRuntime, currentDateTimeInstruction, pageContextInstruction, thinkingLevelForRequest } from "./runtime";
 
 describe("currentDateTimeInstruction", () => {
   it("includes the current date formatted in Asia/Shanghai timezone", () => {
@@ -32,6 +32,14 @@ describe("pageContextInstruction", () => {
     expect(pageContextInstruction({ targetType: "note", targetId: "note-1", draft: { content: "draft" } }))
       .toContain('{"kind":"mewmo_page_context","targetType":"note","targetId":"note-1","hasUnsavedDraft":true}');
     expect(pageContextInstruction(null)).not.toContain("用户请求：");
+  });
+});
+
+describe("thinkingLevelForRequest", () => {
+  it("enables thinking only for the independent per-turn option", () => {
+    expect(thinkingLevelForRequest(true)).toBe("medium");
+    expect(thinkingLevelForRequest(false)).toBe("off");
+    expect(thinkingLevelForRequest(undefined)).toBe("off");
   });
 });
 

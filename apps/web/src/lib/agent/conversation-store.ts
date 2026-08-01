@@ -55,6 +55,7 @@ export interface FailedRequest {
 export interface SendOptions {
   content: string;
   skillId?: string;
+  thinking?: boolean;
   context?: {
     resource: { type: string; id: string; title?: string };
     draft?: unknown;
@@ -62,14 +63,14 @@ export interface SendOptions {
 }
 
 export interface ConversationStore extends ConversationStoreState {
-  send: (options: SendOptions) => void;
+  send: (options: SendOptions) => boolean;
   /**
    * Edit/regenerate fork semantics: truncate the chat from `turnId` (that turn
    * and everything after it) before sending, so the new message replaces the
-   * original instead of appending. Falls back to a plain append when the
-   * truncate call fails, so the send is never blocked.
+   * original instead of appending. Fails closed when persistence cannot be
+   * truncated, leaving the local transcript untouched.
    */
-  sendReplacing: (turnId: string, options: SendOptions) => void;
+  sendReplacing: (turnId: string, options: SendOptions) => Promise<boolean>;
   retry: () => void;
   /**
    * Stop the current streaming turn client-side. The server has no turn-abort
@@ -208,6 +209,7 @@ export function useConversationStore(chatId: string | null): ConversationStore {
           clientRequestId: request.clientRequestId,
           content: request.options.content,
           ...(request.options.skillId ? { skillId: request.options.skillId } : {}),
+          ...(request.options.thinking ? { thinking: true } : {}),
           context: request.options.context ?? null,
         },
         {
@@ -336,7 +338,7 @@ export function useConversationStore(chatId: string | null): ConversationStore {
 
   const send = useCallback((options: SendOptions) => {
     const content = options.content.trim();
-    if (!content || !chatIdRef.current || status === "sending") return;
+    if (!content || !chatIdRef.current || status === "sending") return false;
     const request: FailedRequest = {
       clientRequestId: crypto.randomUUID(),
       options: { ...options, content },
@@ -344,34 +346,29 @@ export function useConversationStore(chatId: string | null): ConversationStore {
       attempt: 1,
     };
     void performSend(request);
+    return true;
   }, [performSend, status]);
 
-  const sendReplacing = useCallback((turnId: string, options: SendOptions) => {
+  const sendReplacing = useCallback(async (turnId: string, options: SendOptions) => {
     const content = options.content.trim();
-    if (!content || !chatIdRef.current || status === "sending") return;
+    if (!content || !chatIdRef.current || status === "sending") return false;
     const targetChatId = chatIdRef.current;
-    void (async () => {
-      // Truncate failures degrade gracefully: the resend just appends instead.
-      const truncated = await fetch(`/api/agent/chats/${encodeURIComponent(targetChatId)}/truncate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ turnId }),
-      }).then((response) => response.ok, () => false);
-      if (chatIdRef.current !== targetChatId) return;
-      if (truncated) {
-        setStableRows((rows) => {
-          const index = rows.findIndex((row) => row.turnId === turnId);
-          return index === -1 ? rows : rows.slice(0, index);
-        });
-      }
-      const request: FailedRequest = {
-        clientRequestId: crypto.randomUUID(),
-        options: { ...options, content },
-        turnId: "",
-        attempt: 1,
-      };
-      await performSend(request);
-    })();
+    setStatus("loading");
+    const truncated = await truncatePersistedConversation(targetChatId, turnId);
+    if (chatIdRef.current !== targetChatId) return false;
+    if (!truncated) {
+      setStatus("failed");
+      return false;
+    }
+    setStableRows((rows) => truncateTranscriptRows(rows, turnId));
+    const request: FailedRequest = {
+      clientRequestId: crypto.randomUUID(),
+      options: { ...options, content },
+      turnId: "",
+      attempt: 1,
+    };
+    void performSend(request);
+    return true;
   }, [performSend, status]);
 
   const retry = useCallback(() => {
@@ -518,4 +515,22 @@ export function upsertTranscriptRow(rows: TranscriptRow[], row: TranscriptRow): 
   const index = rows.findIndex((item) => item.turnId === row.turnId);
   if (index === -1) return [...rows, row];
   return [...rows.slice(0, index), row, ...rows.slice(index + 1)];
+}
+
+export function truncateTranscriptRows(rows: TranscriptRow[], turnId: string): TranscriptRow[] {
+  const index = rows.findIndex((row) => row.turnId === turnId);
+  return index === -1 ? rows : rows.slice(0, index);
+}
+
+export async function truncatePersistedConversation(chatId: string, turnId: string): Promise<boolean> {
+  try {
+    const response = await fetch(`/api/agent/chats/${encodeURIComponent(chatId)}/truncate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ turnId }),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
 }

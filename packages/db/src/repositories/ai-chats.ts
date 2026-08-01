@@ -46,6 +46,7 @@ interface AiChatsClient {
   };
   aiSessionEntry: {
     findFirst(args: unknown): Promise<unknown>;
+    findMany(args: unknown): Promise<unknown>;
     deleteMany(args: unknown): Promise<unknown>;
   };
   aiTurn: {
@@ -189,9 +190,9 @@ export function createAiChatsRepository(client: unknown = getPrisma()) {
       return db.$transaction(async (transaction) => {
         const turn = await transaction.aiTurn.findFirst({
           where: { id: turnId, chatId, userId },
-          select: { userEntryId: true, createdAt: true },
-        }) as { userEntryId?: string | null; createdAt?: Date } | null;
-        if (!turn?.userEntryId || !turn.createdAt) return { count: 0 };
+          select: { userEntryId: true },
+        }) as { userEntryId?: string | null } | null;
+        if (!turn?.userEntryId) return { count: 0 };
         const cutEntry = await transaction.aiSessionEntry.findFirst({
           where: { chatId, entryId: turn.userEntryId },
           select: { entrySeq: true },
@@ -204,8 +205,13 @@ export function createAiChatsRepository(client: unknown = getPrisma()) {
         }) as { count?: number };
         if (!owned.count) return owned;
 
+        const suffixEntries = await transaction.aiSessionEntry.findMany({
+          where: { chatId, entrySeq: { gte: cutEntry.entrySeq } },
+          select: { entryId: true },
+        }) as Array<{ entryId: string }>;
+        const suffixEntryIds = suffixEntries.map((entry) => entry.entryId);
         await transaction.aiSessionEntry.deleteMany({ where: { chatId, entrySeq: { gte: cutEntry.entrySeq } } });
-        await transaction.aiTurn.deleteMany({ where: { chatId, userId, createdAt: { gte: turn.createdAt } } });
+        await transaction.aiTurn.deleteMany({ where: { chatId, userId, userEntryId: { in: suffixEntryIds } } });
 
         const lastEntry = await transaction.aiSessionEntry.findFirst({
           where: { chatId },
