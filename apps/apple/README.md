@@ -83,12 +83,6 @@ make verify
 make clean
 ```
 
-### 清理构建产物
-
-```bash
-make clean
-```
-
 ## 验收对照
 
 - `xcodegen generate` 可重复执行 → `make verify` 内含 `verify-idempotent`：连跑两次并逐文件 diff，漂移即失败；常规文件（如 `project.pbxproj`）重生成逐字节一致。

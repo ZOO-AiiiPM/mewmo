@@ -50,21 +50,23 @@ build-all: build-macos build-ios-iphone build-ios-ipad
 
 ## 生成幂等性：连跑两次 xcodegen，逐文件（内容 + 文件名集合）比对，
 ## 任何漂移（diff 非空）即非零退出。空的 SwiftPM 副作用目录不算漂移。
+## 临时文件/快照每 run 用 mktemp 私有命名，并由 trap 兜底清理：
+## - 并行 worktree/session 互不竞争同一个固定路径；
+## - 异常退出（如 diff 失败）不残留临时目录/文件。
 verify-idempotent: $(PROJECT)
-	@snap1=$$(mktemp -d); snap2=$$(mktemp -d); \
+	@tmp=$$(mktemp -d); trap 'rm -rf "$$tmp"' EXIT; \
+	snap1="$$tmp/gen"; snap2="$$tmp/gen2"; drift="$$tmp/drift.diff"; \
 	rm -rf Mewmo.xcodeproj; \
 	xcodegen generate --quiet; \
 	./scripts/snapshot_project.sh Mewmo.xcodeproj "$$snap1"; \
 	rm -rf Mewmo.xcodeproj; \
 	xcodegen generate --quiet; \
 	./scripts/snapshot_project.sh Mewmo.xcodeproj "$$snap2"; \
-	if diff -r "$$snap1" "$$snap2" >/tmp/mewmo_gen_drift.diff 2>&1; then \
+	if diff -r "$$snap1" "$$snap2" >"$$drift" 2>&1; then \
 		echo "✅ generate idempotent: consecutive outputs identical"; \
 	else \
-		echo "❌ generate DRIFT detected:"; cat /tmp/mewmo_gen_drift.diff; \
-		rm -rf "$$snap1" "$$snap2"; exit 1; \
-	fi; \
-	rm -rf "$$snap1" "$$snap2"
+		echo "❌ generate DRIFT detected:"; cat "$$drift"; exit 1; \
+	fi
 
 ## 完整验收：生成幂等校验 + 三 destination 全绿
 verify: verify-idempotent build-all
