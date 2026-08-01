@@ -7,10 +7,17 @@ client can bundle and consume them directly as test fixtures / decoding examples
 ## Contract
 
 - `contractVersion: 1` — single major version. Same-major requests are backward
-  compatible; unknown fields are ignored; clients newer than the server are rejected.
+  compatible; unknown fields are ignored; clients newer than the server are
+  rejected with `contract_version_unsupported` (HTTP 426). Missing `contractVersion`
+  defaults to 1.
 - Entities: `note`, `clip`, `feed`, `feed_entry`.
 - Operations: `create`, `update`, `delete`, `mark_read`, `mark_unread`.
 - Every syncable record carries `{ id, version, createdAt, updatedAt, deletedAt, userId }`.
+- The pull `cursor`/`nextCursor` is a **composite keyset cursor**
+  (`mewmo-sync-v1:<json>`): one `(updatedAt, id)` position per entity. `id` is the
+  stable tie-breaker so rows sharing an `updatedAt` are never skipped or
+  duplicated across pages. A missing cursor starts a full sync; a legacy plain
+  ISO timestamp resumes every entity from that time.
 
 ## Semantics covered by each fixture
 

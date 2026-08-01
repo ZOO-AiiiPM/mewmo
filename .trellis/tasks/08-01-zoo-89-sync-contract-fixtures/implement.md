@@ -7,9 +7,10 @@
    - 删除分支字段 `/src/indexes.ts` 或并入 `protocol.ts`（按简洁合并）。
    - 将 Zod validators（syncEntity/Operation/Mutation/Pull/Push schema）迁入 sync 包。
 2. **Fixtures（`packages/sync/src/fixtures/*.json`）** — 6-7 个如上 design 表格所列。
-3. **Contract tests（`packages/sync/src/protocol.test.ts`）** — 读 fixtures 断言：
-   - 增量拉取 cursor 过滤、分页 hasMore、tombstone 下沉。
-   - 幂等 create（同 id 不同创建数）、version conflict、混合 op、错误码。
+3. **Contract tests（`packages/sync/src/protocol.test.ts`）** — **驱动真实行为而非自我断言 expected JSON**：
+   - ZOO-104：`paginateEntities` + `decodePageCursor`/`encodePageCursor`/`afterPositionPredicate` 爬山到收敛，覆盖 limit+1、跨实体时间交错、同时间戳 tie-breaker、多页收敛。
+   - ZOO-107：`casUpdate` 用 in-memory mock store 验证同一 expectedVersion 最多一个成功、冲突回读当前记录、not_found 与 conflict 不混淆。
+   - ZOO-108：`contractVersionSupported` 门禁 + fixtures 形状校验。
 4. **Web 路由修复**
    - `apps/web/src/app/api/sync/pull/route.ts`：复用 sync 包 normalizeCursor/applyPageLimit，envelope 加 contractVersion/limit，返回 nextCursor/hasMore/limit/contractVersion（保留 cursor 别名）。
    - `apps/web/src/app/api/sync/push/route.ts`：create 接受客户端 `id` 幂等；update/delete/mark 校验 expectedVersion 返回 version_conflict；响应加 contractVersion；错误码补全。

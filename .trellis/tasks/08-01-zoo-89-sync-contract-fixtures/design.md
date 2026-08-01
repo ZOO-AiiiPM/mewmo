@@ -31,9 +31,10 @@
 
 ### Cursor
 
-- **增量游标**沿用现有 ISO 时间游标（`updatedAt > cursor`，服务端返回新的 `nextCursor`）。这是当前唯一游标类型（`cursorKind: "updated_at"`）。
-- 为未来演进保留分页：pull envelope 增加 `limit`（optional，默认 `DEFAULT_PAGE_LIMIT = 200`，上限 `MAX_PAGE_LIMIT = 500`），响应带 `nextCursor` 与 `hasMore`（records 总数触顶则 true）。
-- `normalizeCursor` 由 sync 包提供唯一实现，Web 复用。
+- **增量游标为 composite keyset cursor**：每次 pull 返回 `nextCursor`（`mewmo-sync-v1:<json>`），内含**每个实体**的 `(updatedAt, id)` 位置。四个实体各自独立 keyset 分页，允许同 updatedAt 以 `id` 作稳定 tie-breaker 分页，不跨页丢失/重复（此设计取代最早的"单一时间游标"构想，修复了 ZOO-104 描述的 hidden-row 跳过与跨实体游标错位）。
+- **兼容**：缺省（无 cursor）＝ 全量同步；旧版纯 ISO 时间游标仍可解析（从该时间往后，id 为空）。
+- `hasMore`/`nextCursor` 只基于**实际返回边界**（第 `limit` 行，而非第 `limit+1` 探测行），保证下一页从 `>` 边界续查而不会跳过探测行。
+- 分页算法核心为纯函数 `paginateEntities` + `afterPositionPredicate`/`decodePageCursor`/`encodePageCursor`，Web 与 Swift 共用；`limit+1` 探测行永远不返回。
 
 ### Tombstone
 
@@ -47,8 +48,14 @@
 
 ### Conflict
 
-- update/delete/mark 如果 `expectedVersion` 不匹配当前版本 → 返回 `result_code: "version_conflict"`，并回传当前最新记录（`record`），客户端可据此决定 rebase。不静默覆盖。
+- update/delete/mark 用**原子 CAS**：写入的 `where` 原子包含 `userId`、`id`、`deletedAt: null` 与（携带时）`version: expectedVersion`（修复 ZOO-107 的 read-check-then-write 竞态）。并发写同一 expectedVersion 时最多一个成功。
+- CAS 未命中（count=0）时重新读取当前行：行不存在/已删除 → `not_found`；版本漂移 → `version_conflict` + 回传当前记录，**绝不误报 not_found 或静默覆盖**。
+- feed_entry 的 mark_read/mark_unread 同样支持并校验 `expectedVersion`。
 - 兼容：不携 `expectedVersion` 的请求沿用「无条件应用」旧行为（G2 修复对旧客户端兼容），但新契约文档鼓励客户端始终携带。
+
+### Compatibility Gate
+
+- pull/push 都校验 `contractVersionSupported`：客户端 `contractVersion > SYNC_CONTRACT_VERSION` 时返回 HTTP 426 + `contract_version_unsupported` 错误（修复 ZOO-108），缺省/旧版本行为与文档一致。
 
 ### Pull / Push Response Envelope
 
