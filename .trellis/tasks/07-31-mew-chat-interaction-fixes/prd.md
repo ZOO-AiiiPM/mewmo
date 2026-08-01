@@ -40,7 +40,7 @@
 - A3 的 UI 状态、request contract、route 透传及 runtime thinking level 均被验证，且与 A4 可独立组合。
 - 相关 package 的 type-check、lint、unit/integration tests 通过；无法自动化的 UI 行为有明确人工复现步骤。
 - Codex 主控独立执行 `trellis-check`；发现问题只建 Linear sub-issue 并继续复用同一执行 tuple。
-- Worker 创建标题含 `ZOO-84` 的 PR，保持未合并状态等待用户授权。
+- Worker 创建标题含 `issue-ZOO-84` 的 PR，保持未合并状态等待用户授权。
 
 ## Out of scope
 

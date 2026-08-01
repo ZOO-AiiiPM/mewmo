@@ -12,7 +12,7 @@
   "assignee": "zoo",
   "createdAt": "2026-07-31",
   "completedAt": null,
-  "branch": "codex/zoo-84-mew-chat-interactions",
+  "branch": "codex/issue-ZOO-84-mew-chat-interactions",
   "base_branch": "codex/mew-chat-interaction-fixes",
   "worktree_path": null,
   "commit": null,
