@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "mewmo Runtime Architecture",
+    "subtitle": "Monorepo pnpm + Prisma PostgreSQL — cron-driven AI batch, Fastify agent runtime",
+    "output": "mewmo-runtime.architecture.html",
+    "quality_profile": "showcase",
+    "viewBox": [980, 740],
+    "views": [
+      { "id": "chat-path", "label": "Chat path", "focus": ["users", "web", "agent", "llm", "db"], "note": "Browser chat goes through the Next.js BFF to the Fastify agent runtime." },
+      { "id": "content-pipeline", "label": "Content pipeline", "focus": ["feed", "jina", "db"], "note": "RSS/Atom is fetched, parsed and persisted by the feed-ingestion cron." },
+      { "id": "ai-batch", "label": "AI batch workflows", "focus": ["ai-workflows", "db", "llm", "langfuse"], "note": "Poll AiRun rows from PostgreSQL, run summary/embedding jobs, trace via Langfuse." }
+    ]
+  },
+  "components": [
+    { "id": "users", "type": "external", "label": "Users", "sublabel": "Browser", "pos": [40, 260], "size": [120, 60] },
+    { "id": "web", "type": "frontend", "label": "Web App", "sublabel": "Next.js 16 + BFF", "pos": [250, 260], "size": [150, 64] },
+    { "id": "agent", "type": "backend", "label": "Agent Service", "sublabel": "Fastify :3101", "pos": [490, 260], "size": [150, 64] },
+    { "id": "llm", "type": "external", "label": "LLM Providers", "sublabel": "OpenAI / Anthropic", "pos": [730, 260], "size": [150, 64] },
+    { "id": "jina", "type": "external", "label": "Jina Reader", "sublabel": "web extraction", "pos": [20, 480], "size": [130, 60] },
+    { "id": "feed", "type": "backend", "label": "Feed Ingestion", "sublabel": "cron RSS/Atom", "pos": [250, 480], "size": [150, 64] },
+    { "id": "ai-workflows", "type": "backend", "label": "AI Workflows", "sublabel": "cron batch", "pos": [540, 480], "size": [150, 64] },
+    { "id": "langfuse", "type": "cloud", "label": "Langfuse", "sublabel": "tracing + prompts", "pos": [780, 480], "size": [150, 64] },
+    { "id": "db", "type": "database", "label": "PostgreSQL", "sublabel": "Prisma + pgvector", "pos": [370, 660], "size": [150, 64] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "mewmo apps — Docker deploy", "wraps": ["web", "agent", "feed", "ai-workflows"] }
+  ],
+  "connections": [
+    { "id": "users-to-web", "from": "users", "to": "web", "label": "HTTPS", "variant": "emphasis" },
+    { "id": "web-to-agent", "from": "web", "to": "agent", "label": "HMAC JWT · SSE", "variant": "emphasis" },
+    { "id": "agent-to-llm", "from": "agent", "to": "llm", "label": "chat + tools", "labelAt": [664, 338] },
+    { "id": "web-to-db", "from": "web", "to": "db", "label": "SQL", "fromSide": "bottom", "toSide": "top" },
+    { "id": "agent-to-db", "from": "agent", "to": "db", "label": "tool calls", "fromSide": "bottom", "toSide": "top" },
+    { "id": "feed-to-db", "from": "feed", "to": "db", "label": "Feed + entries", "fromSide": "bottom", "toSide": "top" },
+    { "id": "ai-workflows-to-db", "from": "ai-workflows", "to": "db", "label": "poll AiRun", "fromSide": "bottom", "toSide": "top" },
+    { "id": "ai-workflows-to-llm", "from": "ai-workflows", "to": "llm", "label": "summary / embedding" },
+    { "id": "ai-workflows-to-langfuse", "from": "ai-workflows", "to": "langfuse", "label": "OTEL traces", "labelAt": [664, 558] },
+    { "id": "feed-to-jina", "from": "feed", "to": "jina", "label": "fetch" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Content pipeline", "items": ["feed-ingestion cron fetches RSS/Atom, parses and cleans via fast-xml-parser", "Jina Reader assists web extraction", "Feed + FeedEntry rows land in PostgreSQL"] },
+    { "dot": "emerald", "title": "AI batch", "items": ["ai-workflows cron polls AiRun rows from PostgreSQL", "Runs summary / embedding / recommendation / note-insight", "pgvector + pg_trgm enable semantic search"] },
+    { "dot": "violet", "title": "Chat path", "items": ["Web BFF forwards chat with HMAC JWT (60s) to agent", "Agent runtime (pi-agent-core) streams SSE replies", "Tool calls persist through the application layer"] },
+    { "dot": "rose", "title": "Notes", "items": ["BullMQ queue + worker are legacy — no message bus in prod", "Redis cache-only; Admin Console (:3001) is a skeleton", "Extension is a bootstrap shell; Resend email + S3 uploads"] }
+  ]
+}

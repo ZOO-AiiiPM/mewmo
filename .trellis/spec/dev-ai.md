@@ -1,6 +1,6 @@
 # mewmo 开发规范 · AI 层
 
-> 本文件由 `agent.md` 抽出的项目专属层。每条规范必须带 why。
+> 本文件由 `AGENTS.md` 抽出的项目专属层。每条规范必须带 why。
 
 - **AI 调用统一走 `packages/ai/`**：当前共享 Runtime 已用 `pi-ai` 统一 provider、模型 purpose、文本/结构化生成、usage/cost 与测试替身；Embedding 仍是迁移期 HTTP adapter，后端方案尚未定。目标边界是 Runtime 不放 Agent Loop、Cron、`AiRun` 扫描或业务工作流，但当前包仍保留 `legacy-agent`、summary 与旧 Prompt 导出供迁移兼容；新代码不得继续依赖这些旧出口。
 - **业务编排按入口归属**：`apps/agent` 使用 `pi-agent-core` 的 AgentHarness、Session、compaction、Tool Registry、Skills 和 `AiAction` 确认闭环；`apps/ai-workflows` 只使用 Pi-backed Runtime 执行一次性 `AiRun`，不创建 Agent Session 或 Tool Loop；`apps/feed-ingestion` 只负责抓取、解析、入库并创建 queued `AiRun`。确定性的 ownership、幂等和状态转换由 `packages/application` 负责，持久化由 `packages/db` 负责。

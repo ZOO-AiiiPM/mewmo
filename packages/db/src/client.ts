@@ -65,7 +65,11 @@ export function getPrisma(): PrismaClient {
   if (!globalForPrisma.mewmoPrisma) {
     const connectionString = process.env.DATABASE_URL ?? "postgresql://mewmo:mewmo@localhost:15432/mewmo_dev?schema=public";
     const adapter = new PrismaPg(connectionString);
-    const base = new PrismaClient({ adapter, log: ["error"] });
+    const base = new PrismaClient({
+      adapter,
+      log: ["error"],
+      transactionOptions: { maxWait: 10_000, timeout: 15_000 },
+    });
     // The extension only wraps behavior and preserves the full client surface,
     // so casting back to PrismaClient keeps every existing consumer's types intact.
     globalForPrisma.mewmoPrisma = base.$extends(retryExtension) as unknown as PrismaClient;

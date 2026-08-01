@@ -35,6 +35,7 @@ export type PrototypeIconName =
   | "close"
   | "search"
   | "spark"
+  | "bulb"
   | "chat"
   | "pen-new-square"
   | "chev-left"
@@ -118,6 +119,7 @@ const PROTOTYPE_LINE_ICONS = {
 const PROTOTYPE_EXTRA_LINE_ICONS = {
   "cat": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100%\" height=\"100%\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4.75 10.4V5.32c0-.63.72-.99 1.22-.6l2.9 2.24A11.3 11.3 0 0 1 12 6.5c1.09 0 2.14.16 3.13.46l2.9-2.24c.5-.39 1.22-.03 1.22.6v5.08c.65 1.03 1 2.22 1 3.5c0 3.87-3.7 6.35-8.25 6.35S3.75 17.77 3.75 13.9c0-1.28.35-2.47 1-3.5Z\"/><path d=\"M12 15.6v1M10.4 17.4h3.2\" stroke-width=\"1.5\"/><circle cx=\"9.1\" cy=\"12.9\" r=\"0.55\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"14.9\" cy=\"12.9\" r=\"0.55\" fill=\"currentColor\" stroke=\"none\"/></svg>",
   "history": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100%\" height=\"100%\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 3v5h5\"/><path d=\"M3.05 13A9 9 0 1 0 6 5.3L3 8\"/><path d=\"M12 7v5l4 2\"/></svg>",
+  "bulb": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100%\" height=\"100%\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 3a6.5 6.5 0 0 1 4.05 11.58c-.6.48-1.02 1.15-1.15 1.9l-.15.92h-5.5l-.15-.92c-.13-.75-.55-1.42-1.15-1.9A6.5 6.5 0 0 1 12 3Z\"/><path d=\"M10 20.5h4\"/></svg>",
   "paperclip": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100%\" height=\"100%\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48\"/></svg>",
   "language": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100%\" height=\"100%\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 5h7\"/><path d=\"M9 3v2c0 4.418-2.239 8-5 8\"/><path d=\"M5 9c0 2.144 2.952 3.908 6.7 4\"/><path d=\"M12 20l4-9l4 9\"/><path d=\"M19.1 18h-6.2\"/></svg>"
 } as const satisfies Partial<Record<PrototypeIconName, string>>;
@@ -182,7 +184,7 @@ export const PROTOTYPE_ACTION_ICONS = {
 } as const;
 
 const PROTOTYPE_CHROME_ICONS = {
-  "mewmo-logo": "<svg viewBox=\"0 0 32 32\" fill=\"none\"><path d=\"M7 11 4 5l6 2.5M25 11l3-6-6 2.5\" stroke=\"currentColor\" stroke-width=\"2.2\" stroke-linejoin=\"round\" stroke-linecap=\"round\"/><path d=\"M6.5 16a9.5 8 0 0 1 19 0v4a9.5 9 0 0 1-19 0z\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linejoin=\"round\"/><circle cx=\"12.5\" cy=\"16\" r=\"1.4\" fill=\"currentColor\"/><circle cx=\"19.5\" cy=\"16\" r=\"1.4\" fill=\"currentColor\"/><path d=\"M16 19v1.5M13 21.5h6\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\"/></svg>",
+  "mewmo-logo": "<svg viewBox=\"0 0 1024 1024\" fill=\"none\"><path fill=\"currentColor\" fill-rule=\"evenodd\" d=\"M273 84c-61 10-109 57-123 119l-1 317v309l2 10c14 63 58 108 120 121l11 3h107c106 0 107-1 111-3 19-10 8-45-19-62-21-14-31-15-104-15h-55l-9-2c-38-10-65-42-69-81V483c2-25 11-56 20-73l3-4v-90l1-89 3-4c6-9 18-11 27-7 5 3 51 49 71 71l9 9 11-2c28-6 47-6 73 0l12 2 8-8 59-63c7-8 9-9 14-10q9-3 17 5c7 6 7 3 7 94v80l2 9q15 55 74 79c60 24 103 74 117 138l2 12 1 81-1 89c-4 27-20 54-43 69-51 35-120 16-139-37-11-30 0-65 27-82 24-15 28-45 9-62-16-15-39-15-61 0q-49 33-63 92c-3 13-3 45-1 58 13 59 55 104 112 118 18 5 27 5 82 5 45-1 49-1 58-3 65-14 112-66 120-130l1-247V345l-3-6q-7-17-24-24c-5-2-7-3-80-3-81-1-79-1-94-6-31-11-54-38-63-71l-2-9-1-62v-61l-3-6q-6-9-14-13c-5-2-307-2-319 0m383 1-5 4-2 4v64l1 70q10 33 42 45l8 3h75l79-1q11-6 4-21c-3-7-157-161-164-165-10-5-31-7-38-3M322 602c-21 8-21 38 0 45 6 2 134 3 140 1 13-4 21-21 14-34q-5-9-14-12c-6-2-135-1-140 0m1 93c-21 6-23 34-4 44l6 2h54c50 0 54 0 58-2q16-9 13-27-5-12-15-17zm-1 92c-22 8-21 39 1 45 6 2 107 1 112-1 13-4 19-20 13-32q-6-9-14-12c-6-2-107-1-112 0\"/></svg>",
   "groups-collapse": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m7 20 5-5 5 5\"/><path d=\"m7 4 5 5 5-5\"/></svg>",
   "groups-expand": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m7 15 5 5 5-5\"/><path d=\"m7 9 5-5 5 5\"/></svg>",
   "sidebar-collapse": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"3\" y=\"4\" width=\"18\" height=\"16\" rx=\"2.5\"/><path d=\"M9 4v16\"/><path d=\"m16 9-3 3 3 3\"/></svg>",

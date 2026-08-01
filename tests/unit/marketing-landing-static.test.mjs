@@ -3,114 +3,93 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const page = () => readFileSync("apps/web/src/app/(marketing)/page.tsx", "utf8");
+const showcase = () => readFileSync("apps/web/src/components/marketing/MarketingShowcase.tsx", "utf8");
+const localeSwitcher = () => readFileSync("apps/web/src/components/LocaleSwitcher.tsx", "utf8");
 const css = () => readFileSync("apps/web/src/app/globals.css", "utf8");
-const enMessages = () => JSON.parse(readFileSync("apps/web/messages/en.json", "utf8"));
+const messages = (locale) => JSON.parse(readFileSync(`apps/web/messages/${locale}.json`, "utf8")).marketing;
 
-test("marketing landing uses a product-led hero instead of generic feature cards", () => {
+test("hero stays direct and uses the controlled Demo workspace", () => {
   const source = page();
 
-  assert.match(
-    source,
-    /className="mewmo-marketing-page"/,
-    "landing should use a dedicated scrollable marketing shell",
-  );
-  assert.match(
-    source,
-    /mewmo-workspace-preview\.png/,
-    "hero should use the real workspace screenshot supplied for the redesign",
-  );
-  assert.match(
-    source,
-    /className="mewmo-product-stage"/,
-    "hero should frame the screenshot in a dedicated product stage",
-  );
-  assert.match(
-    source,
-    /t\("scenarios\.collect\.step"\)[\s\S]*t\("scenarios\.read\.step"\)[\s\S]*t\("scenarios\.rediscover\.step"\)/,
-    "landing should frame the product around the collect/read/rediscover workflow",
-  );
-  assert.equal(enMessages().marketing.scenarios.collect.step, "Collect");
-  assert.equal(enMessages().marketing.scenarios.read.step, "Read");
-  assert.equal(enMessages().marketing.scenarios.rediscover.step, "Rediscover");
-  assert.doesNotMatch(
-    source,
-    /grid grid-cols-1 md:grid-cols-3 gap-6/,
-    "landing should not keep the previous three equal feature-card grid",
-  );
+  assert.match(source, /<h1 id="mewmo-hero-title">mewmo<\/h1>/);
+  assert.match(source, /t\("hero\.slogan"\)/);
+  assert.match(source, /<MarketingDemo[\s\S]*hero/);
+  assert.doesNotMatch(source, /hero\.(lede|startFree|seeProduct|proof)/);
+  assert.doesNotMatch(source, /mewmo-workspace-preview\.png|mewmo-ai-sidebar-preview\.png/);
 });
 
-test("marketing landing shows AI context and product scenario sections", () => {
+test("capability tabs preserve the approved order and defaults", () => {
   const source = page();
+  const client = showcase();
 
-  assert.match(
-    source,
-    /className="mewmo-context-rail"/,
-    "product hero should show the AI card on top of the workspace screenshot",
-  );
-  assert.match(
-    source,
-    /mewmo-ai-sidebar-preview\.png/,
-    "AI card should use the provided AI sidebar image instead of rebuilding that UI in markup",
-  );
-  assert.match(
-    source,
-    /className="mewmo-scenario-section"/,
-    "landing should continue after the hero with product scenario sections",
-  );
-  assert.match(
-    source,
-    /t\("scenarios\.collect\.title"\)[\s\S]*t\("scenarios\.read\.title"\)[\s\S]*t\("scenarios\.rediscover\.title"\)/,
-    "scenario copy should narrate save, read, and rediscover workflows",
-  );
-  assert.equal(enMessages().marketing.scenarios.collect.title, "Save without sorting.");
-  assert.equal(enMessages().marketing.scenarios.read.title, "Read what is already waiting.");
-  assert.equal(enMessages().marketing.scenarios.rediscover.title, "Rediscover the thread.");
+  assert.match(source, /\["note", "clip", "feed", "library"\]/);
+  assert.match(source, /\["summary", "insight", "related"\]/);
+  assert.match(client, /useState\(items\[0\]\?\.id/);
+  assert.match(client, /role="tablist"/);
+  assert.match(client, /role="tabpanel"/);
+  assert.match(client, /ArrowDown/);
+  assert.match(client, /ArrowRight/);
+
+  assert.deepEqual(Object.keys(messages("zh").basics), ["note", "clip", "feed", "library"]);
+  assert.deepEqual(Object.keys(messages("zh").workflows), ["summary", "insight", "related"]);
 });
 
-test("marketing landing keeps the provided AI image inside the existing slim card frame", () => {
-  const source = css();
-  const railRule = source.match(/\.mewmo-context-rail\s*\{[\s\S]*?\n\}/)?.[0] ?? "";
-  const railImageRule = source.match(/\.mewmo-context-rail img\s*\{[\s\S]*?\n\}/)?.[0] ?? "";
+test("Agent presents current actions separately from the upcoming roadmap", () => {
+  const source = page();
+  const zh = messages("zh");
+  const en = messages("en");
 
-  assert.match(
-    railRule,
-    /width:\s*min\(252px,\s*36%\);/,
-    "AI image card should be slimmer than the previous floating panel",
-  );
-  assert.match(
-    railRule,
-    /height:\s*334px;/,
-    "AI image card should keep the existing overlay height",
-  );
-  assert.match(
-    railImageRule,
-    /object-fit:\s*cover;/,
-    "provided tall AI sidebar image should be cropped inside the card, not recreated",
-  );
-  assert.match(
-    source,
-    /\.mewmo-context-rail\s*\{[\s\S]*?width:\s*min\(252px,\s*74vw\);[\s\S]*?height:\s*334px;[\s\S]*?overflow:\s*hidden;[\s\S]*?margin-left:\s*auto;/,
-    "mobile layout should keep the AI image as a slim card instead of stretching full width",
-  );
+  assert.match(source, /mewmo-agent-run__steps/);
+  assert.match(source, /agent\.steps\.knowledge/);
+  assert.match(source, /agent\.steps\.web/);
+  assert.match(source, /agent\.steps\.insight/);
+  assert.match(source, /agent\.steps\.write/);
+  assert.match(source, /agent\.confirm/);
+  assert.equal(zh.agent.upcoming, "即将支持");
+  assert.equal(en.agent.upcoming, "Coming soon");
+  assert.match(zh.agent.roadmap.skills.body, /Skill.*Automation/);
+  assert.match(zh.agent.roadmap.proactive.body, /日报和周报/);
 });
 
-test("marketing landing keeps readable dark palette independent of app theme", () => {
-  const source = css();
-  const marketingPageRule = source.match(/\.mewmo-marketing-page\s*\{[\s\S]*?\n\}/)?.[0] ?? "";
+test("navigation uses a globe and keeps GitHub rightmost in a new tab", () => {
+  const source = page();
+  const locale = localeSwitcher();
+  const navStart = source.indexOf("<nav");
+  const navEnd = source.indexOf("</nav>", navStart);
+  const nav = source.slice(navStart, navEnd);
 
-  assert.match(
-    marketingPageRule,
-    /--ink:\s*#ededf1;/,
-    "marketing page should pin bright text instead of inheriting light-theme ink",
-  );
-  assert.match(
-    marketingPageRule,
-    /--ink-soft:\s*#9a9aa1;/,
-    "marketing page should pin readable secondary text for its dark background",
-  );
-  assert.match(
-    marketingPageRule,
-    /--accent-ink:\s*#161719;/,
-    "marketing primary buttons should keep dark text on bright CTA backgrounds",
-  );
+  assert.match(locale, /import \{ Globe2 \} from "lucide-react"/);
+  assert.doesNotMatch(locale, />文<|>A</);
+  assert.ok(nav.indexOf("LocaleSwitcher") < nav.indexOf('href="/login"'));
+  assert.ok(nav.indexOf('href="/login"') < nav.indexOf('href="/register"'));
+  assert.ok(nav.indexOf('href="/register"') < nav.indexOf("GITHUB_URL"));
+  assert.match(nav, /target="_blank"/);
+  assert.match(source, /https:\/\/github\.com\/ZOO-AiiiPM\/mewmo/);
+  assert.doesNotMatch(nav, /nav\.product|#workflow/);
+});
+
+test("marketing translations stay aligned and never restore removed labels", () => {
+  const zh = messages("zh");
+  const en = messages("en");
+
+  assert.deepEqual(Object.keys(zh), Object.keys(en));
+  assert.deepEqual(Object.keys(zh.basics), Object.keys(en.basics));
+  assert.deepEqual(Object.keys(zh.workflows), Object.keys(en.workflows));
+  assert.doesNotMatch(JSON.stringify(zh), /标签/);
+  assert.doesNotMatch(JSON.stringify(en), /\btags?\b/i);
+});
+
+test("homepage and App light theme use neutral surfaces", () => {
+  const source = css();
+  const marketingRule = source.match(/\/\* Marketing homepage:[\s\S]*?@media \(prefers-reduced-motion: reduce\)/)?.[0] ?? "";
+  const lightRule = source.match(/html\.light\s*\{[\s\S]*?\n\}/)?.[0] ?? "";
+
+  for (const color of ["#0a0a0a", "#ffffff", "#f2f2f2", "#111111", "#6f6f6f", "#d8d8d8"]) {
+    assert.match(marketingRule, new RegExp(color));
+  }
+  assert.doesNotMatch(marketingRule, /linear-gradient|radial-gradient|#f8f4ed|#f5ecd9/i);
+  for (const color of ["#f7f7f7", "#ffffff", "#f1f1f1", "#e8e8e8", "#d8d8d8"]) {
+    assert.match(lightRule, new RegExp(color));
+  }
+  assert.doesNotMatch(lightRule, /#f8f4ed|#f7f2e7|#f5ecd9|#eae3d8|#f4efe6/i);
 });

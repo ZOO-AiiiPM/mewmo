@@ -15,48 +15,156 @@
   },
   "marketing": {
     "nav": {
+      "homeLabel": "mewmo home",
+      "ariaLabel": "Primary navigation",
       "login": "Log in",
-      "getStarted": "Get started"
+      "register": "Sign up"
     },
     "hero": {
-      "kicker": "AI information manager",
-      "title": "Everything worth remembering, already waiting for you.",
-      "lede": "mewmo collects notes, clips, feeds, and AI conversations into one fast workspace so your next idea starts with the context you already saved.",
-      "startFree": "Start for free",
-      "openWorkspace": "Open workspace",
-      "proofCloud": "Cloud-first",
-      "proofFast": "Fast open",
-      "proofAi": "AI in context"
+      "slogan": "The AI-native workspace for all your knowledge"
     },
-    "scenarios": {
-      "kicker": "Product rhythm",
-      "heading": "Save, read, and return to the ideas that still matter.",
-      "collect": {
-        "step": "Collect",
-        "title": "Save without sorting.",
-        "body": "Clip a page, write a raw note, or subscribe to a feed. mewmo keeps the intake light so useful material does not disappear while you are still thinking.",
-        "meta": "Clips / RSS / notes",
-        "signal": "3 new items held for Today"
+    "basics": {
+      "note": {
+        "label": "Notes",
+        "title": "Keep each idea in its natural structure.",
+        "body": "Write in Markdown, from a passing thought to a complete essay. The structure stays clear, ready to edit, search, or refine with mew at any time.",
+        "preview": {
+          "eyebrow": "Markdown note",
+          "title": "How to build a personal knowledge system that keeps running",
+          "body": "A useful knowledge system begins with consistent capture and review, not elaborate classification.",
+          "meta": "Edited just now"
+        }
       },
-      "read": {
-        "step": "Read",
-        "title": "Read what is already waiting.",
-        "body": "The first screen is not an empty dashboard. Today brings notes, saved pages, and fresh articles into one calm queue so you can reopen context immediately.",
-        "meta": "Today / reader / search",
-        "signal": "Recent work stays warm"
+      "clip": {
+        "label": "Web clips",
+        "title": "Bring the useful part of a page into your workspace.",
+        "body": "Save the page you are reading with its clean text and original source. Important material no longer disappears into browser bookmarks and remains ready to read or search.",
+        "preview": {
+          "eyebrow": "Web clip · example.com",
+          "title": "From capture to connection: three knowledge loops",
+          "body": "Keep the article, author, and original link together as searchable material for the long term.",
+          "meta": "Today, 10:24"
+        }
       },
-      "rediscover": {
-        "step": "Rediscover",
-        "title": "Rediscover the thread.",
-        "body": "The AI sidebar works beside the content, not above it. Ask about the open note, pull related clips forward, and turn old fragments into current context.",
-        "meta": "AI sidebar / tags / summaries",
-        "signal": "2 related memories found"
+      "feed": {
+        "label": "Subscriptions",
+        "title": "Let worthwhile updates come to you.",
+        "body": "Add RSS sources and receive new articles from the sites you follow. Every update enters one reading space, so you do not have to check each site every day.",
+        "preview": {
+          "eyebrow": "RSS subscriptions · 12 unread",
+          "title": "Designing an information inbox that does not overwhelm",
+          "body": "New articles arrive in one reading space, always keeping source, time, and content together.",
+          "meta": "8 minutes ago"
+        }
+      },
+      "library": {
+        "label": "Knowledge bases",
+        "title": "Shape what you collect into a lasting structure.",
+        "body": "Place notes, clips, and subscribed articles into long-running subjects, then clarify them with knowledge bases and folders. Collected information becomes a structure you can keep maintaining.",
+        "preview": {
+          "eyebrow": "Knowledge base",
+          "title": "Personal knowledge system",
+          "body": "Organize material around a lasting subject, so every new item joins an existing line of thought.",
+          "meta": "6 items"
+        }
       }
     },
-    "footer": {
-      "tagline": "Built for people who read, save, and think across sources."
+    "workflows": {
+      "summary": {
+        "label": "Article summaries",
+        "title": "See what matters before you read in full.",
+        "body": "When a web clip or subscribed article enters the workspace, mewmo generates a concise summary in the background. Grasp the topic and conclusions first, then decide whether to read deeper.",
+        "preview": {
+          "eyebrow": "Automatic summary ready",
+          "title": "From capture to connection: three knowledge loops",
+          "body": "The article describes capture, processing, and rediscovery as three loops, arguing that review matters more than classification complexity.",
+          "meta": "Generated in the background"
+        }
+      },
+      "insight": {
+        "label": "Note insights",
+        "title": "Bring older material into the thought in front of you.",
+        "body": "After a note changes, mewmo checks it against related material and surfaces missing evidence, repeated angles, or shifts in your thinking. Insights form in the background without interrupting your writing.",
+        "preview": {
+          "eyebrow": "3 note insights found",
+          "title": "How to build a personal knowledge system that keeps running",
+          "body": "You mention review repeatedly but have not defined what should trigger it. A weekly review mechanism could complete the loop.",
+          "meta": "Across 7 notes"
+        }
+      },
+      "related": {
+        "label": "Related reading",
+        "title": "Saved information returns when it becomes useful.",
+        "body": "While you read, mewmo finds related notes, clips, and articles across your workspace. Past information appears beside the current question without depending on your memory.",
+        "preview": {
+          "eyebrow": "4 related items found",
+          "title": "Designing an information inbox that does not overwhelm",
+          "body": "Closely connected to three of your notes about information intake, weekly review, and knowledge connections.",
+          "meta": "From your workspace"
+        }
+      }
     },
-    "localeSwitcher": "中文"
+    "demo": {
+      "name": "Demo",
+      "today": "Today",
+      "notes": "Notes",
+      "clips": "Web clips",
+      "feeds": "Subscriptions",
+      "knowledgeBases": "Knowledge bases",
+      "libraryName": "Personal knowledge system",
+      "documentTitle": "How to build a personal knowledge system that keeps running",
+      "documentIntro": "Three system loops",
+      "documentPointOne": "Capture consistently",
+      "documentPointTwo": "Process actively",
+      "documentPointThree": "Review continuously",
+      "mew": "mew",
+      "mewPrompt": "What should I improve next, based on my notes?",
+      "mewReply": "Your capture flow is already clear. Add a weekly review next, so saved information can return to the work you are doing now."
+    },
+    "agent": {
+      "name": "mew Agent",
+      "title": "It does not just answer. It keeps working with what you know.",
+      "runLabel": "A complete mew Agent run",
+      "contextLabel": "Current content",
+      "prompt": "Find the missing loop in this knowledge system and help me turn it into a note I can continue writing.",
+      "steps": {
+        "knowledge": "Search your knowledge",
+        "knowledgeDetail": "Found 7 notes and 3 web clips",
+        "web": "Bring in an outside view",
+        "webDetail": "Search and read public sources with citations",
+        "insight": "Process and form an insight",
+        "insightDetail": "Compare existing ideas and locate the gap",
+        "write": "Propose the next action",
+        "writeDetail": "Prepare a new-note preview"
+      },
+      "previewLabel": "Waiting for your confirmation",
+      "previewTitle": "Create note: Weekly review is the feedback loop",
+      "previewBody": "Includes review triggers, input scope, and a next-action checklist. Nothing changes until you confirm.",
+      "confirm": "Confirm creation",
+      "upcoming": "Coming soon",
+      "roadmapTitle": "It will understand you more over time",
+      "roadmap": {
+        "memory": {
+          "title": "Remember your context",
+          "body": "Long-term memory will retain your goals, preferences, and recurring questions."
+        },
+        "skills": {
+          "title": "Work in your way",
+          "body": "Custom Skills and Automation will turn repeated methods into reusable processes."
+        },
+        "proactive": {
+          "title": "Act at the right time",
+          "body": "Proactive reviews, reminders, and daily or weekly reports will bring changes to you when they matter."
+        }
+      }
+    },
+    "final": {
+      "title": "Let mewmo start understanding you from your next note.",
+      "cta": "Sign up"
+    },
+    "footer": {
+      "tagline": "Built for people who keep reading, saving, and thinking."
+    }
   },
   "auth": {
     "frame": {

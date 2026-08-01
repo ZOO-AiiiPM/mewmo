@@ -222,6 +222,19 @@ def _default_prd_content(title: str, description: str | None = None) -> str:
 """
 
 
+def _default_lesson_content(title: str) -> str:
+    """Return the task-local lesson skeleton created with every task."""
+    heading = title.strip() or "Untitled task"
+    return f"""# Lessons: {heading}
+
+This file captures raw observations from this task. Keep evidence and uncertainty visible; a later curation pass promotes durable guidance into `.trellis/spec/`.
+
+## Observations
+
+- None yet.
+"""
+
+
 # =============================================================================
 # Command: create
 # =============================================================================
@@ -397,6 +410,13 @@ def cmd_create(args: argparse.Namespace) -> int:
             encoding="utf-8",
         )
 
+    lesson_path = task_dir / "lesson.md"
+    if not lesson_path.exists():
+        lesson_path.write_text(
+            _default_lesson_content(args.title),
+            encoding="utf-8",
+        )
+
     # Seed implement.jsonl / check.jsonl for sub-agent-capable platforms.
     # Agent curates real entries during planning when the task needs them.
     # Agent-less platforms (Kilo / Antigravity / Devin) skip this — they
@@ -492,6 +512,7 @@ def cmd_create(args: argparse.Namespace) -> int:
     print("", file=sys.stderr)
     print(colored("Next steps:", Colors.BLUE), file=sys.stderr)
     print("  - Fill prd.md with requirements and acceptance criteria", file=sys.stderr)
+    print("  - Capture raw task learnings in lesson.md as they arise", file=sys.stderr)
     print("  - Lightweight task: PRD-only is valid", file=sys.stderr)
     print("  - Complex task: add design.md and implement.md before task.py start", file=sys.stderr)
     if seeded_jsonl:

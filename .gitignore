@@ -21,7 +21,6 @@
 
 # Trellis + agent collaboration layer (tracked in git)
 !/.trellis/
-!/agent.md
 !/AGENTS.md
 !/.agents/
 !/.cursorrules

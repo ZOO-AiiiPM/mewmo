@@ -14,6 +14,7 @@ const config: AgentConfig = {
   AGENT_MAX_STEPS: 6,
   AGENT_TIMEOUT_MS: 45_000,
   AGENT_WORKER_ID: "test-worker",
+  AGENT_CHAT_THINKING_LEVEL: "off",
   AGENT_TURN_LEASE_MS: 120_000,
   JINA_API_KEY: "",
   AGENT_WEB_TIMEOUT_MS: 20_000,
@@ -98,11 +99,12 @@ describe("Agent HTTP server", () => {
     expect(response.headers["content-type"]).toContain("text/event-stream");
     expect(response.body).toContain("event: turn.started");
     expect(response.body).toContain("event: assistant.text.delta");
+    expect(response.body).toContain("event: assistant.thinking.delta");
     expect(response.body).toContain("event: turn.completed");
     expect(response.body).toContain("event: text_delta");
     expect(response.body).toContain("event: result");
-    expect(response.body).not.toContain("private reasoning");
-    expect(stableEvents(response.body).map((event) => event.seq)).toEqual([1, 2, 3]);
+    expect(response.body).toContain("private reasoning");
+    expect(stableEvents(response.body).map((event) => event.seq)).toEqual([1, 2, 3, 4]);
   });
 
   it("streams product tool and confirmation events without raw tool payloads", async () => {

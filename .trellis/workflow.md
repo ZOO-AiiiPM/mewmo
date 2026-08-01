@@ -8,7 +8,7 @@
 2. **Specs injected, not remembered** — guidelines are injected via hook/skill, not recalled from memory
 3. **Persist everything** — research, decisions, and lessons all go to files; conversations get compacted, files don't
 4. **Incremental development** — one task at a time
-5. **Capture learnings** — after each task, review and write new knowledge back to spec
+5. **Capture before curating** — raw learnings stay with the task in `lesson.md`; verified, durable guidance is promoted to spec
 
 ---
 
@@ -39,7 +39,7 @@ python3 ./.trellis/scripts/get_context.py --mode packages   # list packages / la
 
 ### Task System
 
-Every task has its own directory under `.trellis/tasks/{MM-DD-name}/` holding `task.json`, `prd.md`, optional `design.md`, optional `implement.md`, optional `research/`, and context manifests (`implement.jsonl`, `check.jsonl`) for sub-agent-capable platforms.
+Every task has its own directory under `.trellis/tasks/{MM-DD-name}/` holding `task.json`, `prd.md`, `lesson.md`, optional `design.md`, optional `implement.md`, optional `research/`, and context manifests (`implement.jsonl`, `check.jsonl`) for sub-agent-capable platforms. `lesson.md` keeps raw task observations until a later agent curates durable guidance into `.trellis/spec/`.
 
 ```bash
 # Task lifecycle
@@ -311,7 +311,7 @@ Goal: classify the request, get task-creation consent when a task is needed, and
 
 #### 1.0 Create task `[required · once]`
 
-Create the task directory only after task-creation consent. The command sets status to `planning`, writes `task.json`, creates a default `prd.md`, and auto-targets the new task when session identity is available:
+Create the task directory only after task-creation consent. The command sets status to `planning`, writes `task.json`, creates default `prd.md` and `lesson.md` artifacts, and auto-targets the new task when session identity is available:
 
 ```bash
 python3 ./.trellis/scripts/task.py create "<task title>" --slug <name>
@@ -577,6 +577,8 @@ If this task involved repeated debugging (the same issue was fixed multiple time
 
 The goal is to capture debugging lessons so the same class of issue doesn't recur.
 
+Capture reusable observations in the current task's `lesson.md` as they arise. Keep evidence and uncertainty visible: this file is task-local working material, not authoritative project guidance.
+
 #### 3.3 Spec update `[required · once]`
 
 Load the `trellis-update-spec` skill and review whether this task produced new knowledge worth recording:
@@ -584,7 +586,7 @@ Load the `trellis-update-spec` skill and review whether this task produced new k
 - Pitfalls you hit
 - New technical decisions
 
-Update the docs under `.trellis/spec/` accordingly. Even if the conclusion is "nothing to update", walk through the judgment.
+Review the current task's `lesson.md`, then promote only verified, durable guidance into `.trellis/spec/`. Leave provisional or task-specific observations in the task artifact. Even if the conclusion is "nothing to update", walk through the judgment.
 
 #### 3.4 Commit changes `[required · once]`
 
@@ -710,7 +712,7 @@ For the workflow state machine's runtime contract, the locations of all status w
 
 ## Trellis 文档的 git 写入约定（ZOO-79）
 
-协作层（`.trellis/` 及 `agent.md` 系）已入库跟踪。为避免文档提交污染代码史、feature 分支互相踩踏，遵守：
+协作层（`.trellis/` 及 `AGENTS.md`）已入库跟踪。为避免文档提交污染代码史、feature 分支互相踩踏，遵守：
 
 1. **小 PR 快进快出**：trellis 文档变更单独开 `chore/*` 分支、小 PR 尽快合入，绝不搭 feature 分支的车。Why：文档落库越快，其他并行 session 越早看到同一份真相；搭车会让文档被 feature 的验收周期扣押。
 2. **feature PR 的 `.trellis` 触碰边界**：除本任务自己的 `.trellis/tasks/<task>/` 目录外，feature PR 不改 `.trellis` 下任何内容。Why：任务目录是任务的一部分，其余（workflow/spec/workspace）是共享基础设施，混入 feature diff 会制造跨任务冲突。

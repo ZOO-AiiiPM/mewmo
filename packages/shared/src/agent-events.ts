@@ -46,6 +46,10 @@ export const agentConversationEventSchema = z.discriminatedUnion("type", [
     delta: z.string(),
   }),
   eventIdentitySchema.extend({
+    type: z.literal("assistant.thinking.delta"),
+    delta: z.string(),
+  }),
+  eventIdentitySchema.extend({
     type: z.literal("tool.started"),
     toolCallId: z.string().min(1),
     tool: z.string().min(1),

@@ -23,7 +23,7 @@
 
 ```
 <project-root>/
-├── agent.md                    # 唯一入口源（硬规则 + 技术栈 + 索引指针）
+├── AGENTS.md                   # 唯一入口源（硬规则 + 技术栈 + 索引指针）
 ├── .agent/
 │   ├── START_HERE.md           # 协作分层说明 + 读取顺序 + 写入规矩 + 并发安全
 │   ├── scripts/
@@ -88,7 +88,7 @@ seed-worktree-stubs.js 负责把 hooks 合并写到正确位置。
 
 1. 先分析当前项目的目录结构：产品代码在哪个目录、git root 在哪、是否已有 .claude/
 2. 按上面架构创建所有文件，脚本逻辑参考 mewmo 项目已验证的实现
-3. agent.md 要填入当前项目的真实信息（技术栈、路径、依赖等）
+3. AGENTS.md 要填入当前项目的真实信息（技术栈、路径、依赖等）
 4. settings.local.json 的 hooks 放到 Claude Code 的真正 CWD 所在的 .claude/ 下
 5. 根 .gitignore 配好：只 track 产品代码，排除协作元层
 6. 跑一次 seed-worktree-stubs.js 验证

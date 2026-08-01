@@ -228,6 +228,20 @@ export function applyConversationEvent(
       return { ...withSeq, blocks: [...withSeq.blocks, { kind: "text", content: event.delta }] };
     }
 
+    case "assistant.thinking.delta": {
+      const lastBlock = withSeq.blocks[withSeq.blocks.length - 1];
+      if (lastBlock && lastBlock.kind === "thinking") {
+        return {
+          ...withSeq,
+          blocks: [
+            ...withSeq.blocks.slice(0, -1),
+            { ...lastBlock, content: lastBlock.content + event.delta },
+          ],
+        };
+      }
+      return { ...withSeq, blocks: [...withSeq.blocks, { kind: "thinking", content: event.delta }] };
+    }
+
     case "tool.started": {
       const display = event.display?.label ?? toolRunningLabel(event.tool);
       return {
