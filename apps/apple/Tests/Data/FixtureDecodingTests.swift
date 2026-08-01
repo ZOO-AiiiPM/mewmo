@@ -146,4 +146,104 @@ final class FixtureDecodingTests: XCTestCase {
         XCTAssertNotNil(tomb?.deletedAt)
         XCTAssertEqual(tomb?.version, 3)
     }
+
+    /// ZOO-114: 服务器 pull 返回完整 Prisma camelCase 记录，Clip/Feed 全字段
+    /// DTO→snapshot→落库→snapshot round-trip 均不丢字段。
+    func testFullClipAndFeedFieldsDecodeAndLandInStore() async throws {
+        let (_, store) = try DataTestSupport.inMemoryStore()
+        let json = """
+        {
+          "contractVersion": 1,
+          "cursor": "",
+          "nextCursor": "",
+          "hasMore": false,
+          "limit": 200,
+          "records": {
+            "note": [],
+            "clip": [{
+              "id": "clip-full",
+              "version": 3,
+              "url": "https://example.com/x",
+              "normalizedUrl": "https://example.com/x",
+              "title": "Full clip",
+              "content": "body",
+              "favicon": "https://example.com/f.ico",
+              "coverImage": "https://example.com/c.jpg",
+              "excerpt": "ex",
+              "sourceName": "src",
+              "author": "au",
+              "publishedAt": "2026-07-01T01:00:00.000Z",
+              "fetchStatus": "success",
+              "fetchError": null,
+              "fetchStartedAt": "2026-07-01T00:50:00.000Z",
+              "fetchedAt": "2026-07-01T01:00:00.000Z",
+              "createdAt": "2026-07-01T00:00:00.000Z",
+              "updatedAt": "2026-07-01T01:00:00.000Z",
+              "deletedAt": null,
+              "userId": "user-1"
+            }],
+            "feed": [{
+              "id": "feed-full",
+              "version": 2,
+              "url": "https://example.com/feed.xml",
+              "type": "article",
+              "title": "Full feed",
+              "description": "desc",
+              "favicon": "https://example.com/f.ico",
+              "refreshInterval": 7200,
+              "lastFetchStartedAt": "2026-07-03T12:10:00.000Z",
+              "lastFetchStatus": "success",
+              "lastFetchError": null,
+              "lastFetchCount": 5,
+              "lastFetchedAt": "2026-07-03T12:30:00.000Z",
+              "lastSeenEntryUrl": "https://example.com/last",
+              "createdAt": "2026-07-02T08:00:00.000Z",
+              "updatedAt": "2026-07-03T12:30:00.000Z",
+              "deletedAt": null,
+              "userId": "user-1"
+            }],
+            "feed_entry": []
+          }
+        }
+        """
+        let data = try XCTUnwrap(json.data(using: .utf8))
+        let response = try JSONDecoder().decode(SyncPullResponseDTO.self, from: data)
+
+        // DTO decode → snapshot 完整
+        let clipDTO = try XCTUnwrap(response.records.clip.first)
+        XCTAssertEqual(clipDTO.normalizedUrl, "https://example.com/x")
+        XCTAssertEqual(clipDTO.fetchStatus, "success")
+        XCTAssertEqual(clipDTO.fetchStartedAt, "2026-07-01T00:50:00.000Z")
+        let clipSnap = clipDTO.snapshot()
+        XCTAssertEqual(clipSnap.normalizedURL, "https://example.com/x")
+        XCTAssertEqual(clipSnap.faviconURL, "https://example.com/f.ico")
+        XCTAssertEqual(clipSnap.fetchStartedAt, DataTestSupport.iso("2026-07-01T00:50:00.000Z"))
+        XCTAssertEqual(clipSnap.fetchedAt, DataTestSupport.iso("2026-07-01T01:00:00.000Z"))
+
+        let feedDTO = try XCTUnwrap(response.records.feed.first)
+        let feedSnap = feedDTO.snapshot()
+        XCTAssertEqual(feedSnap.faviconURL, "https://example.com/f.ico")
+        XCTAssertEqual(feedSnap.refreshInterval, 7200)
+        XCTAssertEqual(feedSnap.lastFetchStatus, "success")
+        XCTAssertEqual(feedSnap.lastFetchCount, 5)
+        XCTAssertEqual(feedSnap.lastFetchedAt, DataTestSupport.iso("2026-07-03T12:30:00.000Z"))
+        XCTAssertEqual(feedSnap.lastSeenEntryURL, "https://example.com/last")
+
+        // 落库 round-trip 完整
+        _ = try await store.applyPull(response)
+        let storedClip = try await store.clip(id: "clip-full", userId: "user-1")
+        XCTAssertEqual(storedClip?.normalizedURL, "https://example.com/x")
+        XCTAssertEqual(storedClip?.fetchStatus, "success")
+        XCTAssertEqual(storedClip?.fetchStartedAt, DataTestSupport.iso("2026-07-01T00:50:00.000Z"))
+        XCTAssertEqual(storedClip?.fetchedAt, DataTestSupport.iso("2026-07-01T01:00:00.000Z"))
+
+        let storedFeed = try await store.feed(id: "feed-full", userId: "user-1")
+        XCTAssertEqual(storedFeed?.faviconURL, "https://example.com/f.ico")
+        XCTAssertEqual(storedFeed?.refreshInterval, 7200)
+        XCTAssertEqual(storedFeed?.lastFetchStartedAt, DataTestSupport.iso("2026-07-03T12:10:00.000Z"))
+        XCTAssertEqual(storedFeed?.lastFetchStatus, "success")
+        XCTAssertEqual(storedFeed?.lastFetchCount, 5)
+        XCTAssertEqual(storedFeed?.lastFetchedAt, DataTestSupport.iso("2026-07-03T12:30:00.000Z"))
+        XCTAssertEqual(storedFeed?.lastSeenEntryURL, "https://example.com/last")
+    }
 }

@@ -88,6 +88,8 @@ public struct ClipSnapshot: Sendable, Equatable {
     public var publishedAt: Date?
     public var fetchStatus: String
     public var fetchError: String?
+    public var fetchStartedAt: Date?
+    public var fetchedAt: Date?
     public var userId: String
     public var createdAt: Date
     public var updatedAt: Date
@@ -109,6 +111,8 @@ public struct ClipSnapshot: Sendable, Equatable {
         publishedAt: Date? = nil,
         fetchStatus: String = "idle",
         fetchError: String? = nil,
+        fetchStartedAt: Date? = nil,
+        fetchedAt: Date? = nil,
         userId: String,
         createdAt: Date,
         updatedAt: Date,
@@ -129,6 +133,8 @@ public struct ClipSnapshot: Sendable, Equatable {
         self.publishedAt = publishedAt
         self.fetchStatus = fetchStatus
         self.fetchError = fetchError
+        self.fetchStartedAt = fetchStartedAt
+        self.fetchedAt = fetchedAt
         self.userId = userId
         self.createdAt = createdAt
         self.updatedAt = updatedAt
@@ -151,10 +157,12 @@ public struct FeedSnapshot: Sendable, Equatable {
     public var feedDescription: String?
     public var faviconURL: String?
     public var refreshInterval: Int
+    public var lastFetchStartedAt: Date?
     public var lastFetchStatus: String
     public var lastFetchError: String?
     public var lastFetchCount: Int
     public var lastFetchedAt: Date?
+    public var lastSeenEntryURL: String?
     public var userId: String
     public var createdAt: Date
     public var updatedAt: Date
@@ -169,10 +177,12 @@ public struct FeedSnapshot: Sendable, Equatable {
         feedDescription: String? = nil,
         faviconURL: String? = nil,
         refreshInterval: Int = 3600,
+        lastFetchStartedAt: Date? = nil,
         lastFetchStatus: String = "idle",
         lastFetchError: String? = nil,
         lastFetchCount: Int = 0,
         lastFetchedAt: Date? = nil,
+        lastSeenEntryURL: String? = nil,
         userId: String,
         createdAt: Date,
         updatedAt: Date,
@@ -186,10 +196,12 @@ public struct FeedSnapshot: Sendable, Equatable {
         self.feedDescription = feedDescription
         self.faviconURL = faviconURL
         self.refreshInterval = refreshInterval
+        self.lastFetchStartedAt = lastFetchStartedAt
         self.lastFetchStatus = lastFetchStatus
         self.lastFetchError = lastFetchError
         self.lastFetchCount = lastFetchCount
         self.lastFetchedAt = lastFetchedAt
+        self.lastSeenEntryURL = lastSeenEntryURL
         self.userId = userId
         self.createdAt = createdAt
         self.updatedAt = updatedAt

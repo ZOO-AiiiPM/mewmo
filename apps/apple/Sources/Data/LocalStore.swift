@@ -22,11 +22,14 @@ import SwiftData
 public actor LocalStore {
     // MARK: - Notes
 
-    /// 默认列表：过滤 tombstone，按 updatedAt 降序。
+    /// 默认列表：过滤 tombstone，按 updatedAt 降序 + id 确定性 tie-breaker。
     public func listNotes(userId: String, includeDeleted: Bool = false) throws -> [NoteSnapshot] {
         let desc = FetchDescriptor<MewmoNote>(
             predicate: #Predicate<MewmoNote> { $0.userId == userId && (includeDeleted || $0.deletedAt == nil) },
-            sortBy: [SortDescriptor(\MewmoNote.updatedAt, order: .reverse)]
+            sortBy: [
+                SortDescriptor(\MewmoNote.updatedAt, order: .reverse),
+                SortDescriptor(\MewmoNote.id, order: .forward),
+            ]
         )
         return try modelContext.fetch(desc).map(NoteSnapshot.init)
     }
@@ -76,7 +79,10 @@ public actor LocalStore {
     public func listClips(userId: String, includeDeleted: Bool = false) throws -> [ClipSnapshot] {
         let desc = FetchDescriptor<MewmoClip>(
             predicate: #Predicate<MewmoClip> { $0.userId == userId && (includeDeleted || $0.deletedAt == nil) },
-            sortBy: [SortDescriptor(\MewmoClip.updatedAt, order: .reverse)]
+            sortBy: [
+                SortDescriptor(\MewmoClip.updatedAt, order: .reverse),
+                SortDescriptor(\MewmoClip.id, order: .forward),
+            ]
         )
         return try modelContext.fetch(desc).map(ClipSnapshot.init)
     }
@@ -125,7 +131,10 @@ public actor LocalStore {
     public func listFeeds(userId: String, includeDeleted: Bool = false) throws -> [FeedSnapshot] {
         let desc = FetchDescriptor<MewmoFeed>(
             predicate: #Predicate<MewmoFeed> { $0.userId == userId && (includeDeleted || $0.deletedAt == nil) },
-            sortBy: [SortDescriptor(\MewmoFeed.updatedAt, order: .reverse)]
+            sortBy: [
+                SortDescriptor(\MewmoFeed.updatedAt, order: .reverse),
+                SortDescriptor(\MewmoFeed.id, order: .forward),
+            ]
         )
         return try modelContext.fetch(desc).map(FeedSnapshot.init)
     }
@@ -174,7 +183,10 @@ public actor LocalStore {
     public func listFeedEntries(userId: String, includeDeleted: Bool = false) throws -> [FeedEntrySnapshot] {
         let desc = FetchDescriptor<MewmoFeedEntry>(
             predicate: #Predicate<MewmoFeedEntry> { $0.userId == userId && (includeDeleted || $0.deletedAt == nil) },
-            sortBy: [SortDescriptor(\MewmoFeedEntry.updatedAt, order: .reverse)]
+            sortBy: [
+                SortDescriptor(\MewmoFeedEntry.updatedAt, order: .reverse),
+                SortDescriptor(\MewmoFeedEntry.id, order: .forward),
+            ]
         )
         return try modelContext.fetch(desc).map(FeedEntrySnapshot.init)
     }
@@ -350,6 +362,7 @@ public actor LocalStore {
             faviconURL: s.faviconURL, coverImageURL: s.coverImageURL, excerpt: s.excerpt,
             sourceName: s.sourceName, author: s.author, publishedAt: s.publishedAt,
             fetchStatus: s.fetchStatus, fetchError: s.fetchError,
+            fetchStartedAt: s.fetchStartedAt, fetchedAt: s.fetchedAt,
             userId: s.userId, createdAt: s.createdAt, updatedAt: s.updatedAt, deletedAt: s.deletedAt
         )
     }
@@ -358,9 +371,10 @@ public actor LocalStore {
         MewmoFeed(
             id: s.id, version: s.version, url: s.url, type: s.type, title: s.title,
             feedDescription: s.feedDescription, faviconURL: s.faviconURL,
-            refreshInterval: s.refreshInterval, lastFetchStatus: s.lastFetchStatus,
+            refreshInterval: s.refreshInterval,
+            lastFetchStartedAt: s.lastFetchStartedAt, lastFetchStatus: s.lastFetchStatus,
             lastFetchError: s.lastFetchError, lastFetchCount: s.lastFetchCount,
-            lastFetchedAt: s.lastFetchedAt,
+            lastFetchedAt: s.lastFetchedAt, lastSeenEntryURL: s.lastSeenEntryURL,
             userId: s.userId, createdAt: s.createdAt, updatedAt: s.updatedAt, deletedAt: s.deletedAt
         )
     }
@@ -402,6 +416,8 @@ public actor LocalStore {
         m.publishedAt = s.publishedAt
         m.fetchStatus = s.fetchStatus
         m.fetchError = s.fetchError
+        m.fetchStartedAt = s.fetchStartedAt
+        m.fetchedAt = s.fetchedAt
         m.createdAt = s.createdAt
         m.updatedAt = s.updatedAt
         m.deletedAt = s.deletedAt
@@ -415,10 +431,12 @@ public actor LocalStore {
         m.feedDescription = s.feedDescription
         m.faviconURL = s.faviconURL
         m.refreshInterval = s.refreshInterval
+        m.lastFetchStartedAt = s.lastFetchStartedAt
         m.lastFetchStatus = s.lastFetchStatus
         m.lastFetchError = s.lastFetchError
         m.lastFetchCount = s.lastFetchCount
         m.lastFetchedAt = s.lastFetchedAt
+        m.lastSeenEntryURL = s.lastSeenEntryURL
         m.createdAt = s.createdAt
         m.updatedAt = s.updatedAt
         m.deletedAt = s.deletedAt

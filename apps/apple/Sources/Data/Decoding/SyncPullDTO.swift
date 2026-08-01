@@ -109,6 +109,7 @@ public struct ClipPullDTO: Decodable, Sendable {
     public var deletedAt: String?
     public var userId: String
     public var url: String?
+    public var normalizedUrl: String?
     public var title: String?
     public var content: String?
     public var summary: String?
@@ -118,12 +119,17 @@ public struct ClipPullDTO: Decodable, Sendable {
     public var sourceName: String?
     public var author: String?
     public var publishedAt: String?
+    public var fetchStatus: String?
+    public var fetchError: String?
+    public var fetchStartedAt: String?
+    public var fetchedAt: String?
 
     public func snapshot() -> ClipSnapshot {
         ClipSnapshot(
             id: id,
             version: version,
             url: url ?? "",
+            normalizedURL: normalizedUrl,
             title: title ?? "",
             content: content ?? "",
             summary: summary,
@@ -133,6 +139,10 @@ public struct ClipPullDTO: Decodable, Sendable {
             sourceName: sourceName,
             author: author,
             publishedAt: publishedAt.flatMap(SyncISO8601.parse),
+            fetchStatus: fetchStatus ?? "idle",
+            fetchError: fetchError,
+            fetchStartedAt: fetchStartedAt.flatMap(SyncISO8601.parse),
+            fetchedAt: fetchedAt.flatMap(SyncISO8601.parse),
             userId: userId,
             createdAt: SyncISO8601.parse(createdAt) ?? Date(timeIntervalSince1970: 0),
             updatedAt: SyncISO8601.parse(updatedAt) ?? Date(timeIntervalSince1970: 0),
@@ -152,6 +162,14 @@ public struct FeedPullDTO: Decodable, Sendable {
     public var type: String?
     public var title: String?
     public var description: String?
+    public var favicon: String?
+    public var refreshInterval: Int?
+    public var lastFetchStartedAt: String?
+    public var lastFetchStatus: String?
+    public var lastFetchError: String?
+    public var lastFetchCount: Int?
+    public var lastFetchedAt: String?
+    public var lastSeenEntryUrl: String?
 
     @available(*, deprecated, message: "use description")
     public var feedDescription: String? { description }
@@ -164,6 +182,14 @@ public struct FeedPullDTO: Decodable, Sendable {
             type: type ?? "article",
             title: title ?? "",
             feedDescription: description,
+            faviconURL: favicon,
+            refreshInterval: refreshInterval ?? 3600,
+            lastFetchStartedAt: lastFetchStartedAt.flatMap(SyncISO8601.parse),
+            lastFetchStatus: lastFetchStatus ?? "idle",
+            lastFetchError: lastFetchError,
+            lastFetchCount: lastFetchCount ?? 0,
+            lastFetchedAt: lastFetchedAt.flatMap(SyncISO8601.parse),
+            lastSeenEntryURL: lastSeenEntryUrl,
             userId: userId,
             createdAt: SyncISO8601.parse(createdAt) ?? Date(timeIntervalSince1970: 0),
             updatedAt: SyncISO8601.parse(updatedAt) ?? Date(timeIntervalSince1970: 0),

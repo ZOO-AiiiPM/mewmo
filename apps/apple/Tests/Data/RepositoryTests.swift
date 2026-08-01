@@ -104,4 +104,64 @@ final class RepositoryTests: XCTestCase {
         let entry = try await store.feedEntry(id: "entry-1", userId: "user-1")
         XCTAssertEqual(entry?.version, 2)
     }
+
+    /// ZOO-114: Clip/Feed 完整字段 round-trip（DTO→snapshot→model→snapshot 不丢字段）。
+    func testClipFullFieldRoundTrip() async throws {
+        let (_, store) = try DataTestSupport.inMemoryStore()
+        let input = DataTestSupport.clip(userId: "user-1")
+
+        _ = try await store.upsertClip(input)
+        let fetched = try await store.clip(id: input.id, userId: "user-1")
+
+        XCTAssertEqual(fetched, input)
+        // 显式断言此前丢失的字段
+        XCTAssertEqual(fetched?.normalizedURL, "https://example.com/a")
+        XCTAssertEqual(fetched?.fetchStatus, "fetched")
+        XCTAssertNil(fetched?.fetchError)
+        XCTAssertEqual(fetched?.fetchStartedAt, DataTestSupport.iso("2026-07-01T00:50:00.000Z"))
+        XCTAssertEqual(fetched?.fetchedAt, DataTestSupport.iso("2026-07-01T01:00:00.000Z"))
+        XCTAssertEqual(fetched?.faviconURL, "https://example.com/favicon.ico")
+        XCTAssertEqual(fetched?.coverImageURL, "https://example.com/cover.jpg")
+    }
+
+    func testFeedFullFieldRoundTrip() async throws {
+        let (_, store) = try DataTestSupport.inMemoryStore()
+        let input = DataTestSupport.feed(userId: "user-1")
+
+        _ = try await store.upsertFeed(input)
+        let fetched = try await store.feed(id: input.id, userId: "user-1")
+
+        XCTAssertEqual(fetched, input)
+        XCTAssertEqual(fetched?.faviconURL, "https://example.com/favicon.ico")
+        XCTAssertEqual(fetched?.refreshInterval, 7200)
+        XCTAssertEqual(fetched?.lastFetchStartedAt, DataTestSupport.iso("2026-07-03T12:10:00.000Z"))
+        XCTAssertEqual(fetched?.lastFetchStatus, "success")
+        XCTAssertNil(fetched?.lastFetchError)
+        XCTAssertEqual(fetched?.lastFetchCount, 5)
+        XCTAssertEqual(fetched?.lastFetchedAt, DataTestSupport.iso("2026-07-03T12:30:00.000Z"))
+        XCTAssertEqual(fetched?.lastSeenEntryURL, "https://example.com/last")
+    }
+
+    /// ZOO-114: 相同 updatedAt 时按 id 确定性 tie-breaker 排序（稳定顺序回归）。
+    func testStableOrderingWithSameUpdatedAtUsesIDTieBreaker() async throws {
+        let (_, store) = try DataTestSupport.inMemoryStore()
+        let sameUpdatedAt = Date(timeIntervalSince1970: 100)
+
+        for (idx, id) in ["note-c", "note-a", "note-b", "note-d"].enumerated() {
+            _ = try await store.upsertNote(
+                DataTestSupport.note(id: id, version: 1, userId: "user-1",
+                                     title: "n\(idx)", updatedAt: sameUpdatedAt)
+            )
+        }
+
+        // updatedAt 相同 → 次排序键 id 升序（a < b < c < d）
+        let notes = try await store.listNotes(userId: "user-1")
+        XCTAssertEqual(notes.map(\.id), ["note-a", "note-b", "note-c", "note-d"])
+
+        // 跨四类实体同样受 id tie-breaker 约束（clips）
+        _ = try await store.upsertClip(DataTestSupport.clip(id: "clip-b", userId: "user-1", updatedAt: sameUpdatedAt))
+        _ = try await store.upsertClip(DataTestSupport.clip(id: "clip-a", userId: "user-1", updatedAt: sameUpdatedAt))
+        let clips = try await store.listClips(userId: "user-1")
+        XCTAssertEqual(clips.map(\.id), ["clip-a", "clip-b"])
+    }
 }

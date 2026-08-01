@@ -43,21 +43,52 @@ enum DataTestSupport {
         )
     }
 
-    static func clip(id: String = "clip-1", version: Int = 1, userId: String = "user-1") -> ClipSnapshot {
+    static func clip(
+        id: String = "clip-1",
+        version: Int = 1,
+        userId: String = "user-1",
+        updatedAt: Date = iso("2026-07-01T00:00:00.000Z")
+    ) -> ClipSnapshot {
         ClipSnapshot(
             id: id, version: version, url: "https://example.com/a",
-            title: "Clip title", content: "body", userId: userId,
+            normalizedURL: "https://example.com/a",
+            title: "Clip title", content: "body",
+            faviconURL: "https://example.com/favicon.ico",
+            coverImageURL: "https://example.com/cover.jpg",
+            excerpt: "excerpt",
+            sourceName: "source",
+            author: "author",
+            publishedAt: iso("2026-07-01T01:00:00.000Z"),
+            fetchStatus: "fetched",
+            fetchError: nil,
+            fetchStartedAt: iso("2026-07-01T00:50:00.000Z"),
+            fetchedAt: iso("2026-07-01T01:00:00.000Z"),
+            userId: userId,
             createdAt: iso("2026-07-01T00:00:00.000Z"),
-            updatedAt: iso("2026-07-01T00:00:00.000Z")
+            updatedAt: updatedAt
         )
     }
 
-    static func feed(id: String = "feed-1", version: Int = 1, userId: String = "user-1") -> FeedSnapshot {
+    static func feed(
+        id: String = "feed-1",
+        version: Int = 1,
+        userId: String = "user-1",
+        updatedAt: Date = iso("2026-07-03T12:30:00.000Z")
+    ) -> FeedSnapshot {
         FeedSnapshot(
             id: id, version: version, url: "https://example.com/feed.xml",
-            title: "Example feed", userId: userId,
+            type: "article", title: "Example feed",
+            feedDescription: "desc", faviconURL: "https://example.com/favicon.ico",
+            refreshInterval: 7200,
+            lastFetchStartedAt: iso("2026-07-03T12:10:00.000Z"),
+            lastFetchStatus: "success",
+            lastFetchError: nil,
+            lastFetchCount: 5,
+            lastFetchedAt: iso("2026-07-03T12:30:00.000Z"),
+            lastSeenEntryURL: "https://example.com/last",
+            userId: userId,
             createdAt: iso("2026-07-02T08:00:00.000Z"),
-            updatedAt: iso("2026-07-03T12:30:00.000Z")
+            updatedAt: updatedAt
         )
     }
 

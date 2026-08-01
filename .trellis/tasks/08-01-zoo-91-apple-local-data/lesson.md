@@ -18,4 +18,3 @@ This file captures raw observations from this task. Keep evidence and uncertaint
 - canonical fixtures 打进 test bundle：XcodeGen 用 `sources:` 下的 `buildPhase: resources` 引用 `../../packages/sync/src/fixtures`（仓库外目录）。**target 顶层 `resources:` 键 XcodeGen 不认**，会静默不打包。
 - 测试里 `await` 不能用在 `XCTAssert*` 的 autoclosure 里（`await in an autoclosure`），须先 `try await` 取到局部变量再断言。
 - 磁盘容器错误打开测试：SwiftData 对损坏 store 会抛错（`XCTAssertThrowsError` 可捕获），但会把 CoreData fatal 打到 stderr，不要当成测试失败。
-
