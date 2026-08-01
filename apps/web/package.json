@@ -19,6 +19,7 @@
     "@mewmo/email": "workspace:*",
     "@mewmo/shared": "workspace:*",
     "@mewmo/storage": "workspace:*",
+    "@mewmo/sync": "workspace:*",
     "@mewmo/ui": "workspace:*",
     "@milkdown/crepe": "7.21.2",
     "@milkdown/kit": "7.21.2",

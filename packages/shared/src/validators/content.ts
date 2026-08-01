@@ -189,31 +189,8 @@ export const createKnowledgeAssetSchema = z.object({
   sourceUrl: urlSchema.nullable().optional(),
 });
 
-export const syncEntitySchema = z.enum(["note", "clip", "feed", "feed_entry"]);
 export const discoverFeedSchema = z.object({
   query: z.string().trim().min(1),
-});
-export const syncOperationSchema = z.enum([
-  "create",
-  "update",
-  "delete",
-  "mark_read",
-  "mark_unread",
-]);
-
-export const syncMutationSchema = z.object({
-  entity: syncEntitySchema,
-  op: syncOperationSchema,
-  id: z.string().min(1).optional(),
-  data: z.record(z.string(), z.unknown()).optional().default({}),
-});
-
-export const syncPullSchema = z.object({
-  cursor: z.string().datetime().optional(),
-});
-
-export const syncPushSchema = z.object({
-  mutations: z.array(syncMutationSchema).min(1),
 });
 
 export const createTagSchema = z.object({

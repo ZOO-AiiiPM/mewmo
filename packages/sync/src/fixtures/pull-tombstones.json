@@ -1,0 +1,30 @@
+{
+  "description": "Tombstones: soft-deleted records carry a non-null deletedAt and still stream over the incremental pull (driven by updatedAt + id), so clients can reconcile a delete.",
+  "contractVersion": 1,
+  "request": {
+    "contractVersion": 1,
+    "limit": 50
+  },
+  "expectedResponse": {
+    "contractVersion": 1,
+    "cursor": "mewmo-sync-v1:{\"note\":{\"updatedAt\":\"2026-07-04T11:00:00.000Z\",\"id\":\"note-deleted\"}}",
+    "nextCursor": "mewmo-sync-v1:{\"note\":{\"updatedAt\":\"2026-07-04T11:00:00.000Z\",\"id\":\"note-deleted\"}}",
+    "hasMore": false,
+    "limit": 50,
+    "records": {
+      "note": [
+        {
+          "id": "note-deleted",
+          "version": 3,
+          "createdAt": "2026-07-02T00:00:00.000Z",
+          "updatedAt": "2026-07-04T11:00:00.000Z",
+          "deletedAt": "2026-07-04T11:00:00.000Z",
+          "userId": "user-1"
+        }
+      ],
+      "clip": [],
+      "feed": [],
+      "feed_entry": []
+    }
+  }
+}

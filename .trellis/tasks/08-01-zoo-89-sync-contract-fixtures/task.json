@@ -1,0 +1,28 @@
+{
+  "id": "zoo-89-sync-contract-fixtures",
+  "name": "zoo-89-sync-contract-fixtures",
+  "title": "ZOO-89: versioned cross-platform sync contract and fixtures",
+  "description": "ZOO-89: 固化跨端同步协议与 Fixtures",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": "sync",
+  "priority": "P1",
+  "creator": "zoo",
+  "assignee": "zoo",
+  "createdAt": "2026-08-01",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "linear": "ZOO-89"
+  }
+}

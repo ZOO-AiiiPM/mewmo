@@ -29,23 +29,3 @@ export interface EmailEnvelope {
   subject: string;
   html: string;
 }
-
-export type SyncEntity = "note" | "clip" | "feed" | "feed_entry";
-
-export type SyncOperation = "create" | "update" | "delete" | "mark_read" | "mark_unread";
-
-export interface SyncMutation {
-  entity: SyncEntity;
-  op: SyncOperation;
-  id?: string | undefined;
-  data: Record<string, unknown>;
-}
-
-export interface SyncRecord extends EntityBase, SoftDeletable, VersionedEntity {
-  userId: string;
-}
-
-export interface SyncPullResponse<TRecord = SyncRecord> {
-  nextCursor: string;
-  records: Record<SyncEntity, TRecord[]>;
-}

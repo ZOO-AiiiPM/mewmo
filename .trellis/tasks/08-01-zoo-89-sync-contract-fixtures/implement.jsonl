@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/architecture.md", "reason": "同步模型现状（Source of Truth / 核心表 / 同步模型语义）"}
+{"file": ".trellis/spec/dev-apple.md", "reason": "Apple 端约束：fixtures 需可供 Swift 消费"}
+{"file": ".trellis/spec/dev-general.md", "reason": "TS strict + Zod 校验规范（涉及新增 schema）"}
+{"file": ".trellis/spec/dev-backend.md", "reason": "API Route 规范（userId 校验 / repositories 边界）"}

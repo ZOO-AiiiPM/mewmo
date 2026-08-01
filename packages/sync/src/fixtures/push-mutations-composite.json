@@ -1,0 +1,85 @@
+{
+  "description": "Composite push: a single push batches create/update/delete for note and clip, plus mark_read for a feed_entry. Each is applied independently and reported in the applied array.",
+  "contractVersion": 1,
+  "request": {
+    "contractVersion": 1,
+    "mutations": [
+      {
+        "entity": "note",
+        "op": "create",
+        "id": "note-c",
+        "clientMutationId": "m1",
+        "data": { "title": "Created note", "content": "x" }
+      },
+      {
+        "entity": "note",
+        "op": "update",
+        "id": "note-u",
+        "clientMutationId": "m2",
+        "data": { "title": "Updated", "expectedVersion": 2 }
+      },
+      {
+        "entity": "note",
+        "op": "delete",
+        "id": "note-d",
+        "clientMutationId": "m3",
+        "data": { "expectedVersion": 1 }
+      },
+      {
+        "entity": "clip",
+        "op": "create",
+        "id": "clip-c",
+        "clientMutationId": "m4",
+        "data": { "url": "https://example.com/a", "title": "A clip" }
+      },
+      {
+        "entity": "feed_entry",
+        "op": "mark_read",
+        "id": "entry-1",
+        "clientMutationId": "m5",
+        "data": {}
+      }
+    ]
+  },
+  "expectedResponse": {
+    "contractVersion": 1,
+    "applied": [
+      {
+        "index": 0,
+        "entity": "note",
+        "op": "create",
+        "clientMutationId": "m1",
+        "record": { "id": "note-c", "version": 1, "deletedAt": null, "userId": "user-1" }
+      },
+      {
+        "index": 1,
+        "entity": "note",
+        "op": "update",
+        "clientMutationId": "m2",
+        "record": { "id": "note-u", "version": 3, "deletedAt": null, "userId": "user-1" }
+      },
+      {
+        "index": 2,
+        "entity": "note",
+        "op": "delete",
+        "clientMutationId": "m3",
+        "record": { "id": "note-d", "version": 2, "deletedAt": "2026-07-05T08:00:00.000Z", "userId": "user-1" }
+      },
+      {
+        "index": 3,
+        "entity": "clip",
+        "op": "create",
+        "clientMutationId": "m4",
+        "record": { "id": "clip-c", "version": 1, "deletedAt": null, "userId": "user-1" }
+      },
+      {
+        "index": 4,
+        "entity": "feed_entry",
+        "op": "mark_read",
+        "clientMutationId": "m5",
+        "record": { "id": "entry-1", "version": 2, "deletedAt": null, "userId": "user-1", "readAt": "2026-07-05T08:00:00.000Z" }
+      }
+    ],
+    "errors": []
+  }
+}

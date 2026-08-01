@@ -2,12 +2,18 @@
   "name": "@mewmo/sync",
   "private": true,
   "version": "0.0.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "lint": "eslint .",
     "test": "vitest"
   },
   "dependencies": {
-    "@mewmo/shared": "workspace:*"
+    "zod": "4.3.0"
   }
 }
