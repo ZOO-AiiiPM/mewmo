@@ -98,14 +98,18 @@
 仅一个并发请求成功（旧哈希仍在才写），其余并发/重放得到 `401 invalid_refresh`。来源信息
 （IP / UA）、滑动过期窗口与 `refreshCount` 在同一条原子 UPDATE 内完成，不存在「已轮换但记录未更新」的中间态。
 
-刷新**限速**：独立 `refresh-fail:<hash>:<ip>` 桶（`hash` 为 refresh token 的 HMAC，不泄露 token），
-与登录桶不共享。命中限速返回：
+刷新**限速**：独立于登录桶，按 **IP 权威桶 + token 重放桶** 计：
+- `refresh-fail-ip:<ip>`：无论 token 是否变化，同一来源的全部刷新失败都收敛到同一桶 → 抑制「每次换随机 token 枚举」。
+- `refresh-fail-token:<hash>:<ip>`：针对特定 refresh token 的重复重放。
+- 键只用 HMAC 哈希 / 纯 IP，不含明文 token。
+
+命中限速返回：
 
 | 状态 | code | 说明 |
 |------|------|------|
-| 429 | `rate_limited` | 刷新尝试过多（连续失败达上限），滑动锁定后解锁 |
+| 429 | `rate_limited` | 刷新尝试过多（IP 或 token 桶达上限），滑动锁定后解锁 |
 
-成功刷新清空该刷新桶，失败（无效/已轮换/已撤销/已过期）计数一次。
+成功刷新清空该来源的限速桶，失败（无效/已轮换/已撤销/已过期）计一次。
 
 错误：`400 invalid_request` / `401 invalid_refresh`（无效、已轮换、已撤销、已过期）/ `429 rate_limited`。
 

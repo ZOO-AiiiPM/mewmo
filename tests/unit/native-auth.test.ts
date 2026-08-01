@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { LOGIN_MAX_ATTEMPTS } from "../../packages/auth/src/login-rate-limit";
+import { MemoryRefreshFailStore } from "../../apps/web/src/lib/login-attempt-store";
 import { createNativeAuthService } from "../../apps/web/src/lib/native-auth";
 
 const SECRET = "test-native-secret";
@@ -322,6 +324,29 @@ describe("native refresh rotation", () => {
 
     await expect(service.refresh("does-not-exist", makeRequest())).rejects.toMatchObject({ status: 401 });
     expect(refreshLimiter.recordFailure).toHaveBeenCalled();
+  });
+
+  it("locks out distinct invalid tokens from one IP via the IP-authoritative bucket (429)", async () => {
+    // 注入真实的 IP 权威 refresh 限速器：不同无效 token 从同一 IP 收敛到有界上限
+    const { prisma } = setup();
+    const realRefreshLimiter = new MemoryRefreshFailStore();
+    const service = createNativeAuthService({
+      prisma: prisma as never,
+      secret: SECRET,
+      refreshRateLimiter: realRefreshLimiter,
+      now: () => new Date("2026-08-01T08:00:00.000Z"),
+    });
+
+    // 连续提交 N 个「不同随机 token」→ 命中 IP 桶上限
+    for (let i = 0; i < LOGIN_MAX_ATTEMPTS; i += 1) {
+      await expect(service.refresh(`invalid-token-${i}-abcdefghijklmn`, makeRequest())).rejects.toMatchObject({
+        status: 401,
+      });
+    }
+
+    // 下一个全新 token（从未见过）也命中 IP 桶 → 稳定 429 rate_limited
+    const locked = service.refresh("another-fresh-invalid-token-0000", makeRequest());
+    await expect(locked).rejects.toMatchObject({ status: 429, code: "rate_limited" });
   });
 });
 

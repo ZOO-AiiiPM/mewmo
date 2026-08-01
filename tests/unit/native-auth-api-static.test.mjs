@@ -118,9 +118,12 @@ test("refresh endpoint is rate-limited with a stable rate_limited contract", () 
   assert.match(refreshRoute, /getRefreshRateLimiter\(\)/);
   assert.match(refreshRoute, /refreshRateLimiter:/);
 
-  // 存储：独立 refresh 桶前缀，键用 refresh 哈希，不存明文 token
-  assert.match(store, /REFRESH_BUCKET_PREFIX\s*=\s*"refresh-fail"/);
+  // 存储：IP 权威桶（收敛同一来源的枚举）+ token 重放桶，键不含明文 token
+  assert.match(store, /REFRESH_IP_BUCKET_PREFIX\s*=\s*"refresh-fail-ip"/);
+  assert.match(store, /REFRESH_TOKEN_BUCKET_PREFIX\s*=\s*"refresh-fail-token"/);
   assert.match(store, /getRefreshRateLimiter/);
+  assert.match(store, /ipKey\(REFRESH_IP_BUCKET_PREFIX,\s*ip\)/);
+  assert.match(store, /tokenKey\(REFRESH_TOKEN_BUCKET_PREFIX/);
 
   // 服务：命中限速抛 429 rate_limited；失败记录、成功清理
   assert.match(svc, /refreshRateLimiter\s*&&\s*\(await\s+refreshRateLimiter\.isLocked/);

@@ -32,3 +32,4 @@ This file captures raw observations from this task. Keep evidence and uncertaint
 - **mock 也要模拟原子性**：单测的 `updateMany` mock 必须按 `where` 条件对该行做 hit-apply/else `count:0`，否则测不出并发重放场景。并发失败用例 = 先成功轮换一次，再让旧 token 刷新 → CAS miss → 401。
 - **限速键别泄露 token**：刷新限速用 refresh token 的 **HMAC 哈希 + IP** 作键，不用明文；独立 `refresh-fail` 桶与登录桶分离。畸形 token 也先哈希再走限速，失败计数、成功 clear，命中返回稳定 `429 + rate_limited`。
 - **所有权查询必须带 userId**：`findActiveForUserBySessionId` 之前只查 `id`，被验收点出；改成 `findFirst({ where: { id, userId } })`，logout bearer 路径也改为 `revokeForUserBySessionId(userId, ...)`。
+- **限速键若含 per-token 成分仍可被刷桶**：初版用 `refreshHash + IP` 作键，攻击者每次提交新随机 token 就得到一个全新桶，枚举仍无界。正确做法是 **IP 权威桶**（`refresh-fail-ip:<ip>`，键只含 IP，不随 token 变化 → 同一来源全部失败收敛）+ 可选 token 重放桶（`refresh-fail-token:<hash>:<ip>`）。`isLocked` 任一桶达上限即 429；`recordFailure` 两桶都计；成功才 `clear`。单测必须覆盖「多个不同无效 token 从同一 IP → 收敛达上限 → 429」。
