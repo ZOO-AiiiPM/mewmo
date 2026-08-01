@@ -25,3 +25,10 @@ This file captures raw observations from this task. Keep evidence and uncertaint
 
 - `jose@^6.2.3` 加入 `@mewmo/auth` 直接依赖（pnpm store 已有，作为 @auth/core 的传递依赖），避免手写 HS256 或依赖传递 dep。
 - Prisma client 需先 `pnpm db:generate`（本 worktree 未装依赖时无 `.prisma/client`，测试/构建会挂）。
+
+### 验收发现的修复（ZOO-106 原子轮换 + ZOO-105 刷新限速）
+
+- **读后写不是 CAS**：最初的 refresh 先按旧 hash `findUnique` 再按 sessionId `update`，两步并发会互相覆盖。正确做法用 `updateMany` + `WHERE`（sessionId + 旧 hash + `revokedAt:null` + `refreshExpiresAt >= now`）做 row-level CAS；`count===0` 即竞争失败（重放/已注销/已过期）须 401。来源信息/IP/UA 与过期窗口、refreshCount 合并进同一条 UPDATE，天然在同一事务边界，无需单独 touch。
+- **mock 也要模拟原子性**：单测的 `updateMany` mock 必须按 `where` 条件对该行做 hit-apply/else `count:0`，否则测不出并发重放场景。并发失败用例 = 先成功轮换一次，再让旧 token 刷新 → CAS miss → 401。
+- **限速键别泄露 token**：刷新限速用 refresh token 的 **HMAC 哈希 + IP** 作键，不用明文；独立 `refresh-fail` 桶与登录桶分离。畸形 token 也先哈希再走限速，失败计数、成功 clear，命中返回稳定 `429 + rate_limited`。
+- **所有权查询必须带 userId**：`findActiveForUserBySessionId` 之前只查 `id`，被验收点出；改成 `findFirst({ where: { id, userId } })`，logout bearer 路径也改为 `revokeForUserBySessionId(userId, ...)`。
