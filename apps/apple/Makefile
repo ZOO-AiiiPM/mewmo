@@ -3,13 +3,14 @@
 
 SHELL := /usr/bin/env bash
 PROJECT   := Mewmo.xcodeproj
-SCHEME_MAC := Mewmo-Mac
-SCHEME_IOS := Mewmo-iOS
-DERIVED   := DerivedData
-XCODEBUILD := xcodebuild -project $(PROJECT) -derivedDataPath $(DERIVED)
-FIND_SIM  := scripts/find_sim.sh
+SCHEME_MAC  := Mewmo-Mac
+SCHEME_IOS  := Mewmo-iOS
+SCHEME_TEST := Mewmo-Tests
+DERIVED     := DerivedData
+XCODEBUILD  := xcodebuild -project $(PROJECT) -derivedDataPath $(DERIVED)
+FIND_SIM    := scripts/find_sim.sh
 
-.PHONY: generate build-macos build-ios build-ios-iphone build-ios-ipad build-all verify-idempotent verify clean
+.PHONY: generate build-macos build-ios build-ios-iphone build-ios-ipad build-all test verify-idempotent verify clean
 
 ## 生成 Xcode 工程（project.yml 是唯一真相源）
 generate:
@@ -48,6 +49,13 @@ build-ios-ipad: $(PROJECT)
 build-all: build-macos build-ios-iphone build-ios-ipad
 	@echo "✅ build-all: macOS / iPhone / iPad all passed"
 
+## 共享 macOS unit-test 门禁（ZOO-91）：运行 Mewmo-Tests 里的 SwiftData 本地数据层测试
+test: $(PROJECT)
+	@$(XCODEBUILD) -scheme $(SCHEME_TEST) \
+		-destination 'platform=macOS' \
+		CODE_SIGNING_ALLOWED=NO \
+		-skipPackagePluginValidation test
+
 ## 生成幂等性：连跑两次 xcodegen，逐文件（内容 + 文件名集合）比对，
 ## 任何漂移（diff 非空）即非零退出。空的 SwiftPM 副作用目录不算漂移。
 ## 临时文件/快照每 run 用 mktemp 私有命名，并由 trap 兜底清理：
@@ -68,9 +76,9 @@ verify-idempotent: $(PROJECT)
 		echo "❌ generate DRIFT detected:"; cat "$$drift"; exit 1; \
 	fi
 
-## 完整验收：生成幂等校验 + 三 destination 全绿
-verify: verify-idempotent build-all
-	@echo "✅ verify: generate idempotent + 3 destinations all passed"
+## 完整验收：生成幂等校验 + 三 destination 全绿 + 共享 unit-test 全绿
+verify: verify-idempotent build-all test
+	@echo "✅ verify: generate idempotent + 3 destinations + unit tests all passed"
 
 clean:
 	@rm -rf $(DERIVED)

@@ -1,0 +1,3 @@
+{"file":".trellis/spec/dev-apple.md","reason":"Apple deployment, XcodeGen and shared-source constraints"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Map Web sync contract through DTOs, persistence and future SyncEngine boundaries"}
+{"file":".trellis/tasks/08-01-zoo-91-apple-local-data/research/codebase.md","reason":"Audited protocol, schema, fixture and concurrency constraints"}

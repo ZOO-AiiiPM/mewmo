@@ -57,4 +57,25 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
 
-# XcodeGen 自动为每个 application target 生成 scheme，同名即可被 xcodebuild -scheme 引用。
+  # 共享 macOS unit-test 门禁（ZOO-91）：只编译数据层 + Tests/，
+  # 不包含 SwiftUI 启动壳，保证数据模型不依赖 SwiftUI、可在 unhosted xctest 运行。
+  # canonical sync fixtures 通过 buildPhase: resources 引用仓库内单一副本，不复制。
+  Mewmo-Tests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Sources/Data
+      - path: Tests
+      # canonical sync fixtures（仓库内单一副本，不复制）：作为资源打进 test bundle。
+      - path: ../../packages/sync/src/fixtures
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_NAME: $(TARGET_NAME)
+        PRODUCT_BUNDLE_IDENTIFIER: app.mewmo.tests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "6.0"
+        CODE_SIGNING_ALLOWED: NO
+        ENABLE_HARDENED_RUNTIME: NO
+
+# XcodeGen 自动为每个 target 生成 scheme，同名即可被 xcodebuild -scheme 引用。

@@ -9,11 +9,14 @@ mewmo 的 Apple 客户端工程，由 **XcodeGen** 声明生成，覆盖 macOS /
 ```
 apps/apple/
 ├── project.yml                 # XcodeGen 真相源（唯一手工配置入口）
-├── Makefile                    # 本地生成 / 构建 / 验证入口
+├── Makefile                    # 本地生成 / 构建 / 测试 / 验证入口
 ├── README.md                   # 本文档
 ├── .gitignore                  # 忽略生成的 *.xcodeproj、DerivedData 等
-├── Sources/
-│   └── MewmoRootView.swift     # 共享最小 SwiftUI 启动壳（无 @main，macOS/iOS 复用）
+├── Sources/                    # 共享 Swift 源码
+│   ├── MewmoRootView.swift     # 共享最小 SwiftUI 启动壳（无 @main，macOS/iOS 复用）
+│   └── Data/                   # ZOO-91 SwiftData 本地数据层（model/容器/repository/同步 DTO）
+├── Tests/
+│   └── Data/                   # ZOO-91 首个共享 macOS unit-test 用例（数据层）
 ├── Entry/
 │   ├── macOS/MacAppMain.swift  # macOS composition root（@main，仅 macOS target 编译）
 │   └── iOS/iOSAppMain.swift    # iOS composition root（@main，仅 iOS target 编译）
@@ -26,14 +29,20 @@ apps/apple/
 
 ## 工程形态
 
-一个 `Mewmo.xcodeproj`，两个 target：
+一个 `Mewmo.xcodeproj`，三个 target：
 
 | Target  | Platform | Device family | 入口 |
 |---------|----------|---------------|------|
-| `Mewmo-Mac` | macOS 14+ | - | `Entry/macOS/MacAppMain.swift` |
-| `Mewmo-iOS` | iOS 17+   | iPhone(1) + iPad(2) | `Entry/iOS/iOSAppMain.swift` |
+| `Mewmo-Mac`   | macOS 14+ | -                  | `Entry/macOS/MacAppMain.swift` |
+| `Mewmo-iOS`   | iOS 17+   | iPhone(1) + iPad(2) | `Entry/iOS/iOSAppMain.swift` |
+| `Mewmo-Tests` | macOS 14+（unit-test bundle）| - | `Sources/Data/` + `Tests/Data/` |
 
-两个 target 共享 `Sources/`，平台差异用 `#if os(...)` 收敛；入口文件各自独立，避免多 `@main` 冲突。
+前两个 app target 共享 `Sources/`，平台差异用 `#if os(...)` 收敛；入口文件各自独立，避免多 `@main` 冲突。
+
+`Mewmo-Tests` 是 ZOO-91 建立的**首个共享 macOS unit-test 门禁**，供后续 Apple 模块
+（ZOO-92/93…）直接追加测试。它只编译 `Sources/Data/` 与 `Tests/Data/`，不包含 SwiftUI
+启动壳——保证数据层不依赖 SwiftUI、可在 unhosted `.xctest` 运行。canonical sync fixtures
+以资源方式直接引用仓库内 `packages/sync/src/fixtures/` 单一副本，不做第二份拷贝。
 
 ## 前置要求（macOS 本地）
 
@@ -64,18 +73,29 @@ make build-ios-ipad     # iPad simulator（自动挑选已安装 iPad 模拟器�
 
 全部无签名（`CODE_SIGNING_ALLOWED=NO`），零证书环境可复现。
 
+### 运行共享 unit-test（数据层）
+
+```bash
+make test
+```
+
+`make test` 运行 `Mewmo-Tests` scheme（macOS 本地），覆盖 SwiftData 本地数据层的
+CRUD / 版本单调 / 账号隔离 / tombstone / outbox / fixture decode。它是后续 Apple 模块
+复用的默认测试基座。
+
 ### 一键验证
 
 ```bash
 make verify
 ```
 
-`make verify` 做两件事，任何一步失败即非零退出：
+`make verify` 做三件事，任何一步失败即非零退出：
 
 1. **生成幂等性机械校验**（`make verify-idempotent`）：连跑两次 `xcodegen generate`，把两次生成结果投影成「文件 + 内容」快照（`scripts/snapshot_project.sh`，跳过空的 SwiftPM 副作用目录），再 `diff -r` 逐文件比对。任一常规文件名称或内容漂移即 `exit 1` 并打印 diff。
 2. **三 destination 全量无签名构建**（`make build-all`）：macOS + iPhone + iPad。
+3. **共享 unit-test 全绿**（`make test`）。
 
-也可单独跑 `make verify-idempotent` 只看生成幂等性。
+也可单独跑 `make verify-idempotent` 只看生成幂等性，或 `make test` 只看测试。
 
 ### 清理构建产物
 
