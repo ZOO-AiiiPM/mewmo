@@ -12,6 +12,11 @@ export interface ParsedFeedEntry {
   publishedAt?: Date;
 }
 
+export interface ParsedFeedDocument {
+  entries: ParsedFeedEntry[];
+  imageUrl?: string;
+}
+
 const parser = new XMLParser({
   attributeNamePrefix: "",
   ignoreAttributes: false,
@@ -34,6 +39,13 @@ export async function fetchFeedDocument(
   url: string,
   options: FetchFeedDocumentOptions = {},
 ): Promise<ParsedFeedEntry[]> {
+  return (await fetchFeedDocumentWithMetadata(url, options)).entries;
+}
+
+export async function fetchFeedDocumentWithMetadata(
+  url: string,
+  options: FetchFeedDocumentOptions = {},
+): Promise<ParsedFeedDocument> {
   const response = await fetchOutbound(url, {
     signal: AbortSignal.timeout(options.timeoutMs ?? DEFAULT_FEED_FETCH_TIMEOUT_MS),
     headers: {
@@ -51,7 +63,7 @@ export async function fetchFeedDocument(
     throw new Error(`Feed fetch failed: ${response.status} ${response.statusText}`);
   }
 
-  return parseFeedXml(await response.text());
+  return parseFeedDocument(await response.text());
 }
 
 function asArray<T>(value: T | T[] | undefined): T[] {
@@ -105,14 +117,39 @@ function atomLinkValue(link: unknown): string {
   return textValue(preferred);
 }
 
+function hrefValue(node: unknown): string {
+  const first = asArray(node)[0];
+  if (typeof first === "object" && first !== null && "href" in first) {
+    return textValue((first as { href?: unknown }).href);
+  }
+  return "";
+}
+
+function feedImageUrl(value: string): string | undefined {
+  if (!value) return undefined;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return undefined;
+    url.protocol = "https:";
+    return url.href;
+  } catch {
+    return undefined;
+  }
+}
+
 export function parseFeedXml(xml: string, limit = Number.POSITIVE_INFINITY): ParsedFeedEntry[] {
+  return parseFeedDocument(xml, limit).entries;
+}
+
+export function parseFeedDocument(xml: string, limit = Number.POSITIVE_INFINITY): ParsedFeedDocument {
   const document = parser.parse(xml) as {
-    rss?: { channel?: { item?: unknown } };
-    feed?: { entry?: unknown };
+    rss?: { channel?: Record<string, unknown> };
+    feed?: Record<string, unknown>;
   };
 
-  if (document.rss?.channel?.item) {
-    return asArray(document.rss.channel.item)
+  if (document.rss?.channel) {
+    const channel = document.rss.channel;
+    const entries = asArray(channel.item)
       .slice(0, limit)
       .map((item) => {
         const rssItem = item as Record<string, unknown>;
@@ -127,10 +164,14 @@ export function parseFeedXml(xml: string, limit = Number.POSITIVE_INFINITY): Par
         };
       })
       .filter((entry) => entry.title && entry.url);
+    const channelImage = asArray(channel.image)[0] as { url?: unknown } | undefined;
+    const imageUrl = feedImageUrl(textValue(channelImage?.url) || hrefValue(channel["itunes:image"]));
+    return { entries, ...(imageUrl ? { imageUrl } : {}) };
   }
 
-  if (document.feed?.entry) {
-    return asArray(document.feed.entry)
+  if (document.feed) {
+    const feedNode = document.feed;
+    const entries = asArray(feedNode.entry)
       .slice(0, limit)
       .map((item) => {
         const atomEntry = item as Record<string, unknown>;
@@ -145,7 +186,9 @@ export function parseFeedXml(xml: string, limit = Number.POSITIVE_INFINITY): Par
         };
       })
       .filter((entry) => entry.title && entry.url);
+    const imageUrl = feedImageUrl(textValue(feedNode.icon) || textValue(feedNode.logo));
+    return { entries, ...(imageUrl ? { imageUrl } : {}) };
   }
 
-  return [];
+  return { entries: [] };
 }

@@ -1,4 +1,4 @@
-import { fetchFeedDocument, type ParsedFeedEntry } from "@mewmo/content";
+import { fetchFeedDocumentWithMetadata, type ParsedFeedDocument, type ParsedFeedEntry } from "@mewmo/content";
 import { createFeedEntriesRepository, getPrisma } from "@mewmo/db";
 
 import { processFeedEntry, type ProcessFeedEntryInput } from "./process-feed-entry";
@@ -53,7 +53,7 @@ export interface AiRunEnqueuePort {
 interface ProcessFeedDependencies {
   prisma?: FeedCronPrisma;
   entryRepository?: FeedEntryRepository;
-  fetchFeed?: (url: string) => Promise<ParsedFeedEntry[]>;
+  fetchFeed?: (url: string) => Promise<ParsedFeedEntry[] | ParsedFeedDocument>;
   processEntry?: (input: ProcessFeedEntryInput) => Promise<unknown>;
   aiRuns?: AiRunEnqueuePort;
   findEntriesNeedingAiRuns?: (
@@ -74,7 +74,7 @@ export async function processFeed(
 ): Promise<ProcessFeedResult> {
   const prisma = dependencies.prisma ?? (getPrisma() as unknown as FeedCronPrisma);
   const entryRepository = dependencies.entryRepository ?? (createFeedEntriesRepository() as unknown as FeedEntryRepository);
-  const fetchFeed = dependencies.fetchFeed ?? fetchFeedDocument;
+  const fetchFeed = dependencies.fetchFeed ?? fetchFeedDocumentWithMetadata;
   const processEntry = dependencies.processEntry ?? processFeedEntry;
   const aiRuns = dependencies.aiRuns;
   const findEntriesNeedingAiRuns = dependencies.findEntriesNeedingAiRuns ?? (async (userId, feedId) =>
@@ -107,7 +107,9 @@ export async function processFeed(
   }
 
   try {
-    const entries = (await fetchFeed(feed.url)).sort(comparePublishedAt);
+    const fetched = await fetchFeed(feed.url);
+    const document: ParsedFeedDocument = Array.isArray(fetched) ? { entries: fetched } : fetched;
+    const entries = [...document.entries].sort(comparePublishedAt);
     const unseenEntries = selectUnseenFeedEntries(entries, feed);
     let created = 0;
     const failures: string[] = [];
@@ -174,6 +176,7 @@ export async function processFeed(
         lastFetchError: failures[0] ?? null,
         lastFetchCount: created,
         lastSeenEntryUrl: entries[0]?.url ?? feed.lastSeenEntryUrl,
+        ...(document.imageUrl ? { favicon: document.imageUrl } : {}),
         version: { increment: 1 },
       },
     });

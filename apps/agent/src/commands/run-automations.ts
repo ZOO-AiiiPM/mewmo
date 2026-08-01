@@ -1,3 +1,5 @@
+import "../proxy";
+
 import { hostname } from "node:os";
 
 import { loadFoundationAdapters } from "../adapters";

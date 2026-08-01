@@ -52,6 +52,21 @@ describe("discoverFeeds", () => {
     expect(fetchFeed).toHaveBeenCalledTimes(2);
   });
 
+  it("prefers the channel image over the site favicon for a direct RSS URL", async () => {
+    const fetchFeed = vi.fn().mockResolvedValueOnce(
+      xmlResponse(
+        "<rss><channel><title>罗辑思维</title><link>https://werss.example.com</link><image><url>http://mmbiz.qpic.cn/mmbiz_png/avatar/0?wx_fmt=png</url><title>罗辑思维</title><link>https://werss.example.com</link></image></channel></rss>",
+      ),
+    );
+
+    await expect(discoverFeeds("https://example.com/feed.xml", { fetchFeed })).resolves.toEqual([
+      expect.objectContaining({
+        favicon: "https://mmbiz.qpic.cn/mmbiz_png/avatar/0?wx_fmt=png",
+      }),
+    ]);
+    expect(fetchFeed).toHaveBeenCalledTimes(1);
+  });
+
   it("discovers alternate feed links from a website", async () => {
     const fetchFeed = vi.fn().mockResolvedValue(
       htmlResponse(`

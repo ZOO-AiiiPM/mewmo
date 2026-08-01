@@ -1,3 +1,5 @@
+import "./proxy";
+
 import { loadFoundationAdapters } from "./adapters";
 import { loadAgentConfig } from "./config";
 import { createConfiguredAgentObservability } from "./observability/langfuse";

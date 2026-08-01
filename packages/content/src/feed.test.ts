@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { fetchFeedDocument, parseFeedXml } from "./feed";
+import { fetchFeedDocument, parseFeedDocument, parseFeedXml } from "./feed";
 
 describe("parseFeedXml", () => {
   it("maps RSS descriptions to excerpt without creating an AI summary", () => {
@@ -113,5 +113,62 @@ describe("parseFeedXml", () => {
     await expect(fetchFeedDocument("http://127.0.0.1/feed.xml", { fetchFeed }))
       .rejects.toThrow("blocked address");
     expect(fetchFeed).not.toHaveBeenCalled();
+  });
+});
+
+describe("parseFeedDocument", () => {
+  it("reads the RSS channel image and upgrades it to https", () => {
+    const document = parseFeedDocument(`
+      <rss><channel>
+        <title>罗辑思维</title>
+        <image>
+          <url>http://mmbiz.qpic.cn/mmbiz_png/avatar/0?wx_fmt=png</url>
+          <title>罗辑思维</title>
+          <link>https://example.com</link>
+        </image>
+        <item>
+          <title>One</title>
+          <link>https://example.com/one</link>
+        </item>
+      </channel></rss>
+    `);
+
+    expect(document.imageUrl).toBe("https://mmbiz.qpic.cn/mmbiz_png/avatar/0?wx_fmt=png");
+    expect(document.entries).toHaveLength(1);
+  });
+
+  it("falls back to the itunes image for podcast feeds", () => {
+    const document = parseFeedDocument(`
+      <rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"><channel>
+        <title>Podcast</title>
+        <itunes:image href="https://cdn.example.com/cover.jpg" />
+      </channel></rss>
+    `);
+
+    expect(document.imageUrl).toBe("https://cdn.example.com/cover.jpg");
+  });
+
+  it("reads the Atom feed icon before the logo", () => {
+    const document = parseFeedDocument(`
+      <feed xmlns="http://www.w3.org/2005/Atom">
+        <title>Atom Feed</title>
+        <icon>https://example.com/icon.png</icon>
+        <logo>https://example.com/logo.png</logo>
+      </feed>
+    `);
+
+    expect(document.imageUrl).toBe("https://example.com/icon.png");
+  });
+
+  it("omits the image for feeds without channel metadata", () => {
+    const document = parseFeedDocument(`
+      <rss><channel>
+        <title>Plain</title>
+        <item><title>One</title><link>https://example.com/one</link></item>
+      </channel></rss>
+    `);
+
+    expect(document.imageUrl).toBeUndefined();
+    expect(document.entries).toHaveLength(1);
   });
 });
