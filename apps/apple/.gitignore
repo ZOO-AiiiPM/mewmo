@@ -1,0 +1,8 @@
+# 生成的工程文件不算真相源，一律忽略；`project.yml` 才是唯一配置入口。
+# 删除本文件后运行 `make generate` 即可重新生成。
+Mewmo.xcodeproj/
+xcuserdata/
+*.xcworkspace/
+DerivedData/
+.build/
+build/
