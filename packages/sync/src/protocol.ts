@@ -23,6 +23,9 @@ export type SyncOperation = (typeof syncOperations)[number];
 /** Major contract version. Same-major requests are backward compatible. */
 export const SYNC_CONTRACT_VERSION = 1 as const;
 
+/** Stable error code returned when a client advertises a too-new contract. */
+export const SYNC_ERROR_CONTRACT_UNSUPPORTED = "contract_version_unsupported" as const;
+
 /** Pull pagination bounds. */
 export const DEFAULT_PAGE_LIMIT = 200;
 export const MAX_PAGE_LIMIT = 500;
@@ -64,11 +67,29 @@ export interface SyncRecord {
 export interface SyncPullRequest {
   /** Optional; defaults to 1 for backward compatibility. */
   contractVersion?: number | undefined;
-  /** Incremental sync cursor; ISO-8601 `updatedAt` value. Empty/missing = epoch. */
+  /**
+   * Incremental sync cursor.
+   * - Composite form (JSON, produced by this server): per-entity keyset position.
+   * - Legacy form (plain ISO-8601 timestamp): resumes every entity from that time.
+   * - Missing/empty: full sync from epoch.
+   */
   cursor?: string | undefined;
   /** Pagination page size. Clamped to [1, MAX_PAGE_LIMIT]. */
   limit?: number | undefined;
 }
+
+/**
+ * Keyset position of a single entity's last returned record.
+ * `(updatedAt, id)` ordered ascending; `id` is the stable tie-breaker so rows
+ * sharing an `updatedAt` are never skipped or duplicated across pages.
+ */
+export interface SyncPosition {
+  updatedAt: string;
+  id: string;
+}
+
+/** Composite pull cursor: one keyset position per syncable entity. */
+export type SyncCursorState = Partial<Record<SyncEntity, SyncPosition>>;
 
 /** Pull response envelope. */
 export interface SyncPullResponse<TRecord = SyncRecord> {
@@ -117,6 +138,14 @@ export interface SyncPushResponse<TRecord = SyncRecord> {
 // Pure protocol helpers (shared between Web and any future client).
 // ---------------------------------------------------------------------------
 
+/**
+ * Reject clients that claim a newer major contract than the server speaks.
+ * Missing contractVersion is treated as 1 (backward compatible).
+ */
+export function contractVersionSupported(candidate?: number): boolean {
+  return (candidate ?? 1) <= SYNC_CONTRACT_VERSION;
+}
+
 /** Parse a pull cursor into a Date; missing/garbage cursor normalizes to epoch. */
 export function normalizeCursor(cursor?: string): Date {
   if (!cursor) return new Date(0);
@@ -134,11 +163,159 @@ export function applyPageLimit(limit?: number): number {
   return limit;
 }
 
+const CURSOR_PREFIX = "mewmo-sync-v1:";
+
+/**
+ * Encode a composite keyset cursor into an opaque string for transport.
+ * Empty state (nothing returned yet) encodes to null so the client sends no
+ * cursor on the first page.
+ */
+export function encodePageCursor(state: SyncCursorState | undefined): string | null {
+  const hasPosition =
+    state != null && syncEntities.some((entity) => state[entity] !== undefined);
+  if (!hasPosition) return null;
+  return `${CURSOR_PREFIX}${JSON.stringify(state)}`;
+}
+
+/**
+ * Decode a client-supplied pull cursor into per-entity keyset positions.
+ * Handles:
+ *  - composite form (produced by encodePageCursor)
+ *  - legacy plain ISO timestamp (resumes every entity from that time)
+ *  - missing/garbage → empty state (full sync from epoch)
+ */
+export function decodePageCursor(cursor?: string): SyncCursorState {
+  if (!cursor) return {};
+
+  const composite = parseCompositeCursor(cursor);
+  if (composite) return composite;
+
+  // Legacy plain ISO timestamp: resume every entity from that time (empty id => all ids).
+  const legacy = new Date(cursor);
+  if (!Number.isNaN(legacy.getTime())) {
+    const position: SyncPosition = { updatedAt: legacy.toISOString(), id: "" };
+    return {
+      note: position,
+      clip: position,
+      feed: position,
+      feed_entry: position,
+    };
+  }
+
+  return {};
+}
+
+function parseCompositeCursor(cursor: string): SyncCursorState | null {
+  if (!cursor.startsWith(CURSOR_PREFIX)) return null;
+  const encoded = cursor.slice(CURSOR_PREFIX.length);
+  let raw: unknown;
+  try {
+    raw = JSON.parse(encoded);
+  } catch {
+    return null;
+  }
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
+  const state: SyncCursorState = {};
+  for (const entity of syncEntities) {
+    const entry = (raw as SyncCursorState)[entity];
+    if (
+      entry &&
+      typeof entry === "object" &&
+      typeof entry.updatedAt === "string" &&
+      typeof entry.id === "string"
+    ) {
+      state[entity] = { updatedAt: entry.updatedAt, id: entry.id };
+    }
+  }
+  return state;
+}
+
+/**
+ * Compare two keyset positions `(updatedAt, id)` ascending. Returns -1, 0, 1.
+ */
+export function comparePositions(a: SyncPosition, b: SyncPosition): number {
+  const aTime = new Date(a.updatedAt).getTime();
+  const bTime = new Date(b.updatedAt).getTime();
+  if (aTime !== bTime) return aTime < bTime ? -1 : 1;
+  // id "" sorts before any real id, preserving "everything at this timestamp".
+  if (a.id !== b.id) return a.id < b.id ? -1 : 1;
+  return 0;
+}
+
+/**
+ * Keyset predicate for "strictly after this position": rows with an equal
+ * `updatedAt` are still eligible when their id is greater, so same-timestamp
+ * rows are never skipped or re-returned across pages.
+ */
+export function afterPositionPredicate(
+  position: SyncPosition | undefined,
+  timestampField = "updatedAt",
+  idField = "id",
+): Record<string, unknown> {
+  if (!position) return {};
+  return {
+    OR: [
+      { [timestampField]: { gt: new Date(position.updatedAt) } },
+      {
+        [timestampField]: new Date(position.updatedAt),
+        [idField]: { gt: position.id },
+      },
+    ],
+  };
+}
+
+/**
+ * Pure pagination core over per-entity fetched lists.
+ *
+ * Each entity list is expected sorted ascending by `(updatedAt, id)` and its
+ * length is at most `limit + 1` (the extra row only detects hasMore). It returns
+ * up to `limit` records per entity, the exact boundary (`next state`) from which
+ * the next page must resume, and a global `hasMore` flag that is true when any
+ * entity still has rows beyond the returned page.
+ *
+ * Because the returned boundary is the actual last *returned* row, the hidden
+ * `limit+1`-th row is re-fetched on the next page (via `afterPositionPredicate`)
+ * instead of being silently skipped.
+ */
+export type PageableRecord = {
+  id: string;
+  updatedAt: string | Date;
+};
+
+export function paginateEntities<TRecord extends PageableRecord>(
+  fetched: Record<SyncEntity, TRecord[]>,
+  limit: number,
+): { records: Record<SyncEntity, TRecord[]>; nextState: SyncCursorState; hasMore: boolean } {
+  const records = createEmptyRecords<TRecord>();
+  const nextState: SyncCursorState = {};
+  let hasMore = false;
+
+  for (const entity of syncEntities) {
+    const rows = fetched[entity] ?? [];
+    if (rows.length > limit) {
+      hasMore = true;
+      records[entity] = rows.slice(0, limit);
+    } else {
+      records[entity] = rows;
+    }
+    const boundary = records[entity][records[entity].length - 1];
+    if (boundary) {
+      nextState[entity] = {
+        updatedAt:
+          boundary.updatedAt instanceof Date
+            ? boundary.updatedAt.toISOString()
+            : String(boundary.updatedAt),
+        id: boundary.id,
+      };
+    }
+  }
+
+  return { records, nextState, hasMore };
+}
+
 /**
  * Compute the next time cursor from the last record of the current page.
- * Returning the last record's own `updatedAt` (not the wall-clock) guarantees a
- * subsequent page over `updatedAt > nextCursor` does not skip rows whose
- * timestamps fall inside the gap between query time and now.
+ * Retained for backward compatibility with legacy time-cursor callers.
  */
 export function buildNextCursor<TRecord extends { updatedAt: string }>(
   records: readonly TRecord[],
@@ -189,7 +366,7 @@ export const syncMutationSchema = z.object({
 
 export const syncPullSchema = z.object({
   contractVersion: z.number().int().positive().optional(),
-  cursor: z.string().datetime().optional(),
+  cursor: z.string().min(1).optional(),
   limit: z.number().int().min(1).max(MAX_PAGE_LIMIT).optional(),
 });
 

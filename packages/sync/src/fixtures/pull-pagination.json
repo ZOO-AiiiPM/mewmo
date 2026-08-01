@@ -1,15 +1,14 @@
 {
-  "description": "Pagination: with more changed records than the requested limit, the first page reports hasMore=true and a nextCursor aligned to the last returned record; advancing the cursor returns the rest.",
+  "description": "Pagination: the nextCursor encodes each entity's last returned (updatedAt, id). Page 1 returns up to limit rows per entity with hasMore=true; page 2 re-issues with the previous page's cursor and converges to hasMore=false. Same-timestamp rows are tie-broken by id, never skipped or duplicated.",
   "contractVersion": 1,
   "requestPage1": {
     "contractVersion": 1,
-    "cursor": "2026-01-01T00:00:00.000Z",
     "limit": 2
   },
   "expectedResponsePage1": {
     "contractVersion": 1,
-    "cursor": "2026-07-01T09:00:00.000Z",
-    "nextCursor": "2026-07-01T09:00:00.000Z",
+    "cursor": "mewmo-sync-v1:{\"note\":{\"updatedAt\":\"2026-07-01T09:00:00.000Z\",\"id\":\"note-b\"}}",
+    "nextCursor": "mewmo-sync-v1:{\"note\":{\"updatedAt\":\"2026-07-01T09:00:00.000Z\",\"id\":\"note-b\"}}",
     "hasMore": true,
     "limit": 2,
     "records": {
@@ -38,13 +37,13 @@
   },
   "requestPage2": {
     "contractVersion": 1,
-    "cursor": "2026-07-01T09:00:00.000Z",
+    "cursor": "mewmo-sync-v1:{\"note\":{\"updatedAt\":\"2026-07-01T09:00:00.000Z\",\"id\":\"note-b\"}}",
     "limit": 2
   },
   "expectedResponsePage2": {
     "contractVersion": 1,
-    "cursor": "2026-07-02T10:00:00.000Z",
-    "nextCursor": "2026-07-02T10:00:00.000Z",
+    "cursor": "mewmo-sync-v1:{\"note\":{\"updatedAt\":\"2026-07-01T10:00:00.000Z\",\"id\":\"note-c\"}}",
+    "nextCursor": "mewmo-sync-v1:{\"note\":{\"updatedAt\":\"2026-07-01T10:00:00.000Z\",\"id\":\"note-c\"}}",
     "hasMore": false,
     "limit": 2,
     "records": {
@@ -53,7 +52,7 @@
           "id": "note-c",
           "version": 1,
           "createdAt": "2026-06-03T00:00:00.000Z",
-          "updatedAt": "2026-07-02T10:00:00.000Z",
+          "updatedAt": "2026-07-01T10:00:00.000Z",
           "deletedAt": null,
           "userId": "user-1"
         }

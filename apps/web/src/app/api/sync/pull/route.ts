@@ -2,13 +2,20 @@ import { NextResponse } from "next/server";
 import { getPrisma } from "@mewmo/db";
 import {
   SYNC_CONTRACT_VERSION,
+  SYNC_ERROR_CONTRACT_UNSUPPORTED,
+  afterPositionPredicate,
   applyPageLimit,
-  buildNextCursor,
-  normalizeCursor,
+  contractVersionSupported,
+  decodePageCursor,
+  encodePageCursor,
+  paginateEntities,
   syncPullSchema,
+  type SyncEntity,
 } from "@mewmo/sync";
 
 import { resolveRequestUser } from "../../../../lib/request-user";
+
+type Row = { id: string; updatedAt: Date };
 
 export async function POST(request: Request) {
   const user = await resolveRequestUser(request);
@@ -21,68 +28,55 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
+  const { contractVersion, cursor, limit: rawLimit } = parsed.data;
+  if (!contractVersionSupported(contractVersion)) {
+    return NextResponse.json(
+      {
+        error: SYNC_ERROR_CONTRACT_UNSUPPORTED,
+        message: `Server supports contract version ${SYNC_CONTRACT_VERSION}`,
+        supportedContractVersion: SYNC_CONTRACT_VERSION,
+      },
+      { status: 426 },
+    );
+  }
+
   const userId = user.id;
-  const cursor = normalizeCursor(parsed.data.cursor);
-  const limit = applyPageLimit(parsed.data.limit);
-  // +1 to detect whether another page exists.
-  const queryLimit = limit + 1;
+  const limit = applyPageLimit(rawLimit);
+  const queryLimit = limit + 1; // extra row detects hasMore, is never returned
   const prisma = getPrisma();
 
+  const positions = decodePageCursor(cursor);
+
+  const findMany = (
+    entity: SyncEntity,
+    delegate: { findMany(args: { where: Record<string, unknown>; orderBy: Record<string, unknown>; take: number }): Promise<Row[]> },
+  ) =>
+    delegate.findMany({
+      where: { userId, ...afterPositionPredicate(positions[entity]) },
+      orderBy: { updatedAt: "asc", id: "asc" },
+      take: queryLimit,
+    });
+
   const [notes, clips, feeds, feedEntries] = await Promise.all([
-    prisma.note.findMany({
-      where: { userId, updatedAt: { gt: cursor } },
-      orderBy: { updatedAt: "asc" },
-      take: queryLimit,
-    }),
-    prisma.clip.findMany({
-      where: { userId, updatedAt: { gt: cursor } },
-      orderBy: { updatedAt: "asc" },
-      take: queryLimit,
-    }),
-    prisma.feed.findMany({
-      where: { userId, updatedAt: { gt: cursor } },
-      orderBy: { updatedAt: "asc" },
-      take: queryLimit,
-    }),
-    prisma.feedEntry.findMany({
-      where: { userId, updatedAt: { gt: cursor } },
-      orderBy: { updatedAt: "asc" },
-      take: queryLimit,
-    }),
+    findMany("note", prisma.note),
+    findMany("clip", prisma.clip),
+    findMany("feed", prisma.feed),
+    findMany("feed_entry", prisma.feedEntry),
   ]);
 
-  // Trim each entity to the requested page size and report hasMore when any
-  // entity still has rows beyond the page.
-  const pageRecords = {
-    note: notes.slice(0, limit),
-    clip: clips.slice(0, limit),
-    feed: feeds.slice(0, limit),
-    feed_entry: feedEntries.slice(0, limit),
-  };
-  const truncated = {
-    note: notes.length > limit,
-    clip: clips.length > limit,
-    feed: feeds.length > limit,
-    feed_entry: feedEntries.length > limit,
-  };
-  const hasMore = Object.values(truncated).some(Boolean);
+  const page = paginateEntities<Row>(
+    { note: notes, clip: clips, feed: feeds, feed_entry: feedEntries },
+    limit,
+  );
 
-  // nextCursor = highest updatedAt across all fetched rows (every entity), so a
-  // follow-up pull over `updatedAt > nextCursor` always makes forward progress.
-  const allLatest: { updatedAt: string }[] = [
-    ...notes.map((row) => ({ updatedAt: row.updatedAt.toISOString() })),
-    ...clips.map((row) => ({ updatedAt: row.updatedAt.toISOString() })),
-    ...feeds.map((row) => ({ updatedAt: row.updatedAt.toISOString() })),
-    ...feedEntries.map((row) => ({ updatedAt: row.updatedAt.toISOString() })),
-  ];
-  const nextCursor = buildNextCursor(allLatest, new Date().toISOString());
+  const nextCursor = encodePageCursor(page.nextState) ?? "";
 
   return NextResponse.json({
     contractVersion: SYNC_CONTRACT_VERSION,
     cursor: nextCursor,
     nextCursor,
-    hasMore,
+    hasMore: page.hasMore,
     limit,
-    records: pageRecords,
+    records: page.records,
   });
 }

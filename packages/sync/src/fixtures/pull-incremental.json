@@ -1,14 +1,13 @@
 {
-  "description": "Incremental pull: records changed strictly after {cursor} are returned; the server returns a new nextCursor aligned to the last returned record.",
+  "description": "Incremental pull: records changed after each entity's keyset position are returned; the server returns a nextCursor encoding per-entity (updatedAt, id) positions so pagination never skips or duplicates rows. For a fresh sync the client sends no cursor.",
   "contractVersion": 1,
-  "request": {
-    "contractVersion": 1,
-    "cursor": "2026-07-03T10:00:00.000Z"
+  "requestEmpty": {
+    "contractVersion": 1
   },
   "expectedResponse": {
     "contractVersion": 1,
-    "cursor": "2026-07-03T12:30:00.000Z",
-    "nextCursor": "2026-07-03T12:30:00.000Z",
+    "cursor": "mewmo-sync-v1:{\"feed\":{\"updatedAt\":\"2026-07-03T12:30:00.000Z\",\"id\":\"feed-1\"},\"note\":{\"updatedAt\":\"2026-07-03T10:30:00.000Z\",\"id\":\"note-1\"}}",
+    "nextCursor": "mewmo-sync-v1:{\"feed\":{\"updatedAt\":\"2026-07-03T12:30:00.000Z\",\"id\":\"feed-1\"},\"note\":{\"updatedAt\":\"2026-07-03T10:30:00.000Z\",\"id\":\"note-1\"}}",
     "hasMore": false,
     "limit": 200,
     "records": {
