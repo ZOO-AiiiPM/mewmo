@@ -58,4 +58,13 @@
 ## 验收如何核对
 
 - `xcodebuild -project Mewmo.xcodeproj -scheme Mewmo-iOS -showBuildSettings`：核对 `TARGETED_DEVICE_FAMILY = 1,2`、`SUPPORTED_PLATFORMS = iphoneos iphonesimulator`。
-- `make verify`（generate + 三 destination 全绿）即验收跑步集合。
+- `make verify`（=`verify-idempotent` + `build-all`）即验收跑步集合：生成幂等机械校验通过 + 三 destination 全绿。
+
+## 生成幂等的机械比对（ZOO-103）
+
+「可重复生成」必须是**可机械验证**的，不能只靠 README 描述。`make verify-idempotent` 的做法：
+- 连跑两次 `xcodegen generate`，各自删除再全量重建 `Mewmo.xcodeproj`。
+- `scripts/snapshot_project.sh`：把工程目录投影成「常规文件 + 内容」快照（仅 `find -type f` + 符号链接，跳过空目录；`cp -P` 保留符号链接），再 `diff -r` 逐文件比对。
+- 漂移（任何文件新增/删除/内容变化）→ 打印 diff 并 `exit 1`。
+- **为何跳过空目录**：SwiftPM 会在首次构建后留下 `project.xcworkspace/xcshareddata/swiftpm/` 空目录，它不属于工程源码真相；`project.pbxproj` 等常规文件才是要盯的。若把空目录也算漂移，会误报。
+

@@ -70,7 +70,18 @@ make build-ios-ipad     # iPad simulator（自动挑选已安装 iPad 模拟器�
 make verify
 ```
 
-等价 `make generate` + 三 destination 全量无签名构建。任何一步失败即非零退出。
+`make verify` 做两件事，任何一步失败即非零退出：
+
+1. **生成幂等性机械校验**（`make verify-idempotent`）：连跑两次 `xcodegen generate`，把两次生成结果投影成「文件 + 内容」快照（`scripts/snapshot_project.sh`，跳过空的 SwiftPM 副作用目录），再 `diff -r` 逐文件比对。任一常规文件名称或内容漂移即 `exit 1` 并打印 diff。
+2. **三 destination 全量无签名构建**（`make build-all`）：macOS + iPhone + iPad。
+
+也可单独跑 `make verify-idempotent` 只看生成幂等性。
+
+### 清理构建产物
+
+```bash
+make clean
+```
 
 ### 清理构建产物
 
@@ -80,7 +91,7 @@ make clean
 
 ## 验收对照
 
-- `xcodegen generate` 可重复执行 → `make verify` 首步即验证；`project.pbxproj` 重生成逐字节一致。
+- `xcodegen generate` 可重复执行 → `make verify` 内含 `verify-idempotent`：连跑两次并逐文件 diff，漂移即失败；常规文件（如 `project.pbxproj`）重生成逐字节一致。
 - macOS / iPhone simulator / iPad simulator 均可编译 → `make build-all`（内部为三 destination）。
 - iOS target 同时支持 iPhone/iPad → `Mewmo-iOS` 目标 `TARGETED_DEVICE_FAMILY = 1,2`（`xcodebuild -showBuildSettings` 可查）。
 - 生成文件不作为手工配置真相源 → `Mewmo.xcodeproj/` 已 gitignore，`project.yml` 为唯一入口。

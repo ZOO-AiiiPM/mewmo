@@ -4,8 +4,10 @@
 
 ## `xcodegen generate` 幂等性
 
-- `project.pbxproj` 删除后重新生成，与首版**逐字节一致**。
-- 唯一差异：`project.xcworkspace/xcshareddata/swiftpm/` 空目录（SwiftPM 副作用），非源码漂移，且该目录随 `Mewmo.xcodeproj/` 被 gitignore，不进 git。
+- `make verify` 的 `verify-idempotent` 步骤**机械校验**：连跑两次 `xcodegen generate`，用 `scripts/snapshot_project.sh` 把两次结果投影成「文件 + 内容」快照（跳过空的 SwiftPM 副作用目录），再 `diff -r` 逐文件比对。任何常规文件名称/内容漂移即非零退出。
+- 实测：连续生成结果一致（`✅ generate idempotent: consecutive outputs identical`），`project.pbxproj` 逐字节一致。
+- 负例：人为改动 `project.pbxproj` 后被 `diff` 检出并判为漂移。
+- 唯一的非源码差异是 `project.xcworkspace/xcshareddata/swiftpm/` **空目录**（SwiftPM 副作用），被 `snapshot_project.sh` 排除，不视为漂移；该目录随 `Mewmo.xcodeproj/` 被 gitignore，不进 git。
 
 ## 三 destination 构建
 
@@ -27,7 +29,7 @@
 
 ## 一键验证
 
-`make verify`（= `make generate` + `make build-all`）✅ 全绿。
+`make verify`（= `verify-idempotent` + `build-all`）✅ 全绿：生成幂等机械校验通过 + 三 destination 全部 BUILD SUCCEEDED。
 
 ## 仓库 CI 门禁（本地预览，未破坏现有域）
 

@@ -9,7 +9,7 @@ DERIVED   := DerivedData
 XCODEBUILD := xcodebuild -project $(PROJECT) -derivedDataPath $(DERIVED)
 FIND_SIM  := scripts/find_sim.sh
 
-.PHONY: generate build-macos build-ios build-ios-iphone build-ios-ipad build-all verify clean
+.PHONY: generate build-macos build-ios build-ios-iphone build-ios-ipad build-all verify-idempotent verify clean
 
 ## 生成 Xcode 工程（project.yml 是唯一真相源）
 generate:
@@ -48,8 +48,26 @@ build-ios-ipad: $(PROJECT)
 build-all: build-macos build-ios-iphone build-ios-ipad
 	@echo "✅ build-all: macOS / iPhone / iPad all passed"
 
-## 生成幂等 + 三 destination 全绿
-verify: generate build-all
+## 生成幂等性：连跑两次 xcodegen，逐文件（内容 + 文件名集合）比对，
+## 任何漂移（diff 非空）即非零退出。空的 SwiftPM 副作用目录不算漂移。
+verify-idempotent: $(PROJECT)
+	@snap1=$$(mktemp -d); snap2=$$(mktemp -d); \
+	rm -rf Mewmo.xcodeproj; \
+	xcodegen generate --quiet; \
+	./scripts/snapshot_project.sh Mewmo.xcodeproj "$$snap1"; \
+	rm -rf Mewmo.xcodeproj; \
+	xcodegen generate --quiet; \
+	./scripts/snapshot_project.sh Mewmo.xcodeproj "$$snap2"; \
+	if diff -r "$$snap1" "$$snap2" >/tmp/mewmo_gen_drift.diff 2>&1; then \
+		echo "✅ generate idempotent: consecutive outputs identical"; \
+	else \
+		echo "❌ generate DRIFT detected:"; cat /tmp/mewmo_gen_drift.diff; \
+		rm -rf "$$snap1" "$$snap2"; exit 1; \
+	fi; \
+	rm -rf "$$snap1" "$$snap2"
+
+## 完整验收：生成幂等校验 + 三 destination 全绿
+verify: verify-idempotent build-all
 	@echo "✅ verify: generate idempotent + 3 destinations all passed"
 
 clean:
