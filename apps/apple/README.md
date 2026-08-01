@@ -62,7 +62,10 @@ product，不带 NukeUI/Extensions）：
   未命中则投影为业务层可分类错误（`ImageLoadError`：cancelled/offlineOrMiss/invalidResponse/
   decodeFailed/other）。
 - **生命周期**：`clearMemory()` / `clearDisk()` / `removeAllCaches()` / `trim()` 显式清理与 LRU 修剪，
-  不与普通加载失败耦合。
+  不与普通加载失败耦合。`clearDisk()` / `removeAllCaches()` 同时清理 Nuke `DataCache` 与系统
+  `URLCache`（validator 存储），`pipeline.urlCache` 持有生产 URLCache 供生命周期 API 访问。
+- **初始化失败可观测**：`DataCache` 创建失败显式抛出可分类的 `ImageCacheSetupError`
+  （`dataCacheInitializationFailed`），禁止静默退化为无磁盘缓存。
 - **约束与界线**：缓存键保持原始来源 URL，不改写 SwiftData/model、不按页面复制图片；
   不实现 downloader/LRU/coalescing、不承载业务 SwiftUI、上传与批量预取（ZOO-96/97）。
 
@@ -103,7 +106,8 @@ make test
 
 `make test` 运行 `Mewmo-Tests` scheme（macOS 本地），覆盖 SwiftData 本地数据层的
 CRUD / 版本单调 / 账号隔离 / tombstone / outbox / fixture decode，以及图片缓存基础设施
-（ZOO-92）的并发去重、取消隔离、磁盘重开、validator 保留、容量/LRU/clear/trim 与错误分类。
+（ZOO-92/117）的并发去重、取消隔离、磁盘重开、条件请求（ETag/Last-Modified + 304）、
+validator 保留、容量/LRU/clear/trim、URLCache 清理与 DataCache 初始化失败分类。
 它是后续 Apple 模块复用的默认测试基座。
 
 ### 一键验证

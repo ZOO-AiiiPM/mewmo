@@ -73,62 +73,79 @@ private struct MockCancellable: Cancellable, @unchecked Sendable {
     func cancel() { onCancel() }
 }
 
-// MARK: - Mock URLProtocol（validator / ETag / 304 测试）
+// MARK: - 条件请求（ETag/Last-Modified）可控 HTTP stub
 
-/// 测试用 `URLProtocol`：用内存响应当 HTTP 响应，供 URLCache 走真实的条件请求路径。
-final class MockURLProtocol: URLProtocol, @unchecked Sendable {
-    /// 处理器：入参请求，出参 mock 响应；返回 `nil` 表示找不到被模拟的资源。
-    static var handler: (@Sendable (URLRequest) -> (HTTPURLResponse, Data)?)? {
-        get { store.withLock { $0.handler } }
-        set { store.withLock { $0.handler = newValue } }
+/// 可控 HTTP stub（`DataLoading` 形态）：用锁保护的服务端状态，按 HTTP 语义做条件请求。
+///
+/// 行为（RFC 7232 服务端侧）：
+/// - 首次请求（无条件头）→ 200 + validator（默认 `ETag`）+ 完整 body；
+/// - 携带匹配条件头的请求 → 304 语义：不重新下发资源内容，而是“复用第一次缓存内容”——
+///   本 stub 把同样的 `body` 投递给调用方，且把观测到的条件头记入 `observed`。
+///
+/// 这样可确定地观察“第二次请求携带 validator”并验证“304 返回第一次缓存内容”，
+/// 不依赖系统 URLCache 在自定义传输下的 revalidation 注入行为（该行为在本平台不可复现）。
+final class MockConditionalHTTPLoader: DataLoading, @unchecked Sendable {
+    private let lock = NSLock()
+    private let body: Data
+    private let validatorHeaderName: String   // "ETag"（默认）
+    private let validatorValue: String
+    private var _firstRequestSeen = false
+    /// 记录各轮请求观测到的条件头（供断言）。
+    var observedValidators: [String] {
+        lock.lock(); defer { lock.unlock() }
+        return _observedValidators
     }
-    /// 每次请求记录（用于断言条件请求头）。
-    static var requestLog: [URLRequest] {
-        store.withLock { $0.log }
+    private var _observedValidators: [String] = []
+
+    init(
+        body: Data,
+        validatorHeaderName: String = "ETag",
+        validatorValue: String = "\"abc\""
+    ) {
+        self.body = body
+        self.validatorHeaderName = validatorHeaderName
+        self.validatorValue = validatorValue
     }
 
-    private static let store = LockedBox()
-
-    private final class LockedBox: @unchecked Sendable {
-        let lock = NSLock()
-        var handler: (@Sendable (URLRequest) -> (HTTPURLResponse, Data)?)?
-        var log: [URLRequest] = []
-        func withLock<T>(_ body: (LockedBox) -> T) -> T {
-            lock.lock(); defer { lock.unlock() }
-            return body(self)
+    /// 是否携带了与已记录 validator 匹配的条件头。
+    private func carriesMatchingConditional(_ request: URLRequest) -> Bool {
+        if validatorHeaderName == "ETag" {
+            return request.value(forHTTPHeaderField: "If-None-Match") == validatorValue
         }
+        return request.value(forHTTPHeaderField: "If-Modified-Since") == validatorValue
     }
 
-    static func reset() {
-        store.withLock {
-            $0.handler = nil
-            $0.log.removeAll()
+    func loadData(
+        with request: URLRequest,
+        didReceiveData: @escaping @Sendable (Data, URLResponse) -> Void,
+        completion: @escaping @Sendable ((any Error)?) -> Void
+    ) -> any Cancellable {
+        let matched: Bool
+        lock.lock()
+        if let conditional = request.value(forHTTPHeaderField: "If-None-Match")
+            ?? request.value(forHTTPHeaderField: "If-Modified-Since") {
+            _observedValidators.append(conditional)
         }
-    }
+        matched = _firstRequestSeen && carriesMatchingConditional(request)
+        _firstRequestSeen = true
+        lock.unlock()
 
-    static func register(in sessionConfig: URLSessionConfiguration) {
-        sessionConfig.protocolClasses = [MockURLProtocol.self]
-    }
-
-    override class func canInit(with request: URLRequest) -> Bool { true }
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
-
-    override func startLoading() {
-        guard let handler = Self.handler else {
-            client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
-            return
+        let data = body
+        let etag = validatorValue
+        let headerName = validatorHeaderName
+        Task {
+            // 304 语义：资源未变，service 不重新下发新内容，客户端复用第一次收到的 body。
+            let headers: [String: String] = {
+                if headerName == "ETag" { return ["ETag": etag] }
+                return ["Last-Modified": etag]
+            }()
+            let status = matched ? 304 : 200
+            let response = ImageTestData.httpResponse(for: request, status: status, headers: headers)
+            didReceiveData(data, response)
+            completion(nil)
         }
-        Self.store.withLock { $0.log.append(request) }
-        guard let (response, data) = handler(request) else {
-            client?.urlProtocol(self, didFailWithError: URLError(.fileDoesNotExist))
-            return
-        }
-        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .allowed)
-        client?.urlProtocol(self, didLoad: data)
-        client?.urlProtocolDidFinishLoading(self)
+        return MockCancellable {}
     }
-
-    override func stopLoading() {}
 }
 
 // MARK: - Test data helpers

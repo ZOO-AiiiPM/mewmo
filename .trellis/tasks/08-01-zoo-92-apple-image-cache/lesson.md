@@ -16,3 +16,11 @@ This file captures raw observations from this task. Keep evidence and uncertaint
 - mock transport 两条路：`DataLoading` 注入（测并发去重/取消/离线/容量，最干净）+ 携带 URLCache 的 `DataLoader`（测 validator 组合）。`MewmoImagePipeline` 通过 `dataLoader:` 参数注入；`enableDataCache=false` 时纯走 URLCache 语义。
 - error 投影：`ImagePipeline.Error.dataLoadingFailed(URLError .notConnectedToInternet 等)` → `.offlineOrMiss`；`DataLoader.Error.statusCodeUnacceptable(code)` → `.invalidResponse(code)`；`cancelled`→`.cancelled`；`decodingFailed/decoderNotRegistered`→`.decodeFailed`。
 - Swift 6 严格并发：测试 mock 类需 `@unchecked Sendable`（遵守 `DataLoading: Sendable`）；静态可变状态装进 `NSLock` 包裹的 box；actor 门控测试用 `await gate.open()`。
+
+## ZOO-117（验收缺口修复）
+
+- 驳回点 1：把“空 body 伪 304”改为**真实条件请求测试**。因 URLCache 在 URLProtocol 下不注入条件头（上行已实证），改用可控 HTTP stub（`MockConditionalHTTPLoader: DataLoading`）实现 RFC7232 服务端侧：首次 200+ETag/Last-Modified+body，第二次携带 `If-None-Match`/`If-Modified-Since` 时回 304 并投递首次相同的 body。测试断言：stub 记录到条件头（observed）、两次 `container.data` 位级一致。**绝不能用空 body 冒充 304**。
+- 驳回点 2：pipeline 增加 `public let urlCache: URLCache` 持有生产 URLCache；`clearDisk()`/`removeAllCaches()` 同时 `urlCache.removeAllCachedResponses()`。测试用 `storeCachedResponse` seed URLCache 再断言被清空——比 URLProtocol+网络喂 URLCache 更稳（URLProtocol serve URLCache 的生产 DataLoader 组合在 `URLSessionConfiguration.default` 下不拦截 https，会真联网报 TLS -1200；避免）。
+- 驳回点 3：`DataCache(path:)` 创建失败不再 `try?`，显式抛 `ImageCacheSetupError.dataCacheInitializationFailed(path:message:)`（新的 Sendable/Equatable public enum）。失败路径测试：在 dataCache 目录路径放一个普通文件，令 `FileManager.createDirectory` 失败 → 断言抛该分类 error。
+- `ImageCacheSetupError` 关联值存 `String`（path/message）而非 `any Error`，保证 `Sendable`/`Equatable`，便于测试 `guard case` 匹配。
+- 注意：URLCache 用 sqlite 备份磁盘缓存时，removeItem 整个临时目录会打印 `BUG IN CLIENT OF libsqlite3` 日志——测试绿、非失败；如要根除可在 tearDown 前让 pipeline/URLCache 出作用域。

@@ -21,8 +21,11 @@ public final class MewmoImagePipeline: Sendable {
     public let config: ImagePipelineConfig
     /// production 使用的缓存根目录（caches directory）。测试通过 `temporaryDirectory` 注入。
     public let cacheDirectory: URL
+    /// 系统 HTTP 缓存（`URLCache`）：保留 ETag/Last-Modified validator 并处理条件请求，
+    /// 同时被 `clearDisk()` / `removeAllCaches()` 显式清理。`let` 持引用，供生命周期 API 访问。
+    public let urlCache: URLCache
 
-    /// 磁盘数据缓存（可空：极端情况下创建失败不会阻塞生产）。
+    /// 磁盘数据缓存（仅 `enableDataCache` 时非空）。
     public var dataCache: DataCache? { pipeline.configuration.dataCache as? DataCache }
     /// 内存图片缓存（composition 显式构造）。
     public var memoryCache: ImageCache? { pipeline.configuration.imageCache as? ImageCache }
@@ -51,15 +54,28 @@ public final class MewmoImagePipeline: Sendable {
 
         // LRU DataCache 保存可复用原始图片数据（可注入目录）。enableDataCache=false 时留空，
         // 让 Nuke 纯走 URLCache 语义（强制条件请求 revalidation，供 validator 场景使用）。
+        // 创建失败必须显式抛出 setup error，禁止 `try?` 静默退化为无磁盘缓存（ZOO-117）。
         let dataCachePath = cacheDirectory.appendingPathComponent(config.dataCacheDirectoryName, isDirectory: true)
-        var dataCache: DataCache? = config.enableDataCache ? (try? DataCache(path: dataCachePath)) : nil
-        dataCache?.sizeLimit = config.diskSizeLimit
+        var dataCache: DataCache?
+        if config.enableDataCache {
+            do {
+                dataCache = try DataCache(path: dataCachePath)
+            } catch {
+                throw ImageCacheSetupError.dataCacheInitializationFailed(
+                    path: dataCachePath.path,
+                    message: String(describing: error)
+                )
+            }
+            dataCache?.sizeLimit = config.diskSizeLimit
+        }
 
+        // URL cache：保留 validator、处理 304；同时被 clearDisk/removeAllCaches 显式清理。
         let urlCache = URLCache(
             memoryCapacity: config.urlCacheMemoryCapacity,
             diskCapacity: config.urlCacheDiskCapacity,
             diskPath: cacheDirectory.appendingPathComponent(config.urlCacheDirectoryName, isDirectory: true).path
         )
+        self.urlCache = urlCache
 
         // 生产用 DataLoader + URLCache 组合：URLCache 保留 ETag/Last-Modified validator 并处理 304。
         // 测试可注入自定义 DataLoading（mock transport），此时不构造 URLSession，避免触碰公网。
@@ -129,14 +145,16 @@ public final class MewmoImagePipeline: Sendable {
         memoryCache?.removeAll()
     }
 
-    /// 清空磁盘数据缓存。
+    /// 清空磁盘侧缓存：Nuke `DataCache`（LRU 原始数据）与系统 `URLCache`（HTTP validator/304 复用）。
     public func clearDisk() {
         dataCache?.removeAll()
+        urlCache.removeAllCachedResponses()
     }
 
-    /// 清空内存 + 磁盘缓存。
+    /// 清空内存 + 所有磁盘侧缓存（`DataCache` + `URLCache`）。
     public func removeAllCaches() {
         pipeline.cache.removeAll(caches: [.memory, .disk])
+        urlCache.removeAllCachedResponses()
     }
 
     /// 显式执行 trim：内存 cache 修剪到配置 cost limit，磁盘 DataCache 按 sizeLimit 执行 LRU sweep。
@@ -158,7 +176,20 @@ func cacheRoot() throws -> URL {
     return root
 }
 
-/// 图片缓存初始化错误。
-enum ImageCacheSetupError: Error {
+/// 图片缓存初始化错误（ZOO-117）：DataCache 初始化失败必须显式抛出并分类，禁止静默降级。
+public enum ImageCacheSetupError: Error, Sendable, Equatable {
+    /// 找不到系统 caches directory。
     case noCachesDirectory
+    /// `DataCache`（磁盘 LRU 缓存）创建/初始化失败。
+    /// `path` 便于定位目录；`message` 保留底层错误描述（不含非 Sendable 的错误对象）。
+    case dataCacheInitializationFailed(path: String, message: String)
+
+    public var errorDescription: String? {
+        switch self {
+        case .noCachesDirectory:
+            return "无法定位系统 caches directory"
+        case .dataCacheInitializationFailed(let path, let message):
+            return "磁盘缓存初始化失败（path: \(path)）：\(message)"
+        }
+    }
 }

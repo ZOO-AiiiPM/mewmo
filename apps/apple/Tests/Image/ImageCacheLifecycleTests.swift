@@ -72,6 +72,71 @@ final class ImageCacheLifecycleTests: XCTestCase {
         XCTAssertFalse(pipeline.pipeline.cache.containsCachedImage(for: ImageRequest(url: url), caches: [.disk]))
     }
 
+    /// clearDisk 同时清理 Nuke DataCache 与系统 URLCache（ZOO-117）。
+    /// 用真实 production composition 定位 pipeline 持有的 URLCache，直接 seed 后断言被清空。
+    func testClearDiskClearsDataCacheAndURLCache() async throws {
+        var config = ImagePipelineConfig()
+        config.urlCacheMemoryCapacity = 256 * 1024
+        config.urlCacheDiskCapacity = 2 * 1024 * 1024
+
+        let pipeline = try MewmoImagePipeline(config: config, cacheDirectory: directory, dataLoader: nil)
+        let url = ImageTestData.url("https://cdn.mewmo.test/n1.jpg")
+        let png = try ImageTestData.png()
+
+        // 填充 DataCache（Nuke pipeline 侧）。
+        let request = ImageRequest(url: url)
+        pipeline.pipeline.cache.storeCachedData(png, for: request)
+        pipeline.dataCache?.flush()
+        XCTAssertTrue(pipeline.pipeline.cache.containsCachedImage(for: request, caches: [.disk]), "DataCache 应有内容")
+
+        // 填充 URLCache（系统 HTTP 缓存，validator 存储）。用可缓存响应 seed 之。
+        let response = CachedURLResponse(
+            response: ImageTestData.httpResponse(for: URLRequest(url: url), headers: ["ETag": "\"v1\""]),
+            data: png,
+            userInfo: nil,
+            storagePolicy: .allowed
+        )
+        pipeline.urlCache.storeCachedResponse(response, for: URLRequest(url: url))
+        XCTAssertNotNil(pipeline.urlCache.cachedResponse(for: URLRequest(url: url)), "URLCache 应有 validator 响应")
+
+        pipeline.clearDisk()
+        pipeline.dataCache?.flush()
+
+        XCTAssertFalse(pipeline.pipeline.cache.containsCachedImage(for: request, caches: [.disk]), "DataCache 应被清空")
+        XCTAssertNil(pipeline.urlCache.cachedResponse(for: URLRequest(url: url)), "URLCache 应被清空")
+    }
+
+    /// removeAllCaches 同时清理内存、DataCache 与系统 URLCache（ZOO-117）。
+    func testRemoveAllCachesClearsURLCacheToo() async throws {
+        var config = ImagePipelineConfig()
+        config.urlCacheMemoryCapacity = 256 * 1024
+        config.urlCacheDiskCapacity = 2 * 1024 * 1024
+
+        let pipeline = try MewmoImagePipeline(config: config, cacheDirectory: directory, dataLoader: nil)
+        let url = ImageTestData.url("https://cdn.mewmo.test/n2.jpg")
+        let png = try ImageTestData.png()
+
+        let request = ImageRequest(url: url)
+        pipeline.pipeline.cache.storeCachedData(png, for: request)
+        pipeline.dataCache?.flush()
+
+        let response = CachedURLResponse(
+            response: ImageTestData.httpResponse(for: URLRequest(url: url), headers: ["ETag": "\"v2\""]),
+            data: png,
+            userInfo: nil,
+            storagePolicy: .allowed
+        )
+        pipeline.urlCache.storeCachedResponse(response, for: URLRequest(url: url))
+        XCTAssertNotNil(pipeline.urlCache.cachedResponse(for: URLRequest(url: url)))
+
+        pipeline.removeAllCaches()
+        pipeline.dataCache?.flush()
+
+        XCTAssertNil(pipeline.pipeline.cache.cachedImage(for: request, caches: [.memory]))
+        XCTAssertFalse(pipeline.pipeline.cache.containsCachedImage(for: request, caches: [.disk]))
+        XCTAssertNil(pipeline.urlCache.cachedResponse(for: URLRequest(url: url)), "removeAllCaches 应清空 URLCache")
+    }
+
     /// 磁盘缓存超限时按 LRU 清理：写入超限量数据后执行 sweep，总占用回落到上限内。
     func testDiskCacheTrimClearsBelowLimit() throws {
         var config = ImagePipelineConfig()
@@ -112,5 +177,22 @@ final class ImageCacheLifecycleTests: XCTestCase {
         pipeline.trim() // 幂等
         XCTAssertNotNil(pipeline.memoryCache)
         XCTAssertNotNil(pipeline.dataCache)
+    }
+
+    /// DataCache 初始化失败必须显式抛出可分类 setup error，禁止 `try?` 静默降级（ZOO-117）。
+    func testDataCacheInitializationFailureIsExposedAndClassified() throws {
+        // 在 DataCache 期待的目录路径上放一个普通文件，令 FileManager.createDirectory 失败。
+        let blockedPath = directory.appendingPathComponent(ImagePipelineConfig().dataCacheDirectoryName, isDirectory: false)
+        try Data("not-a-cache-directory".utf8).write(to: blockedPath)
+
+        XCTAssertThrowsError(
+            try MewmoImagePipeline(config: ImagePipelineConfig(), cacheDirectory: directory, dataLoader: nil)
+        ) { error in
+            guard case ImageCacheSetupError.dataCacheInitializationFailed(let path, _) = error else {
+                XCTFail("应抛出可分类的 dataCacheInitializationFailed，得到 \(error)")
+                return
+            }
+            XCTAssertEqual(path, blockedPath.path)
+        }
     }
 }
