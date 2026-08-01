@@ -24,6 +24,8 @@
   "notes": "",
   "meta": {
     "linear_issue": "ZOO-88",
-    "linear_url": "https://linear.app/zoos-agent-lib/issue/ZOO-88"
+    "linear_url": "https://linear.app/zoos-agent-lib/issue/ZOO-88",
+    "pr_url": "https://github.com/ZOO-AiiiPM/mewmo/pull/66",
+    "commit": "282fda2c"
   }
 }
