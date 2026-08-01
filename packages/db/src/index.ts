@@ -7,6 +7,7 @@ export * from "./repositories/feed-entries";
 export * from "./repositories/feeds";
 export * from "./repositories/knowledge-bases";
 export * from "./repositories/note-shares";
+export * from "./repositories/native-sessions";
 export * from "./repositories/notes";
 export * from "./repositories/tags";
 export * from "./repositories/trash";

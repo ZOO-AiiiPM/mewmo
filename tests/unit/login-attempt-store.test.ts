@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   MemoryLoginAttemptStore,
+  MemoryRefreshFailStore,
   RedisLoginAttemptStore,
+  RedisRefreshFailStore,
 } from "../../apps/web/src/lib/login-attempt-store";
 import {
   LOGIN_ATTEMPT_WINDOW_SECONDS,
@@ -153,5 +155,84 @@ describe("RedisLoginAttemptStore", () => {
     await store.clear("a@b.com", "1.1.1.1");
 
     expect(redisMock.del).toHaveBeenCalledWith("login-fail:a@b.com:1.1.1.1");
+  });
+});
+
+describe("MemoryRefreshFailStore (IP-authoritative refresh limit)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("converges distinct invalid tokens from the same IP onto one bounded bucket", async () => {
+    const store = new MemoryRefreshFailStore();
+
+    // 每次提交一个不同的随机 hash（模拟「每次换新 token 枚举」），都失败
+    for (let i = 0; i < LOGIN_MAX_ATTEMPTS; i += 1) {
+      await store.recordFailure(`hash${i}`, "1.2.3.4");
+      // 未达上限前不锁定
+      if (i < LOGIN_MAX_ATTEMPTS - 1) {
+        expect(await store.isLocked(`hash${i + 1}`, "1.2.3.4")).toBe(false);
+      }
+    }
+
+    // 任意一个新 token（之前没见过的）从同一 IP 刷新都被锁
+    expect(await store.isLocked("brand-new-hash", "1.2.3.4")).toBe(true);
+    // 不同 IP 不受影响
+    expect(await store.isLocked("brand-new-hash", "5.6.7.8")).toBe(false);
+  });
+
+  it("also isolates a per-token replay bucket for one specific token", async () => {
+    const store = new MemoryRefreshFailStore();
+    for (let i = 0; i < LOGIN_MAX_ATTEMPTS; i += 1) {
+      await store.recordFailure("same-token-hash", "1.2.3.4");
+    }
+    expect(await store.isLocked("same-token-hash", "1.2.3.4")).toBe(true);
+  });
+
+  it("clear on success resets both the IP and token buckets", async () => {
+    const store = new MemoryRefreshFailStore();
+    await store.recordFailure("a", "1.2.3.4");
+    await store.recordFailure("b", "1.2.3.4"); // 不同 token 累计到 IP 桶
+
+    await store.clear("c", "1.2.3.4"); // 成功 clears IP 桶
+
+    await store.recordFailure("x", "1.2.3.4");
+    expect(await store.isLocked("y", "1.2.3.4")).toBe(false);
+  });
+});
+
+describe("RedisRefreshFailStore (IP-authoritative refresh limit)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("keys the authoritative bucket on IP only, independent of the token hash", async () => {
+    const store = new RedisRefreshFailStore();
+    redisMock.incr.mockResolvedValueOnce(1).mockResolvedValueOnce(1);
+
+    await store.recordFailure("hash-A", "9.9.9.9");
+
+    expect(redisMock.incr).toHaveBeenNthCalledWith(1, "refresh-fail-ip:9.9.9.9");
+    expect(redisMock.incr).toHaveBeenNthCalledWith(2, "refresh-fail-token:hash-A:9.9.9.9");
+  });
+
+  it("locks when the IP bucket reaches the limit even for a never-seen token hash", async () => {
+    const store = new RedisRefreshFailStore();
+    redisMock.get
+      .mockResolvedValueOnce(String(LOGIN_MAX_ATTEMPTS)) // IP 桶达上限
+      .mockResolvedValueOnce(null); // token 桶为空
+
+    expect(await store.isLocked("fresh-hash", "1.2.3.4")).toBe(true);
+  });
+
+  it("clear deletes both IP and token keys", async () => {
+    const store = new RedisRefreshFailStore();
+    await store.clear("h", "1.2.3.4");
+    expect(redisMock.del).toHaveBeenCalledWith("refresh-fail-ip:1.2.3.4");
+    expect(redisMock.del).toHaveBeenCalledWith("refresh-fail-token:h:1.2.3.4");
   });
 });

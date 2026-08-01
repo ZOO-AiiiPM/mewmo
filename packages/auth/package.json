@@ -21,6 +21,7 @@
     "@mewmo/email": "workspace:*",
     "@mewmo/shared": "workspace:*",
     "bcryptjs": "^3.0.3",
+    "jose": "^6.2.3",
     "next-auth": "5.0.0-beta.31"
   },
   "devDependencies": {
