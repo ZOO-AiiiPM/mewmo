@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/dev-backend.md", "reason": "校验 ownership、repositories、认证边界是否符合项目规范"}
+{"file": ".trellis/spec/architecture.md", "reason": "数据架构一致性审查"}
+{"file": ".trellis/tasks/08-01-zoo-88-apple-native-auth-api/design.md", "reason": "对照设计的验收与安全检查"}
+{"file": ".trellis/tasks/08-01-zoo-88-apple-native-auth-api/prd.md", "reason": "验收标准核对"}

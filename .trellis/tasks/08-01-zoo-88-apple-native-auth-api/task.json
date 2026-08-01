@@ -1,0 +1,29 @@
+{
+  "id": "zoo-88-apple-native-auth-api",
+  "name": "zoo-88-apple-native-auth-api",
+  "title": "ZOO-88 Apple 原生认证 API（服务器端原生登录）",
+  "description": "",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": "admin",
+  "priority": "P2",
+  "creator": "zoo",
+  "assignee": "zoo",
+  "createdAt": "2026-08-01",
+  "completedAt": null,
+  "branch": "codex/issue-ZOO-88-apple-native-auth",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "linear_issue": "ZOO-88",
+    "linear_url": "https://linear.app/zoos-agent-lib/issue/ZOO-88"
+  }
+}
