@@ -9,7 +9,7 @@
 - [x] Verify hero entry animation and reduced-motion behavior without changing unrelated visual design.
 - [x] Run focused tests while iterating, then run the relevant Web/Agent/DB type-check, lint and test commands available in package scripts.
 - [x] Run worker self-review against every acceptance criterion and record exact evidence.
-- [ ] Commit only ZOO-84 files with an issue-bearing commit message, push the issue branch, and create a PR whose title contains `issue-ZOO-84`; do not merge.
-- [ ] Hand the PR to Codex for independent `trellis-check`. Acceptance findings become Linear sub-issues but remain in this same session/worktree/branch/PR.
+- [x] Commit only ZOO-84 files with an issue-bearing commit message, push the issue branch, and create a PR whose title contains `issue-ZOO-84`; do not merge.
+- [x] Hand the PR to Codex for independent `trellis-check`. Acceptance findings become Linear sub-issues but remain in this same session/worktree/branch/PR.
 
 Rollback point: before any edit, record the starting commit. If the candidate implementation is unsalvageable, revert only worker-owned commits in the issue worktree; never reset or clean the shared root checkout.
