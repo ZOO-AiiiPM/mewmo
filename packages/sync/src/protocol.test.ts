@@ -79,11 +79,11 @@ function queryRange(dataset: StoredRow[], position: { updatedAt: string; id: str
   return rows.slice(0, take);
 }
 
-/** Walk pages over all entities until convergence; returns every record fetched. */
+/** Walk pages over all entities until convergence; returns fetched records + final cursor. */
 async function crawlAll(
   datasets: Record<SyncEntity, StoredRow[]>,
   limit: number,
-): Promise<StoredRow[]> {
+): Promise<{ seen: StoredRow[]; finalCursor: string | undefined }> {
   let cursor: string | undefined;
   const seen: StoredRow[] = [];
   let guard = 0;
@@ -98,7 +98,7 @@ async function crawlAll(
       fetched[entity] = queryRange(datasets[entity], positions[entity], limit + 1);
     }
 
-    const page = paginateEntities(fetched, limit);
+    const page = paginateEntities(fetched, limit, positions);
     for (const entity of syncEntities) {
       for (const row of page.records[entity]) seen.push(row);
     }
@@ -106,7 +106,7 @@ async function crawlAll(
     if (!page.hasMore) break;
   }
 
-  return seen;
+  return { seen, finalCursor: cursor };
 }
 
 // ---------------------------------------------------------------------------
@@ -175,7 +175,7 @@ describe("ZOO-104 · paginateEntities does not lose rows (crawl to convergence)"
       feed: makeDataset([]),
       feed_entry: makeDataset([]),
     };
-    const seen = await crawlAll(datasets, 2);
+    const { seen } = await crawlAll(datasets, 2);
     expect(seen.map((r) => r.id)).toEqual(["n1", "n2", "n3", "n4", "n5"]);
   });
 
@@ -197,7 +197,7 @@ describe("ZOO-104 · paginateEntities does not lose rows (crawl to convergence)"
         { id: "f4", updatedAt: "2026-07-01T12:00:00.000Z" },
       ]),
     };
-    const seen = await crawlAll(datasets, 2);
+    const { seen } = await crawlAll(datasets, 2);
     expect(seen.map((r) => r.id).sort()).toEqual(["f1", "f2", "f3", "f4", "n1", "n2", "n3"]);
   });
 
@@ -214,7 +214,7 @@ describe("ZOO-104 · paginateEntities does not lose rows (crawl to convergence)"
       feed: makeDataset([]),
       feed_entry: makeDataset([]),
     };
-    const seen = await crawlAll(datasets, 2);
+    const { seen } = await crawlAll(datasets, 2);
     expect(seen.map((r) => r.id)).toEqual(["a", "b", "c", "d"]);
   });
 
@@ -236,11 +236,89 @@ describe("ZOO-104 · paginateEntities does not lose rows (crawl to convergence)"
         { id: "f3", updatedAt: "2026-07-01T03:30:00.000Z" },
       ]),
     };
-    const seen = await crawlAll(datasets, 3);
+    const { seen } = await crawlAll(datasets, 3);
     expect(seen.length).toBe(9);
     const ids = new Set(seen.map((r) => r.id));
     expect(ids.size).toBe(9); // no duplicate fetches
     expect(["n1", "n2", "n3", "c1", "c2", "fd1", "f1", "f2", "f3"].every((id) => ids.has(id))).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ZOO-109: the composite cursor must retain finished-entity positions so they
+// are never re-queried from epoch while another entity keeps paginating.
+// ---------------------------------------------------------------------------
+
+describe("ZOO-109 · inherited positions prevent replay of exhausted entities", () => {
+  it("keeps positions for an entity that exhausts before another finishes (asymmetric pages)", async () => {
+    // feed_entry has 7 rows (limit 3 → needs 3 pages); every other entity has 2
+    // rows (fits page 1 and then returns empty on later pages).
+    const datasets = {
+      note: makeDataset([
+        { id: "n1", updatedAt: "2026-07-01T01:00:00.000Z" },
+        { id: "n2", updatedAt: "2026-07-01T01:10:00.000Z" },
+      ]),
+      clip: makeDataset([
+        { id: "c1", updatedAt: "2026-07-01T01:20:00.000Z" },
+        { id: "c2", updatedAt: "2026-07-01T01:30:00.000Z" },
+      ]),
+      feed: makeDataset([
+        { id: "fd1", updatedAt: "2026-07-01T01:40:00.000Z" },
+        { id: "fd2", updatedAt: "2026-07-01T01:50:00.000Z" },
+      ]),
+      feed_entry: makeDataset([
+        { id: "f1", updatedAt: "2026-07-01T02:00:00.000Z" },
+        { id: "f2", updatedAt: "2026-07-01T02:10:00.000Z" },
+        { id: "f3", updatedAt: "2026-07-01T02:20:00.000Z" },
+        { id: "f4", updatedAt: "2026-07-01T02:30:00.000Z" },
+        { id: "f5", updatedAt: "2026-07-01T02:40:00.000Z" },
+        { id: "f6", updatedAt: "2026-07-01T02:50:00.000Z" },
+        { id: "f7", updatedAt: "2026-07-01T03:00:00.000Z" },
+      ]),
+    };
+
+    const { seen, finalCursor } = await crawlAll(datasets, 3);
+    // Converged with no duplicates and nothing lost.
+    const ids = seen.map((r) => r.id);
+    expect(ids.length).toBe(13);
+    expect(new Set(ids).size).toBe(13);
+    const feedEntryIds = ids.filter((id) => /^f[1-7]$/.test(id)).sort();
+    expect(feedEntryIds).toEqual(["f1", "f2", "f3", "f4", "f5", "f6", "f7"]);
+
+    // The final incremental cursor must still carry known positions for every
+    // entity that ever had data — none replayed from epoch afterward.
+    const finalPositions = decodePageCursor(finalCursor);
+    for (const entity of ["note", "clip", "feed", "feed_entry"] as const) {
+      expect(finalPositions[entity]).toBeDefined();
+    }
+    // Feeding the final cursor straight back must yield zero records (already synced).
+    const resumes = {} as Record<SyncEntity, StoredRow[]>;
+    for (const entity of syncEntities) {
+      resumes[entity] = queryRange(datasets[entity], finalPositions[entity], 10);
+    }
+    for (const entity of syncEntities) expect(resumes[entity].length).toBe(0);
+  });
+
+  it("final cursor after asymmetric convergence does not replay from epoch", async () => {
+    // notes exhaust on page 1, feed entries need two pages.
+    const datasets = {
+      note: makeDataset([{ id: "n1", updatedAt: "2026-07-01T01:00:00.000Z" }]),
+      clip: makeDataset([]),
+      feed: makeDataset([]),
+      // This dataset is deliberately small so the whole crawl ends quickly; the
+      // point is the note position survives past the point where feed pages twice.
+      feed_entry: makeDataset([
+        { id: "f1", updatedAt: "2026-07-01T02:00:00.000Z" },
+        { id: "f2", updatedAt: "2026-07-01T02:10:00.000Z" },
+        { id: "f3", updatedAt: "2026-07-01T02:20:00.000Z" },
+      ]),
+    };
+
+    const { seen, finalCursor } = await crawlAll(datasets, 2);
+    expect(seen.length).toBe(4);
+    const positions = decodePageCursor(finalCursor);
+    expect(positions.note?.id).toBe("n1"); // note position retained even though it exhausted first
+    expect(positions.feed_entry?.id).toBe("f3");
   });
 });
 

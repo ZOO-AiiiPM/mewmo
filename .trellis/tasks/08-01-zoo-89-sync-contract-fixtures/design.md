@@ -34,6 +34,7 @@
 - **增量游标为 composite keyset cursor**：每次 pull 返回 `nextCursor`（`mewmo-sync-v1:<json>`），内含**每个实体**的 `(updatedAt, id)` 位置。四个实体各自独立 keyset 分页，允许同 updatedAt 以 `id` 作稳定 tie-breaker 分页，不跨页丢失/重复（此设计取代最早的"单一时间游标"构想，修复了 ZOO-104 描述的 hidden-row 跳过与跨实体游标错位）。
 - **兼容**：缺省（无 cursor）＝ 全量同步；旧版纯 ISO 时间游标仍可解析（从该时间往后，id 为空）。
 - `hasMore`/`nextCursor` 只基于**实际返回边界**（第 `limit` 行，而非第 `limit+1` 探测行），保证下一页从 `>` 边界续查而不会跳过探测行。
+- **next cursor 继承输入 positions 并只覆盖当前边界**：`paginateEntities` 以 `prevState`（输入 cursor 解析出的各实体位置）为基底，仅对当前页实际返回了边界行的实体覆盖新位置。某实体先耗尽（后续页返回 0 行）时其最后位置**保留在 cursor 中**，不会被其他实体的继续分页挤掉——否则该实体会从 epoch 重放，产生重复甚至多页循环（ZOO-109）。最终 `hasMore=false` 的 cursor 仍包含四类实体的已知位置，后续增量拉取不重放。
 - 分页算法核心为纯函数 `paginateEntities` + `afterPositionPredicate`/`decodePageCursor`/`encodePageCursor`，Web 与 Swift 共用；`limit+1` 探测行永远不返回。
 
 ### Tombstone

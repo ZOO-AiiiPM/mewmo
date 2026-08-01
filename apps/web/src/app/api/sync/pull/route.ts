@@ -67,6 +67,7 @@ export async function POST(request: Request) {
   const page = paginateEntities<Row>(
     { note: notes, clip: clips, feed: feeds, feed_entry: feedEntries },
     limit,
+    positions,
   );
 
   const nextCursor = encodePageCursor(page.nextState) ?? "";

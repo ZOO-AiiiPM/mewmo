@@ -276,6 +276,13 @@ export function afterPositionPredicate(
  * Because the returned boundary is the actual last *returned* row, the hidden
  * `limit+1`-th row is re-fetched on the next page (via `afterPositionPredicate`)
  * instead of being silently skipped.
+ *
+ * The returned `nextState` **inherits** `prevState` and only **overrides** the
+ * entities that returned a boundary row on this page. This is critical: once an
+ * entity is exhausted (it returns zero rows on a later page), its last position
+ * is preserved instead of dropping out of the cursor — otherwise the next page
+ * would re-query that entity from epoch and replay already-delivered records
+ * (ZOO-109).
  */
 export type PageableRecord = {
   id: string;
@@ -285,9 +292,10 @@ export type PageableRecord = {
 export function paginateEntities<TRecord extends PageableRecord>(
   fetched: Record<SyncEntity, TRecord[]>,
   limit: number,
+  prevState: SyncCursorState = {},
 ): { records: Record<SyncEntity, TRecord[]>; nextState: SyncCursorState; hasMore: boolean } {
   const records = createEmptyRecords<TRecord>();
-  const nextState: SyncCursorState = {};
+  const nextState: SyncCursorState = { ...prevState };
   let hasMore = false;
 
   for (const entity of syncEntities) {
