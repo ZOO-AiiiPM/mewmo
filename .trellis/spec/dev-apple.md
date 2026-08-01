@@ -1,6 +1,8 @@
 # mewmo 开发规范 · Apple 端（SwiftUI）
 
 > 本文件描述 Apple 端的工程结构与实现约束。**已落地**（ZOO-87）的工程骨架见下方「当前结构」；尚未实现的能力（SwiftData、auth、sync、业务 UI、AI、发布）一律标注为**计划中/未来工作**，不得写成已完成。
+>
+> **Mac UI 交付规范**（Web 结构/token/状态/键盘到 SwiftUI 的单一真相源，含 Apple 顶部 tab strip）见 [apple/index.md](./apple/index.md) → [apple/mac-ui.md](./apple/mac-ui.md)。
 
 ## 当前结构（apps/apple，ZOO-87 已落地）
 
