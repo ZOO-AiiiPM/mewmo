@@ -85,6 +85,46 @@ test("native token service exposes rotation and revocation primitives", () => {
   assert.match(authModule, /generateRefreshToken/);
   assert.match(authModule, /hashRefreshToken/);
   assert.match(svc, /hashRefreshToken/);
-  assert.match(svc, /repo\.rotate/);
+  assert.match(svc, /repo\.rotateIfCurrent/);
+  assert.match(svc, /rotated\.count\s*===\s*0/);
   assert.match(svc, /repo\.revoke/);
+});
+
+test("refresh rotation is atomic CAS with owner-scoped revocation", () => {
+  const svc = read("apps/web/src/lib/native-auth.ts");
+  const repo = read("packages/db/src/repositories/native-sessions.ts");
+
+  // 仓库：旧哈希 + 未撤销 + 未过期 的原子 updateMany（count 作 CAS 结果）
+  assert.match(repo, /rotateIfCurrent/);
+  assert.match(repo, /updateMany/);
+  assert.match(repo, /refreshTokenHash:\s*input\.oldRefreshTokenHash/);
+  assert.match(repo, /revokedAt:\s*null/);
+  assert.match(repo, /refreshExpiresAt:\s*\{\s*gte:\s*now\s*\}/);
+  assert.doesNotMatch(repo, /\brotate\s*\(/); // 裸 rotate 已废弃，轮换统一走 CAS
+  assert.doesNotMatch(repo, /\btouch\s*\(/); // 来源信息不再单独 touch，合并进 CAS
+
+  // session 查询与吊销都同时约束 userId（ownership）
+  assert.match(repo, /findFirst\(\{[\s\S]*where:\s*\{\s*id:\s*sessionId,\s*userId/);
+  assert.match(repo, /revokeForUserBySessionId/);
+  assert.match(svc, /revokeSession\(\s*userId:\s*string,\s*sessionId:\s*string\s*\)/);
+});
+
+test("refresh endpoint is rate-limited with a stable rate_limited contract", () => {
+  const refreshRoute = read("apps/web/src/app/api/auth/native/refresh/route.ts");
+  const store = read("apps/web/src/lib/login-attempt-store.ts");
+  const svc = read("apps/web/src/lib/native-auth.ts");
+
+  // 路由注入独立的 refresh 限速器（不与登录桶共享）
+  assert.match(refreshRoute, /getRefreshRateLimiter\(\)/);
+  assert.match(refreshRoute, /refreshRateLimiter:/);
+
+  // 存储：独立 refresh 桶前缀，键用 refresh 哈希，不存明文 token
+  assert.match(store, /REFRESH_BUCKET_PREFIX\s*=\s*"refresh-fail"/);
+  assert.match(store, /getRefreshRateLimiter/);
+
+  // 服务：命中限速抛 429 rate_limited；失败记录、成功清理
+  assert.match(svc, /refreshRateLimiter\s*&&\s*\(await\s+refreshRateLimiter\.isLocked/);
+  assert.match(svc, /429,\s*"rate_limited"/);
+  assert.match(svc, /refreshRateLimiter\?\.\s*recordFailure/);
+  assert.match(svc, /refreshRateLimiter\?\.\s*clear/);
 });

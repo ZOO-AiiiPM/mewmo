@@ -794,19 +794,61 @@ describe("native sessions repository", () => {
     expect(findUnique).toHaveBeenCalledWith({ where: { refreshTokenHash: "hash1" } });
   });
 
-  it("rotates the refresh hash and bumps the refresh counter", async () => {
-    const update = vi.fn().mockResolvedValue({ id: "s1" });
-    const repo = createNativeSessionsRepository({ nativeSession: { update } });
+  it("rotates atomically with CAS: old hash + not revoked + not expired, and bumps the counter", async () => {
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const repo = createNativeSessionsRepository({ nativeSession: { updateMany } });
 
-    await repo.rotate("s1", { refreshTokenHash: "hash2", refreshExpiresAt: expires }, now);
+    const result = await repo.rotateIfCurrent({
+      sessionId: "s1",
+      oldRefreshTokenHash: "hash1",
+      newRefreshTokenHash: "hash2",
+      refreshExpiresAt: expires,
+      lastIp: "9.9.9.9",
+      lastUserAgent: "test-agent",
+      now,
+    });
 
-    expect(update).toHaveBeenCalledWith({
-      where: { id: "s1" },
+    expect(result).toEqual({ count: 1 });
+    expect(updateMany).toHaveBeenCalledWith({
+      where: {
+        id: "s1",
+        refreshTokenHash: "hash1",
+        revokedAt: null,
+        refreshExpiresAt: { gte: now },
+      },
       data: {
         refreshTokenHash: "hash2",
         refreshExpiresAt: expires,
         lastRefreshedAt: now,
         lastUsedAt: now,
+        lastIp: "9.9.9.9",
+        lastUserAgent: "test-agent",
+        refreshCount: { increment: 1 },
+      },
+    });
+  });
+
+  it("does the CAS rotate with null-safe optional source fields", async () => {
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const repo = createNativeSessionsRepository({ nativeSession: { updateMany } });
+
+    await repo.rotateIfCurrent({
+      sessionId: "s1",
+      oldRefreshTokenHash: "hash1",
+      newRefreshTokenHash: "hash2",
+      refreshExpiresAt: expires,
+      now,
+    });
+
+    expect(updateMany).toHaveBeenCalledWith({
+      where: { id: "s1", refreshTokenHash: "hash1", revokedAt: null, refreshExpiresAt: { gte: now } },
+      data: {
+        refreshTokenHash: "hash2",
+        refreshExpiresAt: expires,
+        lastRefreshedAt: now,
+        lastUsedAt: now,
+        lastIp: null,
+        lastUserAgent: null,
         refreshCount: { increment: 1 },
       },
     });
@@ -822,5 +864,26 @@ describe("native sessions repository", () => {
       where: { id: "s1" },
       data: { revokedAt: now },
     });
+  });
+
+  it("revokes a user-owned, non-revoked session only (ownership + active guard)", async () => {
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const repo = createNativeSessionsRepository({ nativeSession: { updateMany } });
+
+    await repo.revokeForUserBySessionId("user-1", "s1", now);
+
+    expect(updateMany).toHaveBeenCalledWith({
+      where: { id: "s1", userId: "user-1", revokedAt: null },
+      data: { revokedAt: now },
+    });
+  });
+
+  it("scopes session lookups to the owning user (id + userId)", async () => {
+    const findFirst = vi.fn().mockResolvedValue(null);
+    const repo = createNativeSessionsRepository({ nativeSession: { findFirst } });
+
+    await repo.findActiveForUserBySessionId("user-1", "s1");
+
+    expect(findFirst).toHaveBeenCalledWith({ where: { id: "s1", userId: "user-1" } });
   });
 });

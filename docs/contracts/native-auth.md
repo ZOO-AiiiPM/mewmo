@@ -29,7 +29,7 @@
 
 ### refresh token 语义
 
-- **一次性 / 轮换**：每次 refresh 成功即把该会话的 `refresh_token_hash` 换成新哈希，旧 refresh 再次使用 → 哈希不匹配 → `401 invalid_refresh`。
+- **一次性 / 原子轮换（CAS）**：每次 refresh 成功即把该会话的 `refresh_token_hash` 换成新哈希。轮换以「旧哈希 + 未撤销 + 未过期」做原子条件更新，并发/重放旧 token 时只有一个请求成功，其余 `401 invalid_refresh`。
 - **撤销**：`logout` 把会话 `revoked_at` 置时间戳；此后该 refresh 与（未过期但已被注销的）access 都失效。
 - 并发窗口：同一 refresh 并发使用只保证“先到先用，后到 401”；多设备应各自持有独立 refresh token（各自 `deviceId` / 会话）。
 
@@ -74,7 +74,7 @@
 
 ### `POST /api/auth/native/refresh`
 
-用 refresh token 换取新 access + 轮换出新 refresh。
+用 refresh token 换取新 access + **原子轮换**出新 refresh。
 
 请求体：
 
@@ -94,7 +94,20 @@
 }
 ```
 
-错误：`400 invalid_request` / `401 invalid_refresh`（无效、已轮换、已撤销、已过期）。
+轮换是**原子 CAS**：服务端以 `refresh_token_hash + sessionId + 未撤销 + 未过期` 做条件更新；
+仅一个并发请求成功（旧哈希仍在才写），其余并发/重放得到 `401 invalid_refresh`。来源信息
+（IP / UA）、滑动过期窗口与 `refreshCount` 在同一条原子 UPDATE 内完成，不存在「已轮换但记录未更新」的中间态。
+
+刷新**限速**：独立 `refresh-fail:<hash>:<ip>` 桶（`hash` 为 refresh token 的 HMAC，不泄露 token），
+与登录桶不共享。命中限速返回：
+
+| 状态 | code | 说明 |
+|------|------|------|
+| 429 | `rate_limited` | 刷新尝试过多（连续失败达上限），滑动锁定后解锁 |
+
+成功刷新清空该刷新桶，失败（无效/已轮换/已撤销/已过期）计数一次。
+
+错误：`400 invalid_request` / `401 invalid_refresh`（无效、已轮换、已撤销、已过期）/ `429 rate_limited`。
 
 ### `POST /api/auth/native/logout`
 

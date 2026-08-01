@@ -53,7 +53,10 @@ export interface NativeSessionPublic {
 interface NativeAuthDeps {
   prisma?: ReturnType<typeof getPrisma>;
   secret?: string;
+  /** 登录失败限速器（email+IP 维度）。 */
   rateLimiter?: LoginRateLimiter;
+  /** 刷新失败限速器（refresh hash+IP 维度），保护 /refresh 免遭暴力重放/枚举。 */
+  refreshRateLimiter?: LoginRateLimiter;
   comparePassword?: (password: string, hash: string) => Promise<boolean>;
   now?: () => Date;
 }
@@ -82,6 +85,7 @@ function createNativeAuthService(deps: NativeAuthDeps = {}) {
   const repo: Repo = createNativeSessionsRepository(prisma);
   const secret = deps.secret ?? loadEnv().NEXTAUTH_SECRET;
   const rateLimiter = deps.rateLimiter;
+  const refreshRateLimiter = deps.refreshRateLimiter;
   const comparePassword = deps.comparePassword ?? verifyPassword;
   const nowFn = deps.now ?? (() => new Date());
 
@@ -143,11 +147,20 @@ function createNativeAuthService(deps: NativeAuthDeps = {}) {
   }
 
   async function refresh(refreshToken: string, request: Request): Promise<NativeRefreshResult> {
+    // 先哈希（任何字符串都可哈希）用于限速键；即使 token 畸形也记录失败，避免枚举探测。
+    const hash = hashRefreshToken(refreshToken ?? "", secret);
+    const ip = getClientIp(request);
+
+    // 刷新限速：用 refresh token 的 HMAC 哈希 + IP 作为键，不泄露 token，能抑制暴力重放/枚举。
+    if (refreshRateLimiter && (await refreshRateLimiter.isLocked(hash, ip))) {
+      throw new NativeAuthError("刷新尝试过多，请稍后再试", 429, "rate_limited");
+    }
+
     if (!refreshToken || refreshToken.length < 16 || refreshToken.length > 1000) {
+      await refreshRateLimiter?.recordFailure(hash, ip);
       throw new NativeAuthError("无效的 refresh token", 401, NATIVE_ERR_INVALID_REFRESH);
     }
 
-    const hash = hashRefreshToken(refreshToken, secret);
     const session = (await repo.findActiveByRefreshHash(hash)) as
       | {
           id: string;
@@ -157,30 +170,42 @@ function createNativeAuthService(deps: NativeAuthDeps = {}) {
         }
       | null;
 
+    const now = nowFn();
+
     if (!session) {
+      await refreshRateLimiter?.recordFailure(hash, ip);
       throw new NativeAuthError("无效的 refresh token", 401, NATIVE_ERR_INVALID_REFRESH);
     }
     if (session.revokedAt) {
+      await refreshRateLimiter?.recordFailure(hash, ip);
       throw new NativeAuthError("会话已注销", 401, NATIVE_ERR_INVALID_REFRESH);
     }
-
-    const now = nowFn();
     if (session.refreshExpiresAt.getTime() < now.getTime()) {
+      await refreshRateLimiter?.recordFailure(hash, ip);
       throw new NativeAuthError("refresh token 已过期", 401, NATIVE_ERR_INVALID_REFRESH);
     }
 
-    // 轮换：旧 refresh 哈希换成新哈希，旧 refresh 再次使用即哈希不匹配 → 401
+    // 原子轮换 CAS：只有「该 session 旧哈希仍匹配、未撤销、未过期」才写。
+    // 来源信息、滑动过期窗口与 refreshCount 在同一条件 UPDATE 里原子完成，无中间态。
     const nextRefreshToken = generateRefreshToken();
     const nextHash = hashRefreshToken(nextRefreshToken, secret);
-    await repo.rotate(session.id, {
-      refreshTokenHash: nextHash,
+    const rotated = await repo.rotateIfCurrent({
+      sessionId: session.id,
+      oldRefreshTokenHash: hash,
+      newRefreshTokenHash: nextHash,
       refreshExpiresAt: refreshExpiry(now),
-    });
-    const ip = getClientIp(request);
-    await repo.touch(session.id, {
       lastIp: ip === "unknown" ? null : ip,
       lastUserAgent: request.headers.get("user-agent"),
+      now,
     });
+
+    // CAS 失败：并发竞争者已轮换 / 已注销 / 已过期 → 竞争失败方与旧 token 都 401。
+    if (rotated.count === 0) {
+      await refreshRateLimiter?.recordFailure(hash, ip);
+      throw new NativeAuthError("refresh token 已失效", 401, NATIVE_ERR_INVALID_REFRESH);
+    }
+
+    await refreshRateLimiter?.clear(hash, ip);
 
     const accessToken = await signNativeAccessToken(
       { userId: session.userId, sessionId: session.id },
@@ -210,10 +235,10 @@ function createNativeAuthService(deps: NativeAuthDeps = {}) {
     await repo.revoke(session.id, nowFn());
   }
 
-  /** 按 sessionId 直接吊销（logout 的 bearer 定位路径）。 */
-  async function revokeSession(sessionId: string): Promise<void> {
+  /** 吊销某用户自己的会话（logout 的 bearer 定位路径，落实 user ownership）。 */
+  async function revokeSession(userId: string, sessionId: string): Promise<void> {
     if (!sessionId) return;
-    await repo.revoke(sessionId, nowFn());
+    await repo.revokeForUserBySessionId(userId, sessionId, nowFn());
   }
 
   /**

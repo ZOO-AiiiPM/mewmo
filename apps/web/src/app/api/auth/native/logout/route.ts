@@ -34,7 +34,7 @@ export async function POST(request: Request) {
           { status: 401 },
         );
       }
-      await service.revokeSession(identity.sessionId);
+      await service.revokeSession(identity.userId, identity.sessionId);
     }
 
     return new NextResponse(null, { status: 204 });

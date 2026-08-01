@@ -4,7 +4,9 @@ interface NativeSessionsClient {
   nativeSession: {
     create(args: unknown): Promise<unknown>;
     findUnique(args: unknown): Promise<unknown>;
+    findFirst(args: unknown): Promise<unknown>;
     update(args: unknown): Promise<unknown>;
+    updateMany(args: unknown): Promise<{ count: number }>;
   };
 }
 
@@ -19,11 +21,27 @@ export interface CreateNativeSessionInput {
   refreshExpiresAt: Date;
 }
 
+/** 轮换（CAS）输入：除旧哈希与目标 session 外的全部变更都一次性落到同一条 UPDATE。 */
+export interface RotateIfCurrentInput {
+  sessionId: string;
+  oldRefreshTokenHash: string;
+  newRefreshTokenHash: string;
+  refreshExpiresAt: Date;
+  lastIp?: string | null;
+  lastUserAgent?: string | null;
+  now?: Date;
+}
+
 /**
  * 服务器端 native bearer session 仓库。
  *
  * refresh token 只存哈希（绝不存明文）：查询与轮换都以哈希为准，
  * 天然支持「已轮换 / 已撤销 / 已过期」的拒绝。
+ *
+ * 原子轮换：`rotateIfCurrent` 用 `updateMany` + `WHERE`（sessionId + 旧 oldRefreshTokenHash +
+ * 未撤销 + 未过期）做 row-level CAS。PostgreSQL 对该行 UPDATE 是原子的，并发重放旧 token 时
+ * 只有一个请求的旧哈希仍匹配，其余 `count===0`。来源信息（lastIp / lastUserAgent）、滑动过期
+ * 窗口与 refreshCount 都合并在同一条 UPDATE 语句里，不存在「已轮换但 touch 失败」的中间态。
  */
 export function createNativeSessionsRepository(client: unknown = getPrisma()) {
   const db = client as NativeSessionsClient;
@@ -52,8 +70,7 @@ export function createNativeSessionsRepository(client: unknown = getPrisma()) {
     },
 
     /**
-     * 按 refresh token 哈希定位一个**未被撤销**的有效 session。
-     * 调用方拿到行后做哈希比对决定是否放行；这里只做索引命中。
+     * 按 refresh token 哈希定位 session（用于 refresh 前的错误分类与 logout）
      */
     async findActiveByRefreshHash(refreshTokenHash: string) {
       return db.nativeSession.findUnique({
@@ -62,38 +79,26 @@ export function createNativeSessionsRepository(client: unknown = getPrisma()) {
     },
 
     /**
-     * 轮换 refresh token：读取 → 校验未撤销未过期 → 改新哈希、刷新滑动窗口、refreshCount+1。
-     * 刷新时把该行的 refresh_token_hash 换成新哈希，旧 refresh 再次使用即哈希不匹配而 401。
+     * 原子轮换：只有「该 session 的旧哈希仍匹配、未撤销、未过期」时才会写。
+     * 返回 `count`；调用方 `count === 0` 即 CAS 失败（并发重放 / 已注销 / 已过期），按 401 处理。
      */
-    async rotate(
-      sessionId: string,
-      { refreshTokenHash, refreshExpiresAt }: { refreshTokenHash: string; refreshExpiresAt: Date },
-      now = new Date(),
-    ) {
-      return db.nativeSession.update({
-        where: { id: sessionId },
+    async rotateIfCurrent(input: RotateIfCurrentInput) {
+      const now = input.now ?? new Date();
+      return db.nativeSession.updateMany({
+        where: {
+          id: input.sessionId,
+          refreshTokenHash: input.oldRefreshTokenHash,
+          revokedAt: null,
+          refreshExpiresAt: { gte: now },
+        },
         data: {
-          refreshTokenHash,
-          refreshExpiresAt,
+          refreshTokenHash: input.newRefreshTokenHash,
+          refreshExpiresAt: input.refreshExpiresAt,
           lastRefreshedAt: now,
           lastUsedAt: now,
+          lastIp: input.lastIp ?? null,
+          lastUserAgent: input.lastUserAgent ?? null,
           refreshCount: { increment: 1 },
-        },
-      });
-    },
-
-    /** 心跳/使用记录：更新最后使用时间与来源 IP / UA。 */
-    async touch(
-      sessionId: string,
-      { lastIp, lastUserAgent }: { lastIp?: string | null; lastUserAgent?: string | null },
-      lastUsedAt = new Date(),
-    ) {
-      return db.nativeSession.update({
-        where: { id: sessionId },
-        data: {
-          lastUsedAt,
-          lastIp: lastIp ?? undefined,
-          lastUserAgent: lastUserAgent ?? undefined,
         },
       });
     },
@@ -106,10 +111,18 @@ export function createNativeSessionsRepository(client: unknown = getPrisma()) {
       });
     },
 
-    /** 定位用户的某个有效 native session（供 session/GET 查询）。 */
+    /** 吊销某用户下、且未撤销的会话（logout 的 bearer 定位路径，落实 user ownership）。 */
+    async revokeForUserBySessionId(userId: string, sessionId: string, revokedAt = new Date()) {
+      return db.nativeSession.updateMany({
+        where: { id: sessionId, userId, revokedAt: null },
+        data: { revokedAt },
+      });
+    },
+
+    /** 定位某用户自己的会话（供 session/GET 与 access 撤销校验），同时约束 userId 与 sessionId。 */
     async findActiveForUserBySessionId(userId: string, sessionId: string) {
-      return db.nativeSession.findUnique({
-        where: { id: sessionId },
+      return db.nativeSession.findFirst({
+        where: { id: sessionId, userId },
       });
     },
   };

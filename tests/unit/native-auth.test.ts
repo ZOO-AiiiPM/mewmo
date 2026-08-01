@@ -37,10 +37,17 @@ interface Harness {
     nativeSession: {
       create: ReturnType<typeof vi.fn>;
       findUnique: ReturnType<typeof vi.fn>;
+      findFirst: ReturnType<typeof vi.fn>;
       update: ReturnType<typeof vi.fn>;
+      updateMany: ReturnType<typeof vi.fn>;
     };
   };
   limiter: {
+    isLocked: ReturnType<typeof vi.fn>;
+    recordFailure: ReturnType<typeof vi.fn>;
+    clear: ReturnType<typeof vi.fn>;
+  };
+  refreshLimiter: {
     isLocked: ReturnType<typeof vi.fn>;
     recordFailure: ReturnType<typeof vi.fn>;
     clear: ReturnType<typeof vi.fn>;
@@ -50,8 +57,31 @@ interface Harness {
 function setup({
   user = DUMMY_USER,
   locked = false,
-}: { user?: typeof DUMMY_USER | null; locked?: boolean } = {}): Harness {
+  refreshLocked = false,
+}: { user?: typeof DUMMY_USER | null; locked?: boolean; refreshLocked?: boolean } = {}): Harness {
   const store: SessionRow[] = [];
+
+  /** 行内原子 CAS 模拟：命中既有行则应用 data，否则 count=0。 */
+  function casApply(
+    where: { id?: string; refreshTokenHash?: string; revokedAt?: unknown; refreshExpiresAt?: unknown; userId?: string },
+    data: Record<string, unknown>,
+  ) {
+    let idx = store.findIndex((s) => s.id === where.id);
+    if (idx < 0) return { count: 0 };
+
+    const row = store[idx]!;
+    if (where.refreshTokenHash !== undefined && row.refreshTokenHash !== where.refreshTokenHash) return { count: 0 };
+    if (where.userId !== undefined && row.userId !== where.userId) return { count: 0 };
+    if (where.revokedAt !== undefined && row.revokedAt !== where.revokedAt) return { count: 0 };
+    if (where.refreshExpiresAt !== undefined) {
+      const gte = (where.refreshExpiresAt as Record<string, Date>).gte;
+      if (gte && row.refreshExpiresAt < gte) return { count: 0 };
+    }
+
+    const merged = { ...row, ...data } as SessionRow;
+    store[idx] = merged;
+    return { count: 1 };
+  }
 
   const nativeSession = {
     create: vi.fn(async (args: { data: Record<string, unknown> }) => {
@@ -75,20 +105,29 @@ function setup({
       return row;
     }),
 
-    findUnique: vi.fn(async ({ where }: { where: { id?: string; refreshTokenHash?: string } }) => {
-      if (where.id !== undefined) return store.find((s) => s.id === where.id) ?? null;
+    findUnique: vi.fn(async ({ where }: { where: { refreshTokenHash?: string; id?: string } }) => {
       if (where.refreshTokenHash !== undefined)
         return store.find((s) => s.refreshTokenHash === where.refreshTokenHash) ?? null;
-      return null;
+      return store.find((s) => s.id === where.id) ?? null;
+    }),
+
+    findFirst: vi.fn(async ({ where }: { where: { id: string; userId: string } }) => {
+      return store.find((s) => s.id === where.id && s.userId === where.userId) ?? null;
     }),
 
     update: vi.fn(async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
       const idx = store.findIndex((s) => s.id === where.id);
       if (idx < 0) throw new Error("missing row");
-      const row = store[idx]!;
-      const merged = { ...row, ...data } as SessionRow;
+      const merged = { ...store[idx]!, ...data } as SessionRow;
       store[idx] = merged;
       return merged;
+    }),
+
+    updateMany: vi.fn(async (args: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
+      return casApply(
+        args.where as Parameters<typeof casApply>[0],
+        args.data as Record<string, unknown>,
+      );
     }),
   };
 
@@ -98,17 +137,23 @@ function setup({
     recordFailure: vi.fn(async () => undefined),
     clear: vi.fn(async () => undefined),
   };
+  const refreshLimiter = {
+    isLocked: vi.fn(async () => refreshLocked),
+    recordFailure: vi.fn(async () => undefined),
+    clear: vi.fn(async () => undefined),
+  };
   const comparePassword = vi.fn(async (password: string, hash: string) => hash === `hash:${password}`);
 
   const service = createNativeAuthService({
     prisma: prisma as never,
     secret: SECRET,
     rateLimiter: limiter,
+    refreshRateLimiter: refreshLimiter,
     comparePassword,
     now: () => new Date("2026-08-01T08:00:00.000Z"),
   });
 
-  return { service, prisma, limiter };
+  return { service, prisma, limiter, refreshLimiter };
 }
 
 describe("native login", () => {
@@ -200,6 +245,84 @@ describe("native refresh rotation", () => {
     await expect(service.refresh("", makeRequest())).rejects.toMatchObject({ status: 401 });
     await expect(service.refresh("short", makeRequest())).rejects.toMatchObject({ status: 401 });
   });
+
+  it("is atomic: only one concurrent refresh wins; the losing competitor and old token return 401", async () => {
+    const { service } = setup();
+    const login = (await service.login({ email: "a@b.com", password: "right" }, makeRequest()))!;
+    const oldRefresh = login.refreshToken;
+
+    // 并发竞争者：服务按顺序执行，第二次 updateMany(CAS) 因旧哈希已换而 count=0 → 401
+    const winner = await service.refresh(oldRefresh, makeRequest());
+    expect(winner.accessToken).toBeTruthy();
+    expect(winner.refreshToken).not.toBe(oldRefresh);
+
+    // 竞争者用已被轮换的旧 token 必须 401，且不拿到任何新 token
+    await expect(service.refresh(oldRefresh, makeRequest())).rejects.toMatchObject({ status: 401 });
+
+    // 胜者拿到的新 refresh 仍有效
+    await expect(service.refresh(winner.refreshToken, makeRequest())).resolves.toMatchObject({
+      sessionId: login.sessionId,
+    });
+  });
+
+  it("rolls back on CAS mismatch from a concurrent rotation: never returns an already-stale token", async () => {
+    const { service } = setup();
+    const login = (await service.login({ email: "a@b.com", password: "right" }, makeRequest()))!;
+
+    // 先让一个「竞争者」成功轮换，把旧哈希换掉；随后本 service 用旧 token 刷新 → CAS count=0 → 401
+    const refreshed = await service.refresh(login.refreshToken, makeRequest());
+
+    // 旧 token 已轮换 → 再次使用 401，且不能返回任何 token
+    await expect(service.refresh(login.refreshToken, makeRequest())).rejects.toMatchObject({ status: 401 });
+
+    // 手动把 CAS 模拟成「竞争者抢先」：直接再做一次同 token 刷新验证旧 token 永远失效
+    await expect(service.refresh(login.refreshToken, makeRequest())).rejects.toMatchObject({ status: 401 });
+    await expect(service.refresh(refreshed.refreshToken, makeRequest())).resolves.toMatchObject({
+      sessionId: login.sessionId,
+    });
+  });
+
+  it("treats a CAS write that affected 0 rows as a failed concurrent rotation (401 + records failure)", async () => {
+    const { service, prisma, refreshLimiter } = setup();
+    const login = (await service.login({ email: "a@b.com", password: "right" }, makeRequest()))!;
+
+    // 模拟「读决策通过，但写时已被竞争者抢先」：updateMany 返回 count 0
+    prisma.nativeSession.updateMany.mockResolvedValueOnce({ count: 0 });
+
+    await expect(service.refresh(login.refreshToken, makeRequest())).rejects.toMatchObject({
+      status: 401,
+      code: "invalid_refresh",
+    });
+    expect(refreshLimiter.recordFailure).toHaveBeenCalled();
+  });
+
+  it("is rate-limited: locked refresh returns a 429 rate_limited before touching the store", async () => {
+    const { service, refreshLimiter, prisma } = setup({ refreshLocked: true });
+    const login = (await service.login({ email: "a@b.com", password: "right" }, makeRequest()))!;
+
+    await expect(service.refresh(login.refreshToken, makeRequest())).rejects.toMatchObject({
+      status: 429,
+      code: "rate_limited",
+    });
+    expect(prisma.nativeSession.findUnique).not.toHaveBeenCalled();
+    expect(refreshLimiter.isLocked).toHaveBeenCalled();
+  });
+
+  it("clears the refresh limiter on success", async () => {
+    const { service, refreshLimiter } = setup();
+    const login = (await service.login({ email: "a@b.com", password: "right" }, makeRequest()))!;
+
+    await service.refresh(login.refreshToken, makeRequest());
+    // clear 以 refresh hash + IP 为键
+    expect(refreshLimiter.clear).toHaveBeenCalled();
+  });
+
+  it("records a refresh failure on invalid tokens for rate limiting", async () => {
+    const { service, refreshLimiter } = setup();
+
+    await expect(service.refresh("does-not-exist", makeRequest())).rejects.toMatchObject({ status: 401 });
+    expect(refreshLimiter.recordFailure).toHaveBeenCalled();
+  });
 });
 
 describe("native logout", () => {
@@ -207,8 +330,8 @@ describe("native logout", () => {
     const { service } = setup();
     const login = (await service.login({ email: "a@b.com", password: "right" }, makeRequest()))!;
 
-    // bearer 注销
-    await service.revokeSession(login.sessionId);
+    // bearer 注销（user ownership：只吊销该用户自己的会话）
+    await service.revokeSession("user-1", login.sessionId);
     expect(await service.resolveAccessToken(login.accessToken)).toBeNull();
   });
 

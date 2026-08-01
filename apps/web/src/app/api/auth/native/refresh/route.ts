@@ -1,5 +1,6 @@
 import { NativeAuthError, createNativeAuthService } from "../../../../../lib/native-auth";
 import { nativeRefreshBodySchema } from "../../../../../lib/native-auth-contract";
+import { getRefreshRateLimiter } from "../../../../../lib/login-attempt-store";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
@@ -8,7 +9,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "请求参数不完整", code: "invalid_request" }, { status: 400 });
   }
 
-  const service = createNativeAuthService();
+  const service = createNativeAuthService({ refreshRateLimiter: getRefreshRateLimiter() });
 
   try {
     const result = await service.refresh(parsed.data.refreshToken, request);
