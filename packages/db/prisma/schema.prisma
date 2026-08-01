@@ -22,6 +22,7 @@ model User {
 
   accounts       Account[]
   sessions       Session[]
+  nativeSessions NativeSession[]
   authenticators Authenticator[]
   notes          Note[]
   clips          Clip[]
@@ -80,6 +81,32 @@ model Session {
 
   @@index([userId])
   @@map("sessions")
+}
+
+/// 服务器端原生（Apple）client 的 bearer session。
+/// access token 是无状态 JWT（不落库），refresh token 只存哈希，用于轮换/撤销。
+model NativeSession {
+  id                String    @id @default(cuid())
+  userId            String    @map("user_id")
+  refreshTokenHash  String    @unique @map("refresh_token_hash")
+  deviceId          String    @map("device_id")
+  platform          String    @map("platform")
+  deviceName        String?   @map("device_name")
+  lastIp            String?   @map("last_ip")
+  lastUserAgent     String?   @map("last_user_agent")
+  lastUsedAt        DateTime  @map("last_used_at")
+  lastRefreshedAt   DateTime? @map("last_refreshed_at")
+  refreshExpiresAt  DateTime  @map("refresh_expires_at")
+  revokedAt         DateTime? @map("revoked_at")
+  refreshCount      Int       @default(0) @map("refresh_count")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@index([deviceId, userId])
+  @@map("native_sessions")
 }
 
 model VerificationToken {

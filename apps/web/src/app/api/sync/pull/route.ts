@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getPrisma } from "@mewmo/db";
 import { syncPullSchema } from "@mewmo/shared";
 
-import { auth } from "../../../../lib/auth";
+import { resolveRequestUser } from "../../../../lib/request-user";
 
 function normalizeCursor(cursor?: string): Date {
   if (!cursor) return new Date(0);
@@ -14,8 +14,8 @@ function normalizeCursor(cursor?: string): Date {
 }
 
 export async function POST(request: Request) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const user = await resolveRequestUser(request);
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
-  const userId = session.user.id;
+  const userId = user.id;
   const cursor = normalizeCursor(parsed.data.cursor);
   const nextCursor = new Date().toISOString();
   const prisma = getPrisma();

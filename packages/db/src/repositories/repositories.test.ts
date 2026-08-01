@@ -10,6 +10,7 @@ import {
   KnowledgeImportTargetError,
   createKnowledgeBasesRepository,
 } from "./knowledge-bases";
+import { createNativeSessionsRepository } from "./native-sessions";
 import { createNotesRepository } from "./notes";
 import { createTagsRepository } from "./tags";
 import { createTrashRepository } from "./trash";
@@ -744,6 +745,82 @@ describe("repositories", () => {
 
     expect(deleteMany).toHaveBeenCalledWith({
       where: { id: "kb-1", userId: "user-1", deletedAt: { not: null } },
+    });
+  });
+});
+
+describe("native sessions repository", () => {
+  const now = new Date("2026-08-01T08:00:00.000Z");
+  const expires = new Date("2026-08-31T08:00:00.000Z");
+
+  it("creates a session with null-safety for optional fields", async () => {
+    const create = vi.fn().mockResolvedValue({ id: "s1" });
+    const repo = createNativeSessionsRepository({ nativeSession: { create } });
+
+    await repo.create({
+      userId: "user-1",
+      refreshTokenHash: "hash1",
+      deviceId: "dev-1",
+      platform: "ios",
+      refreshExpiresAt: expires,
+    });
+
+    expect(create).toHaveBeenCalledWith({
+      data: {
+        userId: "user-1",
+        refreshTokenHash: "hash1",
+        deviceId: "dev-1",
+        platform: "ios",
+        deviceName: null,
+        lastIp: null,
+        lastUserAgent: null,
+        lastUsedAt: expect.any(Date),
+        lastRefreshedAt: expect.any(Date),
+        refreshExpiresAt: expires,
+        revokedAt: null,
+        refreshCount: 0,
+        createdAt: expect.any(Date),
+        updatedAt: expect.any(Date),
+      },
+    });
+  });
+
+  it("looks up a session by its refresh token hash", async () => {
+    const findUnique = vi.fn().mockResolvedValue(null);
+    const repo = createNativeSessionsRepository({ nativeSession: { findUnique } });
+
+    await repo.findActiveByRefreshHash("hash1");
+
+    expect(findUnique).toHaveBeenCalledWith({ where: { refreshTokenHash: "hash1" } });
+  });
+
+  it("rotates the refresh hash and bumps the refresh counter", async () => {
+    const update = vi.fn().mockResolvedValue({ id: "s1" });
+    const repo = createNativeSessionsRepository({ nativeSession: { update } });
+
+    await repo.rotate("s1", { refreshTokenHash: "hash2", refreshExpiresAt: expires }, now);
+
+    expect(update).toHaveBeenCalledWith({
+      where: { id: "s1" },
+      data: {
+        refreshTokenHash: "hash2",
+        refreshExpiresAt: expires,
+        lastRefreshedAt: now,
+        lastUsedAt: now,
+        refreshCount: { increment: 1 },
+      },
+    });
+  });
+
+  it("revokes by stamping revokedAt", async () => {
+    const update = vi.fn().mockResolvedValue({ id: "s1" });
+    const repo = createNativeSessionsRepository({ nativeSession: { update } });
+
+    await repo.revoke("s1", now);
+
+    expect(update).toHaveBeenCalledWith({
+      where: { id: "s1" },
+      data: { revokedAt: now },
     });
   });
 });
