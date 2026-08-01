@@ -19,7 +19,12 @@ This file captures raw observations from this task. Keep evidence and uncertaint
 
 ## ZOO-117（验收缺口修复）
 
-- 驳回点 1：把“空 body 伪 304”改为**真实条件请求测试**。因 URLCache 在 URLProtocol 下不注入条件头（上行已实证），改用可控 HTTP stub（`MockConditionalHTTPLoader: DataLoading`）实现 RFC7232 服务端侧：首次 200+ETag/Last-Modified+body，第二次携带 `If-None-Match`/`If-Modified-Since` 时回 304 并投递首次相同的 body。测试断言：stub 记录到条件头（observed）、两次 `container.data` 位级一致。**绝不能用空 body 冒充 304**。
+- 驳回点 1（再次驳回后收敛）：条件请求必须走**真实 URLSession + 生产 DataLoader + 独立 URLCache + loopback HTTP 服务器**，不能手改头/用 stub 冒充。实测结果：
+  - URLProtocol stub 路径（`sessionConfig.protocolClasses = [Mock ...]`）让 URLCache **只存不 revalidate**——不发 If-None-Match/If-Modified-Since，也无 304 复用（macOS 26.5，纯 URLSession 复现）。
+  - **真实 loopback HTTP 服务器（POSIX socket，127.0.0.1 临时端口）则完全正常**：URLSession/URLCache 对第二次请求自动注入 `If-None-Match`/`If-Modified-Since`，服务器回 304（零 body），客户端复用第一次 body。所以判定在真实网络加载路径下系统会生效，问题只出在 URLProtocol 传输薄层。
+  - 用 `MewmoImagePipeline`（`enableDataCache=false` + 不注入 loader → 生产 `DataLoader` + `pipeline.urlCache`）+ `.disableMemoryCacheReads` 请求：两次 `pipeline.imageTask(from).response` 走真实 revalidation。断言：`requestHeadersLog[1]` 带条件头、`fullResponseCount==1`（完整 body 只发一次）、`notModifiedCount>=1`、两次解码 `bitmapBytes` 位级一致。
+  - 关键坑：`If-Modified-Since` 值由 URLCache 依据响应的 `Date`/`Last-Modified` 规范重算（weekday 会变！），**handler 必须按“头存在与否”判定 304**，不能 `==` 硬比日期字符串。HTTP 日期注意真实 weekday（2026-08-01 是周六）。
+  - 不要断言 `container.data`（网络解码路径下常为 nil）；比解码后 RGBA 像素字节（`cgImage` 画进 1×1 bgra context）。
 - 驳回点 2：pipeline 增加 `public let urlCache: URLCache` 持有生产 URLCache；`clearDisk()`/`removeAllCaches()` 同时 `urlCache.removeAllCachedResponses()`。测试用 `storeCachedResponse` seed URLCache 再断言被清空——比 URLProtocol+网络喂 URLCache 更稳（URLProtocol serve URLCache 的生产 DataLoader 组合在 `URLSessionConfiguration.default` 下不拦截 https，会真联网报 TLS -1200；避免）。
 - 驳回点 3：`DataCache(path:)` 创建失败不再 `try?`，显式抛 `ImageCacheSetupError.dataCacheInitializationFailed(path:message:)`（新的 Sendable/Equatable public enum）。失败路径测试：在 dataCache 目录路径放一个普通文件，令 `FileManager.createDirectory` 失败 → 断言抛该分类 error。
 - `ImageCacheSetupError` 关联值存 `String`（path/message）而非 `any Error`，保证 `Sendable`/`Equatable`，便于测试 `guard case` 匹配。

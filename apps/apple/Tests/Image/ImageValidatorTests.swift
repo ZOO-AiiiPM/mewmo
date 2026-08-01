@@ -4,11 +4,12 @@ import XCTest
 
 /// HTTP validator / 条件请求语义（ZOO-117 / PRD Acceptance 5）。
 ///
-/// 条件请求（ETag/Last-Modified → 304）在真实网络中由系统 URLCache/URLSession 消费。本项目
-/// “不自定义第二套 validator 协议”，生产 pipeline 直接复用系统 URLCache。测试用可控 HTTP stub
-/// 确定地验证两件语义：
-/// 1) 第二次请求携带 validator（`If-None-Match` / `If-Modified-Since`），stub 观测到；
-/// 2) 服务端返回 304（资源未变）时，客户端复用第一次收到的缓存内容，而不是用空 body 冲掉。
+/// 用**真实 loopback HTTP 服务器 + 生产 `DataLoader`（真实 URLSession）+ 独立 URLCache** 端到端验证：
+/// 1) 首次 200 + ETag/Last-Modified + body；
+/// 2) 第二次请求由 URLSession/URLCache **自动**携带 `If-None-Match` / `If-Modified-Since`；
+/// 3) 服务端回 304（零 body），pipeline 仍返回与首次**位级一致**的缓存内容。
+///
+/// 这是生产 validator 语义（系统 URLCache/URLSession），非自造的第二套头/协议。
 final class ImageValidatorTests: XCTestCase {
     private var directory: URL!
 
@@ -20,8 +21,93 @@ final class ImageValidatorTests: XCTestCase {
         try? FileManager.default.removeItem(at: directory)
     }
 
-    private func makePipeline(loader: (any DataLoading), config: ImagePipelineConfig) throws -> MewmoImagePipeline {
-        try MewmoImagePipeline(config: config, cacheDirectory: directory, dataLoader: loader)
+    /// 生产 pipeline：不注入 loader（真实 `DataLoader` + 内部 URLCache），缓存目录为独立临时目录。
+    private func makeProductionPipeline(config: ImagePipelineConfig) throws -> MewmoImagePipeline {
+        try MewmoImagePipeline(config: config, cacheDirectory: directory, dataLoader: nil)
+    }
+
+    /// 构造 ETag 条件请求处理器：带 `If-None-Match` → 304（零 body）；否则 200 + ETag + body。
+    private func etagHandler(body: Data, etag: String) -> (@Sendable ([String: String], String) -> (Int, [String: String], Data)) {
+        { headers, _ in
+            if headers["If-None-Match"] == etag {
+                return (304, ["ETag": etag], Data())
+            }
+            return (200, ["ETag": etag, "Cache-Control": "no-cache", "Date": "Wed, 01 Aug 2026 00:00:00 GMT"], body)
+        }
+    }
+
+    /// ETag：真实 URLSession 自动对第二次请求注入 If-None-Match，304 零 body 下 pipeline 返回位级一致缓存内容。
+    func testETagConditionalRequest_RealURLSessionRevalidation() async throws {
+        let server = try LoopbackHTTPServer()
+        defer { server.stop() }
+        let body = try ImageTestData.png()
+        server.handler = etagHandler(body: body, etag: "\"abc\"")
+
+        var config = ImagePipelineConfig()
+        config.enableDataCache = false   // 仅 URLCache，强制第二次请求走 URLSession revalidation。
+        let pipeline = try makeProductionPipeline(config: config)
+        let url = server.baseURL.appendingPathComponent("note/etag.jpg")
+
+        // 首次：200 + ETag + body。
+        let first = try await pipeline.pipeline.imageTask(
+            with: ImageRequest(url: url, options: [.disableMemoryCacheReads])
+        ).response
+        XCTAssertNotNil(first.image, "首次 200 应成功解码")
+
+        // 第二次：仅禁用 Nuke 内存缓存读——必须由 URLSession/URLCache 自动携带 If-None-Match。
+        let second = try await pipeline.pipeline.imageTask(
+            with: ImageRequest(url: url, options: [.disableMemoryCacheReads])
+        ).response
+        XCTAssertNotNil(second.image, "304 复用缓存后应成功解码")
+
+        // 服务器观测到第二次请求自动携带了 If-None-Match。
+        let headersLog = server.requestHeadersLog
+        XCTAssertGreaterThanOrEqual(headersLog.count, 2, "应发生至少两次请求")
+        XCTAssertEqual(headersLog[1]["If-None-Match"], "\"abc\"", "第二次请求应由 URLCache 自动携带 If-None-Match")
+
+        // 304 零 body：服务器只发送过一次完整 body（第二次字节由缓存复用，非重新下发）。
+        XCTAssertEqual(server.fullResponseCount, 1, "完整 body 只应被发送一次（第一次 200）")
+        XCTAssertGreaterThanOrEqual(server.notModifiedCount, 1, "第二次请求应命中 304（零 body）")
+        // 两次解码结果位级一致 —— 第二次复用第一次的缓存字节。
+        XCTAssertEqual(ImageTestData.bitmapBytes(first.image), ImageTestData.bitmapBytes(second.image))
+    }
+
+    /// Last-Modified：真实 URLSession 自动注入 If-Modified-Since，304 复用缓存内容。
+    func testLastModifiedConditionalRequest_RealURLSessionRevalidation() async throws {
+        let server = try LoopbackHTTPServer()
+        defer { server.stop() }
+        let body = try ImageTestData.png()
+        let lastModified = "Sat, 01 Aug 2026 00:00:00 GMT"
+        server.handler = { headers, _ in
+            // 客户端若携带 If-Modified-Since（revalidation）→ 304 零 body。
+            if headers["If-Modified-Since"] != nil {
+                return (304, ["Last-Modified": lastModified], Data())
+            }
+            return (200, ["Last-Modified": lastModified, "Cache-Control": "no-cache", "Date": lastModified], body)
+        }
+
+        var config = ImagePipelineConfig()
+        config.enableDataCache = false
+        let pipeline = try makeProductionPipeline(config: config)
+        let url = server.baseURL.appendingPathComponent("note/lm.jpg")
+
+        let first = try await pipeline.pipeline.imageTask(
+            with: ImageRequest(url: url, options: [.disableMemoryCacheReads])
+        ).response
+        XCTAssertNotNil(first.image)
+
+        let second = try await pipeline.pipeline.imageTask(
+            with: ImageRequest(url: url, options: [.disableMemoryCacheReads])
+        ).response
+        XCTAssertNotNil(second.image)
+
+        let headersLog = server.requestHeadersLog
+        XCTAssertGreaterThanOrEqual(headersLog.count, 2)
+        XCTAssertEqual(headersLog[1]["If-Modified-Since"], lastModified, "第二次请求应由 URLCache 自动携带 If-Modified-Since")
+
+        XCTAssertEqual(server.fullResponseCount, 1, "完整 body 只应被发送一次")
+        XCTAssertGreaterThanOrEqual(server.notModifiedCount, 1, "第二次请求应命中 304（零 body）")
+        XCTAssertEqual(ImageTestData.bitmapBytes(first.image), ImageTestData.bitmapBytes(second.image))
     }
 
     /// production 形态：DataLoader 的 URLSession 必须接入一个 URLCache，且容量与 config 一致
@@ -50,66 +136,11 @@ final class ImageValidatorTests: XCTestCase {
         XCTAssertEqual(urlCache?.memoryCapacity, 64 * 1024)
     }
 
-    /// ETag 条件请求：第二次请求携带 `If-None-Match`，stub 观测到并回 304，客户端复用第一次缓存内容。
-    func testETagConditionalRequest_304ServesFirstCachedContent() async throws {
-        let url = ImageTestData.url("https://qiniu.example.com/note/etag.jpg")
-        let png = try ImageTestData.png()
-        let stub = MockConditionalHTTPLoader(body: png, validatorHeaderName: "ETag", validatorValue: "\"abc\"")
-
-        var config = ImagePipelineConfig()
-        config.enableDataCache = false     // 强制每次请求走到 stub（HTTP 语义层），隔离 Nuke DataCache。
-        let pipeline = try makePipeline(loader: stub, config: config)
-
-        // 首次：无条件头 → 200 + ETag + 完整 body。
-        let firstRequest = ImageRequest(urlRequest: URLRequest(url: url), options: [.disableMemoryCacheReads])
-        let first = try await pipeline.pipeline.imageTask(with: firstRequest).response
-        XCTAssertNotNil(first.image, "首次 200 应成功解码")
-
-        // 第二次：携带 If-None-Match（revalidating HTTP client 的请求头）。
-        var revalidate = URLRequest(url: url)
-        revalidate.setValue("\"abc\"", forHTTPHeaderField: "If-None-Match")
-        let secondRequest = ImageRequest(urlRequest: revalidate, options: [.disableMemoryCacheReads])
-        let second = try await pipeline.pipeline.imageTask(with: secondRequest).response
-        XCTAssertNotNil(second.image, "304 应复用第一次缓存内容并成功解码")
-
-        // stub 观测到第二次请求携带了 If-None-Match。
-        XCTAssertTrue(stub.observedValidators.contains("\"abc\""), "应记录 If-None-Match=\\\"abc\\\"")
-        // 第一次与第二次的 body 位级一致（304 返回第一次缓存内容，而非空 body）。
-        XCTAssertEqual(first.container.data, second.container.data)
-    }
-
-    /// Last-Modified 条件请求：第二次携带 `If-Modified-Since`，观测到并回 304。
-    func testLastModifiedConditionalRequest_304ServesFirstCachedContent() async throws {
-        let url = ImageTestData.url("https://example.com/note/lm.jpg")
-        let png = try ImageTestData.png()
-        let lastModified = "Wed, 01 Aug 2026 00:00:00 GMT"
-        let stub = MockConditionalHTTPLoader(body: png, validatorHeaderName: "Last-Modified", validatorValue: lastModified)
-
-        var config = ImagePipelineConfig()
-        config.enableDataCache = false
-        let pipeline = try makePipeline(loader: stub, config: config)
-
-        let first = try await pipeline.pipeline.imageTask(
-            with: ImageRequest(urlRequest: URLRequest(url: url), options: [.disableMemoryCacheReads])
-        ).response
-        XCTAssertNotNil(first.image)
-
-        var revalidate = URLRequest(url: url)
-        revalidate.setValue(lastModified, forHTTPHeaderField: "If-Modified-Since")
-        let second = try await pipeline.pipeline.imageTask(
-            with: ImageRequest(urlRequest: revalidate, options: [.disableMemoryCacheReads])
-        ).response
-        XCTAssertNotNil(second.image)
-
-        XCTAssertTrue(stub.observedValidators.contains(lastModified), "应记录 If-Modified-Since")
-        XCTAssertEqual(first.container.data, second.container.data)
-    }
-
     /// 显式区分：磁盘已有内容时，离线/失败回退返回磁盘命中；无任何缓存时返回分类错误。
     func testValidatorErrorIsClassified() async throws {
         let url = ImageTestData.url("https://qiniu.example.com/note/10.jpg")
         let loader = MockImageDataLoader(failWith: { _ in URLError(.notConnectedToInternet) })
-        let pipeline = try makePipeline(loader: loader, config: ImagePipelineConfig())
+        let pipeline = try MewmoImagePipeline(config: ImagePipelineConfig(), cacheDirectory: directory, dataLoader: loader)
 
         do {
             _ = try await pipeline.load(from: url)

@@ -106,7 +106,8 @@ make test
 
 `make test` 运行 `Mewmo-Tests` scheme（macOS 本地），覆盖 SwiftData 本地数据层的
 CRUD / 版本单调 / 账号隔离 / tombstone / outbox / fixture decode，以及图片缓存基础设施
-（ZOO-92/117）的并发去重、取消隔离、磁盘重开、条件请求（ETag/Last-Modified + 304）、
+（ZOO-92/117）的并发去重、取消隔离、磁盘重开、条件请求（真实 loopback HTTP 服务器 +
+生产 `DataLoader`，验证 URLSession/URLCache 自动携带 ETag/Last-Modified 并 304 复用缓存）、
 validator 保留、容量/LRU/clear/trim、URLCache 清理与 DataCache 初始化失败分类。
 它是后续 Apple 模块复用的默认测试基座。
 
