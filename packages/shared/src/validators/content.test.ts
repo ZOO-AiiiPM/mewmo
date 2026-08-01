@@ -9,14 +9,13 @@ import {
   createKnowledgeFolderSchema,
   createNoteSchema,
   importKnowledgeItemsSchema,
-  syncPullSchema,
-  syncPushSchema,
   updateClipSchema,
   updateFeedSchema,
   updateKnowledgeBaseSchema,
   updateKnowledgeFolderSchema,
   updateNoteSchema,
 } from "./content";
+import { syncPullSchema, syncPushSchema } from "../sync";
 
 describe("content validators", () => {
   it("accepts valid note input", () => {

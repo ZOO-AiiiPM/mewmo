@@ -14,6 +14,7 @@
     "test": "vitest"
   },
   "dependencies": {
+    "@mewmo/sync": "workspace:*",
     "zod": "4.3.0"
   }
 }
