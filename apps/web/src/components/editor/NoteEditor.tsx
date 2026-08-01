@@ -321,7 +321,18 @@ export function NoteEditor({
 
   const handleTitleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLHeadingElement>) => {
-      if (titleKeyAction(e.key) !== "commit-and-focus-body") return;
+      // Allow Enter during IME composition (stale selection) and on the Safari
+      // composition-commit boundary (keyCode 229) so the candidate is confirmed
+      // without committing the title or moving focus into the body.
+      if (
+        titleKeyAction({
+          key: e.key,
+          isComposing: e.nativeEvent.isComposing,
+          keyCode: e.keyCode,
+        }) !== "commit-and-focus-body"
+      ) {
+        return;
+      }
 
       e.preventDefault();
       commitTitle(e.currentTarget);
