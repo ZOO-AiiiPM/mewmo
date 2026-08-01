@@ -8,6 +8,7 @@
  */
 export {
   SYNC_CONTRACT_VERSION,
+  SYNC_ERROR_CONTRACT_UNSUPPORTED,
   DEFAULT_PAGE_LIMIT,
   MAX_PAGE_LIMIT,
   syncEntities,
@@ -17,11 +18,19 @@ export {
   hasMorePage,
   normalizeCursor,
   createEmptyRecords,
+  contractVersionSupported,
+  decodePageCursor,
+  encodePageCursor,
+  comparePositions,
+  paginateEntities,
+  afterPositionPredicate,
   syncEntitySchema,
   syncOperationSchema,
   syncMutationSchema,
   syncPullSchema,
   syncPushSchema,
+  casUpdate,
+  casOutcomeToResult,
 } from "@mewmo/sync";
 
 export type {
@@ -30,6 +39,8 @@ export type {
   SyncErrorCode,
   SyncMutation,
   SyncRecord,
+  SyncPosition,
+  SyncCursorState,
   SyncPullRequest,
   SyncPullResponse,
   SyncPushRequest,
@@ -40,4 +51,6 @@ export type {
   SyncPullRequestParsed,
   SyncPushRequestInput,
   SyncPushRequestParsed,
+  CasRow,
+  CasOutcome,
 } from "@mewmo/sync";

@@ -9,6 +9,9 @@ import {
 } from "@mewmo/shared";
 import {
   SYNC_CONTRACT_VERSION,
+  SYNC_ERROR_CONTRACT_UNSUPPORTED,
+  casUpdate,
+  contractVersionSupported,
   syncPushSchema,
   type SyncEntity,
   type SyncMutation,
@@ -125,6 +128,7 @@ async function applyNoteMutation(userId: string, mutation: SyncMutation): Promis
   }
 
   if (!mutation.id) return fail("missing_id");
+  const id = mutation.id;
 
   if (mutation.op === "update") {
     const parsed = updateNoteSchema.safeParse(mutation.data ?? {});
@@ -133,28 +137,35 @@ async function applyNoteMutation(userId: string, mutation: SyncMutation): Promis
     const { tags, expectedVersion, ...noteData } = parsed.data;
     void tags;
 
-    const current = await prisma.note.findFirst({ where: { id: mutation.id, userId } });
-    if (!current || current.deletedAt) return fail("not_found");
-    if (expectedVersion !== undefined && current.version !== expectedVersion) {
-      return conflict(`expected version ${expectedVersion}, found ${current.version}`, current);
-    }
-
-    const updateResult = await prisma.note.updateMany({
-      where: { id: mutation.id, userId, deletedAt: null },
-      data: {
-        ...(noteData.title !== undefined ? { title: noteData.title } : {}),
-        ...(noteData.content !== undefined ? { content: noteData.content } : {}),
-        ...(noteData.summary !== undefined ? { summary: noteData.summary } : {}),
-        ...(noteData.pinned !== undefined ? { pinned: noteData.pinned } : {}),
-        version: { increment: 1 },
-      },
+    const outcome = await casUpdate({
+      ...(expectedVersion !== undefined ? { expectedVersion } : {}),
+      readCurrent: () => prisma.note.findFirst({ where: { id, userId } }),
+      write: (where) =>
+        prisma.note.updateMany({
+          where: { id, userId, ...where },
+          data: {
+            ...(noteData.title !== undefined ? { title: noteData.title } : {}),
+            ...(noteData.content !== undefined ? { content: noteData.content } : {}),
+            ...(noteData.summary !== undefined ? { summary: noteData.summary } : {}),
+            ...(noteData.pinned !== undefined ? { pinned: noteData.pinned } : {}),
+            version: { increment: 1 },
+          },
+        }),
     });
-    if (updateResult.count === 0) return fail("not_found");
 
-    return {
-      ok: true,
-      record: await prisma.note.findFirst({ where: { id: mutation.id, userId } }),
-    };
+    if (outcome.applied) {
+      return {
+        ok: true,
+        record: await prisma.note.findFirst({ where: { id, userId } }),
+      };
+    }
+    if (outcome.reason === "conflict") {
+      return conflict(
+        `expected version ${expectedVersion}, found ${outcome.current.version}`,
+        outcome.current,
+      );
+    }
+    return fail("not_found");
   }
 
   if (mutation.op === "delete") {
@@ -162,22 +173,29 @@ async function applyNoteMutation(userId: string, mutation: SyncMutation): Promis
     const expectedVersion =
       typeof data.expectedVersion === "number" ? data.expectedVersion : undefined;
 
-    const current = await prisma.note.findFirst({ where: { id: mutation.id, userId } });
-    if (!current || current.deletedAt) return fail("not_found");
-    if (expectedVersion !== undefined && current.version !== expectedVersion) {
-      return conflict(`expected version ${expectedVersion}, found ${current.version}`, current);
-    }
-
-    const updateResult = await prisma.note.updateMany({
-      where: { id: mutation.id, userId, deletedAt: null },
-      data: { deletedAt: new Date(), version: { increment: 1 } },
+    const outcome = await casUpdate({
+      ...(expectedVersion !== undefined ? { expectedVersion } : {}),
+      readCurrent: () => prisma.note.findFirst({ where: { id, userId } }),
+      write: (where) =>
+        prisma.note.updateMany({
+          where: { id, userId, ...where },
+          data: { deletedAt: new Date(), version: { increment: 1 } },
+        }),
     });
-    if (updateResult.count === 0) return fail("not_found");
 
-    return {
-      ok: true,
-      record: await prisma.note.findFirst({ where: { id: mutation.id, userId } }),
-    };
+    if (outcome.applied) {
+      return {
+        ok: true,
+        record: await prisma.note.findFirst({ where: { id, userId } }),
+      };
+    }
+    if (outcome.reason === "conflict") {
+      return conflict(
+        `expected version ${expectedVersion}, found ${outcome.current.version}`,
+        outcome.current,
+      );
+    }
+    return fail("not_found");
   }
 
   return fail("unsupported_operation", `operation ${mutation.op} not supported for note`);
@@ -236,6 +254,7 @@ async function applyClipMutation(userId: string, mutation: SyncMutation): Promis
   }
 
   if (!mutation.id) return fail("missing_id");
+  const id = mutation.id;
 
   if (mutation.op === "update") {
     const parsed = updateClipSchema.safeParse(mutation.data ?? {});
@@ -243,47 +262,54 @@ async function applyClipMutation(userId: string, mutation: SyncMutation): Promis
 
     const { tags, ...clipData } = parsed.data;
     void tags;
-
-    const current = await prisma.clip.findFirst({ where: { id: mutation.id, userId } });
-    if (!current || current.deletedAt) return fail("not_found");
     const data = mutation.data ?? {};
     const expectedVersion = typeof data.expectedVersion === "number" ? data.expectedVersion : undefined;
-    if (expectedVersion !== undefined && current.version !== expectedVersion) {
-      return conflict(`expected version ${expectedVersion}, found ${current.version}`, current);
-    }
 
     if (clipData.url !== undefined) {
       const normalizedUrl = normalizeClipUrlIdentity(clipData.url);
       const duplicate = await prisma.clip.findFirst({
-        where: { userId, normalizedUrl, deletedAt: null, NOT: { id: mutation.id } },
+        where: { userId, normalizedUrl, deletedAt: null, NOT: { id } },
       });
       if (duplicate) return { ok: false, code: "duplicate_clip", record: duplicate };
     }
 
-    const updateResult = await prisma.clip.updateMany({
-      where: { id: mutation.id, userId, deletedAt: null },
-      data: {
-        ...(clipData.url !== undefined
-          ? { url: clipData.url, normalizedUrl: normalizeClipUrlIdentity(clipData.url) }
-          : {}),
-        ...(clipData.title !== undefined ? { title: clipData.title } : {}),
-        ...(clipData.content !== undefined ? { content: clipData.content } : {}),
-        ...(clipData.summary !== undefined ? { summary: clipData.summary } : {}),
-        ...(clipData.favicon !== undefined ? { favicon: clipData.favicon } : {}),
-        ...(clipData.coverImage !== undefined ? { coverImage: clipData.coverImage } : {}),
-        ...(clipData.excerpt !== undefined ? { excerpt: clipData.excerpt } : {}),
-        ...(clipData.sourceName !== undefined ? { sourceName: clipData.sourceName } : {}),
-        ...(clipData.author !== undefined ? { author: clipData.author } : {}),
-        ...(clipData.publishedAt !== undefined ? { publishedAt: clipData.publishedAt } : {}),
-        version: { increment: 1 },
-      },
+    const outcome = await casUpdate({
+      ...(expectedVersion !== undefined ? { expectedVersion } : {}),
+      readCurrent: () => prisma.clip.findFirst({ where: { id, userId } }),
+      write: (where) =>
+        prisma.clip.updateMany({
+          where: { id, userId, ...where },
+          data: {
+            ...(clipData.url !== undefined
+              ? { url: clipData.url, normalizedUrl: normalizeClipUrlIdentity(clipData.url) }
+              : {}),
+            ...(clipData.title !== undefined ? { title: clipData.title } : {}),
+            ...(clipData.content !== undefined ? { content: clipData.content } : {}),
+            ...(clipData.summary !== undefined ? { summary: clipData.summary } : {}),
+            ...(clipData.favicon !== undefined ? { favicon: clipData.favicon } : {}),
+            ...(clipData.coverImage !== undefined ? { coverImage: clipData.coverImage } : {}),
+            ...(clipData.excerpt !== undefined ? { excerpt: clipData.excerpt } : {}),
+            ...(clipData.sourceName !== undefined ? { sourceName: clipData.sourceName } : {}),
+            ...(clipData.author !== undefined ? { author: clipData.author } : {}),
+            ...(clipData.publishedAt !== undefined ? { publishedAt: clipData.publishedAt } : {}),
+            version: { increment: 1 },
+          },
+        }),
     });
-    if (updateResult.count === 0) return fail("not_found");
 
-    return {
-      ok: true,
-      record: await prisma.clip.findFirst({ where: { id: mutation.id, userId } }),
-    };
+    if (outcome.applied) {
+      return {
+        ok: true,
+        record: await prisma.clip.findFirst({ where: { id, userId } }),
+      };
+    }
+    if (outcome.reason === "conflict") {
+      return conflict(
+        `expected version ${expectedVersion}, found ${outcome.current.version}`,
+        outcome.current,
+      );
+    }
+    return fail("not_found");
   }
 
   if (mutation.op === "delete") {
@@ -291,22 +317,29 @@ async function applyClipMutation(userId: string, mutation: SyncMutation): Promis
     const expectedVersion =
       typeof data.expectedVersion === "number" ? data.expectedVersion : undefined;
 
-    const current = await prisma.clip.findFirst({ where: { id: mutation.id, userId } });
-    if (!current || current.deletedAt) return fail("not_found");
-    if (expectedVersion !== undefined && current.version !== expectedVersion) {
-      return conflict(`expected version ${expectedVersion}, found ${current.version}`, current);
-    }
-
-    const updateResult = await prisma.clip.updateMany({
-      where: { id: mutation.id, userId, deletedAt: null },
-      data: { deletedAt: new Date(), version: { increment: 1 } },
+    const outcome = await casUpdate({
+      ...(expectedVersion !== undefined ? { expectedVersion } : {}),
+      readCurrent: () => prisma.clip.findFirst({ where: { id, userId } }),
+      write: (where) =>
+        prisma.clip.updateMany({
+          where: { id, userId, ...where },
+          data: { deletedAt: new Date(), version: { increment: 1 } },
+        }),
     });
-    if (updateResult.count === 0) return fail("not_found");
 
-    return {
-      ok: true,
-      record: await prisma.clip.findFirst({ where: { id: mutation.id, userId } }),
-    };
+    if (outcome.applied) {
+      return {
+        ok: true,
+        record: await prisma.clip.findFirst({ where: { id, userId } }),
+      };
+    }
+    if (outcome.reason === "conflict") {
+      return conflict(
+        `expected version ${expectedVersion}, found ${outcome.current.version}`,
+        outcome.current,
+      );
+    }
+    return fail("not_found");
   }
 
   return fail("unsupported_operation", `operation ${mutation.op} not supported for clip`);
@@ -316,21 +349,37 @@ async function applyFeedEntryMutation(userId: string, mutation: SyncMutation): P
   const prisma = getPrisma();
 
   if (!mutation.id) return fail("missing_id");
+  const id = mutation.id;
 
   if (mutation.op === "mark_read" || mutation.op === "mark_unread") {
-    const updateResult = await prisma.feedEntry.updateMany({
-      where: { id: mutation.id, userId, deletedAt: null },
-      data: {
-        readAt: mutation.op === "mark_read" ? new Date() : null,
-        version: { increment: 1 },
-      },
-    });
-    if (updateResult.count === 0) return fail("not_found");
+    const data = mutation.data ?? {};
+    const expectedVersion =
+      typeof data.expectedVersion === "number" ? data.expectedVersion : undefined;
+    const markRead = mutation.op === "mark_read";
 
-    return {
-      ok: true,
-      record: await prisma.feedEntry.findFirst({ where: { id: mutation.id, userId } }),
-    };
+    const outcome = await casUpdate({
+      ...(expectedVersion !== undefined ? { expectedVersion } : {}),
+      readCurrent: () => prisma.feedEntry.findFirst({ where: { id, userId } }),
+      write: (where) =>
+        prisma.feedEntry.updateMany({
+          where: { id, userId, ...where },
+          data: { readAt: markRead ? new Date() : null, version: { increment: 1 } },
+        }),
+    });
+
+    if (outcome.applied) {
+      return {
+        ok: true,
+        record: await prisma.feedEntry.findFirst({ where: { id, userId } }),
+      };
+    }
+    if (outcome.reason === "conflict") {
+      return conflict(
+        `expected version ${expectedVersion}, found ${outcome.current.version}`,
+        outcome.current,
+      );
+    }
+    return fail("not_found");
   }
 
   return fail("unsupported_operation", `operation ${mutation.op} not supported for feed_entry`);
@@ -353,6 +402,17 @@ export async function POST(request: Request) {
   const parsed = syncPushSchema.safeParse(await request.json());
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+  }
+
+  if (!contractVersionSupported(parsed.data.contractVersion)) {
+    return NextResponse.json(
+      {
+        error: SYNC_ERROR_CONTRACT_UNSUPPORTED,
+        message: `Server supports contract version ${SYNC_CONTRACT_VERSION}`,
+        supportedContractVersion: SYNC_CONTRACT_VERSION,
+      },
+      { status: 426 },
+    );
   }
 
   const applied: AppliedMutation[] = [];
