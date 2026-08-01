@@ -1,0 +1,3 @@
+{"file": ".trellis/tasks/08-01-zoo-87-apple-build/research/lessons.md", "reason": "质量检查对照：验收如何核对（TARGETED_DEVICE_FAMILY、make verify）、CI 本地预览顺序（先 db:generate）"}
+{"file": ".trellis/tasks/08-01-zoo-87-apple-build/prd.md", "reason": "验收标准与 in/out of scope 边界"}
+{"file": ".trellis/spec/guides/index.md", "reason": "质量检查时注意 AI reviewer 误报模式与跨层一致性判断"}

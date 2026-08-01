@@ -1,0 +1,29 @@
+{
+  "id": "zoo-87-apple-build",
+  "name": "zoo-87-apple-build",
+  "title": "ZOO-87 Apple 工程与构建矩阵",
+  "description": "在 apps/apple/ 用 XcodeGen 声明 Apple 工程，macOS + universal iOS app target，三 destination 无签名构建。只做工程结构与构建入口，不做 auth/sync/SwiftData/业务 UI/AI/发布。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": "apple",
+  "priority": "P1",
+  "creator": "zoo",
+  "assignee": "zoo",
+  "createdAt": "2026-08-01",
+  "completedAt": null,
+  "branch": "codex/issue-ZOO-87-apple-build-matrix",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "linear_issue": "ZOO-87",
+    "linear_url": "https://linear.app/zoos-agent-lib/issue/ZOO-87"
+  }
+}
