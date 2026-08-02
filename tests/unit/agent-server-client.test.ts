@@ -42,7 +42,7 @@ describe("agent server identity boundary", () => {
     ).resolves.toMatchObject({
       userId: "user_123",
       source: "internal-agent",
-      scopes: ["content:read", "notes:write", "knowledge:write", "trash:write"],
+      scopes: ["content:read", "content:write", "notes:write", "knowledge:write", "trash:write"],
     });
   });
 });
