@@ -152,8 +152,8 @@ export type AgentRuntimeEvent =
   | { type: "start" }
   | { type: "text_delta"; delta: string }
   | { type: "thinking_delta"; delta: string }
-  | { type: "tool_start"; toolCallId: string; toolName: string }
-  | { type: "tool_end"; toolCallId: string; toolName: string; isError: boolean }
+  | { type: "tool_start"; toolCallId: string; toolName: string; display?: string }
+  | { type: "tool_end"; toolCallId: string; toolName: string; isError: boolean; display?: string }
   | { type: "compaction" }
   | { type: "end" };
 

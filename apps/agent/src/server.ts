@@ -171,7 +171,7 @@ function streamRuntimeEvent(
       type: "tool.started",
       toolCallId: event.toolCallId,
       tool: event.toolName,
-      display: { label: toolLabel(event.toolName, "started") },
+      display: { label: event.display ?? toolLabel(event.toolName, "started") },
     });
     send(event.type, event);
     return;
@@ -180,7 +180,7 @@ function streamRuntimeEvent(
     conversation.emit({
       type: "tool.completed",
       toolCallId: event.toolCallId,
-      display: { label: toolLabel(event.toolName, event.isError ? "failed" : "completed") },
+      display: { label: event.display ?? toolLabel(event.toolName, event.isError ? "failed" : "completed") },
     });
     send(event.type, event);
   }
