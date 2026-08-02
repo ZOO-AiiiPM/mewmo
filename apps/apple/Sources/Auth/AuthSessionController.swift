@@ -33,7 +33,10 @@ public actor AuthSessionController {
     @discardableResult
     public func login(_ input: NativeLoginRequest) async throws -> AuthSessionSnapshot {
         let epoch = invalidateLifecycle()
+        try await credentialStore.clear()
+        guard lifecycleEpoch == epoch else { throw NativeAuthError.signedOut }
         let stored = try await api.login(input, now: clock())
+        guard lifecycleEpoch == epoch else { throw NativeAuthError.signedOut }
         guard try await persist(stored, expectedEpoch: epoch) else { throw NativeAuthError.signedOut }
         return stored.snapshot
     }
@@ -70,8 +73,8 @@ public actor AuthSessionController {
     public func logout() async {
         let current = if let session { session } else { try? await loadStored() }
         invalidateLifecycle()
-        if let current { _ = try? await api.logout(current) }
         try? await credentialStore.clear()
+        if let current { _ = try? await api.logout(current) }
     }
 
     func signOut() async {
@@ -123,6 +126,7 @@ public actor AuthSessionController {
 
     /// Returns false when a newer lifecycle invalidated this write while the store call was suspended.
     private func persist(_ stored: StoredAuthSession, expectedEpoch: UInt64) async throws -> Bool {
+        guard lifecycleEpoch == expectedEpoch else { return false }
         let data = try JSONEncoder().encode(stored)
         try await credentialStore.replace(data)
         guard lifecycleEpoch == expectedEpoch else {

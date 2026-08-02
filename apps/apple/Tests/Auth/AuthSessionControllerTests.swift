@@ -134,12 +134,12 @@ final class AuthSessionControllerTests: XCTestCase {
         let staleRefresh = Task { try? await controller.accessToken(forceRefresh: true) }
         await rawStore.waitUntilReplaceBlocked()
         let logout = Task { await controller.logout() }
-        await controller.waitUntilCredentialOperationsQueued(atLeast: 3)
+        await controller.waitUntilCredentialOperationsQueued(atLeast: 4)
         await transport.enqueue(path: "/api/auth/native/login", AuthTestData.response(200, AuthTestData.secondLoginJSON))
         let loginB = Task {
             try await controller.login(NativeLoginRequest(email: "two@example.com", password: "password"))
         }
-        await controller.waitUntilCredentialOperationsQueued(atLeast: 4)
+        await controller.waitUntilCredentialOperationsQueued(atLeast: 5)
         await rawStore.releaseReplace()
 
         _ = await staleRefresh.value
@@ -152,5 +152,53 @@ final class AuthSessionControllerTests: XCTestCase {
         XCTAssertEqual(snapshot?.sessionId, loginSnapshot.sessionId)
         XCTAssertEqual(stored.user.id, loginSnapshot.user.id)
         XCTAssertEqual(stored.sessionId, loginSnapshot.sessionId)
+    }
+
+    func testLateRefreshResponseCannotOverwriteAlreadyPersistedLoginB() async throws {
+        let transport = MockNativeAuthTransport()
+        let rawStore = InMemoryCredentialStore()
+        let controller = AuthTestData.controller(transport: transport, store: rawStore)
+        try await AuthTestData.login(controller, transport: transport)
+        await transport.enqueue(path: "/api/auth/native/refresh", AuthTestData.response(200, AuthTestData.refreshJSON))
+        await transport.blockNextResponse(path: "/api/auth/native/refresh")
+
+        let staleRefresh = Task { try? await controller.accessToken(forceRefresh: true) }
+        await transport.waitUntilRequested(path: "/api/auth/native/refresh")
+        await transport.enqueue(path: "/api/auth/native/login", AuthTestData.response(200, AuthTestData.secondLoginJSON))
+        let loginB = try await controller.login(NativeLoginRequest(email: "two@example.com", password: "password"))
+        await transport.releaseBlockedResponse(path: "/api/auth/native/refresh")
+        _ = await staleRefresh.value
+
+        let snapshot = await controller.snapshot()
+        let persisted = try await rawStore.load()
+        let stored = try JSONDecoder().decode(StoredAuthSession.self, from: try XCTUnwrap(persisted))
+        XCTAssertEqual(snapshot?.user.id, loginB.user.id)
+        XCTAssertEqual(stored.user.id, loginB.user.id)
+        XCTAssertEqual(stored.sessionId, loginB.sessionId)
+    }
+
+    func testAccessTokenCannotReloadCredentialsDuringDelayedLogoutRequest() async throws {
+        let transport = MockNativeAuthTransport()
+        let rawStore = InMemoryCredentialStore()
+        let controller = AuthTestData.controller(transport: transport, store: rawStore)
+        try await AuthTestData.login(controller, transport: transport)
+        await transport.enqueue(path: "/api/auth/native/logout", AuthTestData.response(204))
+        await transport.blockNextResponse(path: "/api/auth/native/logout")
+
+        let logout = Task { await controller.logout() }
+        await transport.waitUntilRequested(path: "/api/auth/native/logout")
+        do {
+            _ = try await controller.accessToken()
+            XCTFail("Expected signed-out result")
+        } catch let error as NativeAuthError {
+            XCTAssertEqual(error, .signedOut)
+        }
+        let snapshotDuringLogout = await controller.snapshot()
+        let blobDuringLogout = try await rawStore.load()
+        XCTAssertNil(snapshotDuringLogout)
+        XCTAssertNil(blobDuringLogout)
+
+        await transport.releaseBlockedResponse(path: "/api/auth/native/logout")
+        _ = await logout.value
     }
 }

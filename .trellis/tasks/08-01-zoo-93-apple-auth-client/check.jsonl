@@ -7,3 +7,5 @@
 {"file":"apps/apple/Tests/Auth/AuthSessionControllerTests.swift","reason":"deterministic blocked-store logout race and restore stale-memory regressions"}
 {"file":"apps/apple/Sources/Auth/CredentialStore.swift","reason":"ZOO-119 serializes reentrant credential-store operations so later lifecycle mutations win"}
 {"file":"apps/apple/Tests/Auth/AuthSessionControllerTests.swift","reason":"blocked refresh -> queued logout clear -> queued login B verifies persisted blob and snapshot share B identity"}
+{"file":"apps/apple/Sources/Auth/AuthSessionController.swift","reason":"ZOO-119 pre-write epoch guard plus clear-before-network logout/login lifecycle ordering"}
+{"file":"apps/apple/Tests/Auth/AuthSessionControllerTests.swift","reason":"late refresh response and delayed logout request regressions prevent stale credential reload/write"}
