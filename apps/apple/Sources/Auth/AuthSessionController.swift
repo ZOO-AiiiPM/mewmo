@@ -1,5 +1,10 @@
 import Foundation
 
+struct AuthenticatedAccessToken: Sendable {
+    let value: String
+    let sessionId: String
+}
+
 /// Owns the credential lifecycle. The actor coalesces all refreshes so a rotated refresh token is never raced locally.
 public actor AuthSessionController {
     private let api: NativeAuthAPI
@@ -50,17 +55,25 @@ public actor AuthSessionController {
     #endif
 
     public func accessToken(forceRefresh: Bool = false) async throws -> String {
-        let current = if let session { session } else { try await loadStored() }
-        guard let current else { throw NativeAuthError.signedOut }
-        if !forceRefresh, current.accessExpiresAt.timeIntervalSince(clock()) > refreshLeeway { return current.accessToken }
-        return try await refresh(current).accessToken
+        try await authenticatedAccessToken(forceRefresh: forceRefresh).value
     }
 
-    /// Resolves a rejected bearer without rotating again when another caller already did so.
-    public func accessToken(afterUnauthorized rejectedAccessToken: String) async throws -> String {
+    func authenticatedAccessToken(forceRefresh: Bool = false) async throws -> AuthenticatedAccessToken {
         let current = if let session { session } else { try await loadStored() }
         guard let current else { throw NativeAuthError.signedOut }
-        if current.accessToken != rejectedAccessToken { return current.accessToken }
+        if !forceRefresh, current.accessExpiresAt.timeIntervalSince(clock()) > refreshLeeway {
+            return AuthenticatedAccessToken(value: current.accessToken, sessionId: current.sessionId)
+        }
+        let refreshed = try await refresh(current)
+        return AuthenticatedAccessToken(value: refreshed.accessToken, sessionId: refreshed.sessionId)
+    }
+
+    /// Resolves a rejected bearer without rotating again when another caller already did so in the same session.
+    func accessToken(afterUnauthorized rejected: AuthenticatedAccessToken) async throws -> String {
+        let current = if let session { session } else { try await loadStored() }
+        guard let current else { throw NativeAuthError.signedOut }
+        guard current.sessionId == rejected.sessionId else { throw NativeAuthError.signedOut }
+        if current.accessToken != rejected.value { return current.accessToken }
         return try await refresh(current).accessToken
     }
 
@@ -165,10 +178,10 @@ public struct AuthenticatedHTTPClient: Sendable {
     }
 
     public func send(_ request: URLRequest) async throws -> NativeAuthHTTPResponse {
-        let token = try await controller.accessToken()
-        let first = try await transport.send(authorize(request, token: token))
+        let context = try await controller.authenticatedAccessToken()
+        let first = try await transport.send(authorize(request, token: context.value))
         guard first.statusCode == 401 else { return first }
-        let retryToken = try await controller.accessToken(afterUnauthorized: token)
+        let retryToken = try await controller.accessToken(afterUnauthorized: context)
         let retry = try await transport.send(authorize(request, token: retryToken))
         guard retry.statusCode != 401 else {
             await controller.signOut()

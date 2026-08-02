@@ -9,3 +9,5 @@
 {"file":"apps/apple/Tests/Auth/AuthSessionControllerTests.swift","reason":"blocked refresh -> queued logout clear -> queued login B verifies persisted blob and snapshot share B identity"}
 {"file":"apps/apple/Sources/Auth/AuthSessionController.swift","reason":"ZOO-119 pre-write epoch guard plus clear-before-network logout/login lifecycle ordering"}
 {"file":"apps/apple/Tests/Auth/AuthSessionControllerTests.swift","reason":"late refresh response and delayed logout request regressions prevent stale credential reload/write"}
+{"file":"apps/apple/Sources/Auth/AuthSessionController.swift","reason":"ZOO-119 binds a rejected bearer to its session identity before reuse"}
+{"file":"apps/apple/Tests/Auth/AuthenticatedHTTPClientTests.swift","reason":"blocked 401 from session A after login B proves no cross-session retry"}

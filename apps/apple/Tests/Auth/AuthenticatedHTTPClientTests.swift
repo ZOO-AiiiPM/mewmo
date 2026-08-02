@@ -78,4 +78,37 @@ final class AuthenticatedHTTPClientTests: XCTestCase {
         XCTAssertEqual(secondCount, 2)
         XCTAssertEqual(refreshCount, 1)
     }
+
+    func testDelayed401FromPreviousSessionDoesNotRetryWithNewSessionBearer() async throws {
+        let transport = MockNativeAuthTransport()
+        let store = InMemoryCredentialStore()
+        let controller = AuthTestData.controller(transport: transport, store: store)
+        try await AuthTestData.login(controller, transport: transport)
+        let client = AuthenticatedHTTPClient(controller: controller, transport: transport)
+        let protectedPath = "/protected"
+        await transport.enqueue(path: protectedPath, AuthTestData.response(401))
+        await transport.blockNextResponse(path: protectedPath)
+
+        let requestA = Task { try await client.send(URLRequest(url: AuthTestData.baseURL.appendingPathComponent("protected"))) }
+        await transport.waitUntilRequested(path: protectedPath)
+        await transport.enqueue(path: "/api/auth/native/login", AuthTestData.response(200, AuthTestData.secondLoginJSON))
+        let loginB = try await controller.login(NativeLoginRequest(email: "two@example.com", password: "password"))
+        await transport.releaseBlockedResponse(path: protectedPath)
+
+        do {
+            _ = try await requestA.value
+            XCTFail("Expected stale request to abort")
+        } catch let error as NativeAuthError {
+            XCTAssertEqual(error, .signedOut)
+        }
+
+        let snapshot = await controller.snapshot()
+        let persisted = try await store.load()
+        let stored = try JSONDecoder().decode(StoredAuthSession.self, from: try XCTUnwrap(persisted))
+        let protectedCount = await transport.count(protectedPath)
+        XCTAssertEqual(protectedCount, 1)
+        XCTAssertEqual(snapshot?.user.id, loginB.user.id)
+        XCTAssertEqual(stored.user.id, loginB.user.id)
+        XCTAssertEqual(stored.sessionId, loginB.sessionId)
+    }
 }
