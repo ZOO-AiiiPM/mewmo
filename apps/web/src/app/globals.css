@@ -1034,9 +1034,19 @@ html.light .mewmo-sidebar {
   font-weight: 400;
 }
 
+.mewmo-nav-row--primary,
 .mewmo-nav-row--sub {
   padding: 5px 8px 5px 32px;
   font-size: 12.5px;
+}
+
+.mewmo-sidebar__group-head .mewmo-nav-row--group {
+  padding-left: 32px;
+}
+
+.mewmo-sidebar__group-head .mewmo-nav-row--group > .mewmo-nav-row__chevron {
+  position: absolute;
+  left: 6px;
 }
 
 .mewmo-nav-row--active {

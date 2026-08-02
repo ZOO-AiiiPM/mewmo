@@ -700,12 +700,13 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
 
       <div className={`mewmo-sidebar__stage ${stageDrilled ? "mewmo-sidebar__stage--drilled" : ""} ${stageModeClass}`}>
       <nav className="mewmo-sidebar__nav" aria-label="Workspace">
-        <SidebarLink href="/mew" icon="cat" label={t("home")} active={pathname.startsWith("/mew")} />
+        <SidebarLink href="/mew" icon="cat" label={t("home")} active={pathname.startsWith("/mew")} primary />
         <SidebarLink
           href={rememberedWorkspaceHrefs.today}
           icon="calendar"
           label={t("today")}
           active={pathname.startsWith("/today")}
+          primary
         />
 
         <SidebarGroup
@@ -804,6 +805,7 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onMouseEnt
           icon="trash"
           label={t("trash")}
           active={pathname.startsWith("/trash")}
+          primary
         />
       </nav>
       <div className="mewmo-feed-pane">
@@ -1671,12 +1673,14 @@ function SidebarLink({
   icon,
   active,
   badge,
+  primary,
 }: {
   href: string;
   label: string;
   icon: PrototypeIconName;
   active?: boolean;
   badge?: string | undefined;
+  primary?: boolean;
 }) {
   const { beginNavigation, pendingHref } = useWorkspaceNavigation();
   const pending = pendingHref === href;
@@ -1684,7 +1688,7 @@ function SidebarLink({
     <Link
       href={href}
       scroll={false}
-      className={`mewmo-nav-row mewmo-nav-row--sub ${active ? "mewmo-nav-row--active" : ""} ${pending ? "mewmo-nav-row--pending" : ""}`}
+      className={`mewmo-nav-row mewmo-nav-row--${primary ? "primary" : "sub"} ${active ? "mewmo-nav-row--active" : ""} ${pending ? "mewmo-nav-row--pending" : ""}`}
       onClick={() => beginNavigation(href)}
       aria-busy={pending}
     >
