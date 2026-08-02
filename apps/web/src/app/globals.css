@@ -1094,6 +1094,14 @@ html.light .mewmo-sidebar {
   font-weight: 800;
 }
 
+/* Keep the primary sidebar's narrow idle glyphs in the shared painted frame. */
+.mewmo-nav-row:not(.mewmo-nav-row--active) .mewmo-nav-row__icon--primary[data-icon="cat"] .mewmo-prototype-icon,
+.mewmo-nav-row:not(.mewmo-nav-row--active) .mewmo-nav-row__icon--primary[data-icon="rss"] .mewmo-prototype-icon,
+.mewmo-nav-row:not(.mewmo-nav-row--active) .mewmo-nav-row__icon--primary[data-icon="trash"] .mewmo-prototype-icon,
+.mewmo-nav-row--active .mewmo-nav-row__icon--primary[data-icon="trash"] .mewmo-prototype-icon {
+  transform: scaleX(1.1667);
+}
+
 .mewmo-nav-row__label {
   min-width: 0;
   flex: 1;

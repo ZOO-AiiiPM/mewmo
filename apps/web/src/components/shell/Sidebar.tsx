@@ -1629,7 +1629,9 @@ function SidebarGroup({
       <div className="mewmo-sidebar__group-head">
         <button type="button" className="mewmo-nav-row mewmo-nav-row--group" onClick={() => onToggle(id)}>
           <span className="mewmo-nav-row__chevron"><PrototypeIcon name="caret" size={14} /></span>
-          <span className="mewmo-nav-row__icon"><PrototypeIcon name={icon} dual opticalAlign="sidebar-primary" /></span>
+          <span className="mewmo-nav-row__icon mewmo-nav-row__icon--primary" data-icon={icon}>
+            <PrototypeIcon name={icon} dual />
+          </span>
           <span>{title}</span>
         </button>
         {hasMenu && (
@@ -1692,7 +1694,9 @@ function SidebarLink({
       onClick={() => beginNavigation(href)}
       aria-busy={pending}
     >
-      <span className="mewmo-nav-row__icon"><PrototypeIcon name={icon} dual filled={Boolean(active || pending)} opticalAlign={primary ? "sidebar-primary" : undefined} /></span>
+      <span className={`mewmo-nav-row__icon ${primary ? "mewmo-nav-row__icon--primary" : ""}`} data-icon={primary ? icon : undefined}>
+        <PrototypeIcon name={icon} dual filled={Boolean(active || pending)} />
+      </span>
       <span className="mewmo-nav-row__label">{label}</span>
       {badge && <span className="mewmo-nav-row__badge">{badge}</span>}
     </Link>
