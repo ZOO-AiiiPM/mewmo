@@ -2,7 +2,7 @@
 
 mewmo 的 Apple 客户端工程，由 **XcodeGen** 声明生成，覆盖 macOS / iPhone / iPad 三个 destination。
 
-> 本目录只承载**工程结构与构建入口**。认证、同步、SwiftData 数据模型、网络客户端、Keychain、图片缓存、业务 UI、AI 与发布均不在本工程范围内。
+> 本目录承载**工程结构、构建入口**与共享基础模块（SwiftData 数据层、图片缓存基础设施）。认证、同步、网络客户端、Keychain、业务 UI、AI 与发布按各自 Issue 逐步落地。
 
 ## 目录结构
 
@@ -14,9 +14,11 @@ apps/apple/
 ├── .gitignore                  # 忽略生成的 *.xcodeproj、DerivedData 等
 ├── Sources/                    # 共享 Swift 源码
 │   ├── MewmoRootView.swift     # 共享最小 SwiftUI 启动壳（无 @main，macOS/iOS 复用）
-│   └── Data/                   # ZOO-91 SwiftData 本地数据层（model/容器/repository/同步 DTO）
+│   ├── Data/                   # ZOO-91 SwiftData 本地数据层（model/容器/repository/同步 DTO）
+│   └── Image/                  # ZOO-92 图片缓存基础设施（Nuke 13 core composition）
 ├── Tests/
-│   └── Data/                   # ZOO-91 首个共享 macOS unit-test 用例（数据层）
+│   ├── Data/                   # ZOO-91 共享 macOS unit-test（数据层）
+│   └── Image/                  # ZOO-92 共享 macOS unit-test（图片缓存）
 ├── Entry/
 │   ├── macOS/MacAppMain.swift  # macOS composition root（@main，仅 macOS target 编译）
 │   └── iOS/iOSAppMain.swift    # iOS composition root（@main，仅 iOS target 编译）
@@ -35,14 +37,37 @@ apps/apple/
 |---------|----------|---------------|------|
 | `Mewmo-Mac`   | macOS 14+ | -                  | `Entry/macOS/MacAppMain.swift` |
 | `Mewmo-iOS`   | iOS 17+   | iPhone(1) + iPad(2) | `Entry/iOS/iOSAppMain.swift` |
-| `Mewmo-Tests` | macOS 14+（unit-test bundle）| - | `Sources/Data/` + `Tests/Data/` |
+| `Mewmo-Tests` | macOS 14+（unit-test bundle）| - | `Sources/Data/` + `Sources/Image/` 共享模块 + `Tests/` |
 
 前两个 app target 共享 `Sources/`，平台差异用 `#if os(...)` 收敛；入口文件各自独立，避免多 `@main` 冲突。
 
-`Mewmo-Tests` 是 ZOO-91 建立的**首个共享 macOS unit-test 门禁**，供后续 Apple 模块
-（ZOO-92/93…）直接追加测试。它只编译 `Sources/Data/` 与 `Tests/Data/`，不包含 SwiftUI
-启动壳——保证数据层不依赖 SwiftUI、可在 unhosted `.xctest` 运行。canonical sync fixtures
-以资源方式直接引用仓库内 `packages/sync/src/fixtures/` 单一副本，不做第二份拷贝。
+`Mewmo-Tests` 是 ZOO-91 建立的**共享 macOS unit-test 门禁**，供后续 Apple 模块
+（ZOO-92/93…）直接追加测试。它只编译共享基础模块（`Sources/Data/` + `Sources/Image/`）
+与 `Tests/`，不包含 SwiftUI 启动壳——保证基础模块不依赖 SwiftUI、可在 unhosted `.xctest`
+运行。canonical sync fixtures 以资源方式直接引用仓库内 `packages/sync/src/fixtures/`
+单一副本，不做第二份拷贝。后续基础模块（如 `Sources/Auth`）在 `project.yml` 的
+`Mewmo-Tests.sources` 追加一行即可接入测试，无需重排 target 结构。
+
+## 图片缓存基础设施（ZOO-92）
+
+`Sources/Image/` 是 Nuke 13 core 的项目级 composition（经 XcodeGen/SPM 引入，只用 `Nuke`
+product，不带 NukeUI/Extensions）：
+
+- **组合**：`MewmoImagePipeline` 把 Nuke 的 `ImageCache`（内存 LRU）、`DataCache`（磁盘 LRU）与
+  `URLCache`（HTTP validator：ETag/Last-Modified 条件请求）组合成一个共享 pipeline，
+  并提供 production/测试可注入的缓存目录。
+- **配置**：内存/磁盘/URLCache 容量集中在 `ImagePipelineConfig`，不散落 magic number。
+- **并发**：同 URL 并发加载复用 Nuke task coalescing；单调用方取消不影响共享请求的最后订阅者。
+- **离线回退**：`load(from:)` 在线优先；非取消错误下先回读磁盘缓存（已缓存内容离线可用），
+  未命中则投影为业务层可分类错误（`ImageLoadError`：cancelled/offlineOrMiss/invalidResponse/
+  decodeFailed/other）。
+- **生命周期**：`clearMemory()` / `clearDisk()` / `removeAllCaches()` / `trim()` 显式清理与 LRU 修剪，
+  不与普通加载失败耦合。`clearDisk()` / `removeAllCaches()` 同时清理 Nuke `DataCache` 与系统
+  `URLCache`（validator 存储），`pipeline.urlCache` 持有生产 URLCache 供生命周期 API 访问。
+- **初始化失败可观测**：`DataCache` 创建失败显式抛出可分类的 `ImageCacheSetupError`
+  （`dataCacheInitializationFailed`），禁止静默退化为无磁盘缓存。
+- **约束与界线**：缓存键保持原始来源 URL，不改写 SwiftData/model、不按页面复制图片；
+  不实现 downloader/LRU/coalescing、不承载业务 SwiftUI、上传与批量预取（ZOO-96/97）。
 
 ## 前置要求（macOS 本地）
 
@@ -80,8 +105,11 @@ make test
 ```
 
 `make test` 运行 `Mewmo-Tests` scheme（macOS 本地），覆盖 SwiftData 本地数据层的
-CRUD / 版本单调 / 账号隔离 / tombstone / outbox / fixture decode。它是后续 Apple 模块
-复用的默认测试基座。
+CRUD / 版本单调 / 账号隔离 / tombstone / outbox / fixture decode，以及图片缓存基础设施
+（ZOO-92/117）的并发去重、取消隔离、磁盘重开、条件请求（真实 loopback HTTP 服务器 +
+生产 `DataLoader`，验证 URLSession/URLCache 自动携带 ETag/Last-Modified 并 304 复用缓存）、
+validator 保留、容量/LRU/clear/trim、URLCache 清理与 DataCache 初始化失败分类。
+它是后续 Apple 模块复用的默认测试基座。
 
 ### 一键验证
 

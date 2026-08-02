@@ -14,6 +14,14 @@ options:
     iOS: "17.0"
   createIntermediateGroups: true
 
+# Swift Package Manager 依赖（XcodeGen 会解析并接入三个 target）。
+# Nuke 13 core 提供 memory/disk cache、LRU DataCache、request coalescing、cancellation 与 async/await；
+# 本 Issue 只用 core，不引入 NukeUI/NukeExtensions。
+packages:
+  Nuke:
+    url: https://github.com/kean/Nuke.git
+    from: 13.0.6
+
 # 无签名：新 target 默认不开代码签名；本地模拟器/应用内构建不依赖证书。
 # 构建命令用 CODE_SIGNING_ALLOWED=NO 兜底确保零证书环境可复现。
 
@@ -25,6 +33,8 @@ targets:
       - path: Sources
       - path: Entry/macOS
       - path: Resources/macOS
+    dependencies:
+      - package: Nuke
     settings:
       base:
         PRODUCT_NAME: Mewmo
@@ -43,6 +53,8 @@ targets:
       - path: Sources
       - path: Entry/iOS
       - path: Resources/iOS
+    dependencies:
+      - package: Nuke
     # 同时支持 iPhone(1) 与 iPad(2)，并锁定 iOS SDK。
     settings:
       base:
@@ -57,18 +69,26 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
 
-  # 共享 macOS unit-test 门禁（ZOO-91）：只编译数据层 + Tests/，
-  # 不包含 SwiftUI 启动壳，保证数据模型不依赖 SwiftUI、可在 unhosted xctest 运行。
+  # 共享 macOS unit-test 门禁（ZOO-91）：只编译共享业务模块 + Tests/，
+  # 不包含 SwiftUI 启动壳，保证可在 unhosted xctest 运行。
   # canonical sync fixtures 通过 buildPhase: resources 引用仓库内单一副本，不复制。
+  #
+  # ZOO-92 起为「可扩展清单」：这里显式列出进入测试编译域的基础模块源码目录
+  # （Data + Image）。后续基础模块（如 Sources/Auth）只需在下方追加一行即可接入，
+  # 不必重排 test target 或触碰生成的 xcodeproj —— 杜绝「每个模块都复制一套 source list」。
   Mewmo-Tests:
     type: bundle.unit-test
     platform: macOS
     sources:
-      - path: Sources/Data
+      - path: Sources/Data     # ZOO-91 SwiftData 本地数据层
+      - path: Sources/Image    # ZOO-92 图片缓存基础设施（Nuke composition）
+      # - path: Sources/Auth   # 后续示例：基础模块在此追加，无需改动 target 结构
       - path: Tests
       # canonical sync fixtures（仓库内单一副本，不复制）：作为资源打进 test bundle。
       - path: ../../packages/sync/src/fixtures
         buildPhase: resources
+    dependencies:
+      - package: Nuke
     settings:
       base:
         PRODUCT_NAME: $(TARGET_NAME)
