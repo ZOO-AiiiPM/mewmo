@@ -50,7 +50,6 @@ final class SyncEngineTests: XCTestCase {
         var request = try XCTUnwrap(fixture["request"] as? [String: Any])
         var mutations = try XCTUnwrap(request["mutations"] as? [[String: Any]])
         mutations[0]["clientMutationId"] = "payload-must-not-win"
-        mutations[4]["data"] = ["expectedVersion": 1]
         request["mutations"] = mutations
         fixture["request"] = request
 
@@ -60,7 +59,7 @@ final class SyncEngineTests: XCTestCase {
                 mutationId: "m\(index + 1)",
                 entityKind: try XCTUnwrap(mutation["entity"] as? String),
                 op: try XCTUnwrap(mutation["op"] as? String),
-                expectedVersion: [0, 2, 1, 0, 1][index],
+                expectedVersion: [0, 2, 1, 0, 0][index],
                 payloadJSON: String(decoding: try fixtureData(mutation), as: UTF8.self),
                 userId: "user-1"
             )
@@ -78,7 +77,7 @@ final class SyncEngineTests: XCTestCase {
         XCTAssertEqual(sentMutations.map { $0["id"] as? String }, ["note-c", "note-u", "note-d", "clip-c", "entry-1"])
         XCTAssertEqual((sentMutations[1]["data"] as? [String: Any])?["expectedVersion"] as? Int, 2)
         XCTAssertEqual((sentMutations[2]["data"] as? [String: Any])?["expectedVersion"] as? Int, 1)
-        XCTAssertEqual((sentMutations[4]["data"] as? [String: Any])?["expectedVersion"] as? Int, 1)
+        XCTAssertEqual((sentMutations[4]["data"] as? [String: Any])?.isEmpty, true)
         let remaining = try await store.listPendingMutations(userId: "user-1")
         XCTAssertTrue(remaining.isEmpty)
     }

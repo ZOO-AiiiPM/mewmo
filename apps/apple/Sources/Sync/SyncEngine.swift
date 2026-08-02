@@ -225,7 +225,10 @@ public actor SyncEngine {
 
         let needsIdentifier = ["update", "delete", "mark_read", "mark_unread"].contains(decoded.op)
         if needsIdentifier {
-            guard let id = decoded.id, !id.isEmpty, decoded.data.expectedVersion == pending.expectedVersion else {
+            guard let id = decoded.id, !id.isEmpty else {
+                throw SyncEngineError.outboxInvalid
+            }
+            if let expectedVersion = decoded.data.expectedVersion, expectedVersion != pending.expectedVersion {
                 throw SyncEngineError.outboxInvalid
             }
         }

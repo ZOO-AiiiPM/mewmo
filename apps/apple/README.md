@@ -60,7 +60,7 @@ pull 增量记录和 push durable outbox。它复用 `AuthenticatedHTTPClient` �
 
 outbox 的 `payloadJSON` 是 canonical ZOO-89 per-mutation wire object：
 `{ entity, op, id?, data, clientMutationId? }`。SyncEngine 使用持久化 `mutationId` 作为唯一的 outgoing
-`clientMutationId`，并检查 `entityKind`/`op` 和 `expectedVersion` metadata 一致；格式错误或不一致的行
+`clientMutationId`，并检查 `entityKind`/`op` 及存在时的 `expectedVersion` metadata 一致；格式错误或不一致的行
 会保留在队列并只显示脱敏诊断。`SyncLifecycleCoordinator` 供完成账号和本地 store composition 的入口调用，
 在 launch、前台恢复和网络恢复时调度非阻塞同步。
 

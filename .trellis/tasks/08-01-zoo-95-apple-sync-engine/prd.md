@@ -9,7 +9,7 @@
 - 仅修改 `apps/apple` 的 SyncEngine、focused tests、`project.yml`、README 和本任务 artifacts。
 - 复用 ZOO-89 v1 JSON fixtures、`LocalStore` / durable outbox 和 `AuthenticatedHTTPClient`；调用既有 `POST /api/sync/pull` 与 `POST /api/sync/push`，不改服务端契约。
 - pull 保存每账号 cursor，并分页直到 `hasMore=false`；每页先将 records（含 tombstone）落入 SwiftData，再推进 cursor，避免中断时遗漏未落库数据。
-- push 按 FIFO 分批发送 durable outbox，只有响应中的 `applied` mutation 才 ack。`payloadJSON` 是 canonical ZOO-89 per-mutation wire object（`entity`、`op`、可选 `id`、`data`、可选 `clientMutationId`）；持久 metadata 必须与其一致，不一致的行 fail closed 并保留。可重试错误保留在 outbox，`version_conflict` 按服务器 record 下沉本地并移除该条 mutation，避免无限重放陈旧写入。
+- push 按 FIFO 分批发送 durable outbox，只有响应中的 `applied` mutation 才 ack。`payloadJSON` 是 canonical ZOO-89 per-mutation wire object（`entity`、`op`、可选 `id`、`data`、可选 `clientMutationId`）；持久 metadata 必须与其一致，`data.expectedVersion` 存在时才校验版本一致性，不一致的行 fail closed 并保留。可重试错误保留在 outbox，`version_conflict` 按服务器 record 下沉本地并移除该条 mutation，避免无限重放陈旧写入。
 - 同一 `clientMutationId` 必须保持不变，重试可安全复用服务端幂等语义。客户端本地入队重复 mutation id 由已有 store 幂等处理。
 - 同步支持启动、应用回到前台、网络恢复触发；单实例互斥，未认证或网络不可用时可诊断地跳过，不读取/记录 bearer token。
 
