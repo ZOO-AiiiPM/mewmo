@@ -1,0 +1,2 @@
+{"file":".trellis/spec/dev-frontend.md","reason":"Apply Web sanitization, semantic theme, local dependency, and UI interaction constraints."}
+{"file":".trellis/tasks/08-01-zoo-116-note-mermaid-preview/research/solution.md","reason":"Use the verified Milkdown extension point and selected Mermaid integration instead of inventing another renderer."}

@@ -20,6 +20,35 @@ describe("note editor Crepe configuration", () => {
     expect(theme).not.toContain(".prosemirror-virtual-cursor");
   });
 
+  it("defaults Mermaid previews to hidden source while preserving readable HTML labels", () => {
+    expect(source).toContain("previewOnlyByDefault: true");
+    expect(theme).toMatch(
+      /\.preview svg foreignObject \*[\s\S]*color:\s*var\(--ink, var\(--color-ink\)\) !important/,
+    );
+  });
+
+  it("keeps lazy code-block placeholders from flashing before preview mount", () => {
+    expect(theme).toMatch(
+      /\.milkdown-code-block \.milkdown-code-block-placeholder\s*\{[^}]*visibility:\s*hidden/,
+    );
+  });
+
+  it("keeps the block delete action destructive, aligned, and visible", () => {
+    const deleteRule = theme.match(
+      /\.mewmo-block-style-menu__actions li\[data-mewmo-delete-block\]\s*\{([^}]*)\}/,
+    )?.[1] ?? "";
+
+    expect(deleteRule).toContain("color: var(--color-coral)");
+    expect(deleteRule).not.toMatch(/margin|padding|border|height/);
+    expect(theme).toMatch(
+      /\.mewmo-block-style-menu \.menu-groups\s*\{[^}]*max-height:\s*min\(300px, calc\(100vh - 93px\)\)[^}]*overflow-y:\s*auto/,
+    );
+    expect(theme).toMatch(/\.mewmo-block-style-menu__actions\s*\{[^}]*padding:\s*0 7px 7px/);
+    expect(theme).toMatch(
+      /\.mewmo-block-style-menu__actions li\[data-mewmo-delete-block\] > span,[\s\S]*\.mewmo-block-style-menu__actions li\[data-mewmo-delete-block\] svg\s*\{[^}]*color:\s*var\(--color-coral\)/,
+    );
+  });
+
   it("keeps the editable blank paragraph after a code block visible", () => {
     expect(theme).not.toMatch(/\.milkdown-code-block \+ p(?::empty|:has\([^)]*\))?[\s\S]{0,180}(?:height|min-height):\s*0/);
     expect(theme).toMatch(/\.crepe-editor-wrapper \.milkdown \.ProseMirror \.milkdown-code-block \+ p\s*\{[\s\S]*min-height:\s*(?!0\b)[^;}]+/);

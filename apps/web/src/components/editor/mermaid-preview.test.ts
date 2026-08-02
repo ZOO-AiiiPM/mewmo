@@ -1,0 +1,122 @@
+import { describe, expect, it, vi } from "vitest";
+import { createMermaidPreviewRenderer } from "./mermaid-preview";
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, reject, resolve };
+}
+
+function createMermaid(render = vi.fn(async () => ({ svg: "<svg />" }))) {
+  return {
+    initialize: vi.fn(),
+    render,
+  };
+}
+
+describe("Mermaid code-block preview", () => {
+  it("bypasses other languages and empty Mermaid blocks without loading Mermaid", () => {
+    const loadMermaid = vi.fn();
+    const applyPreview = vi.fn();
+    const renderPreview = createMermaidPreviewRenderer({ loadMermaid });
+
+    expect(renderPreview("typescript", "const x = 1", applyPreview)).toBeNull();
+    expect(renderPreview("", "plain text", applyPreview)).toBeNull();
+    expect(renderPreview(" Mermaid ", "   ", applyPreview)).toBeNull();
+    expect(loadMermaid).not.toHaveBeenCalled();
+    expect(applyPreview).not.toHaveBeenCalled();
+  });
+
+  it("loads and strictly initializes Mermaid once before rendering previews", async () => {
+    const mermaid = createMermaid();
+    const loadMermaid = vi.fn(async () => ({ default: mermaid }));
+    const applyPreview = vi.fn();
+    const renderPreview = createMermaidPreviewRenderer({
+      createId: () => "diagram-id",
+      loadMermaid,
+    });
+
+    expect(
+      renderPreview("MERMAID", "flowchart LR\nA-->B", applyPreview),
+    ).toBeUndefined();
+    await vi.waitFor(() =>
+      expect(applyPreview).toHaveBeenCalledWith("<svg />"),
+    );
+    renderPreview("mermaid", "sequenceDiagram\nA->>B: Hi", applyPreview);
+    await vi.waitFor(() => expect(mermaid.render).toHaveBeenCalledTimes(2));
+
+    expect(loadMermaid).toHaveBeenCalledTimes(1);
+    expect(mermaid.initialize).toHaveBeenCalledOnce();
+    expect(mermaid.initialize).toHaveBeenCalledWith(
+      expect.objectContaining({
+        securityLevel: "strict",
+        startOnLoad: false,
+        suppressErrorRendering: true,
+      }),
+    );
+    expect(mermaid.render).toHaveBeenCalledWith(
+      "diagram-id",
+      "flowchart LR\nA-->B",
+    );
+  });
+
+  it("shows a safe local error and recovers after a valid edit", async () => {
+    const render = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("<img src=x onerror=alert(1)>"))
+      .mockResolvedValueOnce({ svg: "<svg>recovered</svg>" });
+    const mermaid = createMermaid(render);
+    const safeError = {
+      textContent: "Mermaid 图表无法渲染，请检查语法",
+    } as HTMLElement;
+    const applyPreview = vi.fn();
+    const renderPreview = createMermaidPreviewRenderer({
+      createErrorPreview: () => safeError,
+      loadMermaid: async () => ({ default: mermaid }),
+    });
+
+    renderPreview("mermaid", "not valid", applyPreview);
+    await vi.waitFor(() =>
+      expect(applyPreview).toHaveBeenCalledWith(safeError),
+    );
+    expect(safeError.textContent).not.toContain("onerror");
+
+    renderPreview("mermaid", "flowchart LR\nA-->B", applyPreview);
+    await vi.waitFor(() =>
+      expect(applyPreview).toHaveBeenLastCalledWith("<svg>recovered</svg>"),
+    );
+  });
+
+  it("discards stale successes and failures after a newer render request", async () => {
+    const first = deferred<{ svg: string }>();
+    const second = deferred<{ svg: string }>();
+    const render = vi
+      .fn()
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
+    const applyPreview = vi.fn();
+    const renderPreview = createMermaidPreviewRenderer({
+      createErrorPreview: () => ({}) as HTMLElement,
+      loadMermaid: async () => ({ default: createMermaid(render) }),
+    });
+
+    renderPreview("mermaid", "flowchart LR\nA-->B", applyPreview);
+    await vi.waitFor(() => expect(render).toHaveBeenCalledTimes(1));
+    renderPreview("mermaid", "flowchart LR\nA-->C", applyPreview);
+    await vi.waitFor(() => expect(render).toHaveBeenCalledTimes(2));
+
+    second.resolve({ svg: "<svg>new</svg>" });
+    await vi.waitFor(() =>
+      expect(applyPreview).toHaveBeenCalledWith("<svg>new</svg>"),
+    );
+    first.reject(new Error("stale error"));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(applyPreview).toHaveBeenCalledTimes(1);
+  });
+});

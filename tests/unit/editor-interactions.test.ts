@@ -3,12 +3,14 @@ import { readFileSync } from "node:fs";
 
 import {
   blockStylePointerDidClick,
+  getBlockDeleteIconSvg,
   getBlockStyleMenuCheckSvg,
   getBlockStyleMenuIconSvg,
   getBlockStyleMenuItems,
   getBlockStyleMenuItemKeys,
   getBlockStyleMenuPosition,
   resolveBlockStyleKey,
+  resolveBlockStyleDeleteDepth,
   resolveBlockStyleMenuAction,
   shouldOpenBlockStyleMenuFromHandle,
   shouldOpenInsertMenuAtCurrentEmptyBlock,
@@ -18,6 +20,7 @@ import {
   isEmptyAddHandleTarget,
   shouldClearEmptyHeadingFormat,
   shouldBlockSelectionDrag,
+  shouldExitHiddenCodeBlockOnEnter,
   shouldJoinFormattedBlockWithPrevious,
   shouldOpenBlockStyleMenuForNode,
 } from "../../apps/web/src/components/editor/editor-interactions";
@@ -27,6 +30,22 @@ describe("editor interactions", () => {
     expect(shouldBlockSelectionDrag({ empty: false })).toBe(true);
     expect(shouldBlockSelectionDrag({ empty: true })).toBe(false);
     expect(shouldBlockSelectionDrag({ empty: false }, false)).toBe(false);
+  });
+
+  it("exits only a hidden CodeMirror on an unmodified Enter", () => {
+    const event = {
+      key: "Enter",
+      isComposing: false,
+      altKey: false,
+      ctrlKey: false,
+      metaKey: false,
+      shiftKey: false,
+    };
+
+    expect(shouldExitHiddenCodeBlockOnEnter(event, true)).toBe(true);
+    expect(shouldExitHiddenCodeBlockOnEnter({ ...event, isComposing: true }, true)).toBe(false);
+    expect(shouldExitHiddenCodeBlockOnEnter({ ...event, shiftKey: true }, true)).toBe(false);
+    expect(shouldExitHiddenCodeBlockOnEnter(event, false)).toBe(false);
   });
 
   it("detects clicks on the empty-line add handle", () => {
@@ -104,6 +123,44 @@ describe("editor interactions", () => {
   it("renders the active block style check as an inline svg instead of a text glyph", () => {
     expect(getBlockStyleMenuCheckSvg()).toContain("<svg");
     expect(getBlockStyleMenuCheckSvg()).toContain("currentColor");
+  });
+
+  it("reuses the project trash icon for the block delete action", () => {
+    expect(getBlockDeleteIconSvg()).toContain("<svg");
+    expect(getBlockDeleteIconSvg()).toContain("currentColor");
+  });
+
+  it("resolves the structural delete target for every block style", () => {
+    expect(resolveBlockStyleDeleteDepth([{ typeName: "paragraph" }], "text")).toBe(1);
+    expect(resolveBlockStyleDeleteDepth([{ typeName: "heading" }], "h1")).toBe(1);
+    expect(resolveBlockStyleDeleteDepth([{ typeName: "code_block" }], "code")).toBe(1);
+    expect(resolveBlockStyleDeleteDepth([
+      { typeName: "blockquote" },
+      { typeName: "paragraph" },
+    ], "quote")).toBe(1);
+    expect(resolveBlockStyleDeleteDepth([
+      { typeName: "bullet_list" },
+      { typeName: "list_item" },
+      { typeName: "paragraph" },
+    ], "bullet-list")).toBe(2);
+    expect(resolveBlockStyleDeleteDepth([
+      { typeName: "table" },
+      { typeName: "table_row" },
+      { typeName: "table_cell" },
+      { typeName: "paragraph" },
+    ], "table")).toBe(1);
+  });
+
+  it("deletes the menu-open target range in one undoable transaction", () => {
+    const source = readFileSync("apps/web/src/components/editor/editor-interactions.ts", "utf8");
+    expect(source).toMatch(
+      /function deleteTargetBlock[\s\S]*tr\.deleteRange\(deleteFrom, deleteTo\)[\s\S]*view\.dispatch\(tr\)/,
+    );
+    expect(source).not.toMatch(
+      /function deleteTargetBlock[\s\S]{0,800}addToHistory["'],\s*false/,
+    );
+    expect(source).toContain("<li data-mewmo-delete-block>");
+    expect(source).not.toContain("<li data-mewmo-delete-block hidden>");
   });
 
   it("keeps the block style popup inside the viewport when opened near an edge", () => {

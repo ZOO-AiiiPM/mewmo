@@ -135,6 +135,10 @@ html.light .crepe-editor-wrapper .milkdown {
   color: var(--ink, var(--color-ink));
 }
 
+.crepe-editor-wrapper .milkdown .milkdown-code-block .milkdown-code-block-placeholder {
+  visibility: hidden;
+}
+
 .crepe-editor-wrapper .milkdown .milkdown-code-block .cm-gutters,
 .crepe-editor-wrapper .milkdown .milkdown-code-block .cm-activeLineGutter {
   background: transparent;
@@ -258,6 +262,73 @@ html.light .crepe-editor-wrapper .milkdown {
   font-family: var(--font-sans);
   font-size: 11px;
   letter-spacing: 0;
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview {
+  min-width: 0;
+  overflow-x: auto;
+  padding: 12px 14px 16px;
+  color: var(--ink, var(--color-ink));
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview > svg {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg text,
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg .label,
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg .messageText,
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg .loopText {
+  fill: var(--ink, var(--color-ink)) !important;
+  color: var(--ink, var(--color-ink)) !important;
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg foreignObject,
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg foreignObject * {
+  color: var(--ink, var(--color-ink)) !important;
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg .node rect,
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg .node circle,
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg .node ellipse,
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg .node polygon,
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg .actor,
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg .labelBox {
+  fill: var(--raised, var(--color-paper-2)) !important;
+  stroke: var(--ink-soft, var(--color-muted)) !important;
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg .flowchart-link,
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg .messageLine0,
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg .messageLine1,
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg .actor-line,
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg .loopLine {
+  stroke: var(--ink-soft, var(--color-muted)) !important;
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg marker path {
+  fill: var(--ink-soft, var(--color-muted)) !important;
+  stroke: var(--ink-soft, var(--color-muted)) !important;
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-toggle-button:focus-visible {
+  outline: 2px solid var(--ink, var(--color-ink));
+  outline-offset: 2px;
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-code-block .mewmo-mermaid-error {
+  border: 1px solid color-mix(in srgb, var(--color-coral) 42%, var(--line, var(--color-line)));
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--color-coral) 9%, transparent);
+  padding: 10px 12px;
+  color: var(--color-coral);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 /* Structural marks need enough contrast in light mode: list bullets/numbers,
@@ -513,8 +584,20 @@ html.light .crepe-editor-wrapper .milkdown {
   list-style: none;
 }
 
+.crepe-editor-wrapper .mewmo-block-style-menu .menu-groups {
+  max-height: min(300px, calc(100vh - 93px));
+  overflow-y: auto;
+}
+
+.crepe-editor-wrapper .mewmo-block-style-menu__actions {
+  margin: 0;
+  padding: 0 7px 7px;
+  list-style: none;
+}
+
 .crepe-editor-wrapper .milkdown .milkdown-slash-menu .menu-groups .menu-group li,
-.crepe-editor-wrapper .mewmo-block-style-menu .menu-groups .menu-group li {
+.crepe-editor-wrapper .mewmo-block-style-menu .menu-groups .menu-group li,
+.crepe-editor-wrapper .mewmo-block-style-menu__actions li {
   display: flex;
   min-width: 0;
   align-items: center;
@@ -528,12 +611,14 @@ html.light .crepe-editor-wrapper .milkdown {
 .crepe-editor-wrapper .milkdown .milkdown-slash-menu .menu-groups .menu-group li.active,
 .crepe-editor-wrapper .mewmo-block-style-menu .menu-groups .menu-group li:hover,
 .crepe-editor-wrapper .mewmo-block-style-menu .menu-groups .menu-group li.active,
-.crepe-editor-wrapper .mewmo-block-style-menu .menu-groups .menu-group li[data-mewmo-active="true"] {
+.crepe-editor-wrapper .mewmo-block-style-menu .menu-groups .menu-group li[data-mewmo-active="true"],
+.crepe-editor-wrapper .mewmo-block-style-menu__actions li:hover {
   background: var(--accent-2, var(--color-moss-2));
 }
 
 .crepe-editor-wrapper .milkdown .milkdown-slash-menu .menu-groups .menu-group li svg,
-.crepe-editor-wrapper .mewmo-block-style-menu .menu-groups .menu-group li svg {
+.crepe-editor-wrapper .mewmo-block-style-menu .menu-groups .menu-group li svg,
+.crepe-editor-wrapper .mewmo-block-style-menu__actions li svg {
   width: 16px;
   height: 16px;
   color: var(--ink-soft, var(--color-muted));
@@ -558,7 +643,8 @@ html.light .crepe-editor-wrapper .milkdown {
 }
 
 .crepe-editor-wrapper .milkdown .milkdown-slash-menu .menu-groups .menu-group li > span,
-.crepe-editor-wrapper .mewmo-block-style-menu .menu-groups .menu-group li > span:not(.mewmo-block-style-menu__icon, .mewmo-block-style-menu__check) {
+.crepe-editor-wrapper .mewmo-block-style-menu .menu-groups .menu-group li > span:not(.mewmo-block-style-menu__icon, .mewmo-block-style-menu__check),
+.crepe-editor-wrapper .mewmo-block-style-menu__actions li > span:not(.mewmo-block-style-menu__icon) {
   color: var(--ink, var(--color-ink));
   font-size: 12.5px;
   font-weight: 540;
@@ -585,4 +671,18 @@ html.light .crepe-editor-wrapper .milkdown {
 
 .crepe-editor-wrapper .mewmo-block-style-menu li[data-mewmo-active="true"] .mewmo-block-style-menu__check {
   opacity: 1;
+}
+
+.crepe-editor-wrapper .mewmo-block-style-menu__actions li[data-mewmo-delete-block] {
+  color: var(--color-coral);
+  cursor: pointer;
+}
+
+.crepe-editor-wrapper .mewmo-block-style-menu__actions li[data-mewmo-delete-block]:hover {
+  background: color-mix(in srgb, var(--color-coral) 12%, transparent);
+}
+
+.crepe-editor-wrapper .mewmo-block-style-menu__actions li[data-mewmo-delete-block] > span,
+.crepe-editor-wrapper .mewmo-block-style-menu__actions li[data-mewmo-delete-block] svg {
+  color: var(--color-coral);
 }
