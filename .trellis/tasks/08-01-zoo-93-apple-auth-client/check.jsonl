@@ -13,3 +13,4 @@
 {"file":"apps/apple/Tests/Auth/AuthenticatedHTTPClientTests.swift","reason":"blocked 401 from session A after login B proves no cross-session retry"}
 {"file":"apps/apple/Sources/Auth/AuthSessionController.swift","reason":"ZOO-119 conditionally clears after a second 401 only when the original request session remains current"}
 {"file":"apps/apple/Tests/Auth/AuthenticatedHTTPClientTests.swift","reason":"blocked retry A then login B proves a delayed second 401 cannot sign out B"}
+{"file":"apps/apple/Tests/Auth/AuthSessionControllerTests.swift","reason":"ZOO-119 blocked refresh/logout regression waits for FIFO clear enqueue before release to avoid a test-only wait cycle"}

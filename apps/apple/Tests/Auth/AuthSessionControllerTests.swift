@@ -112,7 +112,7 @@ final class AuthSessionControllerTests: XCTestCase {
         let refresh = Task { try? await controller.accessToken(forceRefresh: true) }
         await store.waitUntilReplaceBlocked()
         let logout = Task { await controller.logout() }
-        await transport.waitUntilRequested(path: "/api/auth/native/logout")
+        await controller.waitUntilCredentialOperationsQueued(atLeast: 4)
         await store.releaseReplace()
         _ = await logout.value
         _ = await refresh.value
