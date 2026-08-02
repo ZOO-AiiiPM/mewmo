@@ -1,0 +1,28 @@
+{
+  "id": "zoo-96-mac-clips-feeds",
+  "name": "zoo-96-mac-clips-feeds",
+  "title": "ZOO-96 Mac 剪藏与订阅",
+  "description": "Mac 本地优先的剪藏与订阅浏览",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": "issue-96: Mac 剪藏与订阅",
+  "package": "apple",
+  "priority": "P1",
+  "creator": "zoo",
+  "assignee": "zoo",
+  "createdAt": "2026-08-01",
+  "completedAt": null,
+  "branch": "codex/issue-ZOO-96-mac-clips-feeds",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "linear_id": "ZOO-96"
+  }
+}

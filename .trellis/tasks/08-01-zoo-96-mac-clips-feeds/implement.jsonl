@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/dev-apple.md", "reason": "Apple composition and platform constraints"}
+{"file": ".trellis/spec/apple/mac-ui.md", "reason": "ZOO-90 Mac UI state and interaction contract"}
+{"file": ".trellis/tasks/08-01-zoo-95-apple-sync-engine/design.md", "reason": "Existing local-first sync boundary"}
+{"file": ".trellis/tasks/08-01-zoo-92-apple-image-cache/design.md", "reason": "Existing image pipeline boundary"}
