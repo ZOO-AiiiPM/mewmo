@@ -11,3 +11,5 @@
 {"file":"apps/apple/Tests/Auth/AuthSessionControllerTests.swift","reason":"late refresh response and delayed logout request regressions prevent stale credential reload/write"}
 {"file":"apps/apple/Sources/Auth/AuthSessionController.swift","reason":"ZOO-119 binds a rejected bearer to its session identity before reuse"}
 {"file":"apps/apple/Tests/Auth/AuthenticatedHTTPClientTests.swift","reason":"blocked 401 from session A after login B proves no cross-session retry"}
+{"file":"apps/apple/Sources/Auth/AuthSessionController.swift","reason":"ZOO-119 conditionally clears after a second 401 only when the original request session remains current"}
+{"file":"apps/apple/Tests/Auth/AuthenticatedHTTPClientTests.swift","reason":"blocked retry A then login B proves a delayed second 401 cannot sign out B"}

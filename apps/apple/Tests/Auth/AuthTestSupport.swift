@@ -5,6 +5,7 @@ actor MockNativeAuthTransport: NativeAuthTransport {
     private var counts: [String: Int] = [:]
     private var authorizationValues: [String] = []
     private var blockNextPaths: Set<String> = []
+    private var blockedRequestNumbers: [String: Set<Int>] = [:]
     private var blockedContinuations: [String: [CheckedContinuation<Void, Never>]] = [:]
     private var requestContinuations: [String: [CheckedContinuation<Void, Never>]] = [:]
 
@@ -13,6 +14,10 @@ actor MockNativeAuthTransport: NativeAuthTransport {
     }
 
     func blockNextResponse(path: String) { blockNextPaths.insert(path) }
+
+    func blockResponse(path: String, requestNumber: Int) {
+        blockedRequestNumbers[path, default: []].insert(requestNumber)
+    }
 
     func waitUntilRequested(path: String, atLeast target: Int = 1) async {
         while counts[path, default: 0] < target {
@@ -28,12 +33,13 @@ actor MockNativeAuthTransport: NativeAuthTransport {
     func send(_ request: URLRequest) async throws -> NativeAuthHTTPResponse {
         let path = request.url?.path ?? ""
         counts[path, default: 0] += 1
+        let requestNumber = counts[path, default: 0]
         let requestWaiters = requestContinuations.removeValue(forKey: path) ?? []
         requestWaiters.forEach { $0.resume() }
         if let authorization = request.value(forHTTPHeaderField: "Authorization") { authorizationValues.append(authorization) }
         guard !responses[path, default: []].isEmpty else { throw URLError(.badServerResponse) }
         let response = responses[path]!.removeFirst()
-        if blockNextPaths.remove(path) != nil {
+        if blockNextPaths.remove(path) != nil || blockedRequestNumbers[path]?.remove(requestNumber) != nil {
             await withCheckedContinuation { blockedContinuations[path, default: []].append($0) }
         }
         return response

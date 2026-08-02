@@ -9,6 +9,7 @@ This file captures raw observations from this task. Keep evidence and uncertaint
 - An epoch guard alone cannot repair a stale write that finishes after a newer login. Route all credential mutations through one FIFO queue, make login a lifecycle transition, and let the later clear/replace be the final store operation.
 - Check lifecycle epoch before starting a credential write as well as after it returns. Clear local credentials before awaiting logout/login network calls so a suspended lifecycle cannot reload an old blob.
 - A delayed 401 may outlive an account change. Bearer reuse after a 401 must require both the rejected token and its original session identity; a mismatched lifecycle aborts the stale request without signing out the replacement session.
+- The same session check is required after the one permitted retry: a delayed second 401 must only clear the session that issued it, never a later login.
 ## Implementation note
 
 - XcodeGen system frameworks must use `sdk: Security.framework`; declaring Security as a local `framework` makes Xcode attempt to embed a nonexistent workspace path in the unhosted test bundle.

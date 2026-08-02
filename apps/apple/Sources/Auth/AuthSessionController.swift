@@ -95,6 +95,11 @@ public actor AuthSessionController {
         try? await credentialStore.clear()
     }
 
+    func signOut(ifCurrentSessionId sessionId: String) async {
+        guard session?.sessionId == sessionId else { return }
+        await signOut()
+    }
+
     private func loadStored() async throws -> StoredAuthSession? {
         let epoch = lifecycleEpoch
         guard let data = try await credentialStore.load() else { return nil }
@@ -184,7 +189,7 @@ public struct AuthenticatedHTTPClient: Sendable {
         let retryToken = try await controller.accessToken(afterUnauthorized: context)
         let retry = try await transport.send(authorize(request, token: retryToken))
         guard retry.statusCode != 401 else {
-            await controller.signOut()
+            await controller.signOut(ifCurrentSessionId: context.sessionId)
             throw NativeAuthError.signedOut
         }
         return retry

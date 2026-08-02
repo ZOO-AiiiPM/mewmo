@@ -111,4 +111,37 @@ final class AuthenticatedHTTPClientTests: XCTestCase {
         XCTAssertEqual(stored.user.id, loginB.user.id)
         XCTAssertEqual(stored.sessionId, loginB.sessionId)
     }
+
+    func testSecond401FromPreviousSessionDoesNotSignOutNewSession() async throws {
+        let transport = MockNativeAuthTransport()
+        let store = InMemoryCredentialStore()
+        let controller = AuthTestData.controller(transport: transport, store: store)
+        try await AuthTestData.login(controller, transport: transport)
+        let client = AuthenticatedHTTPClient(controller: controller, transport: transport)
+        let protectedPath = "/protected"
+        await transport.enqueue(path: protectedPath, AuthTestData.response(401))
+        await transport.enqueue(path: "/api/auth/native/refresh", AuthTestData.response(200, AuthTestData.refreshJSON))
+        await transport.enqueue(path: protectedPath, AuthTestData.response(401))
+        await transport.blockResponse(path: protectedPath, requestNumber: 2)
+
+        let requestA = Task { try await client.send(URLRequest(url: AuthTestData.baseURL.appendingPathComponent("protected"))) }
+        await transport.waitUntilRequested(path: protectedPath, atLeast: 2)
+        await transport.enqueue(path: "/api/auth/native/login", AuthTestData.response(200, AuthTestData.secondLoginJSON))
+        let loginB = try await controller.login(NativeLoginRequest(email: "two@example.com", password: "password"))
+        await transport.releaseBlockedResponse(path: protectedPath)
+
+        do {
+            _ = try await requestA.value
+            XCTFail("Expected second unauthorized response")
+        } catch let error as NativeAuthError {
+            XCTAssertEqual(error, .signedOut)
+        }
+
+        let snapshot = await controller.snapshot()
+        let persisted = try await store.load()
+        let stored = try JSONDecoder().decode(StoredAuthSession.self, from: try XCTUnwrap(persisted))
+        XCTAssertEqual(snapshot?.user.id, loginB.user.id)
+        XCTAssertEqual(stored.user.id, loginB.user.id)
+        XCTAssertEqual(stored.sessionId, loginB.sessionId)
+    }
 }
