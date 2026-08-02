@@ -6,6 +6,24 @@ import { DomainError } from "./errors";
 // ZOO-64: pgvector 影子列维度，必须与 schema 的 vector(N) 及 ensure-pgvector-schema.ts 一致。
 const EMBEDDING_VECTOR_DIMENSIONS = Number(process.env.AI_EMBEDDING_DIMENSIONS ?? 1536);
 
+export async function enqueueArticleRuns(input: {
+  userId: string;
+  targetType: "clip" | "feed_entry";
+  targetId: string;
+  inputVersion: number;
+}) {
+  const runs = createAiRunService();
+  return Promise.all(["summary", "embedding"].map((kind) => runs.enqueue({
+    userId: input.userId,
+    kind: kind as "summary" | "embedding",
+    targetType: input.targetType,
+    targetId: input.targetId,
+    inputVersion: input.inputVersion,
+    priority: kind === "summary" ? 20 : 10,
+    idempotencyKey: `${kind}:${input.targetType}:${input.targetId}:v${input.inputVersion}`,
+  })));
+}
+
 export interface ClaimDueAiRunsInput {
   workerId: string;
   limit: number;

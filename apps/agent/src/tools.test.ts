@@ -66,14 +66,6 @@ describe("Agent tool policy", () => {
     expect(proposals).toEqual([]);
   });
 
-  it("does not call URL write tools for a URL-only or reading request", () => {
-    const tools = createPiToolRegistry({ application: createApplicationStub(), context: requestContext({ content: "总结 https://example.com/a" }), proposals: [] });
-    const save = tools.find((tool) => tool.name === "clip_url_save")!;
-    const subscribe = tools.find((tool) => tool.name === "feed_url_subscribe")!;
-    expect(save.description).toMatch(/绝不能调用/);
-    expect(subscribe.description).toMatch(/绝不能调用/);
-  });
-
   it("freezes a current-note edit as a client draft effect", async () => {
     const proposals: never[] = [];
     const tools = createPiToolRegistry({

@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { createFeedSchema, discoverFeedSchema, feedTypeSchema, updateFeedSchema } from "@mewmo/shared";
 import { createFeedEntriesRepository, createFeedsRepository, getPrisma } from "@mewmo/db";
+import { createActor, createFeedSubscriptionCommand } from "@mewmo/application";
 
 import { auth } from "../../../../lib/auth";
 import { discoverFeeds, FeedSearchProviderNotConfiguredError } from "../../../../lib/feed-discovery";
 import { fetchInitialFeed, type InitialFeedRecord } from "../../../../lib/feed-initial-fetch";
 import { requestFeedRefresh } from "../../../../lib/feed-refresh-request";
+import { integrationFixtureOrigins } from "../../../../lib/content-fetch-runtime";
 import { attachServerTiming, createServerTiming } from "../../../../lib/server-timing";
 
 interface FeedRouteParams {
@@ -89,25 +91,18 @@ export async function POST(request: Request, { params }: { params: Promise<FeedR
 
     try {
       const feedsRepository = createFeedsRepository();
-      await feedsRepository.purgeDeletedDuplicate(userId, parsed.data.url, parsed.data.type);
-      const feed = await feedsRepository.create(userId, {
-        url: parsed.data.url,
-        type: parsed.data.type,
-        title: parsed.data.title,
-        refreshInterval: parsed.data.refreshInterval,
-        ...(parsed.data.description !== undefined && {
-          description: parsed.data.description,
-        }),
-        ...(parsed.data.favicon !== undefined && {
-          favicon: parsed.data.favicon,
-        }),
+      const { feed, initialFetch } = await createFeedSubscriptionCommand(createActor({ userId, source: "web", scopes: ["*"] }), parsed.data, {
+        purgeDeletedDuplicate: feedsRepository.purgeDeletedDuplicate,
+        create: feedsRepository.create,
+        initialFetch: (ownerId, record, limit) => {
+          const allowedPrivateOrigins = integrationFixtureOrigins();
+          return fetchInitialFeed(ownerId, record as InitialFeedRecord, { limit, ...(allowedPrivateOrigins ? { allowedPrivateOrigins } : {}) });
+        },
+        delete: feedsRepository.delete,
+        id: (record) => (record as { id: string }).id,
       });
       const feedRecord = feed as Record<string, unknown> & InitialFeedRecord;
-      const initialFetch = await fetchInitialFeed(userId, feedRecord, {
-        limit: parsed.data.initialEntryLimit,
-      });
       if (initialFetch.status === "error") {
-        await feedsRepository.delete(userId, feedRecord.id);
         return NextResponse.json(
           { error: initialFetch.error ?? "Initial feed import failed", initialFetch },
           { status: 502 },

@@ -34,5 +34,40 @@
     "skill": "general",
     "input": "说说我关于量子计算的笔记。",
     "expected": "先搜索，只读取搜索返回的 URI；未找到时明确说明"
+  },
+  {
+    "id": "url-save-explicit",
+    "skill": "general",
+    "input": "请收藏这个网页：https://example.com/article",
+    "expected": "调用 clip_url_save",
+    "expectedWriteTools": ["clip_url_save"]
+  },
+  {
+    "id": "url-subscribe-explicit",
+    "skill": "general",
+    "input": "请订阅这个公开 RSS：https://example.com/feed.xml",
+    "expected": "调用 feed_url_subscribe",
+    "expectedWriteTools": ["feed_url_subscribe"]
+  },
+  {
+    "id": "url-only-no-write",
+    "skill": "general",
+    "input": "https://example.com/article",
+    "expected": "不调用 URL 写工具",
+    "expectedWriteTools": []
+  },
+  {
+    "id": "url-read-no-write",
+    "skill": "general",
+    "input": "阅读这个网页：https://example.com/article",
+    "expected": "可以读取，但不调用 URL 写工具",
+    "expectedWriteTools": []
+  },
+  {
+    "id": "url-summary-no-write",
+    "skill": "general",
+    "input": "总结这个网页：https://example.com/article",
+    "expected": "可以读取并总结，但不调用 URL 写工具",
+    "expectedWriteTools": []
   }
 ]

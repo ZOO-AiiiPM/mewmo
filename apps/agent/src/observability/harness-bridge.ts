@@ -92,7 +92,7 @@ export function createHarnessObservationBridge(
           toolCallId: event.toolCallId,
           toolName: event.toolName,
           isError: event.isError,
-          output: sanitizeUrlToolOutput(event.toolName, event.result),
+          output: sanitizeUrlToolOutput(event.toolName, event.result, event.isError),
         });
       }
     },
@@ -105,10 +105,10 @@ function sanitizeUrlToolInput(toolName: string, value: unknown) {
   try { return { action: toolName === "clip_url_save" ? "clip_saved" : "feed_subscribed", url: new URL(url).hostname }; } catch { return { action: toolName === "clip_url_save" ? "clip_saved" : "feed_subscribed", url: "invalid" }; }
 }
 
-function sanitizeUrlToolOutput(toolName: string, value: unknown) {
+function sanitizeUrlToolOutput(toolName: string, value: unknown, failed: boolean) {
   if (toolName !== "clip_url_save" && toolName !== "feed_url_subscribe") return value;
   const result = typeof value === "object" && value !== null ? value as Record<string, unknown> : {};
-  return { action: result.action === "feed_subscribed" ? "feed_subscribed" : "clip_saved", status: result.status === "existing" ? "existing" : "created" };
+  return { action: toolName === "feed_url_subscribe" ? "feed_subscribed" : "clip_saved", status: failed ? "failed" : result.status === "existing" ? "existing" : "created" };
 }
 
 function generationBase(

@@ -8,9 +8,11 @@ import {
   createContentService,
   createKnowledgeService,
   createNoteService,
+  createFeedSubscriptionService,
   createUrlCaptureService,
   type Actor,
 } from "@mewmo/application";
+import { discoverFeeds } from "@mewmo/content";
 import { visibleAgentUserContent } from "@mewmo/shared";
 import type { AgentActionProposal, AgentActionView, AgentActor, AgentClientEffect, AgentMessageResponse, WriteToolName } from "./contracts";
 import { AgentError } from "./errors";
@@ -25,6 +27,7 @@ export async function loadFoundationAdapters() {
   const notes = createNoteService();
   const knowledge = createKnowledgeService();
   const urls = createUrlCaptureService();
+  const feedSubscriptions = createFeedSubscriptionService();
 
   const application: ApplicationPort = {
     turns: {
@@ -138,8 +141,29 @@ export async function loadFoundationAdapters() {
       },
     },
     urls: {
-      async saveClip(agentActor, url) { return withDomainErrors(() => urls.saveClip(actor(agentActor), url)); },
-      async subscribeFeed(agentActor, url) { return withDomainErrors(() => urls.subscribeFeed(actor(agentActor), url)); },
+      async saveClip(agentActor, url) {
+        const result = await withUrlCaptureErrors(
+          () => urls.saveClip(actor(agentActor), url),
+          "无法剪藏该链接，请确认它是无需登录即可访问的公开网页。",
+        );
+        return { action: result.action, status: result.status, title: result.title };
+      },
+      async subscribeFeed(agentActor, url) {
+        return withUrlCaptureErrors(async () => {
+          const [source] = await discoverFeeds(url);
+          if (!source) throw new DomainError("invalid_state", "未发现可订阅的公开 RSS 或 Atom 来源。");
+          const result = await feedSubscriptions.subscribeFeed(actor(agentActor), {
+            url: source.url,
+            title: source.title,
+            type: source.type,
+            ...(source.description ? { description: source.description } : {}),
+            ...(source.favicon ? { favicon: source.favicon } : {}),
+            refreshInterval: 3600,
+            initialEntryLimit: 10,
+          });
+          return { action: result.action, status: result.status, title: result.title };
+        }, "无法添加该订阅，请提供无需登录即可访问的公开 RSS、Atom 或网站 URL。");
+      },
     },
     actions: {
       async get(input) {
@@ -309,4 +333,13 @@ function optionalString(input: Record<string, unknown>, name: string) { return t
 function nullableString(input: Record<string, unknown>, name: string) { const value = input[name]; return typeof value === "string" ? value : null; }
 function number(value: unknown) { return typeof value === "number" && Number.isFinite(value) ? value : 0; }
 async function withDomainErrors<T>(operation: () => Promise<T>): Promise<T> { try { return await operation(); } catch (error) { throw normalizeError(error); } }
+export async function withUrlCaptureErrors<T>(operation: () => Promise<T>, publicMessage: string): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    const normalized = normalizeError(error);
+    if (normalized.code !== "conflict") throw normalized;
+    throw new AgentError("conflict", publicMessage, { cause: error, retryable: normalized.retryable });
+  }
+}
 function normalizeError(error: unknown): AgentError { if (error instanceof AgentError) return error; if (error instanceof DomainError) { const mapped = error.code === "invalid_state" || error.code === "already_exists" ? "conflict" : error.code; return new AgentError(mapped, error.message, { cause: error }); } return new AgentError("internal_error", "Agent application operation failed.", { cause: error }); }
