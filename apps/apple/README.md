@@ -15,10 +15,12 @@ apps/apple/
 ├── Sources/                    # 共享 Swift 源码
 │   ├── MewmoRootView.swift     # 共享最小 SwiftUI 启动壳（无 @main，macOS/iOS 复用）
 │   ├── Data/                   # ZOO-91 SwiftData 本地数据层（model/容器/repository/同步 DTO）
-│   └── Image/                  # ZOO-92 图片缓存基础设施（Nuke 13 core composition）
+│   ├── Image/                  # ZOO-92 图片缓存基础设施（Nuke 13 core composition）
+│   └── Auth/                   # ZOO-93 native bearer session / Keychain 客户端
 ├── Tests/
 │   ├── Data/                   # ZOO-91 共享 macOS unit-test（数据层）
-│   └── Image/                  # ZOO-92 共享 macOS unit-test（图片缓存）
+│   ├── Image/                  # ZOO-92 共享 macOS unit-test（图片缓存）
+│   └── Auth/                   # ZOO-93 共享 macOS unit-test（认证客户端）
 ├── Entry/
 │   ├── macOS/MacAppMain.swift  # macOS composition root（@main，仅 macOS target 编译）
 │   └── iOS/iOSAppMain.swift    # iOS composition root（@main，仅 iOS target 编译）
@@ -37,12 +39,12 @@ apps/apple/
 |---------|----------|---------------|------|
 | `Mewmo-Mac`   | macOS 14+ | -                  | `Entry/macOS/MacAppMain.swift` |
 | `Mewmo-iOS`   | iOS 17+   | iPhone(1) + iPad(2) | `Entry/iOS/iOSAppMain.swift` |
-| `Mewmo-Tests` | macOS 14+（unit-test bundle）| - | `Sources/Data/` + `Sources/Image/` 共享模块 + `Tests/` |
+| `Mewmo-Tests` | macOS 14+（unit-test bundle）| - | `Sources/Data/` + `Sources/Image/` + `Sources/Auth/` 共享模块 + `Tests/` |
 
 前两个 app target 共享 `Sources/`，平台差异用 `#if os(...)` 收敛；入口文件各自独立，避免多 `@main` 冲突。
 
 `Mewmo-Tests` 是 ZOO-91 建立的**共享 macOS unit-test 门禁**，供后续 Apple 模块
-（ZOO-92/93…）直接追加测试。它只编译共享基础模块（`Sources/Data/` + `Sources/Image/`）
+（ZOO-92/93…）直接追加测试。它只编译共享基础模块（`Sources/Data/` + `Sources/Image/` + `Sources/Auth/`）
 与 `Tests/`，不包含 SwiftUI 启动壳——保证基础模块不依赖 SwiftUI、可在 unhosted `.xctest`
 运行。canonical sync fixtures 以资源方式直接引用仓库内 `packages/sync/src/fixtures/`
 单一副本，不做第二份拷贝。后续基础模块（如 `Sources/Auth`）在 `project.yml` 的

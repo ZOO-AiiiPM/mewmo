@@ -1,0 +1,3 @@
+{"file":".trellis/spec/dev-apple.md","reason":"Apple 工程结构、URLSession/Keychain 与三端共享约束"}
+{"file":"docs/contracts/native-auth.md","reason":"服务端 native bearer session 权威 contract"}
+{"file":".trellis/tasks/08-01-zoo-93-apple-auth-client/research/solution.md","reason":"Keychain 方案比较与 adopted boundary"}
