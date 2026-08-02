@@ -65,3 +65,48 @@ public actor InMemoryCredentialStore: CredentialStore {
     public func replace(_ data: Data) async throws { value = data }
     public func clear() async throws { value = nil }
 }
+
+/// Serializes every credential operation even when an injected store suspends and is actor-reentrant.
+/// A later lifecycle mutation is appended behind an older in-flight operation, so it is the final blob.
+actor SerializedCredentialStore: CredentialStore {
+    private let store: any CredentialStore
+    private var tail: Task<Void, Never>?
+    private var queuedOperationCount = 0
+    private var queueWaiters: [CheckedContinuation<Void, Never>] = []
+
+    init(store: any CredentialStore) {
+        self.store = store
+    }
+
+    func load() async throws -> Data? {
+        try await enqueue { [store] in try await store.load() }
+    }
+
+    func replace(_ data: Data) async throws {
+        try await enqueue { [store, data] in try await store.replace(data) }
+    }
+
+    func clear() async throws {
+        try await enqueue { [store] in try await store.clear() }
+    }
+
+    func waitUntilQueuedOperations(atLeast target: Int) async {
+        while queuedOperationCount < target {
+            await withCheckedContinuation { queueWaiters.append($0) }
+        }
+    }
+
+    private func enqueue<Value: Sendable>(_ operation: @escaping @Sendable () async throws -> Value) async throws -> Value {
+        let previous = tail
+        queuedOperationCount += 1
+        let waiters = queueWaiters
+        queueWaiters.removeAll()
+        waiters.forEach { $0.resume() }
+        let task = Task<Value, Error> {
+            if let previous { await previous.value }
+            return try await operation()
+        }
+        tail = Task<Void, Never> { _ = try? await task.value }
+        return try await task.value
+    }
+}

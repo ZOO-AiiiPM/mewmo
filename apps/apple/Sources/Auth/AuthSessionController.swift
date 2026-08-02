@@ -3,7 +3,7 @@ import Foundation
 /// Owns the credential lifecycle. The actor coalesces all refreshes so a rotated refresh token is never raced locally.
 public actor AuthSessionController {
     private let api: NativeAuthAPI
-    private let credentialStore: any CredentialStore
+    private let credentialStore: SerializedCredentialStore
     private let clock: @Sendable () -> Date
     private let refreshLeeway: TimeInterval
     private var session: StoredAuthSession?
@@ -13,7 +13,7 @@ public actor AuthSessionController {
 
     public init(baseURL: URL, transport: any NativeAuthTransport = URLSessionNativeAuthTransport(), credentialStore: any CredentialStore = SecurityCredentialStore(), clock: @escaping @Sendable () -> Date = Date.init, refreshLeeway: TimeInterval = 60) {
         self.api = NativeAuthAPI(baseURL: baseURL, transport: transport)
-        self.credentialStore = credentialStore
+        self.credentialStore = SerializedCredentialStore(store: credentialStore)
         self.clock = clock
         self.refreshLeeway = refreshLeeway
     }
@@ -32,13 +32,19 @@ public actor AuthSessionController {
 
     @discardableResult
     public func login(_ input: NativeLoginRequest) async throws -> AuthSessionSnapshot {
-        let epoch = lifecycleEpoch
+        let epoch = invalidateLifecycle()
         let stored = try await api.login(input, now: clock())
         guard try await persist(stored, expectedEpoch: epoch) else { throw NativeAuthError.signedOut }
         return stored.snapshot
     }
 
     public func snapshot() -> AuthSessionSnapshot? { session?.snapshot }
+
+    #if DEBUG
+    func waitUntilCredentialOperationsQueued(atLeast target: Int) async {
+        await credentialStore.waitUntilQueuedOperations(atLeast: target)
+    }
+    #endif
 
     public func accessToken(forceRefresh: Bool = false) async throws -> String {
         let current = if let session { session } else { try await loadStored() }
@@ -120,8 +126,7 @@ public actor AuthSessionController {
         let data = try JSONEncoder().encode(stored)
         try await credentialStore.replace(data)
         guard lifecycleEpoch == expectedEpoch else {
-            // A logout/sign-out won during the external store operation. Remove the late blob before returning.
-            if session == nil { try? await credentialStore.clear() }
+            // The serialized store has a newer clear/replace queued after this obsolete write.
             return false
         }
         session = stored

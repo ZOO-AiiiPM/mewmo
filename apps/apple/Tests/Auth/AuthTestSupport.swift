@@ -14,9 +14,10 @@ actor MockNativeAuthTransport: NativeAuthTransport {
 
     func blockNextResponse(path: String) { blockNextPaths.insert(path) }
 
-    func waitUntilRequested(path: String) async {
-        if counts[path, default: 0] > 0 { return }
-        await withCheckedContinuation { requestContinuations[path, default: []].append($0) }
+    func waitUntilRequested(path: String, atLeast target: Int = 1) async {
+        while counts[path, default: 0] < target {
+            await withCheckedContinuation { requestContinuations[path, default: []].append($0) }
+        }
     }
 
     func releaseBlockedResponse(path: String) {
@@ -86,6 +87,10 @@ enum AuthTestData {
 
     static var refreshJSON: String {
         "{\"accessToken\":\"access-two\",\"refreshToken\":\"refresh-two\",\"expiresIn\":900,\"refreshExpiresIn\":2592000,\"sessionId\":\"session-one\"}"
+    }
+
+    static var secondLoginJSON: String {
+        "{\"accessToken\":\"access-three\",\"refreshToken\":\"refresh-three\",\"expiresIn\":900,\"refreshExpiresIn\":2592000,\"sessionId\":\"session-two\",\"user\":{\"id\":\"user-two\",\"email\":\"two@example.com\",\"name\":\"Two\"}}"
     }
 
     static func controller(transport: MockNativeAuthTransport, store: any CredentialStore, leeway: TimeInterval = 60) -> AuthSessionController {

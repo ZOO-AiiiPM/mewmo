@@ -111,13 +111,46 @@ final class AuthSessionControllerTests: XCTestCase {
 
         let refresh = Task { try? await controller.accessToken(forceRefresh: true) }
         await store.waitUntilReplaceBlocked()
-        await controller.logout()
+        let logout = Task { await controller.logout() }
+        await transport.waitUntilRequested(path: "/api/auth/native/logout")
         await store.releaseReplace()
+        _ = await logout.value
         _ = await refresh.value
 
         let snapshot = await controller.snapshot()
         let blob = try await store.load()
         XCTAssertNil(snapshot)
         XCTAssertNil(blob)
+    }
+
+    func testBlockedRefreshAndDelayedLogoutClearCannotOverwriteLaterLoginBlob() async throws {
+        let transport = MockNativeAuthTransport()
+        let rawStore = BlockingCredentialStore()
+        let controller = AuthTestData.controller(transport: transport, store: rawStore)
+        try await AuthTestData.login(controller, transport: transport)
+        await rawStore.blockNextReplace()
+        await transport.enqueue(path: "/api/auth/native/refresh", AuthTestData.response(200, AuthTestData.refreshJSON))
+
+        let staleRefresh = Task { try? await controller.accessToken(forceRefresh: true) }
+        await rawStore.waitUntilReplaceBlocked()
+        let logout = Task { await controller.logout() }
+        await controller.waitUntilCredentialOperationsQueued(atLeast: 3)
+        await transport.enqueue(path: "/api/auth/native/login", AuthTestData.response(200, AuthTestData.secondLoginJSON))
+        let loginB = Task {
+            try await controller.login(NativeLoginRequest(email: "two@example.com", password: "password"))
+        }
+        await controller.waitUntilCredentialOperationsQueued(atLeast: 4)
+        await rawStore.releaseReplace()
+
+        _ = await staleRefresh.value
+        _ = await logout.value
+        let loginSnapshot = try await loginB.value
+        let snapshot = await controller.snapshot()
+        let persisted = try await rawStore.load()
+        let stored = try JSONDecoder().decode(StoredAuthSession.self, from: try XCTUnwrap(persisted))
+        XCTAssertEqual(snapshot?.user.id, loginSnapshot.user.id)
+        XCTAssertEqual(snapshot?.sessionId, loginSnapshot.sessionId)
+        XCTAssertEqual(stored.user.id, loginSnapshot.user.id)
+        XCTAssertEqual(stored.sessionId, loginSnapshot.sessionId)
     }
 }
