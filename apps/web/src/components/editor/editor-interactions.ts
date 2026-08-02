@@ -21,6 +21,7 @@ import { NodeSelection, Plugin, TextSelection } from "@milkdown/kit/prose/state"
 import { liftListItem } from "@milkdown/kit/prose/schema-list";
 import type { Selection } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
+import { PROTOTYPE_DELETE_ICON } from "../shell/prototype-delete-icon";
 
 const emptyAddHandleSelector = ".milkdown-block-handle[data-mewmo-mode=\"add\"] .operation-item:first-child";
 const blockStyleHandleSelector = ".milkdown-block-handle[data-mewmo-mode=\"drag\"] .operation-item:nth-child(2)";
@@ -229,6 +230,10 @@ export function getBlockStyleMenuIconSvg(icon: BlockStyleMenuIcon) {
 
 export function getBlockStyleMenuCheckSvg() {
   return '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M9.55 16.6a.75.75 0 0 1-1.06 0l-3.1-3.1a.75.75 0 1 1 1.06-1.06l2.57 2.57l8.53-8.53a.75.75 0 1 1 1.06 1.06L9.55 16.6Z"/></svg>';
+}
+
+export function getBlockDeleteIconSvg() {
+  return PROTOTYPE_DELETE_ICON;
 }
 
 export function getBlockStyleMenuPosition({
@@ -504,6 +509,16 @@ function exitHiddenCodeBlock(view: EditorView) {
   return true;
 }
 
+function deleteSelectedCodeBlock(view: EditorView) {
+  const { selection } = view.state;
+  if (!(selection instanceof NodeSelection) || selection.node.type.name !== "code_block") return false;
+
+  const tr = view.state.tr.delete(selection.from, selection.to);
+  tr.setSelection(TextSelection.near(tr.doc.resolve(Math.min(selection.from, tr.doc.content.size))));
+  view.dispatch(tr);
+  return true;
+}
+
 function hasHiddenCodeMirror(view: EditorView, target: EventTarget | null) {
   if (hasClosest(target) && target.closest(hiddenCodeMirrorSelector)) return true;
 
@@ -641,6 +656,7 @@ function createBlockStyleMenu(ctx: Ctx, view: EditorView) {
     ...blockStyleMenuItems.map((item) => (
       `<li data-mewmo-block-style="${item.key}" data-mewmo-active="false"><span class="mewmo-block-style-menu__icon">${getBlockStyleMenuIconSvg(item.icon)}</span><span>${item.label}</span><span class="mewmo-block-style-menu__check">${getBlockStyleMenuCheckSvg()}</span></li>`
     )),
+    `<li data-mewmo-delete-block hidden><span class="mewmo-block-style-menu__icon">${getBlockDeleteIconSvg()}</span><span>Delete</span></li>`,
     "</ul>",
     "</div>",
     "</div>",
@@ -656,6 +672,8 @@ function createBlockStyleMenu(ctx: Ctx, view: EditorView) {
       item.dataset.mewmoActive = isActive ? "true" : "false";
       item.setAttribute("aria-current", isActive ? "true" : "false");
     });
+    const deleteItem = menu.querySelector<HTMLElement>("[data-mewmo-delete-block]");
+    if (deleteItem) deleteItem.hidden = currentKey !== "code";
     const position = getBlockStyleMenuPosition({
       left,
       top,
@@ -684,6 +702,15 @@ function createBlockStyleMenu(ctx: Ctx, view: EditorView) {
   const handlePointerUp = (event: PointerEvent) => {
     const target = event.target;
     if (!(target instanceof Element)) return;
+
+    const deleteItem = target.closest("[data-mewmo-delete-block]");
+    if (deleteItem instanceof HTMLElement) {
+      event.preventDefault();
+      deleteSelectedCodeBlock(view);
+      hide();
+      view.focus();
+      return;
+    }
 
     const item = target.closest("[data-mewmo-block-style]");
     if (!(item instanceof HTMLElement)) return;

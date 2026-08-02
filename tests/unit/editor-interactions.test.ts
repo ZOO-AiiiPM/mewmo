@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 
 import {
   blockStylePointerDidClick,
+  getBlockDeleteIconSvg,
   getBlockStyleMenuCheckSvg,
   getBlockStyleMenuIconSvg,
   getBlockStyleMenuItems,
@@ -121,6 +122,22 @@ describe("editor interactions", () => {
   it("renders the active block style check as an inline svg instead of a text glyph", () => {
     expect(getBlockStyleMenuCheckSvg()).toContain("<svg");
     expect(getBlockStyleMenuCheckSvg()).toContain("currentColor");
+  });
+
+  it("reuses the project trash icon for the code-block delete action", () => {
+    expect(getBlockDeleteIconSvg()).toContain("<svg");
+    expect(getBlockDeleteIconSvg()).toContain("currentColor");
+  });
+
+  it("deletes the selected code block in one undoable transaction", () => {
+    const source = readFileSync("apps/web/src/components/editor/editor-interactions.ts", "utf8");
+
+    expect(source).toMatch(
+      /function deleteSelectedCodeBlock[\s\S]*selection\.node\.type\.name !== "code_block"[\s\S]*tr\.delete\(selection\.from, selection\.to\)[\s\S]*view\.dispatch\(tr\)/,
+    );
+    expect(source).not.toMatch(
+      /function deleteSelectedCodeBlock[\s\S]{0,600}addToHistory["'],\s*false/,
+    );
   });
 
   it("keeps the block style popup inside the viewport when opened near an edge", () => {

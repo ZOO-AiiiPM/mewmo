@@ -21,6 +21,12 @@
 2. Hide Crepe's lazy code-block placeholder content while preserving its layout footprint to remove the note-switch source flash.
 3. Add focused interaction and CSS regression checks, then update the existing PR #71.
 
+## Acceptance Fix: ZOO-121
+
+1. Add a code-only Delete row to the existing block style menu using the project's existing trash SVG and semantic destructive color.
+2. Delete the selected code-block node with one ProseMirror transaction so editor Undo remains available.
+3. Add focused icon/style checks, then update the existing PR #71.
+
 ## Review Gates
 
 - No CDN or server rendering.

@@ -657,3 +657,24 @@ html.light .crepe-editor-wrapper .milkdown {
 .crepe-editor-wrapper .mewmo-block-style-menu li[data-mewmo-active="true"] .mewmo-block-style-menu__check {
   opacity: 1;
 }
+
+.crepe-editor-wrapper .mewmo-block-style-menu li[data-mewmo-delete-block][hidden] {
+  display: none;
+}
+
+.crepe-editor-wrapper .mewmo-block-style-menu li[data-mewmo-delete-block] {
+  margin-top: 6px;
+  border-top: 1px solid var(--line, var(--color-line));
+  border-radius: 0 0 7px 7px;
+  color: var(--color-coral);
+  cursor: pointer;
+}
+
+.crepe-editor-wrapper .mewmo-block-style-menu li[data-mewmo-delete-block]:hover {
+  background: color-mix(in srgb, var(--color-coral) 12%, transparent);
+}
+
+.crepe-editor-wrapper .mewmo-block-style-menu li[data-mewmo-delete-block] > span,
+.crepe-editor-wrapper .mewmo-block-style-menu li[data-mewmo-delete-block] svg {
+  color: var(--color-coral);
+}

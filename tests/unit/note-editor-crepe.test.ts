@@ -33,6 +33,12 @@ describe("note editor Crepe configuration", () => {
     );
   });
 
+  it("styles the code-block delete menu action as destructive", () => {
+    expect(theme).toMatch(
+      /li\[data-mewmo-delete-block\][\s\S]*color:\s*var\(--color-coral\)/,
+    );
+  });
+
   it("keeps the editable blank paragraph after a code block visible", () => {
     expect(theme).not.toMatch(/\.milkdown-code-block \+ p(?::empty|:has\([^)]*\))?[\s\S]{0,180}(?:height|min-height):\s*0/);
     expect(theme).toMatch(/\.crepe-editor-wrapper \.milkdown \.ProseMirror \.milkdown-code-block \+ p\s*\{[\s\S]*min-height:\s*(?!0\b)[^;}]+/);
