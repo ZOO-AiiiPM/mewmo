@@ -1,0 +1,31 @@
+{
+  "id": "zoo-93-apple-auth-client",
+  "name": "zoo-93-apple-auth-client",
+  "title": "ZOO-93 Apple 认证客户端",
+  "description": "Keychain session 与认证网络客户端",
+  "status": "planning",
+  "dev_type": "feature",
+  "scope": "apple-auth-client",
+  "package": null,
+  "priority": "P2",
+  "creator": "zoo",
+  "assignee": "zoo",
+  "createdAt": "2026-08-01",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "apps/apple/project.yml",
+    "apps/apple/Sources/Auth/",
+    "apps/apple/Tests/Auth/",
+    "docs/contracts/native-auth.md"
+  ],
+  "notes": "",
+  "meta": {}
+}

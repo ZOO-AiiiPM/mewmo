@@ -1,0 +1,4 @@
+{"file":".trellis/spec/dev-apple.md","reason":"核对 Apple 工程和安全边界"}
+{"file":"docs/contracts/native-auth.md","reason":"核对 endpoint、rotation、logout 与错误语义"}
+{"file":".trellis/tasks/08-01-zoo-93-apple-auth-client/prd.md","reason":"核对范围与验收标准"}
+{"file":".trellis/tasks/08-01-zoo-93-apple-auth-client/design.md","reason":"核对 single-flight、Keychain 原子性和重试边界"}
