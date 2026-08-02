@@ -4,21 +4,72 @@ actor MockNativeAuthTransport: NativeAuthTransport {
     private var responses: [String: [NativeAuthHTTPResponse]] = [:]
     private var counts: [String: Int] = [:]
     private var authorizationValues: [String] = []
+    private var blockNextPaths: Set<String> = []
+    private var blockedContinuations: [String: [CheckedContinuation<Void, Never>]] = [:]
+    private var requestContinuations: [String: [CheckedContinuation<Void, Never>]] = [:]
 
     func enqueue(path: String, _ response: NativeAuthHTTPResponse) {
         responses[path, default: []].append(response)
     }
 
+    func blockNextResponse(path: String) { blockNextPaths.insert(path) }
+
+    func waitUntilRequested(path: String) async {
+        if counts[path, default: 0] > 0 { return }
+        await withCheckedContinuation { requestContinuations[path, default: []].append($0) }
+    }
+
+    func releaseBlockedResponse(path: String) {
+        let continuations = blockedContinuations.removeValue(forKey: path) ?? []
+        continuations.forEach { $0.resume() }
+    }
+
     func send(_ request: URLRequest) async throws -> NativeAuthHTTPResponse {
         let path = request.url?.path ?? ""
         counts[path, default: 0] += 1
+        let requestWaiters = requestContinuations.removeValue(forKey: path) ?? []
+        requestWaiters.forEach { $0.resume() }
         if let authorization = request.value(forHTTPHeaderField: "Authorization") { authorizationValues.append(authorization) }
         guard !responses[path, default: []].isEmpty else { throw URLError(.badServerResponse) }
-        return responses[path]!.removeFirst()
+        let response = responses[path]!.removeFirst()
+        if blockNextPaths.remove(path) != nil {
+            await withCheckedContinuation { blockedContinuations[path, default: []].append($0) }
+        }
+        return response
     }
 
     func count(_ path: String) -> Int { counts[path, default: 0] }
     func headers() -> [String] { authorizationValues }
+}
+
+actor BlockingCredentialStore: CredentialStore {
+    private var value: Data?
+    private var shouldBlockNextReplace = false
+    private var blockedContinuation: CheckedContinuation<Void, Never>?
+    private var releaseContinuation: CheckedContinuation<Void, Never>?
+
+    init(value: Data? = nil) { self.value = value }
+
+    func load() async throws -> Data? { value }
+    func clear() async throws { value = nil }
+    func blockNextReplace() { shouldBlockNextReplace = true }
+    func waitUntilReplaceBlocked() async {
+        if blockedContinuation != nil { return }
+        await withCheckedContinuation { blockedContinuation = $0 }
+    }
+    func releaseReplace() {
+        releaseContinuation?.resume()
+        releaseContinuation = nil
+    }
+    func replace(_ data: Data) async throws {
+        if shouldBlockNextReplace {
+            shouldBlockNextReplace = false
+            blockedContinuation?.resume()
+            blockedContinuation = nil
+            await withCheckedContinuation { releaseContinuation = $0 }
+        }
+        value = data
+    }
 }
 
 enum AuthTestData {
@@ -37,7 +88,7 @@ enum AuthTestData {
         "{\"accessToken\":\"access-two\",\"refreshToken\":\"refresh-two\",\"expiresIn\":900,\"refreshExpiresIn\":2592000,\"sessionId\":\"session-one\"}"
     }
 
-    static func controller(transport: MockNativeAuthTransport, store: InMemoryCredentialStore, leeway: TimeInterval = 60) -> AuthSessionController {
+    static func controller(transport: MockNativeAuthTransport, store: any CredentialStore, leeway: TimeInterval = 60) -> AuthSessionController {
         AuthSessionController(baseURL: baseURL, transport: transport, credentialStore: store, clock: { now }, refreshLeeway: leeway)
     }
 

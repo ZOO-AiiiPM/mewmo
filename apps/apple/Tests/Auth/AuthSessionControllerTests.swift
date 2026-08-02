@@ -16,6 +16,27 @@ final class AuthSessionControllerTests: XCTestCase {
         XCTAssertNotNil(stored)
     }
 
+    func testRestoreClearsStaleMemoryForMissingOrCorruptBlob() async throws {
+        let transport = MockNativeAuthTransport()
+        let store = InMemoryCredentialStore()
+        let controller = AuthTestData.controller(transport: transport, store: store)
+        try await AuthTestData.login(controller, transport: transport)
+        try await store.clear()
+
+        let missing = try await controller.restore()
+        let missingSnapshot = await controller.snapshot()
+        XCTAssertNil(missing)
+        XCTAssertNil(missingSnapshot)
+
+        try await store.replace(Data("corrupt".utf8))
+        let corrupt = try await controller.restore()
+        let corruptSnapshot = await controller.snapshot()
+        let clearedBlob = try await store.load()
+        XCTAssertNil(corrupt)
+        XCTAssertNil(corruptSnapshot)
+        XCTAssertNil(clearedBlob)
+    }
+
     func testFreshAccessDoesNotRefresh() async throws {
         let transport = MockNativeAuthTransport()
         let store = InMemoryCredentialStore()
@@ -78,5 +99,25 @@ final class AuthSessionControllerTests: XCTestCase {
         let clearedStore = try await store.load()
         XCTAssertNil(signedOutSnapshot)
         XCTAssertNil(clearedStore)
+    }
+
+    func testBlockedRefreshCannotRestoreSessionAfterLogoutWins() async throws {
+        let transport = MockNativeAuthTransport()
+        let store = BlockingCredentialStore()
+        let controller = AuthTestData.controller(transport: transport, store: store)
+        try await AuthTestData.login(controller, transport: transport)
+        await store.blockNextReplace()
+        await transport.enqueue(path: "/api/auth/native/refresh", AuthTestData.response(200, AuthTestData.refreshJSON))
+
+        let refresh = Task { try? await controller.accessToken(forceRefresh: true) }
+        await store.waitUntilReplaceBlocked()
+        await controller.logout()
+        await store.releaseReplace()
+        _ = await refresh.value
+
+        let snapshot = await controller.snapshot()
+        let blob = try await store.load()
+        XCTAssertNil(snapshot)
+        XCTAssertNil(blob)
     }
 }
