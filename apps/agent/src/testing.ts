@@ -5,7 +5,7 @@ export const TEST_ACTOR: AgentActor = {
   userId: "user-1",
   source: "internal-agent",
   clientId: "test-client",
-  scopes: ["content:read", "notes:write", "knowledge:write", "trash:write"],
+  scopes: ["content:read", "content:write", "notes:write", "knowledge:write", "trash:write"],
 };
 
 export function createApplicationStub(overrides: Partial<ApplicationPort> = {}): ApplicationPort {
@@ -28,6 +28,10 @@ export function createApplicationStub(overrides: Partial<ApplicationPort> = {}):
     content: {
       search: async () => ({ items: [] }),
       read: async () => ({ resourceUri: "mewmo://notes/note-1", type: "note", id: "note-1", title: "Note", content: "content", version: 1 }),
+    },
+    urls: {
+      saveClip: async () => ({ action: "clip_saved", status: "created", title: "Clip" }),
+      subscribeFeed: async () => ({ action: "feed_subscribed", status: "created", title: "Feed" }),
     },
     actions: {
       propose: async (input) => ({ id: "action-1", toolName: input.toolName, preview: input.preview, riskLevel: input.riskLevel, status: "proposed", executionMode: input.clientEffect ? "client" : "server", ...(input.clientEffect ? { clientEffect: input.clientEffect } : {}) }),

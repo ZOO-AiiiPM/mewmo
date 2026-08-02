@@ -9,6 +9,7 @@ import type {
   SendMessageBody,
   WriteToolName,
 } from "./contracts";
+import type { UrlCaptureResult } from "@mewmo/application";
 
 export interface ContentSearchInput {
   query: string;
@@ -139,6 +140,10 @@ export interface ApplicationPort {
   content: {
     search(actor: AgentActor, input: ContentSearchInput): Promise<ContentSearchResult>;
     read(actor: AgentActor, resourceUri: string, maxChars: number): Promise<ContentReadResult>;
+  };
+  urls: {
+    saveClip(actor: AgentActor, url: string): Promise<UrlCaptureResult>;
+    subscribeFeed(actor: AgentActor, url: string): Promise<UrlCaptureResult>;
   };
   actions: ActionPort;
 }

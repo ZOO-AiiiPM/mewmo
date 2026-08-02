@@ -302,6 +302,9 @@ importers:
 
   packages/application:
     dependencies:
+      '@mewmo/content':
+        specifier: workspace:*
+        version: link:../content
       '@mewmo/db':
         specifier: workspace:*
         version: link:../db

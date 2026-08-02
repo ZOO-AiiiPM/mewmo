@@ -10,3 +10,4 @@ export * from "./content-service";
 export * from "./errors";
 export * from "./knowledge-service";
 export * from "./note-service";
+export * from "./url-capture-service";

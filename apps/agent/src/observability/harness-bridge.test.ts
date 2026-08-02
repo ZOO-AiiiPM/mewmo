@@ -105,6 +105,15 @@ describe("createHarnessObservationBridge", () => {
     expect(bridge.generationCount()).toBe(1);
     expect(bridge.providerCallCount()).toBe(0);
   });
+
+  it("sanitizes direct URL tool observations", () => {
+    const observation = fakeObservation();
+    const bridge = createHarnessObservationBridge({ observation, purpose: "agent.chat", provider: "google", requestedModel: "gemini-flash", pricingKnown: true });
+    bridge.event({ type: "tool_execution_start", toolCallId: "tool-1", toolName: "clip_url_save", args: { url: "https://example.com/private?token=secret" } } as AgentHarnessEvent);
+    bridge.event({ type: "tool_execution_end", toolCallId: "tool-1", toolName: "clip_url_save", result: { action: "clip_saved", status: "created", title: "Private title", content: "secret" }, isError: false } as AgentHarnessEvent);
+    expect(observation.toolStarted).toHaveBeenCalledWith({ toolCallId: "tool-1", toolName: "clip_url_save", input: { action: "clip_saved", url: "example.com" } });
+    expect(observation.toolCompleted).toHaveBeenCalledWith({ toolCallId: "tool-1", toolName: "clip_url_save", isError: false, output: { action: "clip_saved", status: "created" } });
+  });
 });
 
 function fakeObservation() {

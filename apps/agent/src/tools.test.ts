@@ -54,6 +54,26 @@ describe("Agent tool policy", () => {
     expect(proposals).toHaveLength(1);
   });
 
+  it("saves and subscribes only through direct URL tools, without a confirmation proposal", async () => {
+    const saveClip = vi.fn(async () => ({ action: "clip_saved" as const, status: "created" as const, title: "Public article" }));
+    const subscribeFeed = vi.fn(async () => ({ action: "feed_subscribed" as const, status: "existing" as const, title: "Public feed" }));
+    const proposals: never[] = [];
+    const tools = createPiToolRegistry({ application: createApplicationStub({ urls: { saveClip, subscribeFeed } }), context: requestContext({ content: "请保存 https://example.com/a" }), proposals });
+    await expect(tools.find((tool) => tool.name === "clip_url_save")!.execute("call-1", { url: "https://example.com/a" }, undefined)).resolves.toMatchObject({ details: { action: "clip_saved", status: "created" } });
+    await expect(tools.find((tool) => tool.name === "feed_url_subscribe")!.execute("call-2", { url: "https://example.com/feed.xml" }, undefined)).resolves.toMatchObject({ details: { action: "feed_subscribed", status: "existing" } });
+    expect(saveClip).toHaveBeenCalledWith(TEST_ACTOR, "https://example.com/a");
+    expect(subscribeFeed).toHaveBeenCalledWith(TEST_ACTOR, "https://example.com/feed.xml");
+    expect(proposals).toEqual([]);
+  });
+
+  it("does not call URL write tools for a URL-only or reading request", () => {
+    const tools = createPiToolRegistry({ application: createApplicationStub(), context: requestContext({ content: "总结 https://example.com/a" }), proposals: [] });
+    const save = tools.find((tool) => tool.name === "clip_url_save")!;
+    const subscribe = tools.find((tool) => tool.name === "feed_url_subscribe")!;
+    expect(save.description).toMatch(/绝不能调用/);
+    expect(subscribe.description).toMatch(/绝不能调用/);
+  });
+
   it("freezes a current-note edit as a client draft effect", async () => {
     const proposals: never[] = [];
     const tools = createPiToolRegistry({

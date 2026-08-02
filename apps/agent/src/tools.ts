@@ -2,6 +2,8 @@ import type { WriteToolName } from "./contracts";
 
 export const READ_TOOL_NAMES = ["read_current_context", "content_search", "content_read", "web_search", "web_fetch"] as const;
 export const WRITE_TOOL_NAMES = [
+  "clip_url_save",
+  "feed_url_subscribe",
   "note_create",
   "note_update",
   "note_move",

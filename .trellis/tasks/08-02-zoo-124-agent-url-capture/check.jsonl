@@ -1,0 +1,4 @@
+{"file":".trellis/spec/dev-backend.md","reason":"Check actor ownership, no-write failures and persistence reuse."}
+{"file":".trellis/spec/dev-ai.md","reason":"Check direct-write authorization and sanitized Agent tool events."}
+{"file":".trellis/spec/release.md","reason":"Choose and report validation evidence by changed runtime boundaries."}
+{"file":".trellis/tasks/08-02-zoo-124-agent-url-capture/prd.md","reason":"Check all changed behavior against ZOO-124 acceptance criteria."}

@@ -8,6 +8,7 @@ import {
   createContentService,
   createKnowledgeService,
   createNoteService,
+  createUrlCaptureService,
   type Actor,
 } from "@mewmo/application";
 import { visibleAgentUserContent } from "@mewmo/shared";
@@ -23,6 +24,7 @@ export async function loadFoundationAdapters() {
   const actions = createAiActionService();
   const notes = createNoteService();
   const knowledge = createKnowledgeService();
+  const urls = createUrlCaptureService();
 
   const application: ApplicationPort = {
     turns: {
@@ -134,6 +136,10 @@ export async function loadFoundationAdapters() {
           return { resourceUri: item.resourceUri, type: item.type, id: item.id, title: item.title, content: item.content.slice(0, maxChars), version: item.version };
         });
       },
+    },
+    urls: {
+      async saveClip(agentActor, url) { return withDomainErrors(() => urls.saveClip(actor(agentActor), url)); },
+      async subscribeFeed(agentActor, url) { return withDomainErrors(() => urls.subscribeFeed(actor(agentActor), url)); },
     },
     actions: {
       async get(input) {

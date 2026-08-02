@@ -32,7 +32,7 @@ export async function verifyIdentity(token: string, options: IdentityOptions): P
       userId: claims.sub,
       source: "internal-agent",
       clientId: claims.sid,
-      scopes: ["content:read", "notes:write", "knowledge:write", "trash:write"],
+      scopes: ["content:read", "content:write", "notes:write", "knowledge:write", "trash:write"],
     };
   } catch (error) {
     throw new AgentError("unauthorized", "Invalid or expired Agent identity.", { cause: error, retryable: false });

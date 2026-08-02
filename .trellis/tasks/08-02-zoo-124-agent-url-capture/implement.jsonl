@@ -1,0 +1,4 @@
+{"file":".trellis/spec/dev-general.md","reason":"Shared runtime validation and TypeScript constraints for the URL capture boundary."}
+{"file":".trellis/spec/dev-backend.md","reason":"Ownership, persistence and external-input requirements for actor-scoped writes."}
+{"file":".trellis/spec/dev-ai.md","reason":"Agent tool, event and runtime boundary requirements."}
+{"file":".trellis/tasks/08-02-zoo-124-agent-url-capture/design.md","reason":"Approved ZOO-124 shared service and direct-write tool design."}
