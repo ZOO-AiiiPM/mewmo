@@ -6,13 +6,19 @@ const read = (path) => readFileSync(path, "utf8");
 
 test("feed creation awaits a bounded initial RSS fetch without BullMQ", () => {
   const route = read("apps/web/src/app/api/feeds/[[...parts]]/route.ts");
+  const application = read("packages/application/src/url-capture-service.ts");
 
   assert.match(
     route,
-    /await fetchInitialFeed\(userId,\s*feedRecord,\s*\{[\s\S]*?limit:\s*parsed\.data\.initialEntryLimit,[\s\S]*?\}\)/,
+    /createFeedSubscriptionCommand\([\s\S]*?parsed\.data,[\s\S]*?initialFetch:\s*\(ownerId,\s*record,\s*limit\)[\s\S]*?fetchInitialFeed\(ownerId,\s*record as InitialFeedRecord,\s*\{\s*limit,/,
+    "the Web route should delegate its validated input and initial-fetch adapter to the shared command",
+  );
+  assert.match(
+    application,
+    /await deps\.initialFetch\(actor\.userId,\s*feed,\s*input\.initialEntryLimit\)/,
     "the validated per-add limit should control only the synchronous initial RSS import",
   );
-  assert.doesNotMatch(route, /addFeedFetchJob|enqueueFeedFetch|after\(/);
+  assert.doesNotMatch(`${route}\n${application}`, /addFeedFetchJob|enqueueFeedFetch|after\(/);
   assert.match(route, /initialFetch/);
   assert.match(route, /existing:\s*false/);
   assert.match(route, /existing:\s*(?:true|false)/, "callers should be able to distinguish existing feeds from new records");

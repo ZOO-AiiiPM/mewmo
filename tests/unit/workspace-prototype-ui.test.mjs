@@ -2031,14 +2031,17 @@ test("note metadata tag picker is removed", () => {
 
 test("clip creation persists fetched source metadata while reserving summary for AI", () => {
   const clipRoute = read("apps/web/src/app/api/clips/route.ts");
+  const application = read("packages/application/src/url-capture-service.ts");
   const refreshRoute = read("apps/web/src/app/api/clips/[id]/route.ts");
 
-  assert.match(clipRoute, /await fetchClipFromUrl\(parsed\.data\.url\)/);
-  assert.match(clipRoute, /summary:\s*null/);
+  assert.match(clipRoute, /createUrlCaptureService\(\{[\s\S]*fetchClip:\s*fetchClipFromUrl/);
+  assert.match(clipRoute, /capture\.saveClip\([\s\S]*parsed\.data\.url/);
+  assert.match(application, /article = await \(options\.fetchClip \?\? fetchArticleFromUrl\)\(url\)/);
+  assert.match(application, /summary:\s*null/);
   for (const field of ["favicon", "coverImage", "excerpt", "sourceName", "author", "publishedAt"]) {
     assert.match(
-      clipRoute,
-      new RegExp(`${field}:\\s*fetched\\.${field}\\s*\\?\\?\\s*null`),
+      application,
+      new RegExp(`${field}:\\s*article\\.${field}\\s*\\?\\?\\s*null`),
       `${field} should be a concrete fetched value or null`,
     );
   }
