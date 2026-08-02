@@ -88,6 +88,7 @@ targets:
       - path: Sources/Image    # ZOO-92 图片缓存基础设施（Nuke composition）
       - path: Sources/Auth     # ZOO-93 原生 bearer session / Keychain 基础设施
       - path: Sources/Sync     # ZOO-95 local-first pull/push coordinator
+      - path: Sources/MacShell # ZOO-94 macOS local-preview shell
       - path: Tests
       # canonical sync fixtures（仓库内单一副本，不复制）：作为资源打进 test bundle。
       - path: ../../packages/sync/src/fixtures
