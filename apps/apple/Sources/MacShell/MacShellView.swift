@@ -67,19 +67,21 @@ enum MacShellPreview {
 enum MacShellPalette {
     static let darkCanvas: UInt32 = 0x232327
     static let darkSurface: UInt32 = 0x161719
+    static let darkSelected: UInt32 = 0x2E2F34
     static let darkText: UInt32 = 0xEDEDF1
     static let darkSecondaryText: UInt32 = 0x9A9AA1
     static let darkLine: UInt32 = 0x494A52
 
     static let lightCanvas: UInt32 = 0xF7F7F7
     static let lightSurface: UInt32 = 0xFFFFFF
+    static let lightSelected: UInt32 = 0xE8E8E8
     static let lightText: UInt32 = 0x1D1D1F
     static let lightSecondaryText: UInt32 = 0x5E5E64
     static let lightLine: UInt32 = 0xD8D8D8
 
     static let neutralTokens = [
-        darkCanvas, darkSurface, darkText, darkSecondaryText, darkLine,
-        lightCanvas, lightSurface, lightText, lightSecondaryText, lightLine
+        darkCanvas, darkSurface, darkSelected, darkText, darkSecondaryText, darkLine,
+        lightCanvas, lightSurface, lightSelected, lightText, lightSecondaryText, lightLine
     ]
 
     static func canvas(for scheme: ColorScheme) -> Color {
@@ -88,6 +90,10 @@ enum MacShellPalette {
 
     static func surface(for scheme: ColorScheme) -> Color {
         Color(rgb: scheme == .dark ? darkSurface : lightSurface)
+    }
+
+    static func selected(for scheme: ColorScheme) -> Color {
+        Color(rgb: scheme == .dark ? darkSelected : lightSelected)
     }
 
     static func text(for scheme: ColorScheme) -> Color {
@@ -107,10 +113,8 @@ struct MacShellView: View {
     @Environment(\.colorScheme) private var systemColorScheme
     @AppStorage("mac-shell-theme") private var appearance = MacShellAppearance.system.rawValue
     @FocusState private var searchIsFocused: Bool
-    @State private var section: MacShellSection? = .home
-    @State private var selectedItemID: String? = MacShellPreview.items.first?.id
+    @State private var workspace = MacShellWorkspace(initialSelectedItemID: MacShellPreview.items.first?.id)
     @State private var previewState = MacShellPreviewState.loaded
-    @State private var searchQuery = ""
 
     private var selectedAppearance: MacShellAppearance {
         MacShellAppearance(rawValue: appearance) ?? .system
@@ -120,7 +124,12 @@ struct MacShellView: View {
         selectedAppearance.colorScheme ?? systemColorScheme
     }
 
+    private var activeTab: MacShellTab? {
+        workspace.activeTab
+    }
+
     private var displayedItems: [MacShellItem] {
+        let searchQuery = activeTab?.searchQuery ?? ""
         guard !searchQuery.isEmpty else { return MacShellPreview.items }
         return MacShellPreview.items.filter {
             $0.title.localizedCaseInsensitiveContains(searchQuery)
@@ -129,10 +138,59 @@ struct MacShellView: View {
     }
 
     private var selectedItem: MacShellItem? {
-        MacShellPreview.items.first { $0.id == selectedItemID }
+        MacShellPreview.items.first { $0.id == activeTab?.selectedItemID }
+    }
+
+    private var sectionBinding: Binding<MacShellSection?> {
+        Binding(
+            get: { activeTab?.section },
+            set: { section in workspace.updateActive { $0.section = section } }
+        )
+    }
+
+    private var itemSelectionBinding: Binding<String?> {
+        Binding(
+            get: { activeTab?.selectedItemID },
+            set: { itemID in workspace.updateActive { $0.selectedItemID = itemID } }
+        )
+    }
+
+    private var searchBinding: Binding<String> {
+        Binding(
+            get: { activeTab?.searchQuery ?? "" },
+            set: { query in workspace.updateActive { $0.searchQuery = query } }
+        )
+    }
+
+    private func showLocalPreview() {
+        if activeTab == nil {
+            workspace.addTab()
+        }
+        previewState = .loaded
+        workspace.updateActive { $0.selectedItemID = MacShellPreview.items.first?.id }
     }
 
     var body: some View {
+        VStack(spacing: 0) {
+            tabStrip
+            Divider()
+                .overlay(MacShellPalette.line(for: activeColorScheme))
+
+            if activeTab != nil {
+                splitView
+            } else {
+                ContentUnavailableView("No workspace tabs", systemImage: "rectangle.stack.badge.plus", description: Text("Create a local workspace tab to continue."))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .tint(MacShellPalette.text(for: activeColorScheme))
+        .preferredColorScheme(selectedAppearance.colorScheme)
+        .background(MacShellPalette.canvas(for: activeColorScheme))
+        .toolbar { toolbarContent }
+        .frame(minWidth: 990, minHeight: 480)
+    }
+
+    private var splitView: some View {
         NavigationSplitView {
             sidebar
         } content: {
@@ -141,15 +199,63 @@ struct MacShellView: View {
             detailColumn
         }
         .navigationSplitViewStyle(.balanced)
-        .tint(MacShellPalette.text(for: activeColorScheme))
-        .preferredColorScheme(selectedAppearance.colorScheme)
-        .background(MacShellPalette.canvas(for: activeColorScheme))
-        .toolbar { toolbarContent }
-        .frame(minWidth: 990, minHeight: 480)
+    }
+
+    private var tabStrip: some View {
+        HStack(spacing: 8) {
+            Button {
+                workspace.addTab()
+            } label: {
+                Label("New tab", systemImage: "plus")
+            }
+            .buttonStyle(.borderless)
+            .help("New tab")
+
+            Divider()
+                .frame(height: 18)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 4) {
+                    ForEach(workspace.tabs) { tab in
+                        tabButton(tab)
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 8)
+        .frame(height: 36)
+        .background(MacShellPalette.surface(for: activeColorScheme))
+        .accessibilityElement(children: .contain)
+    }
+
+    private func tabButton(_ tab: MacShellTab) -> some View {
+        HStack(spacing: 4) {
+            Button {
+                workspace.activate(tab.id)
+            } label: {
+                Label(tab.title, systemImage: tab.symbol)
+                    .lineLimit(1)
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                workspace.close(tab.id)
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+            }
+            .buttonStyle(.borderless)
+            .help("Close \(tab.title)")
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(
+            RoundedRectangle(cornerRadius: 5)
+                .fill(tab.id == workspace.activeTabID ? MacShellPalette.selected(for: activeColorScheme) : .clear)
+        )
     }
 
     private var sidebar: some View {
-        List(MacShellSection.allCases, selection: $section) { section in
+        List(MacShellSection.allCases, selection: sectionBinding) { section in
             Label(section.title, systemImage: section.symbol)
                 .tag(section)
         }
@@ -162,7 +268,7 @@ struct MacShellView: View {
 
     private var listColumn: some View {
         VStack(spacing: 0) {
-            TextField("Search local preview", text: $searchQuery)
+            TextField("Search local preview", text: searchBinding)
                 .textFieldStyle(.roundedBorder)
                 .focused($searchIsFocused)
                 .padding(12)
@@ -172,7 +278,7 @@ struct MacShellView: View {
 
             listBody
         }
-        .navigationTitle(section?.title ?? "Workspace")
+        .navigationTitle(activeTab?.section?.title ?? "Workspace")
         .background(MacShellPalette.surface(for: activeColorScheme))
         .navigationSplitViewColumnWidth(min: 260, ideal: 312, max: 360)
         .accessibilityElement(children: .contain)
@@ -182,7 +288,7 @@ struct MacShellView: View {
     private var listBody: some View {
         switch previewState {
         case .loaded:
-            List(displayedItems, selection: $selectedItemID) { item in
+            List(displayedItems, selection: itemSelectionBinding) { item in
                 VStack(alignment: .leading, spacing: 4) {
                     Text(item.title)
                         .font(.headline)
@@ -242,8 +348,22 @@ struct MacShellView: View {
     private var toolbarContent: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
             Button {
-                previewState = .loaded
-                selectedItemID = MacShellPreview.items.first?.id
+                workspace.addTab()
+            } label: {
+                Label("New tab", systemImage: "plus")
+            }
+            .keyboardShortcut("t", modifiers: .command)
+
+            Button {
+                workspace.closeActiveTab()
+            } label: {
+                Label("Close tab", systemImage: "xmark")
+            }
+            .keyboardShortcut("w", modifiers: .command)
+            .disabled(activeTab == nil)
+
+            Button {
+                showLocalPreview()
             } label: {
                 Label("New local preview", systemImage: "square.and.pencil")
             }
@@ -255,6 +375,41 @@ struct MacShellView: View {
                 Label("Search", systemImage: "magnifyingglass")
             }
             .keyboardShortcut("f", modifiers: .command)
+
+            Menu {
+                Button("Next tab") {
+                    workspace.cycle(forward: true)
+                }
+                .keyboardShortcut(.tab, modifiers: .control)
+
+                Button("Previous tab") {
+                    workspace.cycle(forward: false)
+                }
+                .keyboardShortcut(.tab, modifiers: [.control, .shift])
+
+                Divider()
+
+                Button("Switch to tab 1") { workspace.activate(position: 1) }
+                    .keyboardShortcut("1", modifiers: .command)
+                Button("Switch to tab 2") { workspace.activate(position: 2) }
+                    .keyboardShortcut("2", modifiers: .command)
+                Button("Switch to tab 3") { workspace.activate(position: 3) }
+                    .keyboardShortcut("3", modifiers: .command)
+                Button("Switch to tab 4") { workspace.activate(position: 4) }
+                    .keyboardShortcut("4", modifiers: .command)
+                Button("Switch to tab 5") { workspace.activate(position: 5) }
+                    .keyboardShortcut("5", modifiers: .command)
+                Button("Switch to tab 6") { workspace.activate(position: 6) }
+                    .keyboardShortcut("6", modifiers: .command)
+                Button("Switch to tab 7") { workspace.activate(position: 7) }
+                    .keyboardShortcut("7", modifiers: .command)
+                Button("Switch to tab 8") { workspace.activate(position: 8) }
+                    .keyboardShortcut("8", modifiers: .command)
+                Button("Switch to tab 9") { workspace.activate(position: 9) }
+                    .keyboardShortcut("9", modifiers: .command)
+            } label: {
+                Label("Tabs", systemImage: "rectangle.stack")
+            }
 
             Menu {
                 Picker("Preview state", selection: $previewState) {
