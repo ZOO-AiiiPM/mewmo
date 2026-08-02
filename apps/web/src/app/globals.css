@@ -1040,8 +1040,9 @@ html.light .mewmo-sidebar {
   font-size: 12.5px;
 }
 
-.mewmo-sidebar__group-head .mewmo-nav-row--group {
+.mewmo-sidebar__group-head > .mewmo-nav-row--group {
   padding-left: 32px;
+  font-size: 12.5px;
 }
 
 .mewmo-sidebar__group-head .mewmo-nav-row--group > .mewmo-nav-row__chevron {
@@ -1092,14 +1093,6 @@ html.light .mewmo-sidebar {
   color: var(--ink-soft);
   font-size: 10px;
   font-weight: 800;
-}
-
-/* Keep the primary sidebar's narrow idle glyphs in the shared painted frame. */
-.mewmo-nav-row:not(.mewmo-nav-row--active) .mewmo-nav-row__icon--primary[data-icon="cat"] .mewmo-prototype-icon,
-.mewmo-nav-row:not(.mewmo-nav-row--active) .mewmo-nav-row__icon--primary[data-icon="rss"] .mewmo-prototype-icon,
-.mewmo-nav-row:not(.mewmo-nav-row--active) .mewmo-nav-row__icon--primary[data-icon="trash"] .mewmo-prototype-icon,
-.mewmo-nav-row--active .mewmo-nav-row__icon--primary[data-icon="trash"] .mewmo-prototype-icon {
-  transform: scaleX(1.1667);
 }
 
 .mewmo-nav-row__label {
