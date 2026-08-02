@@ -584,8 +584,20 @@ html.light .crepe-editor-wrapper .milkdown {
   list-style: none;
 }
 
+.crepe-editor-wrapper .mewmo-block-style-menu .menu-groups {
+  max-height: min(300px, calc(100vh - 93px));
+  overflow-y: auto;
+}
+
+.crepe-editor-wrapper .mewmo-block-style-menu__actions {
+  margin: 0;
+  padding: 0 7px 7px;
+  list-style: none;
+}
+
 .crepe-editor-wrapper .milkdown .milkdown-slash-menu .menu-groups .menu-group li,
-.crepe-editor-wrapper .mewmo-block-style-menu .menu-groups .menu-group li {
+.crepe-editor-wrapper .mewmo-block-style-menu .menu-groups .menu-group li,
+.crepe-editor-wrapper .mewmo-block-style-menu__actions li {
   display: flex;
   min-width: 0;
   align-items: center;
@@ -599,12 +611,14 @@ html.light .crepe-editor-wrapper .milkdown {
 .crepe-editor-wrapper .milkdown .milkdown-slash-menu .menu-groups .menu-group li.active,
 .crepe-editor-wrapper .mewmo-block-style-menu .menu-groups .menu-group li:hover,
 .crepe-editor-wrapper .mewmo-block-style-menu .menu-groups .menu-group li.active,
-.crepe-editor-wrapper .mewmo-block-style-menu .menu-groups .menu-group li[data-mewmo-active="true"] {
+.crepe-editor-wrapper .mewmo-block-style-menu .menu-groups .menu-group li[data-mewmo-active="true"],
+.crepe-editor-wrapper .mewmo-block-style-menu__actions li:hover {
   background: var(--accent-2, var(--color-moss-2));
 }
 
 .crepe-editor-wrapper .milkdown .milkdown-slash-menu .menu-groups .menu-group li svg,
-.crepe-editor-wrapper .mewmo-block-style-menu .menu-groups .menu-group li svg {
+.crepe-editor-wrapper .mewmo-block-style-menu .menu-groups .menu-group li svg,
+.crepe-editor-wrapper .mewmo-block-style-menu__actions li svg {
   width: 16px;
   height: 16px;
   color: var(--ink-soft, var(--color-muted));
@@ -629,7 +643,8 @@ html.light .crepe-editor-wrapper .milkdown {
 }
 
 .crepe-editor-wrapper .milkdown .milkdown-slash-menu .menu-groups .menu-group li > span,
-.crepe-editor-wrapper .mewmo-block-style-menu .menu-groups .menu-group li > span:not(.mewmo-block-style-menu__icon, .mewmo-block-style-menu__check) {
+.crepe-editor-wrapper .mewmo-block-style-menu .menu-groups .menu-group li > span:not(.mewmo-block-style-menu__icon, .mewmo-block-style-menu__check),
+.crepe-editor-wrapper .mewmo-block-style-menu__actions li > span:not(.mewmo-block-style-menu__icon) {
   color: var(--ink, var(--color-ink));
   font-size: 12.5px;
   font-weight: 540;
@@ -658,23 +673,16 @@ html.light .crepe-editor-wrapper .milkdown {
   opacity: 1;
 }
 
-.crepe-editor-wrapper .mewmo-block-style-menu li[data-mewmo-delete-block][hidden] {
-  display: none;
-}
-
-.crepe-editor-wrapper .mewmo-block-style-menu li[data-mewmo-delete-block] {
-  margin-top: 6px;
-  border-top: 1px solid var(--line, var(--color-line));
-  border-radius: 0 0 7px 7px;
+.crepe-editor-wrapper .mewmo-block-style-menu__actions li[data-mewmo-delete-block] {
   color: var(--color-coral);
   cursor: pointer;
 }
 
-.crepe-editor-wrapper .mewmo-block-style-menu li[data-mewmo-delete-block]:hover {
+.crepe-editor-wrapper .mewmo-block-style-menu__actions li[data-mewmo-delete-block]:hover {
   background: color-mix(in srgb, var(--color-coral) 12%, transparent);
 }
 
-.crepe-editor-wrapper .mewmo-block-style-menu li[data-mewmo-delete-block] > span,
-.crepe-editor-wrapper .mewmo-block-style-menu li[data-mewmo-delete-block] svg {
+.crepe-editor-wrapper .mewmo-block-style-menu__actions li[data-mewmo-delete-block] > span,
+.crepe-editor-wrapper .mewmo-block-style-menu__actions li[data-mewmo-delete-block] svg {
   color: var(--color-coral);
 }

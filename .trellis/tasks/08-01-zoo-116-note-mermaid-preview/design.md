@@ -45,7 +45,7 @@ The integration belongs to the existing Crepe CodeMirror feature configuration i
 - Use Crepe's native `previewOnlyByDefault` configuration instead of adding custom editor state. Crepe only hides CodeMirror when a preview value exists, so non-Mermaid code blocks that return `null` remain source-visible.
 - ZOO-118 tracks the dark-label and default-preview findings inside the same ZOO-116 branch, worktree delivery unit, and PR #71.
 - ZOO-120 tracks two Crepe lifecycle regressions in the same delivery unit. Capture unmodified Enter only when it originates from `.codemirror-host.hidden`, reuse ProseMirror `exitCode`, and handle a selected code-block node by moving to or creating the following paragraph. Hide the lazy placeholder visually while retaining its layout box so note switches cannot expose transient source.
-- ZOO-121 adds a code-only destructive row to the existing block style menu. Reuse `PROTOTYPE_ACTION_ICONS.del`, delete the selected `code_block` with a normal ProseMirror transaction so history retains Undo, and hide the row for every other block type.
+- ZOO-121 adds one destructive row to every block style menu. Capture the structural delete range when the menu opens: current list item for lists, outer quote for quotes, whole table for tables, and the current node for text, heading, and code. Reuse the existing trash icon, use `deleteRange` so invalid empty wrappers are expanded safely, and keep the transaction in history. Delete is a fixed footer outside the scrollable style list, inherits the same item geometry, and uses a selector at least as specific as the base menu rule for its danger color; this keeps the action visible at high zoom and short viewport heights.
 
 ## Rollback
 

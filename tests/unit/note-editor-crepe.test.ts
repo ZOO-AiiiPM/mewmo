@@ -33,9 +33,19 @@ describe("note editor Crepe configuration", () => {
     );
   });
 
-  it("styles the code-block delete menu action as destructive", () => {
+  it("keeps the block delete action destructive, aligned, and visible", () => {
+    const deleteRule = theme.match(
+      /\.mewmo-block-style-menu__actions li\[data-mewmo-delete-block\]\s*\{([^}]*)\}/,
+    )?.[1] ?? "";
+
+    expect(deleteRule).toContain("color: var(--color-coral)");
+    expect(deleteRule).not.toMatch(/margin|padding|border|height/);
     expect(theme).toMatch(
-      /li\[data-mewmo-delete-block\][\s\S]*color:\s*var\(--color-coral\)/,
+      /\.mewmo-block-style-menu \.menu-groups\s*\{[^}]*max-height:\s*min\(300px, calc\(100vh - 93px\)\)[^}]*overflow-y:\s*auto/,
+    );
+    expect(theme).toMatch(/\.mewmo-block-style-menu__actions\s*\{[^}]*padding:\s*0 7px 7px/);
+    expect(theme).toMatch(
+      /\.mewmo-block-style-menu__actions li\[data-mewmo-delete-block\] > span,[\s\S]*\.mewmo-block-style-menu__actions li\[data-mewmo-delete-block\] svg\s*\{[^}]*color:\s*var\(--color-coral\)/,
     );
   });
 

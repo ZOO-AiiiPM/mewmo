@@ -26,7 +26,7 @@
 10. 自动保存与重开笔记后，原始 fenced Markdown 保持不变并重新得到预览。
 11. 默认预览态的隐藏 CodeMirror 不得吞掉普通 Enter；一次 Enter 必须进入代码块后的正文段落，而可见源码编辑、IME composing 和带修饰键 Enter 保持原行为。
 12. 切换笔记时不得短暂显示 Crepe 懒初始化 placeholder 中的 Mermaid 源码或 inline-code 红色闪帧。
-13. 代码块的 block style 菜单必须提供带现有 trash icon 的红色 Delete；仅对代码块显示，点击一次删除整块，并保留 Undo 恢复能力。
+13. 所有 block style 菜单必须提供与普通选项同尺寸、无遮挡、带现有 trash icon 的红色 Delete；删除打开菜单时锁定的结构块，覆盖普通单行、标题、引用、列表项、代码块和表格，并保留 Undo。
 
 ## Out Of Scope
 
@@ -50,5 +50,5 @@
 - [ ] 保存并重开后 Markdown 不变，预览恢复。
 - [ ] 默认预览态按一次 Enter 可进入下一正文段落；可见源码、IME 和修饰键行为不变。
 - [ ] 切换包含 Mermaid 的笔记时不显示源码占位闪帧。
-- [ ] 代码块菜单中的红色 Delete 可一次删除整块，非代码块不显示，并可 Undo 恢复。
+- [ ] 普通单行、标题、引用、列表项、代码块和表格菜单均显示同尺寸、无遮挡的红色 Delete；一次删除正确结构块并可 Undo 恢复。
 - [ ] 相关单元测试、Web lint、theme check、生产 build 与浏览器验收通过。

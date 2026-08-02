@@ -99,6 +99,8 @@ interface BlockStyleMenuTarget {
   position: number;
   currentKey: BlockStyleMenuItemKey;
   selectionType: "node" | "text";
+  deleteFrom: number;
+  deleteTo: number;
 }
 
 export function shouldBlockSelectionDrag(selection: Pick<Selection, "empty">, isTextSelection = true) {
@@ -342,6 +344,26 @@ function getPathTableDepth(path: BlockStyleNodePath) {
   return index < 0 ? null : index + 1;
 }
 
+export function resolveBlockStyleDeleteDepth(
+  path: BlockStyleNodePath,
+  currentKey: BlockStyleMenuItemKey,
+) {
+  const outerDepth = (typeName: string) => {
+    const index = path.findIndex((node) => node.typeName === typeName);
+    return index < 0 ? null : index + 1;
+  };
+
+  if (currentKey === "table") return outerDepth("table");
+  if (currentKey === "quote") return outerDepth("blockquote");
+  if (isListBlockStyle(currentKey)) {
+    for (let index = path.length - 1; index >= 0; index -= 1) {
+      if (path[index]?.typeName === "list_item") return index + 1;
+    }
+    return null;
+  }
+  return path.length || null;
+}
+
 function getBlockStyleMenuTargetFromResolvedPos(
   $pos: Selection["$from"],
   preferredKey: BlockStyleMenuItemKey | null,
@@ -357,16 +379,32 @@ function getBlockStyleMenuTargetFromResolvedPos(
 
   const stableCurrentKey = preferredKey ?? currentKey;
   if (!stableCurrentKey) return null;
+  const deleteDepth = resolveBlockStyleDeleteDepth(path, stableCurrentKey);
+  if (!deleteDepth) return null;
+  const deleteRange = {
+    deleteFrom: $pos.before(deleteDepth),
+    deleteTo: $pos.after(deleteDepth),
+  };
 
   const tableDepth = getPathTableDepth(path);
   if (stableCurrentKey === "table" && tableDepth) {
-    return { position: $pos.before(tableDepth), currentKey: stableCurrentKey, selectionType: "node" };
+    return {
+      position: $pos.before(tableDepth),
+      currentKey: stableCurrentKey,
+      selectionType: "node",
+      ...deleteRange,
+    };
   }
 
   for (let depth = $pos.depth; depth > 0; depth -= 1) {
     const node = $pos.node(depth);
     if (shouldOpenBlockStyleMenuForNode(node.type.name, node.isTextblock)) {
-      return { position: $pos.end(depth), currentKey: stableCurrentKey, selectionType: "text" };
+      return {
+        position: $pos.end(depth),
+        currentKey: stableCurrentKey,
+        selectionType: "text",
+        ...deleteRange,
+      };
     }
   }
 
@@ -509,12 +547,15 @@ function exitHiddenCodeBlock(view: EditorView) {
   return true;
 }
 
-function deleteSelectedCodeBlock(view: EditorView) {
-  const { selection } = view.state;
-  if (!(selection instanceof NodeSelection) || selection.node.type.name !== "code_block") return false;
+function deleteTargetBlock(
+  view: EditorView,
+  { deleteFrom, deleteTo }: Pick<BlockStyleMenuTarget, "deleteFrom" | "deleteTo">,
+) {
+  if (deleteFrom < 0 || deleteFrom >= deleteTo || deleteTo > view.state.doc.content.size) return false;
 
-  const tr = view.state.tr.delete(selection.from, selection.to);
-  tr.setSelection(TextSelection.near(tr.doc.resolve(Math.min(selection.from, tr.doc.content.size))));
+  const tr = view.state.tr.deleteRange(deleteFrom, deleteTo);
+  if (!tr.docChanged) return false;
+  tr.setSelection(TextSelection.near(tr.doc.resolve(Math.min(deleteFrom, tr.doc.content.size))));
   view.dispatch(tr);
   return true;
 }
@@ -656,24 +697,28 @@ function createBlockStyleMenu(ctx: Ctx, view: EditorView) {
     ...blockStyleMenuItems.map((item) => (
       `<li data-mewmo-block-style="${item.key}" data-mewmo-active="false"><span class="mewmo-block-style-menu__icon">${getBlockStyleMenuIconSvg(item.icon)}</span><span>${item.label}</span><span class="mewmo-block-style-menu__check">${getBlockStyleMenuCheckSvg()}</span></li>`
     )),
-    `<li data-mewmo-delete-block hidden><span class="mewmo-block-style-menu__icon">${getBlockDeleteIconSvg()}</span><span>Delete</span></li>`,
     "</ul>",
     "</div>",
     "</div>",
+    '<ul class="mewmo-block-style-menu__actions">',
+    `<li data-mewmo-delete-block><span class="mewmo-block-style-menu__icon">${getBlockDeleteIconSvg()}</span><span>Delete</span></li>`,
+    "</ul>",
   ].join("");
 
   const hide = () => {
     menu.dataset.show = "false";
+    activeDeleteTarget = null;
   };
 
-  const show = (left: number, top: number, currentKey: BlockStyleMenuItemKey | null) => {
+  let activeDeleteTarget: Pick<BlockStyleMenuTarget, "deleteFrom" | "deleteTo"> | null = null;
+
+  const show = (left: number, top: number, target: BlockStyleMenuTarget) => {
     menu.querySelectorAll<HTMLElement>("[data-mewmo-block-style]").forEach((item) => {
-      const isActive = item.dataset.mewmoBlockStyle === currentKey;
+      const isActive = item.dataset.mewmoBlockStyle === target.currentKey;
       item.dataset.mewmoActive = isActive ? "true" : "false";
       item.setAttribute("aria-current", isActive ? "true" : "false");
     });
-    const deleteItem = menu.querySelector<HTMLElement>("[data-mewmo-delete-block]");
-    if (deleteItem) deleteItem.hidden = currentKey !== "code";
+    activeDeleteTarget = target;
     const position = getBlockStyleMenuPosition({
       left,
       top,
@@ -706,7 +751,7 @@ function createBlockStyleMenu(ctx: Ctx, view: EditorView) {
     const deleteItem = target.closest("[data-mewmo-delete-block]");
     if (deleteItem instanceof HTMLElement) {
       event.preventDefault();
-      deleteSelectedCodeBlock(view);
+      if (activeDeleteTarget) deleteTargetBlock(view, activeDeleteTarget);
       hide();
       view.focus();
       return;
@@ -835,7 +880,7 @@ export const editorInteractions = $prose(
 
           view.focus();
           applySelectionForBlockStyleTarget(view, menuTarget);
-          blockStyleMenu.show(pointerEvent.clientX + 8, pointerEvent.clientY + 8, menuTarget.currentKey);
+          blockStyleMenu.show(pointerEvent.clientX + 8, pointerEvent.clientY + 8, menuTarget);
         };
 
         root.addEventListener("pointerdown", handlePointerDown, { capture: true });

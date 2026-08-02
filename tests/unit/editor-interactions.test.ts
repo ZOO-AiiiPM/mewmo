@@ -10,6 +10,7 @@ import {
   getBlockStyleMenuItemKeys,
   getBlockStyleMenuPosition,
   resolveBlockStyleKey,
+  resolveBlockStyleDeleteDepth,
   resolveBlockStyleMenuAction,
   shouldOpenBlockStyleMenuFromHandle,
   shouldOpenInsertMenuAtCurrentEmptyBlock,
@@ -124,20 +125,42 @@ describe("editor interactions", () => {
     expect(getBlockStyleMenuCheckSvg()).toContain("currentColor");
   });
 
-  it("reuses the project trash icon for the code-block delete action", () => {
+  it("reuses the project trash icon for the block delete action", () => {
     expect(getBlockDeleteIconSvg()).toContain("<svg");
     expect(getBlockDeleteIconSvg()).toContain("currentColor");
   });
 
-  it("deletes the selected code block in one undoable transaction", () => {
-    const source = readFileSync("apps/web/src/components/editor/editor-interactions.ts", "utf8");
+  it("resolves the structural delete target for every block style", () => {
+    expect(resolveBlockStyleDeleteDepth([{ typeName: "paragraph" }], "text")).toBe(1);
+    expect(resolveBlockStyleDeleteDepth([{ typeName: "heading" }], "h1")).toBe(1);
+    expect(resolveBlockStyleDeleteDepth([{ typeName: "code_block" }], "code")).toBe(1);
+    expect(resolveBlockStyleDeleteDepth([
+      { typeName: "blockquote" },
+      { typeName: "paragraph" },
+    ], "quote")).toBe(1);
+    expect(resolveBlockStyleDeleteDepth([
+      { typeName: "bullet_list" },
+      { typeName: "list_item" },
+      { typeName: "paragraph" },
+    ], "bullet-list")).toBe(2);
+    expect(resolveBlockStyleDeleteDepth([
+      { typeName: "table" },
+      { typeName: "table_row" },
+      { typeName: "table_cell" },
+      { typeName: "paragraph" },
+    ], "table")).toBe(1);
+  });
 
+  it("deletes the menu-open target range in one undoable transaction", () => {
+    const source = readFileSync("apps/web/src/components/editor/editor-interactions.ts", "utf8");
     expect(source).toMatch(
-      /function deleteSelectedCodeBlock[\s\S]*selection\.node\.type\.name !== "code_block"[\s\S]*tr\.delete\(selection\.from, selection\.to\)[\s\S]*view\.dispatch\(tr\)/,
+      /function deleteTargetBlock[\s\S]*tr\.deleteRange\(deleteFrom, deleteTo\)[\s\S]*view\.dispatch\(tr\)/,
     );
     expect(source).not.toMatch(
-      /function deleteSelectedCodeBlock[\s\S]{0,600}addToHistory["'],\s*false/,
+      /function deleteTargetBlock[\s\S]{0,800}addToHistory["'],\s*false/,
     );
+    expect(source).toContain("<li data-mewmo-delete-block>");
+    expect(source).not.toContain("<li data-mewmo-delete-block hidden>");
   });
 
   it("keeps the block style popup inside the viewport when opened near an edge", () => {

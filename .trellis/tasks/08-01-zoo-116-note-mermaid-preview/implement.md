@@ -23,9 +23,10 @@
 
 ## Acceptance Fix: ZOO-121
 
-1. Add a code-only Delete row to the existing block style menu using the project's existing trash SVG and semantic destructive color.
-2. Delete the selected code-block node with one ProseMirror transaction so editor Undo remains available.
-3. Add focused icon/style checks, then update the existing PR #71.
+1. Show one Delete row in every block style menu using the project's existing trash SVG and semantic destructive color.
+2. Capture the structural range at menu-open time and delete it with one history-tracked ProseMirror `deleteRange` transaction across text, heading, quote, list item, code, and table targets.
+3. Keep Delete geometry identical to other rows, raise its color selector above the base menu rule, and place it in a fixed footer below the scrollable style list so short/high-zoom viewports cannot hide it.
+4. Add focused target-range, transaction-contract, color, geometry, and menu-height checks, then update the existing PR #71.
 
 ## Review Gates
 
