@@ -16,7 +16,7 @@ import {
   wrapInBlockTypeCommand,
 } from "@milkdown/kit/preset/commonmark";
 import { createTable } from "@milkdown/kit/preset/gfm";
-import { joinTextblockBackward, lift } from "@milkdown/kit/prose/commands";
+import { exitCode, joinTextblockBackward, lift } from "@milkdown/kit/prose/commands";
 import { NodeSelection, Plugin, TextSelection } from "@milkdown/kit/prose/state";
 import { liftListItem } from "@milkdown/kit/prose/schema-list";
 import type { Selection } from "@milkdown/kit/prose/state";
@@ -26,6 +26,7 @@ const emptyAddHandleSelector = ".milkdown-block-handle[data-mewmo-mode=\"add\"] 
 const blockStyleHandleSelector = ".milkdown-block-handle[data-mewmo-mode=\"drag\"] .operation-item:nth-child(2)";
 const blockHandleSelector = ".milkdown-block-handle";
 const editorWrapperSelector = ".crepe-editor-wrapper";
+const hiddenCodeMirrorSelector = ".codemirror-host.hidden";
 const blockStyleClickDistance = 8;
 const blockStyleTargetSelector = [
   ".milkdown-code-block",
@@ -101,6 +102,21 @@ interface BlockStyleMenuTarget {
 
 export function shouldBlockSelectionDrag(selection: Pick<Selection, "empty">, isTextSelection = true) {
   return isTextSelection && !selection.empty;
+}
+
+export function shouldExitHiddenCodeBlockOnEnter(
+  event: Pick<KeyboardEvent, "key" | "isComposing" | "altKey" | "ctrlKey" | "metaKey" | "shiftKey">,
+  hasHiddenCodeMirror: boolean,
+) {
+  return (
+    hasHiddenCodeMirror &&
+    event.key === "Enter" &&
+    !event.isComposing &&
+    !event.altKey &&
+    !event.ctrlKey &&
+    !event.metaKey &&
+    !event.shiftKey
+  );
 }
 
 export function shouldClearEmptyHeadingFormat(parentTypeName: string, parentContentSize: number, selectionEmpty: boolean) {
@@ -465,6 +481,42 @@ function replaceSelectionWithParagraph(ctx: Ctx, view: EditorView) {
   view.dispatch(tr);
 }
 
+function exitHiddenCodeBlock(view: EditorView) {
+  if (exitCode(view.state, view.dispatch)) return true;
+
+  const { selection } = view.state;
+  if (!(selection instanceof NodeSelection) || selection.node.type.name !== "code_block") return false;
+
+  const nextPosition = selection.to;
+  const nextNode = view.state.doc.resolve(nextPosition).nodeAfter;
+  if (nextNode?.isTextblock) {
+    view.dispatch(
+      view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(nextPosition + 1), 1)),
+    );
+    return true;
+  }
+
+  const paragraph = view.state.schema.nodes.paragraph?.createAndFill();
+  if (!paragraph) return false;
+  const tr = view.state.tr.insert(nextPosition, paragraph);
+  tr.setSelection(TextSelection.create(tr.doc, nextPosition + 1));
+  view.dispatch(tr);
+  return true;
+}
+
+function hasHiddenCodeMirror(view: EditorView, target: EventTarget | null) {
+  if (hasClosest(target) && target.closest(hiddenCodeMirrorSelector)) return true;
+
+  const { selection } = view.state;
+  const position = selection instanceof NodeSelection
+    ? selection.node.type.name === "code_block" ? selection.from : null
+    : selection.$from.parent.type.name === "code_block" ? selection.$from.before() : null;
+  if (position === null) return false;
+
+  const codeBlock = view.nodeDOM(position);
+  return codeBlock instanceof Element && Boolean(codeBlock.querySelector(hiddenCodeMirrorSelector));
+}
+
 function insertTableAtCurrentBlock(ctx: Ctx) {
   const commands = ctx.get(commandsCtx);
   const view = ctx.get(editorViewCtx);
@@ -677,6 +729,21 @@ export const editorInteractions = $prose(
         let blockStylePointerStart: BlockStylePointerStart | null = null;
         root.appendChild(blockStyleMenu.element);
 
+        const handlePreviewKeyDown = (event: Event) => {
+          const keyboardEvent = event as KeyboardEvent;
+          if (
+            !shouldExitHiddenCodeBlockOnEnter(
+              keyboardEvent,
+              hasHiddenCodeMirror(view, keyboardEvent.target),
+            ) ||
+            !exitHiddenCodeBlock(view)
+          ) return;
+
+          keyboardEvent.preventDefault();
+          keyboardEvent.stopImmediatePropagation();
+          view.focus();
+        };
+
         const handlePointerDown = (event: Event) => {
           if (markEmptyAddHandlePointer(event.target)) {
             const pointerEvent = event as PointerEvent;
@@ -746,11 +813,13 @@ export const editorInteractions = $prose(
 
         root.addEventListener("pointerdown", handlePointerDown, { capture: true });
         root.addEventListener("pointerup", handlePointerUp, { capture: true });
+        root.addEventListener("keydown", handlePreviewKeyDown, { capture: true });
 
         return {
           destroy() {
             root.removeEventListener("pointerdown", handlePointerDown, { capture: true });
             root.removeEventListener("pointerup", handlePointerUp, { capture: true });
+            root.removeEventListener("keydown", handlePreviewKeyDown, { capture: true });
             blockStyleMenu.destroy();
           },
         };

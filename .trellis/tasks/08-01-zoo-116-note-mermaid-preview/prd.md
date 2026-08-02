@@ -24,6 +24,8 @@
 8. 空 Mermaid 代码块不显示预览；语法错误在当前代码块内显示简短、可读、使用语义色的错误状态，不能产生未处理 Promise rejection 或破坏编辑器。
 9. 图表在深色与浅色主题中可读；主题变化后允许重渲染或使用稳定主题 token，但不得硬编码造成另一主题不可读的前景色。
 10. 自动保存与重开笔记后，原始 fenced Markdown 保持不变并重新得到预览。
+11. 默认预览态的隐藏 CodeMirror 不得吞掉普通 Enter；一次 Enter 必须进入代码块后的正文段落，而可见源码编辑、IME composing 和带修饰键 Enter 保持原行为。
+12. 切换笔记时不得短暂显示 Crepe 懒初始化 placeholder 中的 Mermaid 源码或 inline-code 红色闪帧。
 
 ## Out Of Scope
 
@@ -45,4 +47,6 @@
 - [ ] 流程图和时序图在深色、浅色主题下均可读。
 - [ ] Mermaid `foreignObject` 内的 HTML 标签文字在深色、浅色主题下均与节点背景保持清晰对比。
 - [ ] 保存并重开后 Markdown 不变，预览恢复。
+- [ ] 默认预览态按一次 Enter 可进入下一正文段落；可见源码、IME 和修饰键行为不变。
+- [ ] 切换包含 Mermaid 的笔记时不显示源码占位闪帧。
 - [ ] 相关单元测试、Web lint、theme check、生产 build 与浏览器验收通过。

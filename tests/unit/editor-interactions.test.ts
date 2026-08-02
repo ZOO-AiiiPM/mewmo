@@ -18,6 +18,7 @@ import {
   isEmptyAddHandleTarget,
   shouldClearEmptyHeadingFormat,
   shouldBlockSelectionDrag,
+  shouldExitHiddenCodeBlockOnEnter,
   shouldJoinFormattedBlockWithPrevious,
   shouldOpenBlockStyleMenuForNode,
 } from "../../apps/web/src/components/editor/editor-interactions";
@@ -27,6 +28,22 @@ describe("editor interactions", () => {
     expect(shouldBlockSelectionDrag({ empty: false })).toBe(true);
     expect(shouldBlockSelectionDrag({ empty: true })).toBe(false);
     expect(shouldBlockSelectionDrag({ empty: false }, false)).toBe(false);
+  });
+
+  it("exits only a hidden CodeMirror on an unmodified Enter", () => {
+    const event = {
+      key: "Enter",
+      isComposing: false,
+      altKey: false,
+      ctrlKey: false,
+      metaKey: false,
+      shiftKey: false,
+    };
+
+    expect(shouldExitHiddenCodeBlockOnEnter(event, true)).toBe(true);
+    expect(shouldExitHiddenCodeBlockOnEnter({ ...event, isComposing: true }, true)).toBe(false);
+    expect(shouldExitHiddenCodeBlockOnEnter({ ...event, shiftKey: true }, true)).toBe(false);
+    expect(shouldExitHiddenCodeBlockOnEnter(event, false)).toBe(false);
   });
 
   it("detects clicks on the empty-line add handle", () => {

@@ -135,6 +135,10 @@ html.light .crepe-editor-wrapper .milkdown {
   color: var(--ink, var(--color-ink));
 }
 
+.crepe-editor-wrapper .milkdown .milkdown-code-block .milkdown-code-block-placeholder {
+  visibility: hidden;
+}
+
 .crepe-editor-wrapper .milkdown .milkdown-code-block .cm-gutters,
 .crepe-editor-wrapper .milkdown .milkdown-code-block .cm-activeLineGutter {
   background: transparent;

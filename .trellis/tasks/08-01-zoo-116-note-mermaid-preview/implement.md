@@ -15,6 +15,12 @@
 2. Extend the existing scoped Mermaid preview styles to cover sanitized `foreignObject` HTML label descendants with semantic foreground color.
 3. Add source/CSS contract assertions, run focused tests, lint, theme check, production build, and update the existing PR #71.
 
+## Acceptance Fix: ZOO-120
+
+1. Capture unmodified Enter from a hidden CodeMirror host and route it through ProseMirror's existing code-block exit command, with a selected-node fallback for the following paragraph.
+2. Hide Crepe's lazy code-block placeholder content while preserving its layout footprint to remove the note-switch source flash.
+3. Add focused interaction and CSS regression checks, then update the existing PR #71.
+
 ## Review Gates
 
 - No CDN or server rendering.
