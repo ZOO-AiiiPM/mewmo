@@ -283,6 +283,11 @@ html.light .crepe-editor-wrapper .milkdown {
   color: var(--ink, var(--color-ink)) !important;
 }
 
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg foreignObject,
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg foreignObject * {
+  color: var(--ink, var(--color-ink)) !important;
+}
+
 .crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg .node rect,
 .crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg .node circle,
 .crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg .node ellipse,

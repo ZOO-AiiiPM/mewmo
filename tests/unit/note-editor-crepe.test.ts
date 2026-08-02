@@ -20,6 +20,13 @@ describe("note editor Crepe configuration", () => {
     expect(theme).not.toContain(".prosemirror-virtual-cursor");
   });
 
+  it("defaults Mermaid previews to hidden source while preserving readable HTML labels", () => {
+    expect(source).toContain("previewOnlyByDefault: true");
+    expect(theme).toMatch(
+      /\.preview svg foreignObject \*[\s\S]*color:\s*var\(--ink, var\(--color-ink\)\) !important/,
+    );
+  });
+
   it("keeps the editable blank paragraph after a code block visible", () => {
     expect(theme).not.toMatch(/\.milkdown-code-block \+ p(?::empty|:has\([^)]*\))?[\s\S]{0,180}(?:height|min-height):\s*0/);
     expect(theme).toMatch(/\.crepe-editor-wrapper \.milkdown \.ProseMirror \.milkdown-code-block \+ p\s*\{[\s\S]*min-height:\s*(?!0\b)[^;}]+/);

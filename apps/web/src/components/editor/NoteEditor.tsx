@@ -94,6 +94,7 @@ function CrepeContent({
           renderPreview: renderMermaidPreview,
           previewLabel: "图表预览",
           previewLoading: "正在生成图表…",
+          previewOnlyByDefault: true,
         },
         [Crepe.Feature.ImageBlock]: {
           onUpload: (file: File) => uploadNoteImage(noteId, file),

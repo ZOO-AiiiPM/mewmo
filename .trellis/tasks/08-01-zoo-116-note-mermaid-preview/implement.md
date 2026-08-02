@@ -9,6 +9,12 @@
 7. Start Web on an unoccupied port with the workspace `.env.local`. In the AO shared browser verify flowchart and sequence diagram rendering, source/preview toggle, ordinary code blocks, invalid-to-valid recovery, rapid edits, save/reopen, and dark/light themes at desktop and narrow widths.
 8. Self-review the complete diff, commit scoped files plus this Trellis task, push `codex/issue-ZOO-116-note-mermaid-preview`, open one PR with title prefix `issue-116:`, and move Linear ZOO-116 to In Review only after checks pass.
 
+## Acceptance Fix: ZOO-118
+
+1. Set Crepe CodeMirror `previewOnlyByDefault: true`; verify non-Mermaid blocks remain source-visible because their renderer result is `null`.
+2. Extend the existing scoped Mermaid preview styles to cover sanitized `foreignObject` HTML label descendants with semantic foreground color.
+3. Add source/CSS contract assertions, run focused tests, lint, theme check, production build, and update the existing PR #71.
+
 ## Review Gates
 
 - No CDN or server rendering.

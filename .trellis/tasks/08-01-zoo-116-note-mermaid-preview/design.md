@@ -36,8 +36,14 @@ The integration belongs to the existing Crepe CodeMirror feature configuration i
 ## Theme And Compatibility
 
 - Prefer Mermaid theme variables derived from current semantic colors or a neutral base that is verified in both application themes.
+- Cover both SVG text nodes and Mermaid's sanitized `foreignObject` HTML labels with scoped semantic-color CSS; Mermaid's base theme can otherwise leave inline dark label colors unreadable on the dark node surface.
 - Theme changes must trigger a correct preview on the currently mounted editor; do not require a page reload.
 - Preserve existing fenced Markdown and Milkdown serialization so old notes remain compatible and removing the feature is a UI-only rollback.
+
+## Acceptance Feedback
+
+- Use Crepe's native `previewOnlyByDefault` configuration instead of adding custom editor state. Crepe only hides CodeMirror when a preview value exists, so non-Mermaid code blocks that return `null` remain source-visible.
+- ZOO-118 tracks the dark-label and default-preview findings inside the same ZOO-116 branch, worktree delivery unit, and PR #71.
 
 ## Rollback
 
