@@ -16,11 +16,7 @@ test("一级侧边栏入口共用分组标题的 icon 和 label 对齐列", () =
   assert.match(css, /\.mewmo-sidebar__group-head > \.mewmo-nav-row--group\s*\{[\s\S]*?font-size: 12\.5px;/);
   assert.match(css, /\.mewmo-sidebar__group-head \.mewmo-nav-row--group > \.mewmo-nav-row__chevron\s*\{\s*position: absolute;\s*left: 6px;/);
   assert.match(sidebar, /<span className="mewmo-nav-row__label">\{title\}<\/span>/);
-  assert.match(sidebar, /name=\{icon\} dual opticalAlign="sidebar-primary"/);
-  assert.match(sidebar, /opticalAlign=\{primary \? "sidebar-primary" : undefined\}/);
-  assert.match(icons, /cat: 3\.75 \/ 24/);
-  assert.match(icons, /rss: 4 \/ 24/);
-  for (const name of ["calendar", "inbox", "library", "trash"]) assert.match(icons, new RegExp(`${name}: [0-9.]+ / 24`));
-  assert.match(icons, /transform: leftInset \? `translateX\(-\$\{leftInset \* 100\}%\)` : undefined/);
+  assert.doesNotMatch(sidebar, /opticalAlign|mewmo-nav-row__icon--primary|data-icon/);
+  assert.doesNotMatch(icons, /opticalAlign|SIDEBAR_PRIMARY_ICON_LEFT_INSET|leftInset/);
   assert.doesNotMatch(css, /scaleX\(/);
 });
