@@ -170,6 +170,9 @@ public actor SyncEngine {
             guard applied.clientMutationId == nil || applied.clientMutationId == pending.mutationId else {
                 throw SyncEngineError.invalidPushResponse
             }
+            if let record = applied.record {
+                try await applyRecord(record, entity: pending.entityKind)
+            }
             guard try await localStore.ackMutation(mutationId: pending.mutationId, userId: userId) else {
                 throw SyncEngineError.invalidPushResponse
             }
@@ -184,7 +187,7 @@ public actor SyncEngine {
             }
 
             if failure.code == "version_conflict", let record = failure.record {
-                try await applyConflict(record, entity: pending.entityKind)
+                try await applyRecord(record, entity: pending.entityKind)
                 guard try await localStore.ackMutation(mutationId: pending.mutationId, userId: userId) else {
                     throw SyncEngineError.invalidPushResponse
                 }
@@ -242,7 +245,7 @@ public actor SyncEngine {
         )
     }
 
-    private func applyConflict(_ record: SyncJSONValue, entity: String) async throws {
+    private func applyRecord(_ record: SyncJSONValue, entity: String) async throws {
         let decoder = JSONDecoder()
         let data = try JSONEncoder().encode(record)
 
@@ -286,25 +289,25 @@ public actor SyncEngine {
 
         switch entity {
         case "note":
-            guard var snapshot = try await localStore.note(id: metadata.id, userId: userId) else { throw SyncEngineError.decoding }
+            guard var snapshot = try await localStore.note(id: metadata.id, userId: userId) else { return }
             snapshot.version = metadata.version
             snapshot.updatedAt = metadata.updatedAt.flatMap(SyncISO8601.parse) ?? snapshot.updatedAt
             snapshot.deletedAt = deletedAt
             _ = try await localStore.upsertNote(snapshot)
         case "clip":
-            guard var snapshot = try await localStore.clip(id: metadata.id, userId: userId) else { throw SyncEngineError.decoding }
+            guard var snapshot = try await localStore.clip(id: metadata.id, userId: userId) else { return }
             snapshot.version = metadata.version
             snapshot.updatedAt = metadata.updatedAt.flatMap(SyncISO8601.parse) ?? snapshot.updatedAt
             snapshot.deletedAt = deletedAt
             _ = try await localStore.upsertClip(snapshot)
         case "feed":
-            guard var snapshot = try await localStore.feed(id: metadata.id, userId: userId) else { throw SyncEngineError.decoding }
+            guard var snapshot = try await localStore.feed(id: metadata.id, userId: userId) else { return }
             snapshot.version = metadata.version
             snapshot.updatedAt = metadata.updatedAt.flatMap(SyncISO8601.parse) ?? snapshot.updatedAt
             snapshot.deletedAt = deletedAt
             _ = try await localStore.upsertFeed(snapshot)
         case "feed_entry":
-            guard var snapshot = try await localStore.feedEntry(id: metadata.id, userId: userId) else { throw SyncEngineError.decoding }
+            guard var snapshot = try await localStore.feedEntry(id: metadata.id, userId: userId) else { return }
             snapshot.version = metadata.version
             snapshot.updatedAt = metadata.updatedAt.flatMap(SyncISO8601.parse) ?? snapshot.updatedAt
             snapshot.deletedAt = deletedAt
@@ -448,6 +451,7 @@ private struct SyncPushResponse: Decodable {
 private struct SyncAppliedMutation: Decodable {
     let index: Int
     let clientMutationId: String?
+    let record: SyncJSONValue?
 }
 
 private struct SyncPushError: Decodable {

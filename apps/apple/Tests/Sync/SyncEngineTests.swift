@@ -171,6 +171,22 @@ final class SyncEngineTests: XCTestCase {
         XCTAssertTrue(afterConflict.isEmpty)
     }
 
+    func testAppliedRecordUpdatesLocalVersionBeforeNextEdit() async throws {
+        let (store, engine, transport) = try await makeEngine()
+        _ = try await store.upsertNote(DataTestSupport.note(id: "note-1", version: 3, title: "Edited"))
+        let payload = try fixtureMutation("push-update-conflict", key: "freshPush", index: 0)
+        try await store.enqueueMutation(mutationId: "m-fresh", entityKind: "note", op: "update", expectedVersion: 3, payloadJSON: payload, userId: "user-1")
+        await transport.enqueue(path: "/api/sync/push", response(200, try fixtureResponse("push-update-conflict", key: "expectedFreshResponse")))
+        await transport.enqueue(path: "/api/sync/pull", response(200, emptyPullResponse()))
+
+        await engine.synchronize(trigger: .manual)
+
+        let note = try await store.note(id: "note-1", userId: "user-1")
+        let pending = try await store.listPendingMutations(userId: "user-1")
+        XCTAssertEqual(note?.version, 4)
+        XCTAssertTrue(pending.isEmpty)
+    }
+
     func testInvalidAndMismatchedOutboxRowsStayQueuedWithoutSending() async throws {
         let (store, engine, transport) = try await makeEngine()
         try await store.enqueueMutation(mutationId: "broken", entityKind: "note", op: "update", expectedVersion: 1, payloadJSON: "{}", userId: "user-1")
