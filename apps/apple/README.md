@@ -16,11 +16,13 @@ apps/apple/
 │   ├── MewmoRootView.swift     # 共享最小 SwiftUI 启动壳（无 @main，macOS/iOS 复用）
 │   ├── Data/                   # ZOO-91 SwiftData 本地数据层（model/容器/repository/同步 DTO）
 │   ├── Image/                  # ZOO-92 图片缓存基础设施（Nuke 13 core composition）
-│   └── Auth/                   # ZOO-93 native bearer session / Keychain 客户端
+│   ├── Auth/                   # ZOO-93 native bearer session / Keychain 客户端
+│   └── Sync/                   # ZOO-95 local-first pull/push SyncEngine
 ├── Tests/
 │   ├── Data/                   # ZOO-91 共享 macOS unit-test（数据层）
 │   ├── Image/                  # ZOO-92 共享 macOS unit-test（图片缓存）
-│   └── Auth/                   # ZOO-93 共享 macOS unit-test（认证客户端）
+│   ├── Auth/                   # ZOO-93 共享 macOS unit-test（认证客户端）
+│   └── Sync/                   # ZOO-95 共享 macOS unit-test（同步引擎）
 ├── Entry/
 │   ├── macOS/MacAppMain.swift  # macOS composition root（@main，仅 macOS target 编译）
 │   └── iOS/iOSAppMain.swift    # iOS composition root（@main，仅 iOS target 编译）
@@ -49,6 +51,18 @@ apps/apple/
 运行。canonical sync fixtures 以资源方式直接引用仓库内 `packages/sync/src/fixtures/`
 单一副本，不做第二份拷贝。后续基础模块（如 `Sources/Auth`）在 `project.yml` 的
 `Mewmo-Tests.sources` 追加一行即可接入测试，无需重排 target 结构。
+
+## 本地优先同步（ZOO-95）
+
+`Sources/Sync/SyncEngine.swift` 是 actor-isolated coordinator：先让业务从 SwiftData 读取，再在后台
+pull 增量记录和 push durable outbox。它复用 `AuthenticatedHTTPClient` 管理 bearer/refresh，复用
+`LocalStore` 管理 cursor、tombstone、版本单调 upsert 与 FIFO ack，不保存或记录 token。
+
+outbox 的 `payloadJSON` 是 canonical ZOO-89 per-mutation wire object：
+`{ entity, op, id?, data, clientMutationId? }`。SyncEngine 使用持久化 `mutationId` 作为唯一的 outgoing
+`clientMutationId`，并检查 `entityKind`/`op` 和 `expectedVersion` metadata 一致；格式错误或不一致的行
+会保留在队列并只显示脱敏诊断。`SyncLifecycleCoordinator` 供完成账号和本地 store composition 的入口调用，
+在 launch、前台恢复和网络恢复时调度非阻塞同步。
 
 ## 图片缓存基础设施（ZOO-92）
 

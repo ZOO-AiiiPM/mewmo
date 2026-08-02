@@ -36,6 +36,7 @@ targets:
     dependencies:
       - package: Nuke
       - sdk: Security.framework
+      - sdk: Network.framework
     settings:
       base:
         PRODUCT_NAME: Mewmo
@@ -57,6 +58,7 @@ targets:
     dependencies:
       - package: Nuke
       - sdk: Security.framework
+      - sdk: Network.framework
     # 同时支持 iPhone(1) 与 iPad(2)，并锁定 iOS SDK。
     settings:
       base:
@@ -85,6 +87,7 @@ targets:
       - path: Sources/Data     # ZOO-91 SwiftData 本地数据层
       - path: Sources/Image    # ZOO-92 图片缓存基础设施（Nuke composition）
       - path: Sources/Auth     # ZOO-93 原生 bearer session / Keychain 基础设施
+      - path: Sources/Sync     # ZOO-95 local-first pull/push coordinator
       - path: Tests
       # canonical sync fixtures（仓库内单一副本，不复制）：作为资源打进 test bundle。
       - path: ../../packages/sync/src/fixtures
@@ -92,6 +95,7 @@ targets:
     dependencies:
       - package: Nuke
       - sdk: Security.framework
+      - sdk: Network.framework
     settings:
       base:
         PRODUCT_NAME: $(TARGET_NAME)
