@@ -260,6 +260,68 @@ html.light .crepe-editor-wrapper .milkdown {
   letter-spacing: 0;
 }
 
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview {
+  min-width: 0;
+  overflow-x: auto;
+  padding: 12px 14px 16px;
+  color: var(--ink, var(--color-ink));
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview > svg {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg text,
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg .label,
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg .messageText,
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg .loopText {
+  fill: var(--ink, var(--color-ink)) !important;
+  color: var(--ink, var(--color-ink)) !important;
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg .node rect,
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg .node circle,
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg .node ellipse,
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg .node polygon,
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg .actor,
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg .labelBox {
+  fill: var(--raised, var(--color-paper-2)) !important;
+  stroke: var(--ink-soft, var(--color-muted)) !important;
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg .flowchart-link,
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg .messageLine0,
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg .messageLine1,
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg .actor-line,
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg .loopLine {
+  stroke: var(--ink-soft, var(--color-muted)) !important;
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg marker path {
+  fill: var(--ink-soft, var(--color-muted)) !important;
+  stroke: var(--ink-soft, var(--color-muted)) !important;
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-toggle-button:focus-visible {
+  outline: 2px solid var(--ink, var(--color-ink));
+  outline-offset: 2px;
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-code-block .mewmo-mermaid-error {
+  border: 1px solid color-mix(in srgb, var(--color-coral) 42%, var(--line, var(--color-line)));
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--color-coral) 9%, transparent);
+  padding: 10px 12px;
+  color: var(--color-coral);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 /* Structural marks need enough contrast in light mode: list bullets/numbers,
    to-do boxes, quote rails, and dividers are controls, not decorative mist. */
 .crepe-editor-wrapper .milkdown .ProseMirror .crepe-placeholder::before {
