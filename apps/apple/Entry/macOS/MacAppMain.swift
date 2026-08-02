@@ -7,6 +7,7 @@ struct MewmoMacApp: App {
         WindowGroup {
             MewmoRootView()
         }
+        .defaultSize(width: 1240, height: 760)
         .windowResizability(.contentMinSize)
     }
 }
