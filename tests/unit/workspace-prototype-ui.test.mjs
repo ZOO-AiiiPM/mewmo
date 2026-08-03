@@ -2129,6 +2129,11 @@ test("clip list cards use cover images, body previews, and recency time", () => 
   );
   assert.match(
     clipsIndex,
+    /getItemKey:\s*\(index\)\s*=>\s*visibleClips\[index\]!\.id/,
+    "virtualized clip rows should keep measurements attached to clip ids when new clips are prepended",
+  );
+  assert.match(
+    clipsIndex,
     /ref=\{virtualizer\.measureElement\}/,
     "virtualized clip rows should report their DOM height back to the virtualizer",
   );

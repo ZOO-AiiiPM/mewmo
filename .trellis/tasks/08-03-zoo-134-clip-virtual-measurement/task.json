@@ -1,0 +1,28 @@
+{
+  "id": "zoo-134-clip-virtual-measurement",
+  "name": "zoo-134-clip-virtual-measurement",
+  "title": "ZOO-134 修复剪藏虚拟列表头插后的重叠与闪帧",
+  "description": "Linear ZOO-134; fix clip virtualizer identity and dynamic measurement after prepending mixed-height cards.",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": "apps/web clip virtual list identity, measurement, and regression tests",
+  "package": "web",
+  "priority": "P1",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-08-03",
+  "completedAt": null,
+  "branch": "codex/issue-ZOO-134-clip-virtual-measurement",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "linear_issue": "ZOO-134"
+  }
+}
