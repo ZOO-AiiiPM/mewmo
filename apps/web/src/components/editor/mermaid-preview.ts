@@ -90,7 +90,6 @@ export function enableMermaidPreviewInteractions(root: HTMLElement) {
         canvas: true,
         maxScale: 5,
         minScale: 1,
-        panOnlyWhenZoomed: true,
         pinchAndPan: true,
         step: 0.18,
       });
@@ -127,8 +126,9 @@ export function createMermaidPreviewRenderer(
   const nextId = dependencies.createId ?? createRenderId;
   const makeErrorPreview =
     dependencies.createErrorPreview ?? createErrorPreview;
-  let generation = 0;
   let mermaidPromise: Promise<MermaidApi> | undefined;
+  let renderQueue = Promise.resolve();
+  let pendingRenders = 0;
 
   const getMermaid = () => {
     mermaidPromise ??= loadMermaid().then(({ default: mermaid }) => {
@@ -143,24 +143,31 @@ export function createMermaidPreviewRenderer(
     return mermaidPromise;
   };
 
+  const enqueue = (task: () => void | Promise<void>) => {
+    renderQueue = renderQueue
+      .then(task, task)
+      .then(() => undefined, () => undefined);
+  };
+
   return (language: string, content: string, applyPreview: ApplyPreview) => {
     const isMermaid = language.trim().toLowerCase() === "mermaid";
     if (!isMermaid || !content.trim()) {
-      generation += 1;
+      if (pendingRenders > 0) enqueue(() => applyPreview(null));
       return null;
     }
 
-    const currentGeneration = ++generation;
-    void getMermaid()
-      .then((mermaid) => mermaid.render(nextId(), content))
-      .then(({ svg }) => {
-        if (currentGeneration === generation) {
-          applyPreview(wrapMermaidPreview(svg));
-        }
-      })
-      .catch(() => {
-        if (currentGeneration === generation) applyPreview(makeErrorPreview());
-      });
+    pendingRenders += 1;
+    enqueue(async () => {
+      try {
+        const mermaid = await getMermaid();
+        const { svg } = await mermaid.render(nextId(), content);
+        applyPreview(wrapMermaidPreview(svg));
+      } catch {
+        applyPreview(makeErrorPreview());
+      } finally {
+        pendingRenders -= 1;
+      }
+    });
 
     return undefined;
   };

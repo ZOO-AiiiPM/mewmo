@@ -71,7 +71,7 @@ html.light .crepe-editor-wrapper .milkdown {
 
 .crepe-editor-wrapper--embedded .milkdown .ProseMirror {
   min-height: 0;
-  padding: 0 clamp(20px, 4vw, 40px) 96px;
+  padding: 0 clamp(13px, 2.67vw, 27px) 96px;
 }
 
 .crepe-editor-wrapper--embedded .milkdown .ProseMirror:focus {

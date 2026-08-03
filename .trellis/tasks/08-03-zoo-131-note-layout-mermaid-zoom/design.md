@@ -10,7 +10,7 @@ Mermaid renderer 继续返回字符串，让 Milkdown 先执行既有 DOMPurify 
 
 - Pointer Events 负责触屏 pinch 与拖动。
 - `ctrlKey` wheel 交给 `zoomWithWheel`，覆盖触控板 pinch；普通 wheel 不处理。
-- `minScale: 1`、`maxScale: 5`、`panOnlyWhenZoomed: true`，避免缩小时丢失图表或默认态误拖动。
+- `minScale: 1`、`maxScale: 5`，最小缩放时仍允许拖动查看图表边缘。
 - observer cleanup 销毁实例和 wheel listener，笔记切换自然恢复默认状态。
 
 ## Security

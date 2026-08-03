@@ -99,35 +99,56 @@ describe("Mermaid code-block preview", () => {
     );
   });
 
-  it("discards stale successes and failures after a newer render request", async () => {
+  it("renders every Mermaid block instead of starving earlier previews", async () => {
     const first = deferred<{ svg: string }>();
     const second = deferred<{ svg: string }>();
     const render = vi
       .fn()
       .mockReturnValueOnce(first.promise)
       .mockReturnValueOnce(second.promise);
-    const applyPreview = vi.fn();
+    const applyFirstPreview = vi.fn();
+    const applySecondPreview = vi.fn();
     const renderPreview = createMermaidPreviewRenderer({
       createErrorPreview: () => ({}) as HTMLElement,
       loadMermaid: async () => ({ default: createMermaid(render) }),
     });
 
-    renderPreview("mermaid", "flowchart LR\nA-->B", applyPreview);
+    renderPreview("mermaid", "flowchart LR\nA-->B", applyFirstPreview);
     await vi.waitFor(() => expect(render).toHaveBeenCalledTimes(1));
-    renderPreview("mermaid", "flowchart LR\nA-->C", applyPreview);
+    renderPreview("mermaid", "flowchart LR\nC-->D", applySecondPreview);
+    expect(render).toHaveBeenCalledTimes(1);
+
+    first.resolve({ svg: "<svg>first</svg>" });
     await vi.waitFor(() => expect(render).toHaveBeenCalledTimes(2));
+    expect(applyFirstPreview).toHaveBeenCalledWith(
+      '<div class="mewmo-mermaid-canvas"><svg>first</svg></div>',
+    );
 
     second.resolve({ svg: "<svg>new</svg>" });
     await vi.waitFor(() =>
-      expect(applyPreview).toHaveBeenCalledWith(
+      expect(applySecondPreview).toHaveBeenCalledWith(
         '<div class="mewmo-mermaid-canvas"><svg>new</svg></div>',
       ),
     );
-    first.reject(new Error("stale error"));
-    await Promise.resolve();
-    await Promise.resolve();
 
-    expect(applyPreview).toHaveBeenCalledTimes(1);
+    expect(applyFirstPreview).toHaveBeenCalledTimes(1);
+    expect(applySecondPreview).toHaveBeenCalledTimes(1);
+  });
+
+  it("applies newer edits last and clears a pending preview after language changes", async () => {
+    const first = deferred<{ svg: string }>();
+    const render = vi.fn().mockReturnValueOnce(first.promise);
+    const applyPreview = vi.fn();
+    const renderPreview = createMermaidPreviewRenderer({
+      loadMermaid: async () => ({ default: createMermaid(render) }),
+    });
+
+    renderPreview("mermaid", "flowchart LR\nA-->B", applyPreview);
+    await vi.waitFor(() => expect(render).toHaveBeenCalledOnce());
+    expect(renderPreview("text", "plain", applyPreview)).toBeNull();
+
+    first.resolve({ svg: "<svg>old</svg>" });
+    await vi.waitFor(() => expect(applyPreview).toHaveBeenLastCalledWith(null));
   });
 
   it("wraps SVG for post-sanitize interactions", () => {
