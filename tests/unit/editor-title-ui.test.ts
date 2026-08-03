@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   getInitialTitleSelectionMode,
+  normalizeTitleInputText,
   normalizeTitleText,
   titleKeyAction,
 } from "../../apps/web/src/components/editor/title-ui";
@@ -10,6 +11,13 @@ describe("note editor title UI", () => {
   it("normalizes the title to a single line with an Untitled fallback", () => {
     expect(normalizeTitleText("  First line\nSecond line  ")).toBe("First line Second line");
     expect(normalizeTitleText(" \n\t ")).toBe("Untitled");
+  });
+
+  it("preserves trailing and repeated spaces while editing", () => {
+    expect(normalizeTitleInputText("Title ")).toBe("Title ");
+    expect(normalizeTitleInputText("Title  next")).toBe("Title  next");
+    expect(normalizeTitleInputText("Title\u00a0")).toBe("Title\u00a0");
+    expect(normalizeTitleInputText("First\nSecond")).toBe("First Second");
   });
 
   it("selects the whole default title when a new Untitled note opens", () => {

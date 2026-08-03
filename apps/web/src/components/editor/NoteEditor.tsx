@@ -33,6 +33,7 @@ import { normalizePastedImageSlice } from "./note-image-paste";
 import { serializeNoteSelectionText } from "./note-selection-copy";
 import {
   getInitialTitleSelectionMode,
+  normalizeTitleInputText,
   normalizeTitleText,
   titleKeyAction,
 } from "./title-ui";
@@ -314,7 +315,7 @@ export function NoteEditor({
 
   const handleTitleInput = useCallback((e: React.FormEvent<HTMLHeadingElement>) => {
     const target = e.currentTarget;
-    const singleLine = target.textContent?.replace(/\s+/g, " ") ?? "";
+    const singleLine = normalizeTitleInputText(target.textContent ?? "");
     if (target.textContent === singleLine) return;
 
     target.textContent = singleLine;

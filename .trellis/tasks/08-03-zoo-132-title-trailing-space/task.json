@@ -1,0 +1,28 @@
+{
+  "id": "zoo-132-title-trailing-space",
+  "name": "zoo-132-title-trailing-space",
+  "title": "ZOO-132 修复笔记标题末尾空格丢失",
+  "description": "Linear ZOO-132; preserve trailing spaces while editing a note title.",
+  "status": "in_review",
+  "dev_type": "frontend",
+  "scope": "apps/web/src/components/editor title input behavior",
+  "package": "web",
+  "priority": "P1",
+  "creator": "zoo",
+  "assignee": "codex",
+  "createdAt": "2026-08-03",
+  "completedAt": null,
+  "branch": "codex/issue-ZOO-132-title-trailing-space",
+  "base_branch": "main",
+  "worktree_path": "/Users/zoo/zoo/CC工作目录/进行中/mewmo/.worktrees/zoo-132-title-trailing-space",
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "apps/web/src/components/editor/NoteEditor.tsx"
+  ],
+  "notes": "",
+  "meta": {}
+}

@@ -12,6 +12,10 @@ export function normalizeTitleText(value: string) {
   return title || "Untitled";
 }
 
+export function normalizeTitleInputText(value: string) {
+  return value.replace(/[\r\n]+/g, " ");
+}
+
 export function getInitialTitleSelectionMode(title: string): TitleSelectionMode {
   return normalizeTitleText(title) === "Untitled" ? "select-all" : "caret-end";
 }
