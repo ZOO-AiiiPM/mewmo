@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { createMermaidPreviewRenderer } from "./mermaid-preview";
+import {
+  createMermaidPreviewRenderer,
+  shouldZoomMermaidWithWheel,
+  wrapMermaidPreview,
+} from "./mermaid-preview";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -44,7 +48,9 @@ describe("Mermaid code-block preview", () => {
       renderPreview("MERMAID", "flowchart LR\nA-->B", applyPreview),
     ).toBeUndefined();
     await vi.waitFor(() =>
-      expect(applyPreview).toHaveBeenCalledWith("<svg />"),
+      expect(applyPreview).toHaveBeenCalledWith(
+        '<div class="mewmo-mermaid-canvas"><svg /></div>',
+      ),
     );
     renderPreview("mermaid", "sequenceDiagram\nA->>B: Hi", applyPreview);
     await vi.waitFor(() => expect(mermaid.render).toHaveBeenCalledTimes(2));
@@ -87,7 +93,9 @@ describe("Mermaid code-block preview", () => {
 
     renderPreview("mermaid", "flowchart LR\nA-->B", applyPreview);
     await vi.waitFor(() =>
-      expect(applyPreview).toHaveBeenLastCalledWith("<svg>recovered</svg>"),
+      expect(applyPreview).toHaveBeenLastCalledWith(
+        '<div class="mewmo-mermaid-canvas"><svg>recovered</svg></div>',
+      ),
     );
   });
 
@@ -111,12 +119,25 @@ describe("Mermaid code-block preview", () => {
 
     second.resolve({ svg: "<svg>new</svg>" });
     await vi.waitFor(() =>
-      expect(applyPreview).toHaveBeenCalledWith("<svg>new</svg>"),
+      expect(applyPreview).toHaveBeenCalledWith(
+        '<div class="mewmo-mermaid-canvas"><svg>new</svg></div>',
+      ),
     );
     first.reject(new Error("stale error"));
     await Promise.resolve();
     await Promise.resolve();
 
     expect(applyPreview).toHaveBeenCalledTimes(1);
+  });
+
+  it("wraps SVG for post-sanitize interactions", () => {
+    expect(wrapMermaidPreview("<svg>diagram</svg>")).toBe(
+      '<div class="mewmo-mermaid-canvas"><svg>diagram</svg></div>',
+    );
+  });
+
+  it("uses pinch wheel events without hijacking ordinary scrolling", () => {
+    expect(shouldZoomMermaidWithWheel({ ctrlKey: true })).toBe(true);
+    expect(shouldZoomMermaidWithWheel({ ctrlKey: false })).toBe(false);
   });
 });

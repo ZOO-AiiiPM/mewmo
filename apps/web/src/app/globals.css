@@ -2626,6 +2626,8 @@ html.light .mewmo-reader-menu {
 
 .mewmo-reader-scroll--editor {
   padding-top: 0;
+  padding-right: clamp(16px, 4vw, 40px);
+  padding-left: clamp(16px, 4vw, 40px);
 }
 
 .mewmo-reader-to-top {
@@ -2821,9 +2823,9 @@ html.light .mewmo-doc-toc:hover {
 }
 
 .mewmo-note-editor__head {
-  width: min(100%, 760px);
+  width: min(100%, 960px);
   margin: 0 auto;
-  padding: 32px 40px 6px;
+  padding: 32px clamp(20px, 4vw, 40px) 6px;
 }
 
 .mewmo-note-title-editor {
