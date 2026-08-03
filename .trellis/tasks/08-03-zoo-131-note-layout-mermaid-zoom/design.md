@@ -2,7 +2,7 @@
 
 ## Layout
 
-将 embedded note 的标题和 Milkdown 内容列统一放宽到 `960px`。阅读滚动容器与 ProseMirror 内边距使用响应式 `clamp()`，桌面减少留白，窄屏保留最小安全边距。
+将 embedded note、文章 reader 与 loading skeleton 的内容列统一放宽到 `960px`。所有阅读滚动容器、文章与 ProseMirror 内边距使用响应式 `clamp()`，桌面减少留白，窄屏保留最小安全边距；今天与知识库继续复用同一 reader 规则。
 
 ## Mermaid Interaction
 

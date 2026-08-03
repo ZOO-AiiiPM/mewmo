@@ -720,10 +720,10 @@ html.light .mewmo-skeleton-block {
   display: flex;
   flex-direction: column;
   gap: 11px;
-  width: min(100%, 680px);
+  width: min(100%, 960px);
   min-height: calc(100vh - 140px);
   margin: 0 auto;
-  padding: 32px 36px 48px;
+  padding: 32px clamp(16px, 2.4vw, 24px) 48px;
 }
 
 .mewmo-document > .mewmo-reader-content-skeleton,
@@ -2620,8 +2620,8 @@ html.light .mewmo-reader-menu {
   overflow-y: auto;
   margin-top: 46px;
   padding-bottom: 58px;
-  padding-left: 64px;
-  padding-right: 64px;
+  padding-left: clamp(12px, 4vw, 43px);
+  padding-right: clamp(12px, 4vw, 43px);
 }
 
 .mewmo-reader-scroll--editor {
@@ -2795,9 +2795,9 @@ html.light .mewmo-doc-toc:hover {
 }
 
 .mewmo-document {
-  max-width: 680px;
+  max-width: 960px;
   margin: 0 auto;
-  padding: 32px 36px 30px;
+  padding: 32px clamp(16px, 2.4vw, 24px) 30px;
 }
 
 .mewmo-document,
@@ -3519,7 +3519,7 @@ html.light .mewmo-share-page {
 }
 
 .mewmo-document--clip {
-  padding: 32px 36px 30px;
+  padding: 32px clamp(16px, 2.4vw, 24px) 30px;
 }
 
 .mewmo-clip-summary {
