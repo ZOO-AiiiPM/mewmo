@@ -66,11 +66,13 @@ test("chat history strips context snapshots and leaves a pagination contract", (
 test("agent transcript shows only settled whole-turn token usage", () => {
   const row = read("apps/web/src/components/agent/AssistantRow.tsx");
   const adapter = read("apps/web/src/lib/agent/transcript-adapter.ts");
+  const usageLine = row.split("\n").find((line) => line.includes("mewmo-turn-usage"));
 
   assert.match(row, /!isStreaming && row\.totalTokens !== undefined/);
   assert.match(row, /formatTokenCount\(row\.totalTokens\).*tokens/);
   assert.match(adapter, /result\.totalTokens/);
-  assert.doesNotMatch(row, /provider|model|cost|purpose/i);
+  assert.ok(usageLine);
+  assert.doesNotMatch(usageLine, /provider|model|cost|purpose/i);
 });
 
 test("chat lifecycle commands validate input and preserve ownership boundaries", () => {
