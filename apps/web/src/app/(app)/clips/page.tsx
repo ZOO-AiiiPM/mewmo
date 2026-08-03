@@ -310,6 +310,7 @@ export default function ClipsPage() {
   const virtualizer = useVirtualizer({
     count: visibleClips.length,
     getScrollElement: () => parentRef.current,
+    getItemKey: (index) => visibleClips[index]!.id,
     estimateSize: () => 196,
     measureElement: (element) => element.getBoundingClientRect().height,
     overscan: 10,
