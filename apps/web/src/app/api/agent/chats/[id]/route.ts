@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { auth } from "../../../../../lib/auth";
-import { agentError } from "../../../../../lib/agent-contract";
+import { agentActionProposalSchema, agentError } from "../../../../../lib/agent-contract";
 
 interface ChatMessageView {
   id: string;
@@ -41,6 +41,33 @@ function sanitizeContextAttachments(value: unknown): Array<{ targetType: string;
   return attachments.length > 0 ? attachments : undefined;
 }
 
+const processBlockSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("text"), content: z.string() }),
+  z.object({ kind: z.literal("thinking"), content: z.string() }),
+  z.object({
+    kind: z.literal("tool"),
+    toolCallId: z.string(),
+    toolName: z.string(),
+    status: z.enum(["running", "done", "error"]),
+    details: z.array(z.string()).optional(),
+  }),
+]);
+
+const messageMetadataSchema = z.object({
+  proposals: z.array(agentActionProposalSchema).optional(),
+  thinking: z.boolean().optional(),
+  process: z.array(processBlockSchema).optional(),
+  startedAt: z.string().optional(),
+  completedAt: z.string().optional(),
+  totalTokens: z.number().int().nonnegative().optional(),
+});
+
+function sanitizeMessageMetadata(value: unknown) {
+  const parsed = messageMetadataSchema.safeParse(value);
+  if (!parsed.success || Object.keys(parsed.data).length === 0) return undefined;
+  return parsed.data;
+}
+
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -57,8 +84,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     chat: {
       ...chat,
       messages: Array.isArray(chat.messages)
-        ? chat.messages.map((message) => {
+          ? chat.messages.map((message) => {
             const contextAttachments = sanitizeContextAttachments(message.contextAttachments);
+            const metadata = sanitizeMessageMetadata(message.metadata);
             return {
               id: message.id,
               turnId: message.turnId,
@@ -66,7 +94,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
               content: message.content,
               status: message.status,
               createdAt: message.createdAt,
-              metadata: message.metadata,
+              ...(metadata ? { metadata } : {}),
               error: message.error,
               ...(contextAttachments ? { contextAttachments } : {}),
             };

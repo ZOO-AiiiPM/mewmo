@@ -103,6 +103,50 @@ describe("ai chats repository clear", () => {
     expect(JSON.stringify(chat)).not.toContain("raw-secret");
     expect(JSON.stringify(chat)).not.toContain("不得返回");
   });
+
+  it("projects the whole-turn usage total without internal runtime metadata", async () => {
+    const client = {
+      aiChat: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "chat-1",
+          title: "会话",
+          sessionEntries: [
+            { entryId: "user-1", type: "message", payload: { message: { role: "user", content: "问题" } }, attachments: [] },
+            { entryId: "assistant-1", type: "message", payload: { message: { role: "assistant", content: "答案" } }, attachments: [] },
+          ],
+          turns: [{
+            id: "turn-1",
+            userEntryId: "user-1",
+            assistantEntryId: "assistant-1",
+            status: "succeeded",
+            output: { response: { provider: "private", providerCostUsd: 1 } },
+            usageEvents: [
+              { inputTokens: 100, outputTokens: 20, cacheReadTokens: 5, cacheWriteTokens: 2, reasoningTokens: 10 },
+              { inputTokens: 30, outputTokens: 8, cacheReadTokens: 0, cacheWriteTokens: 1, provider: "private" },
+            ],
+          }],
+          messages: [],
+        }),
+      },
+    };
+
+    const result = await createAiChatsRepository(client).findById("user-1", "chat-1") as { messages: Array<{ metadata?: unknown }> };
+
+    expect(client.aiChat.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "chat-1", userId: "user-1", deletedAt: null },
+    }));
+    expect(result.messages[1]?.metadata).toMatchObject({ totalTokens: 166 });
+    expect(JSON.stringify(result)).not.toMatch(/private|provider|cost|reasoning/i);
+  });
+
+  it("does not return usage from another user's chat", async () => {
+    const client = { aiChat: { findFirst: vi.fn().mockResolvedValue(null) } };
+
+    await expect(createAiChatsRepository(client).findById("user-1", "foreign-chat")).resolves.toBeNull();
+    expect(client.aiChat.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "foreign-chat", userId: "user-1", deletedAt: null },
+    }));
+  });
 });
 
 describe("ai chats repository truncate", () => {

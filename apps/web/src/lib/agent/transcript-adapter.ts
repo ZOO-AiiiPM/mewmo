@@ -163,6 +163,7 @@ export function finalizeLegacyTurn(
       assistant: state.blocks,
       status: "failed",
       proposals: state.proposals,
+      ...(result.totalTokens === undefined ? {} : { totalTokens: result.totalTokens }),
       error: {
         message: publicErrorMessage(result.error.message, result.error.code),
         retryable: result.error.retryable ?? true,
@@ -193,6 +194,7 @@ export function finalizeLegacyTurn(
     proposals,
     ...(state.startedAt ? { startedAt: state.startedAt } : {}),
     completedAt: new Date().toISOString(),
+    ...(result.totalTokens === undefined ? {} : { totalTokens: result.totalTokens }),
   };
 }
 
@@ -401,6 +403,7 @@ export function messagesToTranscriptRows(messages: PersistedMessage[]): Transcri
       assistant: [{ kind: "text" as const, content: assistant.content }],
       status: assistant.status === "failed" ? "failed" as const : "completed" as const,
       proposals: assistant.metadata?.proposals ?? [],
+      ...(assistant.metadata?.totalTokens === undefined ? {} : { totalTokens: assistant.metadata.totalTokens }),
     };
   }).filter((row): row is TranscriptRow => row !== null);
 }
@@ -415,12 +418,13 @@ export function mergeResultIntoTerminal(
   row: TranscriptRow,
   result: LegacyResultPayload | null,
 ): TranscriptRow {
-  if (!result || row.status !== "completed" || row.proposals.length > 0) return row;
-  const proposals = result.proposals ?? [];
-  if (proposals.length === 0) return row;
+  if (!result) return row;
+  const proposals = row.status === "completed" && row.proposals.length === 0 ? result.proposals ?? [] : [];
+  if (proposals.length === 0 && result.totalTokens === undefined) return row;
   return {
     ...row,
-    proposals,
+    ...(result.totalTokens === undefined ? {} : { totalTokens: result.totalTokens }),
+    ...(proposals.length === 0 ? {} : { proposals }),
     assistant: [
       ...row.assistant,
       ...proposals.map((proposal) => ({ kind: "confirmation" as const, proposal })),
@@ -472,6 +476,7 @@ function buildRowFromPair(
   const missingAssistant = !assistant;
   // #6: a persisted context attachment on the user message becomes the chip.
   const attachment = user.contextAttachments?.[0];
+  const totalTokens = assistant?.metadata?.totalTokens ?? user.metadata?.totalTokens;
 
   return {
     turnId: assistant?.turnId ?? user.turnId ?? assistant?.id ?? user.id,
@@ -482,6 +487,7 @@ function buildRowFromPair(
     proposals,
     ...(metadata?.startedAt ? { startedAt: metadata.startedAt } : {}),
     ...(metadata?.completedAt ? { completedAt: metadata.completedAt } : {}),
+    ...(totalTokens === undefined ? {} : { totalTokens }),
     ...((assistant?.createdAt ?? user.createdAt) ? { createdAt: assistant?.createdAt ?? user.createdAt } : {}),
     ...(error ? { error } : missingAssistant ? { error: { message: "这次回复未完成。", retryable: false } } : {}),
   };

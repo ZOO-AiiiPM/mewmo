@@ -182,9 +182,11 @@ describe("agent transcript adapter", () => {
     const merged = mergeResultIntoTerminal(state.terminal!, {
       assistantMessage: { id: "assistant-1", content: "准备好了。" },
       proposals: [proposal("action-1")],
+      totalTokens: 12_800,
     });
 
     expect(merged.proposals).toEqual([proposal("action-1")]);
+    expect(merged.totalTokens).toBe(12_800);
     expect(merged.assistant).toEqual([
       { kind: "text", content: "准备好了。" },
       { kind: "confirmation", proposal: proposal("action-1") },
@@ -215,5 +217,32 @@ describe("agent transcript adapter", () => {
       status: "failed",
       error: { message: "这次回复未完成。", retryable: false },
     })]);
+  });
+
+  it("restores the same whole-turn total for completed and failed history", () => {
+    const rows = messagesToTranscriptRows([
+      { id: "user-1", turnId: "turn-1", role: "user", content: "问题" },
+      { id: "assistant-1", turnId: "turn-1", role: "assistant", content: "答案", metadata: { totalTokens: 12_800 } },
+      { id: "user-2", turnId: "turn-2", role: "user", content: "失败", status: "failed", metadata: { totalTokens: 321 }, error: { message: "服务中断", retryable: true } },
+    ]);
+
+    expect(rows[0]?.totalTokens).toBe(12_800);
+    expect(rows[1]?.totalTokens).toBe(321);
+  });
+
+  it("adds settled usage to a failed terminal but leaves streaming state unset", () => {
+    let state = createLiveTurn("chat-1", "local-request-1", "问题");
+    state = applyConversationEvent(state, { type: "turn.started", chatId: "chat-1", turnId: "turn-1", seq: 1 });
+    expect(state.terminal).toBeUndefined();
+    state = applyConversationEvent(state, {
+      type: "turn.failed",
+      chatId: "chat-1",
+      turnId: "turn-1",
+      seq: 2,
+      error: { code: "provider_unavailable", message: "failed", retryable: true },
+      retryable: true,
+    });
+
+    expect(mergeResultIntoTerminal(state.terminal!, { error: { message: "failed" }, totalTokens: 321 }).totalTokens).toBe(321);
   });
 });
