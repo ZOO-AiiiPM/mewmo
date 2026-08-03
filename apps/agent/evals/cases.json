@@ -34,5 +34,78 @@
     "skill": "general",
     "input": "说说我关于量子计算的笔记。",
     "expected": "先搜索，只读取搜索返回的 URI；未找到时明确说明"
+  },
+  {
+    "id": "url-save-explicit",
+    "skill": "general",
+    "input": "请收藏这个网页：https://example.com/article",
+    "expected": "调用 clip_url_save",
+    "expectedWriteTools": ["clip_url_save"],
+    "expectedFirstTool": "clip_url_save",
+    "expectedUrl": "https://example.com/article"
+  },
+  {
+    "id": "url-save-wechat-explicit",
+    "skill": "general",
+    "input": "请收藏这篇微信公众号文章：https://mp.weixin.qq.com/s/mewmo-eval",
+    "expected": "直接调用 clip_url_save，不先读取网页",
+    "expectedWriteTools": ["clip_url_save"],
+    "expectedFirstTool": "clip_url_save",
+    "expectedUrl": "https://mp.weixin.qq.com/s/mewmo-eval"
+  },
+  {
+    "id": "url-save-and-summary",
+    "skill": "general",
+    "input": "请收藏并总结这篇文章：https://example.com/article",
+    "expected": "先调用 clip_url_save，再按需读取",
+    "expectedWriteTools": ["clip_url_save"],
+    "expectedFirstTool": "clip_url_save",
+    "expectedUrl": "https://example.com/article"
+  },
+  {
+    "id": "url-subscribe-explicit",
+    "skill": "general",
+    "input": "请订阅这个公开 RSS：https://example.com/feed.xml",
+    "expected": "调用 feed_url_subscribe",
+    "expectedWriteTools": ["feed_url_subscribe"],
+    "expectedFirstTool": "feed_url_subscribe",
+    "expectedUrl": "https://example.com/feed.xml"
+  },
+  {
+    "id": "url-subscribe-site-explicit",
+    "skill": "general",
+    "input": "请订阅这个网站：https://example.com/blog",
+    "expected": "直接调用 feed_url_subscribe，由工具发现订阅源",
+    "expectedWriteTools": ["feed_url_subscribe"],
+    "expectedFirstTool": "feed_url_subscribe",
+    "expectedUrl": "https://example.com/blog"
+  },
+  {
+    "id": "url-only-no-write",
+    "skill": "general",
+    "input": "https://example.com/article",
+    "expected": "不调用 URL 写工具",
+    "expectedWriteTools": []
+  },
+  {
+    "id": "url-read-no-write",
+    "skill": "general",
+    "input": "阅读这个网页：https://example.com/article",
+    "expected": "可以读取，但不调用 URL 写工具",
+    "expectedWriteTools": []
+  },
+  {
+    "id": "url-summary-no-write",
+    "skill": "general",
+    "input": "总结这个网页：https://example.com/article",
+    "expected": "可以读取并总结，但不调用 URL 写工具",
+    "expectedWriteTools": []
+  },
+  {
+    "id": "url-summary-wechat-no-write",
+    "skill": "general",
+    "input": "请总结这篇微信公众号文章：https://mp.weixin.qq.com/s/mewmo-eval",
+    "expected": "可以读取并总结，但不调用 URL 写工具",
+    "expectedWriteTools": []
   }
 ]

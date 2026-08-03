@@ -17,17 +17,23 @@ test("Clip schema enforces nullable per-user normalized URL identity", () => {
 
 test("clip creation fetches content before persistence without a Clip queue", () => {
   const route = read("apps/web/src/app/api/clips/route.ts");
-  assert.match(route, /normalizeClipUrlIdentity/);
-  assert.match(route, /await fetchClipFromUrl\(parsed\.data\.url\)/);
-  assert.ok(route.indexOf("await fetchClipFromUrl") < route.indexOf("prisma.clip.create"));
-  assert.doesNotMatch(route, /addClipFetchJob|withQueueTimeout/);
-  assert.match(route, /normalizedUrl/);
-  assert.match(route, /summary:\s*null/);
-  assert.match(route, /fetchStatus:\s*"success"/);
+  const application = read("packages/application/src/url-capture-service.ts");
+
+  assert.match(route, /createUrlCaptureService\(\{[\s\S]*fetchClip:\s*fetchClipFromUrl/);
+  assert.match(route, /capture\.saveClip\([\s\S]*parsed\.data\.url/);
+  assert.match(application, /const normalizedUrl = normalizeClipUrlIdentity\(url\)/);
+  assert.match(application, /article = await \(options\.fetchClip \?\? fetchArticleFromUrl\)\(url\)/);
+  assert.ok(application.indexOf("article = await") < application.indexOf("const clip = await db.clip.create"));
+  assert.doesNotMatch(`${route}\n${application}`, /addClipFetchJob|withQueueTimeout/);
+  assert.match(application, /normalizedUrl/);
+  assert.match(application, /summary:\s*null/);
+  assert.match(application, /fetchStatus:\s*"success"/);
   assert.match(route, /enqueueArticleRuns/);
   assert.doesNotMatch(route, /@mewmo\/queue|addSummaryJob/);
-  assert.match(route, /existing:\s*false/);
-  assert.match(route, /P2002[\s\S]*existing:\s*true/,
+  assert.match(route, /existing:\s*result\.status === "existing"/,
+    "the Web response should derive its compatibility flag from the shared command result");
+  assert.match(application, /if \(!isUnique\(error\)\) throw error/);
+  assert.match(application, /db\.clip\.findFirst\(\{ where:\s*\{ userId:\s*actor\.userId,\s*normalizedUrl \} \}\)[\s\S]*status:\s*"existing"/,
     "database uniqueness races should return the existing Clip");
 });
 

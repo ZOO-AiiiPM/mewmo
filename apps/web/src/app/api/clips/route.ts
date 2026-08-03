@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getPrisma, Prisma } from "@mewmo/db";
-import { createClipSchema, normalizeClipUrlIdentity } from "@mewmo/shared";
+import { createClipSchema } from "@mewmo/shared";
+import { createActor, createUrlCaptureService, DomainError } from "@mewmo/application";
 
 import { auth } from "../../../lib/auth";
 import { fetchClipFromUrl } from "../../../lib/clip-fetch";
@@ -25,10 +26,6 @@ const clipListSelect = {
   updatedAt: true,
 } satisfies Prisma.ClipSelect;
 
-function isUniqueConstraintError(error: unknown): error is { code: "P2002" } {
-  return typeof error === "object" && error !== null && "code" in error && error.code === "P2002";
-}
-
 function isTimeoutError(error: unknown) {
   return error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
 }
@@ -36,20 +33,9 @@ function isTimeoutError(error: unknown) {
 function clipFetchError(error: unknown) {
   return {
     message: error instanceof Error ? error.message : "Could not fetch clip",
-    status: isTimeoutError(error) ? 504 : 502,
-  };
-}
-
-function sourceData(fetched: Awaited<ReturnType<typeof fetchClipFromUrl>>) {
-  return {
-    title: fetched.title,
-    content: fetched.content,
-    favicon: fetched.favicon ?? null,
-    coverImage: fetched.coverImage ?? null,
-    excerpt: fetched.excerpt ?? null,
-    sourceName: fetched.sourceName ?? null,
-    author: fetched.author ?? null,
-    publishedAt: fetched.publishedAt ?? null,
+    status: error instanceof DomainError && error.code === "already_exists"
+      ? 409
+      : isTimeoutError(error) || (error instanceof DomainError && error.details?.timeout === true) ? 504 : 502,
   };
 }
 
@@ -92,59 +78,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
-  const prisma = getPrisma();
-  const normalizedUrl = normalizeClipUrlIdentity(parsed.data.url);
-  const existing = await prisma.clip.findFirst({
-    where: { userId, normalizedUrl, deletedAt: null },
-  });
-  if (existing) {
-    return NextResponse.json({ ...existing, existing: true });
-  }
-
-  let fetched: Awaited<ReturnType<typeof fetchClipFromUrl>>;
   try {
-    fetched = await fetchClipFromUrl(parsed.data.url);
+    const capture = createUrlCaptureService({
+      fetchClip: fetchClipFromUrl,
+      enqueueClip: (clip, ownerId) => enqueueWorkflows(ownerId, clip),
+    });
+    const result = await capture.saveClip(
+      createActor({ userId, source: "web", scopes: ["*"] }),
+      parsed.data.url,
+    );
+    return NextResponse.json({ ...(result.record as Record<string, unknown>), existing: result.status === "existing" }, { status: result.status === "created" ? 201 : 200 });
   } catch (error) {
+    if (!(error instanceof DomainError)) throw error;
     const failure = clipFetchError(error);
     return NextResponse.json({ error: failure.message }, { status: failure.status });
-  }
-
-  try {
-    const clip = await prisma.clip.create({
-      data: {
-        userId,
-        url: parsed.data.url,
-        normalizedUrl,
-        ...sourceData(fetched),
-        summary: null,
-        fetchStatus: "success",
-        fetchError: null,
-        fetchedAt: new Date(),
-      },
-    });
-    await enqueueWorkflows(userId, clip);
-    return NextResponse.json({ ...clip, existing: false }, { status: 201 });
-  } catch (error) {
-    if (!isUniqueConstraintError(error)) throw error;
-    const duplicate = await prisma.clip.findFirst({
-      where: { userId, normalizedUrl },
-    });
-    if (!duplicate) return NextResponse.json({ error: "Clip already exists" }, { status: 409 });
-    if (!duplicate.deletedAt) return NextResponse.json({ ...duplicate, existing: true });
-
-    const restored = await prisma.clip.update({
-      where: { id: duplicate.id },
-      data: {
-        deletedAt: null,
-        url: parsed.data.url,
-        ...sourceData(fetched),
-        fetchStatus: "success",
-        fetchError: null,
-        fetchedAt: new Date(),
-        version: { increment: 1 },
-      },
-    });
-    await enqueueWorkflows(userId, restored);
-    return NextResponse.json({ ...restored, existing: true });
   }
 }

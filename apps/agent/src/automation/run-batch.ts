@@ -116,7 +116,7 @@ function automationActor(run: AgentAutomationRun): AgentActor {
     userId: run.userId,
     source: "internal-agent",
     clientId: `automation-run:${run.id}`,
-    scopes: ["content:read", "notes:write", "knowledge:write", "trash:write"],
+    scopes: ["content:read", "content:write", "notes:write", "knowledge:write", "trash:write"],
   };
 }
 

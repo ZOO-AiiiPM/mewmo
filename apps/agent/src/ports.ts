@@ -9,6 +9,7 @@ import type {
   SendMessageBody,
   WriteToolName,
 } from "./contracts";
+import type { UrlCaptureResult } from "@mewmo/application";
 
 export interface ContentSearchInput {
   query: string;
@@ -140,6 +141,10 @@ export interface ApplicationPort {
     search(actor: AgentActor, input: ContentSearchInput): Promise<ContentSearchResult>;
     read(actor: AgentActor, resourceUri: string, maxChars: number): Promise<ContentReadResult>;
   };
+  urls: {
+    saveClip(actor: AgentActor, url: string): Promise<UrlCaptureResult>;
+    subscribeFeed(actor: AgentActor, url: string): Promise<UrlCaptureResult>;
+  };
   actions: ActionPort;
 }
 
@@ -147,8 +152,8 @@ export type AgentRuntimeEvent =
   | { type: "start" }
   | { type: "text_delta"; delta: string }
   | { type: "thinking_delta"; delta: string }
-  | { type: "tool_start"; toolCallId: string; toolName: string }
-  | { type: "tool_end"; toolCallId: string; toolName: string; isError: boolean }
+  | { type: "tool_start"; toolCallId: string; toolName: string; display?: string }
+  | { type: "tool_end"; toolCallId: string; toolName: string; isError: boolean; display?: string }
   | { type: "compaction" }
   | { type: "end" };
 

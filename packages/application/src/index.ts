@@ -8,5 +8,8 @@ export * from "./ai-skill-service";
 export * from "./ai-usage-service";
 export * from "./content-service";
 export * from "./errors";
+export * from "./feed-initial-fetch";
+export * from "./feed-refresh-request";
 export * from "./knowledge-service";
 export * from "./note-service";
+export * from "./url-capture-service";

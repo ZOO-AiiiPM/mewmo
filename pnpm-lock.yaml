@@ -108,6 +108,9 @@ importers:
       '@mewmo/application':
         specifier: workspace:*
         version: link:../../packages/application
+      '@mewmo/content':
+        specifier: workspace:*
+        version: link:../../packages/content
       '@mewmo/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -302,6 +305,9 @@ importers:
 
   packages/application:
     dependencies:
+      '@mewmo/content':
+        specifier: workspace:*
+        version: link:../content
       '@mewmo/db':
         specifier: workspace:*
         version: link:../db

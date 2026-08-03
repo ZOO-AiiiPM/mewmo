@@ -45,3 +45,41 @@ Cover ownership, missing targets, transaction suffix deletion, leaf rollback, lo
 ### 7. Wrong vs Correct
 
 Wrong: catch truncate failure and call the normal append path. Correct: return `false`, keep the draft/transcript recoverable, and start `performSend` without awaiting the full stream only after persistence truncation succeeds.
+
+## Scenario: capture a public URL from Agent chat
+
+### 1. Scope / Trigger
+
+An explicit save/bookmark/clip request or public-feed subscription request may write immediately. A bare URL, reading, summarizing, or searching is not write authorization.
+
+### 2. Signatures
+
+- `ApplicationPort.urls.saveClip(actor, url) -> { action: "clip_saved", status: "created" | "existing", title }`
+- `ApplicationPort.urls.subscribeFeed(actor, url) -> { action: "feed_subscribed", status: "created" | "existing", title }`
+- Agent tools: `clip_url_save({ url })`, `feed_url_subscribe({ url })`
+
+### 3. Contracts
+
+Both Agent and Web call the same actor-scoped application commands. Clip creation retains normalized identity, active duplicate lookup, deleted duplicate restore, metadata persistence, and workflow enqueue. Feed creation retains discovery, initial fetch lease/status, FeedEntry writes, workflow enqueue, duplicate retry, and failure rollback. Agent tool observations expose only action, hostname, and sanitized status.
+
+### 4. Validation & Error Matrix
+
+- Missing `content:write` scope -> forbidden, no write.
+- Invalid, credentialed, private-network, authenticated, or unrecognized URL -> safe public failure, no write.
+- Active owned duplicate -> `existing`; foreign records never match.
+- Feed initial-fetch failure -> delete the newly created Feed and cascade its FeedEntries; a zero-count or failed rollback is an error.
+- Unexpected persistence failure -> generic Agent error; Web preserves its existing 500 behavior rather than reporting a fetch 502.
+
+### 5. Good/Base/Bad Cases
+
+- Good: "收藏这个网页" calls `clip_url_save`; "订阅这个 RSS" calls `feed_url_subscribe`.
+- Base: an owned duplicate returns `existing` without a second record.
+- Bad: a URL-only or summary request calls any write tool, or a failed initial import leaves a Feed/FeedEntry.
+
+### 6. Tests Required
+
+Cover owner filters, normalized duplicates, deleted Clip restore, Feed rollback count, duplicate refresh ownership, workflow enqueue, SSRF fail-closed, sanitized errors/events, unchanged Web response status/body, and live-model intent for two positive plus URL-only/read/summary negative cases.
+
+### 7. Wrong vs Correct
+
+Wrong: implement Prisma/fetch loops inside the Agent adapter or map every Clip service exception to Web 502. Correct: share the application command, keep transport-specific response mapping at Web, and sanitize only the Agent projection.

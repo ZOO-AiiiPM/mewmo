@@ -14,6 +14,7 @@
     "test": "vitest src"
   },
   "dependencies": {
+    "@mewmo/content": "workspace:*",
     "@mewmo/db": "workspace:*",
     "@mewmo/shared": "workspace:*",
     "cron-parser": "5.6.2"

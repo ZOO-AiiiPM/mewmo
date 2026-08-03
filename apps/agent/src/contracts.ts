@@ -103,6 +103,8 @@ export interface AgentMessageResponse {
 export type ReadToolName = "content_search" | "content_read" | "read_current_context" | "web_search" | "web_fetch";
 
 export type WriteToolName =
+  | "clip_url_save"
+  | "feed_url_subscribe"
   | "note_create"
   | "note_update"
   | "note_move"

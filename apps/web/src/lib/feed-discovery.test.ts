@@ -17,6 +17,10 @@ function xmlResponse(xml: string, _url = "https://example.com/feed.xml") {
 }
 
 describe("discoverFeeds", () => {
+  it("rejects private network sources by default", async () => {
+    await expect(discoverFeeds("http://127.0.0.1/feed.xml")).rejects.toThrow(/blocked address/i);
+  });
+
   it("recognizes direct RSS URLs", async () => {
     const fetchFeed = vi.fn().mockResolvedValue(
       xmlResponse("<rss><channel><title>Example RSS</title><description>Daily notes</description></channel></rss>"),

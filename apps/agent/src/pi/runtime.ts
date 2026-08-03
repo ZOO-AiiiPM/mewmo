@@ -271,8 +271,21 @@ async function emitRuntimeEvent(event: AgentHarnessEvent, thinkFilter: ThinkFilt
     if (event.assistantMessageEvent.type === "thinking_delta") await listener({ type: "thinking_delta", delta: event.assistantMessageEvent.delta });
     return;
   }
-  if (event.type === "tool_execution_start") await listener({ type: "tool_start", toolCallId: event.toolCallId, toolName: event.toolName });
-  if (event.type === "tool_execution_end") await listener({ type: "tool_end", toolCallId: event.toolCallId, toolName: event.toolName, isError: event.isError });
+  if (event.type === "tool_execution_start") { const display = urlToolDisplay(event.toolName, event.args); await listener({ type: "tool_start", toolCallId: event.toolCallId, toolName: event.toolName, ...(display ? { display } : {}) }); }
+  if (event.type === "tool_execution_end") { const display = urlToolResultDisplay(event.toolName, event.result, event.isError); await listener({ type: "tool_end", toolCallId: event.toolCallId, toolName: event.toolName, isError: event.isError, ...(display ? { display } : {}) }); }
+}
+
+function urlToolDisplay(name: string, args: unknown) {
+  if (name !== "clip_url_save" && name !== "feed_url_subscribe") return undefined;
+  const url = typeof args === "object" && args !== null && "url" in args && typeof args.url === "string" ? args.url : "";
+  try { return `${name === "clip_url_save" ? "正在保存剪藏" : "正在订阅来源"} ${new URL(url).hostname}`; } catch { return undefined; }
+}
+function urlToolResultDisplay(name: string, result: unknown, failed: boolean) {
+  if (name !== "clip_url_save" && name !== "feed_url_subscribe") return undefined;
+  const action = name === "clip_url_save" ? "剪藏" : "订阅";
+  if (failed) return `${action}失败`;
+  const status = typeof result === "object" && result !== null && "status" in result ? result.status : undefined;
+  return status === "existing" ? `${action}已存在` : `已创建${action}`;
 }
 
 function isTimeout(error: unknown) {
