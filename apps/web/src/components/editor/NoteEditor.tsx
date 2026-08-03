@@ -18,7 +18,10 @@ import { getMewmoBlockEditConfig } from "./block-ui";
 import { editorInteractions } from "./editor-interactions";
 import { shouldSaveMarkdownUpdate } from "./markdown-save";
 import { highlight } from "./highlight-plugin";
-import { renderMermaidPreview } from "./mermaid-preview";
+import {
+  enableMermaidPreviewInteractions,
+  renderMermaidPreview,
+} from "./mermaid-preview";
 import { readNoteDraft, removeLegacyNoteDraft } from "./note-draft-store";
 import {
   queueNoteDraftSync,
@@ -287,6 +290,12 @@ export function NoteEditor({
       selection?.addRange(range);
     });
   }, [autoFocusTitle, editorInitialContent, noteId]);
+
+  useEffect(() => {
+    const root = bodyRef.current;
+    if (!root) return;
+    return enableMermaidPreviewInteractions(root);
+  }, [noteId]);
 
   const focusBodyEditor = useCallback(() => {
     const editor = bodyRef.current?.querySelector<HTMLElement>(".ProseMirror[contenteditable=\"true\"]");

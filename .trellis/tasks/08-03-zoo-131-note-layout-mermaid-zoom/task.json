@@ -1,0 +1,30 @@
+{
+  "id": "zoo-131-note-layout-mermaid-zoom",
+  "name": "zoo-131-note-layout-mermaid-zoom",
+  "title": "ZOO-131 优化笔记宽屏布局与 Mermaid 缩放",
+  "description": "Linear ZOO-131; widen the note reading column and add in-place Mermaid pinch zoom and pan.",
+  "status": "in_review",
+  "dev_type": "frontend",
+  "scope": "apps/web note reader layout and Mermaid preview interactions",
+  "package": "web",
+  "priority": "P2",
+  "creator": "zoo",
+  "assignee": "codex",
+  "createdAt": "2026-08-03",
+  "completedAt": null,
+  "branch": "codex/issue-ZOO-131-note-layout-mermaid-zoom",
+  "base_branch": "main",
+  "worktree_path": "/Users/zoo/zoo/CC工作目录/进行中/mewmo/.worktrees/zoo-131-note-layout-mermaid-zoom",
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "apps/web/src/app/globals.css",
+    "apps/web/src/components/editor/editor-theme.css",
+    "apps/web/src/components/editor/mermaid-preview.ts"
+  ],
+  "notes": "",
+  "meta": {}
+}

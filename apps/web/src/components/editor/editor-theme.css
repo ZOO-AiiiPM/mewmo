@@ -50,7 +50,7 @@ html.light .crepe-editor-wrapper .milkdown {
 
 .crepe-editor-wrapper--embedded .milkdown {
   height: auto;
-  max-width: 760px;
+  max-width: 960px;
   margin: 0 auto;
   --crepe-color-background: var(--s3);
   --crepe-color-on-background: var(--ink);
@@ -71,7 +71,7 @@ html.light .crepe-editor-wrapper .milkdown {
 
 .crepe-editor-wrapper--embedded .milkdown .ProseMirror {
   min-height: 0;
-  padding: 0 40px 96px;
+  padding: 0 clamp(13px, 2.67vw, 27px) 96px;
 }
 
 .crepe-editor-wrapper--embedded .milkdown .ProseMirror:focus {
@@ -279,7 +279,25 @@ html.light .crepe-editor-wrapper .milkdown {
   margin: 0 auto;
 }
 
+.crepe-editor-wrapper .milkdown .milkdown-code-block .mewmo-mermaid-canvas {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  place-items: center;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+}
+
+.crepe-editor-wrapper .milkdown .milkdown-code-block .mewmo-mermaid-canvas > svg {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+}
+
 .crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg text,
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg text > tspan,
 .crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg .label,
 .crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg .messageText,
 .crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg .loopText {

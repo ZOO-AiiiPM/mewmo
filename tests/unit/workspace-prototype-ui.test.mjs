@@ -648,8 +648,8 @@ test("reader scroll viewport starts below toolbar without owning top content pad
   );
   assert.match(
     css,
-    /\.mewmo-reader-scroll\s*\{[^}]*margin-top:\s*46px[^}]*padding-bottom:\s*58px[^}]*padding-left:\s*64px[^}]*padding-right:\s*64px/,
-    "reader scroll viewport should start below the 46px toolbar like the prototype",
+    /\.mewmo-reader-scroll\s*\{[^}]*margin-top:\s*46px[^}]*padding-bottom:\s*58px[^}]*padding-left:\s*clamp\(12px, 4vw, 43px\)[^}]*padding-right:\s*clamp\(12px, 4vw, 43px\)/,
+    "all reader surfaces should share compact responsive side padding below the toolbar",
   );
   assert.doesNotMatch(
     css,
@@ -663,8 +663,8 @@ test("reader scroll viewport starts below toolbar without owning top content pad
   );
   assert.match(
     css,
-    /\.mewmo-document\s*\{[^}]*padding:\s*32px 36px 30px/,
-    "reader document should keep the prototype internal top padding",
+    /\.mewmo-document\s*\{[^}]*max-width:\s*960px[^}]*padding:\s*32px clamp\(16px, 2\.4vw, 24px\) 30px/,
+    "all reader documents should use the wider compact content column",
   );
   assert.doesNotMatch(
     css,
