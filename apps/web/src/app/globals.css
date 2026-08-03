@@ -619,15 +619,6 @@ html.light .mewmo-auth-footer a {
   }
 }
 
-button,
-input {
-  font: inherit;
-}
-
-button {
-  color: inherit;
-}
-
 ::selection {
   background: var(--hl);
 }
