@@ -6,4 +6,4 @@
 - [x] Carry `totalTokens` through live and persisted transcript adapters without showing it while streaming.
 - [x] Render compact low-emphasis token text in `AssistantRow` and add focused behavior tests.
 - [x] Run focused package tests, ownership regression, Web lint/typecheck/theme/diff check/build, then browser-check light and dark themes on an unused port.
-- [ ] Stage owned files only, commit, push, and open the requested PR without merging.
+- [x] Stage owned files only, commit, push, and open the requested PR without merging.
