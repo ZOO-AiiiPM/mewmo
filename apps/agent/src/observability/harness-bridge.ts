@@ -48,7 +48,12 @@ export function createHarnessObservationBridge(
     providerPayload(payload) {
       const sequence = pendingResponseGenerations.at(-1);
       if (sequence === undefined) return;
-      options.observation.generationInput?.({ sequence, input: payload });
+      const modelParameters = publicModelParameters(payload);
+      options.observation.generationInput?.({
+        sequence,
+        input: payload,
+        ...(modelParameters ? { modelParameters } : {}),
+      });
     },
     compactionStarted(input) {
       const sequence = startGeneration("agent.compaction");
@@ -109,6 +114,17 @@ function sanitizeUrlToolOutput(toolName: string, value: unknown, failed: boolean
   if (toolName !== "clip_url_save" && toolName !== "feed_url_subscribe") return value;
   const result = typeof value === "object" && value !== null ? value as Record<string, unknown> : {};
   return { action: toolName === "feed_url_subscribe" ? "feed_subscribed" : "clip_saved", status: failed ? "failed" : result.status === "existing" ? "existing" : "created" };
+}
+
+function publicModelParameters(
+  payload: unknown,
+): Record<string, string | number> | undefined {
+  if (typeof payload !== "object" || payload === null) return undefined;
+  const reasoning = "reasoning" in payload ? payload.reasoning : undefined;
+  if (typeof reasoning !== "object" || reasoning === null) return undefined;
+  const effort = "effort" in reasoning ? reasoning.effort : undefined;
+  if (typeof effort !== "string") return undefined;
+  return { "reasoning.effort": effort };
 }
 
 function generationBase(

@@ -19,7 +19,7 @@ function setup() {
     },
   } as unknown as ApplicationPort;
   const runtime: AgentRuntimePort = {
-    run: vi.fn().mockResolvedValue({ text: "完成", proposals: [], userEntryId: "u", assistantEntryId: "a" }),
+    run: vi.fn().mockResolvedValue({ text: "完成", process: [], proposals: [], citations: [], userEntryId: "u", assistantEntryId: "a" }),
   };
   return { runs, application, runtime };
 }

@@ -15,6 +15,7 @@ import {
 import * as anthropicMessagesApi from "@earendil-works/pi-ai/api/anthropic-messages";
 import * as googleGenerativeAIApi from "@earendil-works/pi-ai/api/google-generative-ai";
 import * as openAICompletionsApi from "@earendil-works/pi-ai/api/openai-completions";
+import * as openAIResponsesApi from "@earendil-works/pi-ai/api/openai-responses";
 import { anthropicProvider } from "@earendil-works/pi-ai/providers/anthropic";
 import { deepseekProvider } from "@earendil-works/pi-ai/providers/deepseek";
 import { googleProvider } from "@earendil-works/pi-ai/providers/google";
@@ -62,29 +63,45 @@ interface ResolvedPurpose {
   pricingKnown: boolean;
 }
 
+type RuntimePurpose = Exclude<ModelPurpose, "workflow.embedding">;
+
 export function createAIRuntime(config: AIRuntimeConfig): AIRuntime {
   const models = createModels({ ...(config.credentials ? { credentials: config.credentials } : {}) });
-  const providerIds = new Map<string, string>();
-  const builtinProviders = new Set<string>();
+  const providerIds = new Map<RuntimePurpose, string>();
+  const builtinPurposes = new Set<RuntimePurpose>();
   const reranker = createReranker(config.reranker ?? {});
 
   for (const [providerKey, definition] of Object.entries(config.providers)) {
     // Embedding models never flow through Pi's model registry (see `embed`), so
     // they must not gate builtin-provider selection or endpoint model lists.
-    const configuredModels = Object.entries(config.models)
-      .filter(([purpose]) => purpose !== "workflow.embedding")
-      .map(([, model]) => model)
-      .filter((model): model is ModelDefinition => model?.provider === providerKey)
-      .filter((model, index, values) => values.findIndex((value) => value.model === model.model) === index);
-    const builtIn = createBuiltinProvider(definition, configuredModels);
-    if (builtIn) {
-      models.setProvider(builtIn);
-      providerIds.set(providerKey, builtIn.id);
-      builtinProviders.add(providerKey);
-      continue;
+    const configuredEntries = Object.entries(config.models)
+      .filter((entry): entry is [RuntimePurpose, ModelDefinition] => (
+        entry[0] !== "workflow.embedding" && entry[1]?.provider === providerKey
+      ));
+    const defaultEntries = configuredEntries.filter(([, model]) => model.api === undefined);
+    const responseEntries = configuredEntries.filter(([, model]) => model.api === "openai-responses");
+
+    if (defaultEntries.length > 0) {
+      const defaultModels = uniqueModels(defaultEntries.map(([, model]) => model));
+      const builtIn = createBuiltinProvider(definition, defaultModels);
+      if (builtIn) {
+        models.setProvider(builtIn);
+        for (const [purpose] of defaultEntries) {
+          providerIds.set(purpose, builtIn.id);
+          builtinPurposes.add(purpose);
+        }
+      } else {
+        const id = responseEntries.length > 0 ? `${providerKey}:default` : providerKey;
+        models.setProvider(createEndpointProvider(id, definition, defaultModels));
+        for (const [purpose] of defaultEntries) providerIds.set(purpose, id);
+      }
     }
-    models.setProvider(createEndpointProvider(providerKey, definition, configuredModels));
-    providerIds.set(providerKey, providerKey);
+
+    if (responseEntries.length > 0) {
+      const id = providerKey;
+      models.setProvider(createEndpointProvider(id, definition, uniqueModels(responseEntries.map(([, model]) => model))));
+      for (const [purpose] of responseEntries) providerIds.set(purpose, id);
+    }
   }
 
   const resolve = (purpose: Exclude<ModelPurpose, "workflow.embedding">): ResolvedPurpose => {
@@ -92,7 +109,7 @@ export function createAIRuntime(config: AIRuntimeConfig): AIRuntime {
     if (!modelDefinition) throw new Error(`AI model purpose is not configured: ${purpose}`);
     const definition = config.providers[modelDefinition.provider];
     if (!definition) throw new Error(`AI provider is not configured: ${modelDefinition.provider}`);
-    const providerId = providerIds.get(modelDefinition.provider);
+    const providerId = providerIds.get(purpose);
     if (!providerId) throw new Error(`AI provider is not initialized: ${modelDefinition.provider}`);
     const model = models.getModel(providerId, modelDefinition.model);
     if (!model) throw new Error(`AI model is not available: ${providerId}/${modelDefinition.model}`);
@@ -101,7 +118,7 @@ export function createAIRuntime(config: AIRuntimeConfig): AIRuntime {
       modelDefinition,
       model,
       pricingKnown:
-        builtinProviders.has(modelDefinition.provider)
+        builtinPurposes.has(purpose)
         || modelDefinition.cost !== undefined
         || (definition.provider === "google" && GOOGLE_MODEL_DEFAULTS.has(modelDefinition.model)),
     };
@@ -270,25 +287,35 @@ function createBuiltinProvider(definition: ProviderDefinition, models: ModelDefi
   return undefined;
 }
 
+function uniqueModels(models: ModelDefinition[]) {
+  return models.filter((model, index, values) => values.findIndex((value) => value.model === model.model) === index);
+}
+
 function createEndpointProvider(id: string, definition: ProviderDefinition, models: ModelDefinition[]): Provider {
-  const api = definition.provider === "anthropic"
-    ? anthropicMessagesApi
-    : definition.provider === "google"
-      ? googleGenerativeAIApi
-      : openAICompletionsApi;
+  const api = models.some((model) => model.api === "openai-responses")
+    ? openAIResponsesApi
+    : definition.provider === "anthropic"
+      ? anthropicMessagesApi
+      : definition.provider === "google"
+        ? googleGenerativeAIApi
+        : openAICompletionsApi;
   const modelList: Array<Model<Api>> = models.map((model) => {
     const defaults = definition.provider === "google" ? GOOGLE_MODEL_DEFAULTS.get(model.model) : undefined;
     return {
       id: model.model,
       name: model.model,
-      api: definition.provider === "anthropic"
+      api: model.api ?? (definition.provider === "anthropic"
         ? "anthropic-messages" as const
         : definition.provider === "google"
           ? "google-generative-ai" as const
-          : "openai-completions" as const,
+          : "openai-completions" as const),
       provider: id,
       baseUrl: definition.baseUrl,
       reasoning: model.reasoning ?? false,
+      ...(model.thinkingLevelMap ? { thinkingLevelMap: model.thinkingLevelMap } : {}),
+      ...(model.api === "openai-responses" && definition.provider === "deepseek"
+        ? { compat: { supportsDeveloperRole: false, supportsLongCacheRetention: false, sessionAffinityFormat: "openai-nosession" as const } }
+        : {}),
       input: ["text"],
       cost: model.cost ?? defaults?.cost ?? ZERO_COST,
       contextWindow: model.contextWindow ?? defaults?.contextWindow ?? 128_000,

@@ -15,8 +15,8 @@ const proposal = (id: string): AgentActionProposal => ({
 describe("agent transcript adapter", () => {
   it("keeps tool activity and final text in one legacy turn", () => {
     let state = createLiveTurn("chat-1", "local-request-1", "查找相关笔记");
-    state = applyLegacyEvent(state, { type: "tool_start", toolCallId: "tool-1", toolName: "content_search" });
-    state = applyLegacyEvent(state, { type: "tool_end", toolCallId: "tool-1", toolName: "content_search", isError: false });
+    state = applyLegacyEvent(state, { type: "tool_start", toolCallId: "tool-1", toolName: "content_search", details: ["查询：Agent", "共享"] });
+    state = applyLegacyEvent(state, { type: "tool_end", toolCallId: "tool-1", toolName: "content_search", isError: false, details: ["共享", "结果：找到 2 项"] });
     state = applyLegacyEvent(state, { type: "text_delta", delta: "找到" });
 
     const row = finalizeLegacyTurn(state, {
@@ -27,7 +27,7 @@ describe("agent transcript adapter", () => {
 
     expect(row.status).toBe("completed");
     expect(row.assistant).toEqual([
-      { kind: "tool", toolCallId: "tool-1", display: "已搜索工作区", status: "done" },
+      { kind: "tool", toolCallId: "tool-1", toolName: "content_search", display: "已搜索工作区", status: "done", details: ["查询：Agent", "共享", "结果：找到 2 项"] },
       { kind: "text", content: "找到两条相关笔记。" },
     ]);
   });
@@ -69,6 +69,33 @@ describe("agent transcript adapter", () => {
     ])).toEqual([expect.objectContaining({ turnId: "turn-1", userContent: "问题", status: "completed" })]);
   });
 
+  it("restores ordered high process blocks and hides low reasoning", () => {
+    const process = [
+      { kind: "thinking" as const, content: "核对" },
+      { kind: "text" as const, content: "先搜索" },
+      { kind: "tool" as const, toolCallId: "tool-1", toolName: "content_search", status: "done" as const, details: ["查询：Agent", "结果：找到 2 项"] },
+      { kind: "text" as const, content: "最终答案" },
+    ];
+    const high = messagesToTranscriptRows([
+      { id: "user-high", turnId: "turn-high", role: "user", content: "问题" },
+      { id: "assistant-high", turnId: "turn-high", role: "assistant", content: "最终答案", metadata: { thinking: true, process, startedAt: "2026-08-03T00:00:00.000Z", completedAt: "2026-08-03T00:00:02.000Z" } },
+    ])[0];
+    const low = messagesToTranscriptRows([
+      { id: "user-low", turnId: "turn-low", role: "user", content: "问题" },
+      { id: "assistant-low", turnId: "turn-low", role: "assistant", content: "最终答案", metadata: { thinking: false, process } },
+    ])[0];
+
+    expect(high?.assistant).toEqual([
+      { kind: "thinking", content: "核对" },
+      { kind: "text", content: "先搜索" },
+      { kind: "tool", toolCallId: "tool-1", toolName: "content_search", display: "已搜索工作区", status: "done", details: ["查询：Agent", "结果：找到 2 项"] },
+      { kind: "text", content: "最终答案" },
+    ]);
+    expect(high).toMatchObject({ startedAt: "2026-08-03T00:00:00.000Z", completedAt: "2026-08-03T00:00:02.000Z" });
+    expect(low?.assistant.some((block) => block.kind === "thinking")).toBe(false);
+    expect(low?.assistant.map((block) => block.kind)).toEqual(["text", "tool", "text"]);
+  });
+
   it("ignores duplicated legacy content events once the stable protocol claims the turn", () => {
     let state = createLiveTurn("chat-1", "local-request-1", "你好");
     state = applyConversationEvent(state, { type: "turn.started", chatId: "chat-1", turnId: "turn-1", seq: 1 });
@@ -85,7 +112,23 @@ describe("agent transcript adapter", () => {
     state = applyConversationEvent(state, { type: "tool.started", chatId: "chat-1", turnId: "turn-1", seq: 2, toolCallId: "tool-1", tool: "content_search" });
     state = applyConversationEvent(state, { type: "tool.completed", chatId: "chat-1", turnId: "turn-1", seq: 3, toolCallId: "tool-1", display: { label: "搜索知识库失败" } });
 
-    expect(state.blocks).toEqual([{ kind: "tool", toolCallId: "tool-1", display: "搜索知识库失败", status: "error" }]);
+    expect(state.blocks).toEqual([{ kind: "tool", toolCallId: "tool-1", toolName: "content_search", display: "搜索知识库失败", status: "error" }]);
+  });
+
+  it("keeps stable tool input details when completion adds result details", () => {
+    let state = createLiveTurn("chat-1", "local-request-1", "搜索");
+    state = applyConversationEvent(state, { type: "turn.started", chatId: "chat-1", turnId: "turn-1", seq: 1 });
+    state = applyConversationEvent(state, { type: "tool.started", chatId: "chat-1", turnId: "turn-1", seq: 2, toolCallId: "tool-1", tool: "web_search", display: { label: "正在搜索网页", details: ["查询：Agent", "共享"] } });
+    state = applyConversationEvent(state, { type: "tool.completed", chatId: "chat-1", turnId: "turn-1", seq: 3, toolCallId: "tool-1", display: { label: "已搜索网页", details: ["共享", "结果：找到 2 项"] } });
+
+    expect(state.blocks).toEqual([{
+      kind: "tool",
+      toolCallId: "tool-1",
+      toolName: "web_search",
+      display: "已搜索网页",
+      status: "done",
+      details: ["查询：Agent", "共享", "结果：找到 2 项"],
+    }]);
   });
 
   it("replaces raw internal error payloads with product error copy", () => {

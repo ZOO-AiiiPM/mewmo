@@ -49,13 +49,14 @@ export function buildAgentServer(dependencies: AgentServerDependencies): Fastify
       chatId: request.params.chatId,
       clientRequestId: body.clientRequestId,
       content: body.content,
+      ...(body.thinking === undefined ? {} : { thinking: body.thinking }),
       workerId,
       leaseMs: dependencies.config.AGENT_TURN_LEASE_MS,
     });
     if (started.cached) return started.cached;
     try {
       const result = await dependencies.runtime.run({ actor: request.agentActor, chatId: request.params.chatId, turnId: started.turnId, workerId, request: body });
-      return dependencies.application.turns.complete({ actor: request.agentActor, turnId: started.turnId, workerId, assistantEntryId: result.assistantEntryId, proposals: result.proposals, citations: result.citations });
+      return dependencies.application.turns.complete({ actor: request.agentActor, turnId: started.turnId, workerId, assistantEntryId: result.assistantEntryId, process: result.process, proposals: result.proposals, citations: result.citations });
     } catch (error) {
       const normalized = toAgentError(error);
       logAgentFailure("message", request.id, normalized);
@@ -67,7 +68,7 @@ export function buildAgentServer(dependencies: AgentServerDependencies): Fastify
   app.post<{ Params: { chatId: string } }>("/v1/chats/:chatId/stream", async (request, reply) => {
     const body = sendMessageBodySchema.parse(request.body);
     const workerId = `${dependencies.config.AGENT_WORKER_ID}:${randomUUID()}`;
-    const started = await dependencies.application.turns.begin({ actor: request.agentActor, chatId: request.params.chatId, clientRequestId: body.clientRequestId, content: body.content, workerId, leaseMs: dependencies.config.AGENT_TURN_LEASE_MS });
+    const started = await dependencies.application.turns.begin({ actor: request.agentActor, chatId: request.params.chatId, clientRequestId: body.clientRequestId, content: body.content, ...(body.thinking === undefined ? {} : { thinking: body.thinking }), workerId, leaseMs: dependencies.config.AGENT_TURN_LEASE_MS });
     reply.hijack();
     reply.raw.statusCode = 200;
     reply.raw.setHeader("Content-Type", "text/event-stream; charset=utf-8");
@@ -85,9 +86,9 @@ export function buildAgentServer(dependencies: AgentServerDependencies): Fastify
     try {
       const result = await dependencies.runtime.run(
         { actor: request.agentActor, chatId: request.params.chatId, turnId: started.turnId, workerId, request: body },
-        (event) => streamRuntimeEvent(send, conversation, event),
+        (event) => streamRuntimeEvent(send, conversation, event, body.thinking === true),
       );
-      const response = await dependencies.application.turns.complete({ actor: request.agentActor, turnId: started.turnId, workerId, assistantEntryId: result.assistantEntryId, proposals: result.proposals, citations: result.citations });
+      const response = await dependencies.application.turns.complete({ actor: request.agentActor, turnId: started.turnId, workerId, assistantEntryId: result.assistantEntryId, process: result.process, proposals: result.proposals, citations: result.citations });
       emitCompletedTurn(conversation, response);
       send("result", response);
     } catch (error) {
@@ -154,6 +155,7 @@ function streamRuntimeEvent(
   send: (event: string, data: unknown) => void,
   conversation: ConversationEmitter,
   event: AgentRuntimeEvent,
+  showThinking: boolean,
 ) {
   if (event.type === "text_delta") {
     conversation.emit({ type: "assistant.text.delta", delta: event.delta });
@@ -162,6 +164,7 @@ function streamRuntimeEvent(
     return;
   }
   if (event.type === "thinking_delta") {
+    if (!showThinking) return;
     conversation.emit({ type: "assistant.thinking.delta", delta: event.delta });
     send(event.type, event);
     return;
@@ -171,7 +174,7 @@ function streamRuntimeEvent(
       type: "tool.started",
       toolCallId: event.toolCallId,
       tool: event.toolName,
-      display: { label: event.display ?? toolLabel(event.toolName, "started") },
+      display: { label: toolLabel(event.toolName, "started"), ...(event.details ? { details: event.details } : {}) },
     });
     send(event.type, event);
     return;
@@ -180,7 +183,10 @@ function streamRuntimeEvent(
     conversation.emit({
       type: "tool.completed",
       toolCallId: event.toolCallId,
-      display: { label: event.display ?? toolLabel(event.toolName, event.isError ? "failed" : "completed") },
+      display: {
+        label: toolLabel(event.toolName, event.isError ? "failed" : "completed"),
+        ...(event.details ? { details: event.details } : {}),
+      },
     });
     send(event.type, event);
   }
@@ -221,6 +227,8 @@ const toolLabels: Partial<Record<string, string>> = {
   read_current_context: "正在读取当前内容",
   web_search: "正在搜索网页",
   web_fetch: "正在读取网页",
+  clip_url_save: "正在保存剪藏",
+  feed_url_subscribe: "正在订阅来源",
 };
 
 const actionTitles: Partial<Record<string, string>> = {

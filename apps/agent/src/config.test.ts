@@ -7,6 +7,13 @@ const required = {
 };
 
 describe("loadAgentConfig Langfuse settings", () => {
+  it("uses the full interactive Agent execution budget by default", () => {
+    expect(loadAgentConfig(required)).toMatchObject({
+      AGENT_MAX_STEPS: 12,
+      AGENT_TIMEOUT_MS: 120_000,
+    });
+  });
+
   it("keeps tracing disabled when both keys are absent", () => {
     const config = loadAgentConfig({
       ...required,

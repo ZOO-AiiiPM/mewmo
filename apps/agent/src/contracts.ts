@@ -27,7 +27,7 @@ export const sendMessageBodySchema = z.object({
   clientRequestId: z.string().min(1).max(200),
   content: z.string().trim().min(1).max(20_000),
   skillId: z.string().min(1).max(100).optional(),
-  // User-facing deep-thinking toggle: bumps this turn's thinkingLevel to "medium".
+  // User-facing persistent deep-thinking toggle: low normally, high when enabled.
   thinking: z.boolean().optional(),
   // Kept for one release while the Web BFF migrates to skillId.
   skill: z.enum(["general", "deep-insight"]).optional(),

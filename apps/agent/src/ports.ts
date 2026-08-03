@@ -95,6 +95,7 @@ export interface ApplicationPort {
       chatId: string;
       clientRequestId: string;
       content: string;
+      thinking?: boolean;
       workerId: string;
       leaseMs: number;
     }): Promise<{ turnId: string; cached?: AgentMessageResponse }>;
@@ -103,6 +104,7 @@ export interface ApplicationPort {
       turnId: string;
       workerId: string;
       assistantEntryId: string;
+      process: AgentProcessBlock[];
       proposals: AgentActionProposal[];
       citations?: AgentCitation[];
     }): Promise<AgentMessageResponse>;
@@ -148,12 +150,17 @@ export interface ApplicationPort {
   actions: ActionPort;
 }
 
+export type AgentProcessBlock =
+  | { kind: "text"; content: string }
+  | { kind: "thinking"; content: string }
+  | { kind: "tool"; toolCallId: string; toolName: string; details?: string[]; status: "running" | "done" | "error" };
+
 export type AgentRuntimeEvent =
   | { type: "start" }
   | { type: "text_delta"; delta: string }
   | { type: "thinking_delta"; delta: string }
-  | { type: "tool_start"; toolCallId: string; toolName: string; display?: string }
-  | { type: "tool_end"; toolCallId: string; toolName: string; isError: boolean; display?: string }
+  | { type: "tool_start"; toolCallId: string; toolName: string; details?: string[] }
+  | { type: "tool_end"; toolCallId: string; toolName: string; isError: boolean; details?: string[] }
   | { type: "compaction" }
   | { type: "end" };
 
@@ -168,6 +175,7 @@ export interface AgentRequestContext {
 export interface AgentRuntimePort {
   run(context: AgentRequestContext, onEvent?: (event: AgentRuntimeEvent) => Promise<void> | void): Promise<{
     text: string;
+    process: AgentProcessBlock[];
     proposals: AgentActionProposal[];
     citations: AgentCitation[];
     userEntryId: string;

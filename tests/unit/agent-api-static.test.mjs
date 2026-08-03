@@ -93,7 +93,7 @@ test("Mew chat interaction contracts keep stop, thinking, insight, and hero beha
   assert.match(input, /sendGuardUntilRef\.current = Date\.now\(\) \+ STOP_POINTER_GUARD_MS;\s+onStop\(\);/);
   assert.match(store, /setStableRows\(\(rows\) => truncateTranscriptRows\(rows, turnId\)\);[\s\S]*?void performSend\(request\);\s+return true;/, "replacement must acknowledge stream start without waiting for completion");
   assert.match(input, /深度思考/);
-  assert.match(input, /\.\.\.\(thinking \? \{ thinking: true \} : \{\}\)/);
+  assert.match(input, /onSend\(buildComposerSendOptions\(\{[\s\S]*?\bthinking,/);
   assert.match(sidebar, /\.\.\.\(options\.thinking \? \{ thinking: true \} : \{\}\)/);
   assert.match(contract, /thinking: z\.boolean\(\)\.optional\(\)/);
   assert.match(streamRoute, /thinking: parsed\.data\.thinking/);

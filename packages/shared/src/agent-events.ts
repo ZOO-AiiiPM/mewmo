@@ -25,6 +25,7 @@ export const agentAssistantMessageSchema = z.object({
 
 const toolDisplaySchema = z.object({
   label: z.string().min(1),
+  details: z.array(z.string().min(1).max(500)).max(8).optional(),
 });
 
 const actionDisplaySchema = z.object({
@@ -78,4 +79,3 @@ export const agentConversationEventSchema = z.discriminatedUnion("type", [
 ]);
 
 export type AgentConversationEvent = z.infer<typeof agentConversationEventSchema>;
-

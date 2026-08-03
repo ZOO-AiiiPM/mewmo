@@ -20,6 +20,7 @@ export interface BeginAiTurnInput {
   chatId: string;
   clientRequestId: string;
   content: string;
+  thinking?: boolean;
   workerId: string;
   leaseMs: number;
   now?: Date;
@@ -115,6 +116,7 @@ export function createAiSessionService(options: { prisma?: PrismaClient } = {}) 
             workerId: input.workerId,
             leaseExpiresAt,
             startedAt: now,
+            output: { transcript: { thinking: input.thinking === true } },
           },
         });
         return { cached: false as const, turn };
@@ -145,7 +147,7 @@ export function createAiSessionService(options: { prisma?: PrismaClient } = {}) 
           data: {
             status: "succeeded",
             assistantEntryId: input.assistantEntryId,
-            output: jsonValue(input.output),
+            output: jsonValue(mergeTurnOutput(turn.output, input.output)),
             completedAt: now,
             workerId: null,
             leaseExpiresAt: null,
@@ -250,6 +252,22 @@ function hash(value: string) {
 
 function jsonValue(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+}
+
+function mergeTurnOutput(previous: unknown, next: unknown) {
+  const before = record(previous);
+  const after = record(next);
+  return {
+    ...before,
+    ...after,
+    transcript: { ...record(before.transcript), ...record(after.transcript) },
+  };
+}
+
+function record(value: unknown): Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
 }
 
 function leafTarget(payload: unknown) {

@@ -24,6 +24,17 @@ export interface StreamCallbacks {
   onConversationEvent?: (event: ConversationEvent) => void;
   onResult?: (result: LegacyResultPayload) => void;
   onError?: (error: { code?: string; message: string; retryable?: boolean }) => void;
+  onLifecycle?: (event: StreamLifecycleEvent) => void;
+}
+
+export interface StreamLifecycleEvent {
+  at: string;
+  phase: "event" | "clean_eof" | "transport_error";
+  eventType?: string;
+  chatId?: string;
+  turnId?: string;
+  seq?: number;
+  errorName?: string;
 }
 
 export interface StreamHandle {
@@ -87,6 +98,7 @@ export async function consumeStream(
       const validatedResult = parsed.data as LegacyResultPayload;
       result = validatedResult;
       callbacks.onResult?.(validatedResult);
+      callbacks.onLifecycle?.({ at: new Date().toISOString(), phase: "event", eventType });
       return;
     }
     if (eventType === "error") {
@@ -103,18 +115,31 @@ export async function consumeStream(
         : { message: "Agent 请求失败" };
       result = { error: publicError };
       callbacks.onError?.(publicError);
+      callbacks.onLifecycle?.({ at: new Date().toISOString(), phase: "event", eventType });
       return;
     }
 
     if (isConversationEventType(eventType)) {
       const event = conversationEventSchema.safeParse({ ...(typeof data === "object" && data !== null ? data : {}), type: eventType });
       if (!event.success || event.data.chatId !== chatId) return;
-      callbacks.onConversationEvent?.(event.data as ConversationEvent);
+      const conversationEvent = event.data as ConversationEvent;
+      callbacks.onConversationEvent?.(conversationEvent);
+      callbacks.onLifecycle?.({
+        at: new Date().toISOString(),
+        phase: "event",
+        eventType,
+        chatId: conversationEvent.chatId,
+        turnId: conversationEvent.turnId,
+        seq: conversationEvent.seq,
+      });
       return;
     }
 
     const event = legacyStreamEventSchema.safeParse({ ...(typeof data === "object" && data !== null ? data : {}), type: eventType });
-    if (event.success) callbacks.onLegacyEvent?.(event.data);
+    if (event.success) {
+      callbacks.onLegacyEvent?.(event.data);
+      callbacks.onLifecycle?.({ at: new Date().toISOString(), phase: "event", eventType });
+    }
   };
 
   try {
@@ -129,9 +154,17 @@ export async function consumeStream(
 
       if (chunk.done) {
         if (buffer.trim()) processFrame(buffer);
+        callbacks.onLifecycle?.({ at: new Date().toISOString(), phase: "clean_eof" });
         break;
       }
     }
+  } catch (error) {
+    callbacks.onLifecycle?.({
+      at: new Date().toISOString(),
+      phase: "transport_error",
+      errorName: error instanceof Error ? error.name : "UnknownError",
+    });
+    throw error;
   } finally {
     reader.releaseLock();
   }

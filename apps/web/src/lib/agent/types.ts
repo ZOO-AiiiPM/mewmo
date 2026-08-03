@@ -38,8 +38,8 @@ export type LegacyStreamEvent =
   | { type: "start" }
   | { type: "text_delta"; delta: string }
   | { type: "thinking_delta"; delta: string }
-  | { type: "tool_start"; toolCallId: string; toolName: string }
-  | { type: "tool_end"; toolCallId: string; toolName: string; isError: boolean }
+  | { type: "tool_start"; toolCallId: string; toolName: string; details?: string[] | undefined }
+  | { type: "tool_end"; toolCallId: string; toolName: string; isError: boolean; details?: string[] | undefined }
   | { type: "compaction" }
   | { type: "end" };
 
@@ -47,8 +47,8 @@ export const legacyStreamEventSchema: z.ZodType<LegacyStreamEvent> = z.discrimin
   z.object({ type: z.literal("start") }),
   z.object({ type: z.literal("text_delta"), delta: z.string() }),
   z.object({ type: z.literal("thinking_delta"), delta: z.string() }),
-  z.object({ type: z.literal("tool_start"), toolCallId: z.string(), toolName: z.string() }),
-  z.object({ type: z.literal("tool_end"), toolCallId: z.string(), toolName: z.string(), isError: z.boolean() }),
+  z.object({ type: z.literal("tool_start"), toolCallId: z.string(), toolName: z.string(), details: z.array(z.string()).optional() }),
+  z.object({ type: z.literal("tool_end"), toolCallId: z.string(), toolName: z.string(), isError: z.boolean(), details: z.array(z.string()).optional() }),
   z.object({ type: z.literal("compaction") }),
   z.object({ type: z.literal("end") }),
 ]);
@@ -96,7 +96,7 @@ export const legacyResultPayloadSchema = z.object({
 
 export type AssistantBlock =
   | { kind: "text"; content: string }
-  | { kind: "tool"; toolCallId: string; display: string; status: "running" | "done" | "error" }
+  | { kind: "tool"; toolCallId: string; toolName?: string; display: string; details?: string[]; status: "running" | "done" | "error" }
   | { kind: "thinking"; content: string }
   | { kind: "confirmation"; proposal: AgentActionProposal };
 
@@ -122,6 +122,8 @@ export interface TranscriptRow {
   /** True when the user stopped generation client-side (reply may be partial). */
   stopped?: boolean;
   createdAt?: string;
+  startedAt?: string;
+  completedAt?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -150,11 +152,22 @@ export interface PersistedMessage {
   content: string;
   status?: string;
   createdAt?: string;
-  metadata?: { proposals?: AgentActionProposal[] };
+  metadata?: {
+    proposals?: AgentActionProposal[];
+    thinking?: boolean;
+    process?: PersistedProcessBlock[];
+    startedAt?: string;
+    completedAt?: string;
+  };
   /** Persisted context attachments (targetType + title) captured at send time. */
   contextAttachments?: Array<{ targetType: string; title: string }>;
   error?: { message: string; retryable: boolean };
 }
+
+export type PersistedProcessBlock =
+  | { kind: "text"; content: string }
+  | { kind: "thinking"; content: string }
+  | { kind: "tool"; toolCallId: string; toolName: string; details?: string[]; status: "running" | "done" | "error" };
 
 export interface PersistedChat {
   id: string;

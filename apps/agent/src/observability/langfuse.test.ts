@@ -60,7 +60,11 @@ describe("Langfuse Agent observability", () => {
           requestedModel: "gemini-flash",
           prompt: { name: "agent/system.zh", version: 3, isFallback: false },
         });
-        turn.generationInput?.({ sequence: 1, input: { messages: [{ role: "user", content: "private prompt" }] } });
+        turn.generationInput?.({
+          sequence: 1,
+          input: { messages: [{ role: "user", content: "private prompt" }] },
+          modelParameters: { "reasoning.effort": "high" },
+        });
         turn.generationCompleted({
           sequence: 1,
           operation: "agent.response",
@@ -114,6 +118,10 @@ describe("Langfuse Agent observability", () => {
       },
       { asType: "tool" },
     );
+    expect(root.children[0]?.update).toHaveBeenCalledWith({
+      input: { messages: [{ role: "user", content: "private prompt" }] },
+      modelParameters: { "reasoning.effort": "high" },
+    });
     expect(root.children[0]?.update).toHaveBeenCalledWith(
       expect.objectContaining({
         model: "gemini-flash-2026",

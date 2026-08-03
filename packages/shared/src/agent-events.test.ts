@@ -31,10 +31,11 @@ describe("agentConversationEventSchema", () => {
       toolCallId: "tool-1",
       arguments: { noteId: "secret" },
       result: { content: "private note" },
-      display: { label: "已读取当前笔记" },
+      display: { label: "已读取当前笔记", details: ["目标：当前笔记", "结果：读取成功"] },
     });
 
     expect(parsed).not.toHaveProperty("arguments");
     expect(parsed).not.toHaveProperty("result");
+    expect(parsed.display.details).toEqual(["目标：当前笔记", "结果：读取成功"]);
   });
 });

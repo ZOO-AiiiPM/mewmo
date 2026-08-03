@@ -6,9 +6,9 @@ import type {
   AgentObservabilityPort,
   AgentTurnObservation,
 } from "../observability/port";
-import type { ApplicationPort, SessionEntryRecord } from "../ports";
+import type { AgentProcessBlock, ApplicationPort, SessionEntryRecord } from "../ports";
 import { TEST_ACTOR, createApplicationStub } from "../testing";
-import { assertAgentResponseSucceeded, assertSafeToolConfiguration, createAgentRuntime, currentDateTimeInstruction, pageContextInstruction, thinkingLevelForRequest } from "./runtime";
+import { appendProcessBlock, assertAgentResponseSucceeded, assertSafeToolConfiguration, createAgentRuntime, currentDateTimeInstruction, pageContextInstruction, thinkingLevelForRequest } from "./runtime";
 
 describe("currentDateTimeInstruction", () => {
   it("includes the current date formatted in Asia/Shanghai timezone", () => {
@@ -37,9 +37,25 @@ describe("pageContextInstruction", () => {
 
 describe("thinkingLevelForRequest", () => {
   it("enables thinking only for the independent per-turn option", () => {
-    expect(thinkingLevelForRequest(true)).toBe("medium");
-    expect(thinkingLevelForRequest(false)).toBe("off");
-    expect(thinkingLevelForRequest(undefined)).toBe("off");
+    expect(thinkingLevelForRequest(true)).toBe("high");
+    expect(thinkingLevelForRequest(false)).toBe("low");
+    expect(thinkingLevelForRequest(undefined)).toBe("low");
+  });
+});
+
+describe("appendProcessBlock", () => {
+  it("persists both sanitized tool input and result details without duplicates", () => {
+    const process: AgentProcessBlock[] = [];
+    appendProcessBlock(process, { type: "tool_start", toolCallId: "tool-1", toolName: "content_search", details: ["查询：Agent", "共享"] });
+    appendProcessBlock(process, { type: "tool_end", toolCallId: "tool-1", toolName: "content_search", isError: false, details: ["共享", "结果：找到 2 项", "来源：A", "来源：B", "来源：C", "来源：D", "来源：E", "来源：F"] });
+
+    expect(process).toEqual([{
+      kind: "tool",
+      toolCallId: "tool-1",
+      toolName: "content_search",
+      status: "done",
+      details: ["查询：Agent", "共享", "结果：找到 2 项", "来源：A", "来源：B", "来源：C", "来源：D", "来源：E"],
+    }]);
   });
 });
 

@@ -41,6 +41,67 @@ describe("AI session service", () => {
     expect(tx.aiTurn.create).not.toHaveBeenCalled();
   });
 
+  it("persists the turn thinking choice in existing output JSON", async () => {
+    const created = { id: "turn-1", status: "running" };
+    const tx = {
+      aiChat: { findFirst: vi.fn().mockResolvedValue({ id: "chat-1" }) },
+      aiTurn: { findUnique: vi.fn().mockResolvedValue(null), create: vi.fn().mockResolvedValue(created) },
+    };
+    const db = { $transaction: vi.fn((operation: (client: typeof tx) => unknown) => operation(tx)) };
+
+    await createAiSessionService({ prisma: db as never }).beginTurn(actor, {
+      chatId: "chat-1",
+      clientRequestId: "request-high",
+      content: "问题",
+      thinking: true,
+      workerId: "worker-1",
+      leaseMs: 60_000,
+    });
+
+    expect(tx.aiTurn.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ output: { transcript: { thinking: true } } }),
+    }));
+  });
+
+  it("merges safe process blocks without losing persisted thinking", async () => {
+    const update = vi.fn().mockResolvedValue({ id: "turn-1", status: "succeeded" });
+    const tx = {
+      aiTurn: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "turn-1",
+          chatId: "chat-1",
+          userId: "user-1",
+          status: "running",
+          workerId: "worker-1",
+          leaseExpiresAt: new Date("2026-08-03T00:02:00Z"),
+          output: { transcript: { thinking: true } },
+        }),
+        update,
+      },
+      aiSessionEntry: {
+        findFirst: vi.fn().mockResolvedValue({
+          type: "message",
+          payload: { message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "完成" }] } },
+        }),
+      },
+    };
+    const db = { $transaction: vi.fn((operation: (client: typeof tx) => unknown) => operation(tx)) };
+
+    await createAiSessionService({ prisma: db as never }).completeTurn(actor, {
+      turnId: "turn-1",
+      workerId: "worker-1",
+      assistantEntryId: "assistant-1",
+      output: { transcript: { blocks: [{ kind: "text", content: "完成" }] } },
+      now: new Date("2026-08-03T00:01:00Z"),
+    });
+
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        output: { transcript: { thinking: true, blocks: [{ kind: "text", content: "完成" }] } },
+      }),
+    }));
+  });
+
   it("does not replay an active or failed request id", async () => {
     const now = new Date("2026-07-26T00:00:00.000Z");
     const base = { id: "turn-1", requestHash: hash("same content") };

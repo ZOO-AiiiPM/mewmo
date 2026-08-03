@@ -1,5 +1,5 @@
 import type { AIRuntime } from "@mewmo/ai";
-import { contentText, type AssistantMessage, type ModelThinkingLevel } from "@earendil-works/pi-ai";
+import { contentText, type AssistantMessage } from "@earendil-works/pi-ai";
 import {
   AgentHarness,
   DEFAULT_COMPACTION_SETTINGS,
@@ -18,12 +18,13 @@ import { createHarnessObservationBridge, type HarnessObservationBridge } from ".
 import { observeAgentTurn, type AgentObservabilityPort } from "../observability/port";
 import { loadAgentSystemPrompt, loadPresetSkills, type AgentSkillResource } from "../prompt-loader";
 import { loadAgentPromptLink } from "../prompt-manifest";
-import type { AgentRuntimeEvent, AgentRuntimePort, ApplicationPort } from "../ports";
+import type { AgentProcessBlock, AgentRuntimeEvent, AgentRuntimePort, ApplicationPort } from "../ports";
 import { ALL_TOOL_NAMES } from "../tools";
 import type { WebPort } from "../web/port";
 import { MewmoSessionStorage } from "./session-storage";
 import { createThinkTagStreamFilter, stripThinkTags } from "./think-tags";
 import { createPiToolRegistry, type WebBudget } from "./tools";
+import { publicToolResultDetails, publicToolStartDetails } from "./tool-event-display";
 
 export interface CreateAgentRuntimeOptions {
   ai: AIRuntime;
@@ -31,7 +32,6 @@ export interface CreateAgentRuntimeOptions {
   maxSteps: number;
   timeoutMs: number;
   observability?: AgentObservabilityPort;
-  chatThinkingLevel?: ModelThinkingLevel;
   web?: WebPort;
   webSearchBudget?: number;
   webFetchBudget?: number;
@@ -52,6 +52,7 @@ export function createAgentRuntime(options: CreateAgentRuntimeOptions): AgentRun
         try {
           const proposals: AgentActionProposal[] = [];
           const citations: AgentCitation[] = [];
+          const processBlocks: AgentProcessBlock[] = [];
           const webBudget: WebBudget = { searchRemaining: options.webSearchBudget ?? 0, fetchRemaining: options.webFetchBudget ?? 0 };
           const tools = createPiToolRegistry({ application: options.application, context, proposals, citations, ...(options.web ? { web: options.web, webBudget } : {}) });
           const skills = await resolveSkills(options.application, context.actor);
@@ -112,7 +113,7 @@ export function createAgentRuntime(options: CreateAgentRuntimeOptions): AgentRun
           });
           harness.subscribe(async (event) => {
             bridge.event(event);
-            await emitRuntimeEvent(event, thinkFilter, onEvent);
+            await emitRuntimeEvent(event, thinkFilter, processBlocks, onEvent);
           });
 
           await onEvent?.({ type: "start" });
@@ -139,6 +140,7 @@ export function createAgentRuntime(options: CreateAgentRuntimeOptions): AgentRun
           await onEvent?.({ type: "end" });
           const result = {
             text: stripThinkTags(contentText(response.content)),
+            process: processBlocks,
             proposals,
             citations,
             userEntryId: userEntry.id,
@@ -169,8 +171,8 @@ export function createAgentRuntime(options: CreateAgentRuntimeOptions): AgentRun
   };
 }
 
-export function thinkingLevelForRequest(thinking: boolean | undefined): "medium" | "off" {
-  return thinking ? "medium" : "off";
+export function thinkingLevelForRequest(thinking: boolean | undefined): "high" | "low" {
+  return thinking ? "high" : "low";
 }
 
 const AGENT_PROVIDER_MAX_RETRIES = 2;
@@ -258,34 +260,65 @@ interface ThinkFilterHolder {
   fn: ReturnType<typeof createThinkTagStreamFilter>;
 }
 
-async function emitRuntimeEvent(event: AgentHarnessEvent, thinkFilter: ThinkFilterHolder, listener?: (event: AgentRuntimeEvent) => Promise<void> | void) {
-  if (!listener) return;
+async function emitRuntimeEvent(
+  event: AgentHarnessEvent,
+  thinkFilter: ThinkFilterHolder,
+  process: AgentProcessBlock[],
+  listener?: (event: AgentRuntimeEvent) => Promise<void> | void,
+) {
+  const emit = async (runtimeEvent: AgentRuntimeEvent) => {
+    appendProcessBlock(process, runtimeEvent);
+    await listener?.(runtimeEvent);
+  };
   if (event.type === "message_update") {
     // Each text block gets a fresh filter so a truncated think block cannot
     // poison the next assistant message in the same turn.
     if (event.assistantMessageEvent.type === "text_start") thinkFilter.fn = createThinkTagStreamFilter();
     if (event.assistantMessageEvent.type === "text_delta") {
       const delta = thinkFilter.fn(event.assistantMessageEvent.delta);
-      if (delta) await listener({ type: "text_delta", delta });
+      if (delta) await emit({ type: "text_delta", delta });
     }
-    if (event.assistantMessageEvent.type === "thinking_delta") await listener({ type: "thinking_delta", delta: event.assistantMessageEvent.delta });
+    if (event.assistantMessageEvent.type === "thinking_delta") await emit({ type: "thinking_delta", delta: event.assistantMessageEvent.delta });
     return;
   }
-  if (event.type === "tool_execution_start") { const display = urlToolDisplay(event.toolName, event.args); await listener({ type: "tool_start", toolCallId: event.toolCallId, toolName: event.toolName, ...(display ? { display } : {}) }); }
-  if (event.type === "tool_execution_end") { const display = urlToolResultDisplay(event.toolName, event.result, event.isError); await listener({ type: "tool_end", toolCallId: event.toolCallId, toolName: event.toolName, isError: event.isError, ...(display ? { display } : {}) }); }
+  if (event.type === "tool_execution_start") {
+    const details = publicToolStartDetails(event.toolName, event.args);
+    await emit({ type: "tool_start", toolCallId: event.toolCallId, toolName: event.toolName, ...(details.length ? { details } : {}) });
+  }
+  if (event.type === "tool_execution_end") {
+    const details = publicToolResultDetails(event.toolName, event.result, event.isError);
+    await emit({ type: "tool_end", toolCallId: event.toolCallId, toolName: event.toolName, isError: event.isError, ...(details.length ? { details } : {}) });
+  }
 }
 
-function urlToolDisplay(name: string, args: unknown) {
-  if (name !== "clip_url_save" && name !== "feed_url_subscribe") return undefined;
-  const url = typeof args === "object" && args !== null && "url" in args && typeof args.url === "string" ? args.url : "";
-  try { return `${name === "clip_url_save" ? "正在保存剪藏" : "正在订阅来源"} ${new URL(url).hostname}`; } catch { return undefined; }
+export function appendProcessBlock(process: AgentProcessBlock[], event: AgentRuntimeEvent) {
+  if (event.type === "text_delta" || event.type === "thinking_delta") {
+    const kind = event.type === "text_delta" ? "text" : "thinking";
+    const last = process.at(-1);
+    if (last?.kind === kind) last.content += event.delta;
+    else process.push({ kind, content: event.delta });
+    return;
+  }
+  if (event.type === "tool_start") {
+    process.push({
+      kind: "tool",
+      toolCallId: event.toolCallId,
+      toolName: event.toolName,
+      ...(event.details ? { details: mergeToolDetails(undefined, event.details) } : {}),
+      status: "running",
+    });
+    return;
+  }
+  if (event.type === "tool_end") {
+    const block = [...process].reverse().find((item) => item.kind === "tool" && item.toolCallId === event.toolCallId);
+    if (!block || block.kind !== "tool") return;
+    block.status = event.isError ? "error" : "done";
+    if (event.details) block.details = mergeToolDetails(block.details, event.details);
+  }
 }
-function urlToolResultDisplay(name: string, result: unknown, failed: boolean) {
-  if (name !== "clip_url_save" && name !== "feed_url_subscribe") return undefined;
-  const action = name === "clip_url_save" ? "剪藏" : "订阅";
-  if (failed) return `${action}失败`;
-  const status = typeof result === "object" && result !== null && "status" in result ? result.status : undefined;
-  return status === "existing" ? `${action}已存在` : `已创建${action}`;
+
+function mergeToolDetails(existing: string[] | undefined, incoming: string[]): string[] {
+  return [...new Set([...(existing ?? []), ...incoming])].slice(0, 8);
 }
 
 function isTimeout(error: unknown) {
