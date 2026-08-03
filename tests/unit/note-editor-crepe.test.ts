@@ -25,6 +25,9 @@ describe("note editor Crepe configuration", () => {
     expect(theme).toMatch(
       /\.preview svg foreignObject \*[\s\S]*color:\s*var\(--ink, var\(--color-ink\)\) !important/,
     );
+    expect(theme).toMatch(
+      /\.preview svg text > tspan,[\s\S]*fill:\s*var\(--ink, var\(--color-ink\)\) !important/,
+    );
   });
 
   it("keeps lazy code-block placeholders from flashing before preview mount", () => {

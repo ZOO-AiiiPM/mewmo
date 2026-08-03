@@ -9,6 +9,7 @@
 
 1. 初版 race protection 只测试同一回调的并发结果，没有覆盖两个独立代码块同时挂载。
 2. Pan/zoom 改动沿用了既有 renderer，没有重新核对 Crepe 创建 `applyPreview` 回调的生命周期。
+3. 深色主题测试只检查父级 `text` 和 `foreignObject`；sequence diagram 把参与者颜色直接写在子级 `tspan`，父级颜色无法覆盖。
 
 ### 3. Prevention Mechanisms
 
@@ -16,6 +17,7 @@
 |----------|-----------|-----------------|--------|
 | P0 | Architecture | 无 block identity 时串行 Mermaid render，禁止全局 latest-token 丢结果 | DONE |
 | P0 | Test | 两个独立 `applyPreview` 同时渲染且都必须完成 | DONE |
+| P0 | Test | Mermaid SVG 文字主题覆盖必须包含 `text > tspan` | DONE |
 | P1 | Spec | 记录 Crepe renderer 与回调生命周期 | DONE |
 
 ### 4. Systematic Expansion

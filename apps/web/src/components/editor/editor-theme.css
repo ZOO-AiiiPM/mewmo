@@ -297,6 +297,7 @@ html.light .crepe-editor-wrapper .milkdown {
 }
 
 .crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg text,
+.crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg text > tspan,
 .crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg .label,
 .crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg .messageText,
 .crepe-editor-wrapper .milkdown .milkdown-code-block .preview-panel .preview svg .loopText {
