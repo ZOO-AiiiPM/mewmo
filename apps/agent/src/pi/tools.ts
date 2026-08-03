@@ -68,10 +68,10 @@ export function createPiToolRegistry(options: ToolRegistryOptions): AgentTool[] 
       url: Type.String({ minLength: 1, maxLength: 2_000 }),
       maxChars: Type.Optional(Type.Integer({ minimum: 1, maximum: 24_000, default: 12_000 })),
     }), async (_callId, input) => toolResult(await web.fetch(input.url, input.maxChars ?? 12_000))),
-    defineTool("clip_url_save", "仅当用户明确要求保存、收藏或剪藏此 URL 时，直接保存为剪藏，不需要二次确认。单独提供 URL、阅读、总结或搜索请求时绝不能调用。只接受公开 http(s) URL。", Type.Object({
+    defineTool("clip_url_save", "用户明确要求保存、收藏或剪藏此 URL 时必须立即调用，不需要二次确认。禁止先调用 web_search 或 web_fetch 验证或预读；本工具自行抓取网页，微信公众号等 URL 也直接交给本工具。单独提供 URL、阅读、总结或搜索请求时绝不能调用。只接受公开 http(s) URL。", Type.Object({
       url: Type.String({ minLength: 1, maxLength: 2_000 }),
     }), async (_callId, input) => toolResult(await application.urls.saveClip(context.actor, input.url))),
-    defineTool("feed_url_subscribe", "仅当用户明确要求订阅此公开来源 URL 时，直接创建订阅，不需要二次确认。单独提供 URL、阅读、总结或搜索请求时绝不能调用。来源必须公开且可直接读取；失败时不会写入。", Type.Object({
+    defineTool("feed_url_subscribe", "用户明确要求订阅此公开来源 URL 时必须立即调用，不需要二次确认。禁止先调用 web_search 或 web_fetch 验证、读取或发现订阅源；本工具自行发现并导入公开 RSS、Atom 或网站来源。单独提供 URL、阅读、总结或搜索请求时绝不能调用。来源必须公开且可直接读取；失败时不会写入。", Type.Object({
       url: Type.String({ minLength: 1, maxLength: 2_000 }),
     }), async (_callId, input) => toolResult(await application.urls.subscribeFeed(context.actor, input.url))),
     proposalTool("note_create", "提议创建笔记。此工具只创建待确认操作，不会立即写入。", Type.Object({

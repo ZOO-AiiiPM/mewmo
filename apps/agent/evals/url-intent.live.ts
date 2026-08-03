@@ -12,6 +12,8 @@ interface IntentCase {
   id: string;
   input: string;
   expectedWriteTools?: string[];
+  expectedFirstTool?: string;
+  expectedUrl?: string;
 }
 
 const cases = (JSON.parse(await readFile(new URL("./cases.json", import.meta.url), "utf8")) as IntentCase[])
@@ -22,7 +24,7 @@ let failed = false;
 
 for (const item of cases) {
   const env = new NodeExecutionEnv({ cwd: process.cwd() });
-  const calls: string[] = [];
+  const calls: Array<{ name: string; args: unknown }> = [];
   const context = {
     actor: TEST_ACTOR,
     chatId: `eval-${item.id}`,
@@ -52,13 +54,19 @@ for (const item of cases) {
     thinkingLevel: "off",
     streamOptions: { timeoutMs: 45_000, maxRetries: 2, cacheRetention: "short" },
   });
-  harness.on("tool_call", (event) => { calls.push(event.toolName); return undefined; });
+  harness.subscribe((event) => {
+    if (event.type === "tool_execution_start") calls.push({ name: event.toolName, args: event.args });
+  });
   try {
     await harness.prompt(item.input);
-    const actual = calls.filter((name) => (WRITE_TOOL_NAMES as readonly string[]).includes(name));
+    const actual = calls.map((call) => call.name).filter((name) => (WRITE_TOOL_NAMES as readonly string[]).includes(name));
     const expected = item.expectedWriteTools ?? [];
-    const passed = JSON.stringify(actual) === JSON.stringify(expected);
-    console.log(`${passed ? "PASS" : "FAIL"} ${item.id}: ${JSON.stringify(actual)}`);
+    const first = calls[0];
+    const firstToolMatches = item.expectedFirstTool === undefined || first?.name === item.expectedFirstTool;
+    const firstArgs = typeof first?.args === "object" && first.args !== null ? first.args as Record<string, unknown> : undefined;
+    const urlMatches = item.expectedUrl === undefined || firstArgs?.url === item.expectedUrl;
+    const passed = JSON.stringify(actual) === JSON.stringify(expected) && firstToolMatches && urlMatches;
+    console.log(`${passed ? "PASS" : "FAIL"} ${item.id}: ${JSON.stringify(calls.map((call) => call.name))}`);
     if (!passed) failed = true;
   } finally {
     await env.cleanup();
