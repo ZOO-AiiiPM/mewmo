@@ -65,7 +65,7 @@ const chatMessageInclude = {
     include: { attachments: true },
   },
   turns: {
-    select: { id: true, userEntryId: true, assistantEntryId: true, status: true, errorMessage: true, output: true },
+    select: { id: true, userEntryId: true, assistantEntryId: true, status: true, errorMessage: true, output: true, startedAt: true, completedAt: true },
   },
   messages: {
     where: { deletedAt: null },
@@ -264,14 +264,16 @@ function projectSessionMessages(value: unknown): unknown {
         ...(failed && typeof turn.errorMessage === "string" ? { error: { message: turn.errorMessage, retryable: true } } : {}),
       };
       if (typeof turn.userEntryId === "string") entryTurns.set(turn.userEntryId, turnInfo);
-      if (typeof turn.assistantEntryId !== "string") continue;
-      entryTurns.set(turn.assistantEntryId, turnInfo);
-      if (!isRecord(turn.output) || !isRecord(turn.output.response)) continue;
-      const response = turn.output.response;
-      turnMetadata.set(turn.assistantEntryId, {
+      if (typeof turn.assistantEntryId === "string") entryTurns.set(turn.assistantEntryId, turnInfo);
+      if (!isRecord(turn.output)) continue;
+      const response = isRecord(turn.output.response) ? turn.output.response : {};
+      const metadata = {
         ...(Array.isArray(response.proposals) ? { proposals: response.proposals } : {}),
         ...(isRecord(response.usage) ? { usage: response.usage } : {}),
-      });
+        ...publicTurnTranscript(turn.output, turn.startedAt, turn.completedAt),
+      };
+      if (typeof turn.userEntryId === "string") turnMetadata.set(turn.userEntryId, metadata);
+      if (typeof turn.assistantEntryId === "string") turnMetadata.set(turn.assistantEntryId, metadata);
     }
   }
   const messages = sessionEntries.flatMap((entry) => {
@@ -279,6 +281,7 @@ function projectSessionMessages(value: unknown): unknown {
     const message = entry.payload.message;
     if (message.role !== "user" && message.role !== "assistant") return [];
     const turn = entryTurns.get(entry.entryId);
+    if (message.role === "assistant" && Array.isArray(turns) && turns.length > 0 && !turn) return [];
     const content = messageText(message.content);
     if (message.role === "assistant" && content.trim().length === 0) return [];
     return [{
@@ -294,6 +297,52 @@ function projectSessionMessages(value: unknown): unknown {
     }];
   });
   return { ...chat, messages };
+}
+
+function publicTurnTranscript(output: Record<string, unknown>, startedAt: unknown, completedAt: unknown) {
+  const transcript = isRecord(output.transcript) ? output.transcript : {};
+  const showReasoning = transcript.thinking === true;
+  const process = Array.isArray(transcript.blocks)
+    ? transcript.blocks.flatMap((block) => publicProcessBlock(block, showReasoning))
+    : [];
+  return {
+    thinking: showReasoning,
+    ...(process.length ? { process } : {}),
+    ...(dateString(startedAt) ? { startedAt: dateString(startedAt) } : {}),
+    ...(dateString(completedAt) ? { completedAt: dateString(completedAt) } : {}),
+  };
+}
+
+function publicProcessBlock(value: unknown, showReasoning: boolean): unknown[] {
+  if (!isRecord(value)) return [];
+  if (value.kind === "text" && typeof value.content === "string") {
+    return [{ kind: "text", content: value.content }];
+  }
+  if (value.kind === "thinking" && showReasoning && typeof value.content === "string") {
+    return [{ kind: "thinking", content: value.content }];
+  }
+  if (
+    value.kind !== "tool"
+    || typeof value.toolCallId !== "string"
+    || typeof value.toolName !== "string"
+    || (value.status !== "running" && value.status !== "done" && value.status !== "error")
+  ) return [];
+  const details = Array.isArray(value.details)
+    ? value.details.filter((detail): detail is string => typeof detail === "string" && detail.length > 0).slice(0, 8).map((detail) => detail.slice(0, 500))
+    : [];
+  return [{
+    kind: "tool",
+    toolCallId: value.toolCallId,
+    toolName: value.toolName,
+    status: value.status,
+    ...(details.length ? { details } : {}),
+  }];
+}
+
+function dateString(value: unknown): string | undefined {
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === "string" && !Number.isNaN(Date.parse(value))) return value;
+  return undefined;
 }
 
 function leafTargetId(payload: unknown): string | null {

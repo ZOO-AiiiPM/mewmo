@@ -35,6 +35,7 @@ export interface LiveTurnState {
   proposals: AgentActionProposal[];
   lastSeq: number;
   hasSequenceGap: boolean;
+  startedAt?: string;
   terminal?: TranscriptRow;
 }
 
@@ -110,7 +111,9 @@ export function applyLegacyEvent(state: LiveTurnState, event: LegacyStreamEvent)
           {
             kind: "tool",
             toolCallId: event.toolCallId,
+            toolName: event.toolName,
             display: toolRunningLabel(event.toolName),
+            ...(event.details ? { details: mergeToolDetails(undefined, event.details) } : {}),
             status: "running",
           },
         ],
@@ -126,6 +129,7 @@ export function applyLegacyEvent(state: LiveTurnState, event: LegacyStreamEvent)
                 ...block,
                 status: event.isError ? "error" as const : "done" as const,
                 display: event.isError ? "操作遇到问题" : toolDoneLabel(event.toolName),
+                ...(event.details ? { details: mergeToolDetails(block.details, event.details) } : {}),
               }
             : block,
         ),
@@ -133,6 +137,7 @@ export function applyLegacyEvent(state: LiveTurnState, event: LegacyStreamEvent)
     }
 
     case "start":
+      return state.startedAt ? state : { ...state, startedAt: new Date().toISOString() };
     case "compaction":
     case "end":
       return state;
@@ -162,6 +167,8 @@ export function finalizeLegacyTurn(
         message: publicErrorMessage(result.error.message, result.error.code),
         retryable: result.error.retryable ?? true,
       },
+      ...(state.startedAt ? { startedAt: state.startedAt } : {}),
+      completedAt: new Date().toISOString(),
     };
   }
 
@@ -184,6 +191,8 @@ export function finalizeLegacyTurn(
     assistant: [...blocks, ...confirmationBlocks],
     status: "completed",
     proposals,
+    ...(state.startedAt ? { startedAt: state.startedAt } : {}),
+    completedAt: new Date().toISOString(),
   };
 }
 
@@ -211,7 +220,7 @@ export function applyConversationEvent(
   switch (event.type) {
     case "turn.started": {
       if (state.serverTurnId && state.serverTurnId !== event.turnId) return state;
-      return { ...withSeq, turnId: event.turnId, serverTurnId: event.turnId };
+      return { ...withSeq, turnId: event.turnId, serverTurnId: event.turnId, startedAt: state.startedAt ?? new Date().toISOString() };
     }
 
     case "assistant.text.delta": {
@@ -248,7 +257,7 @@ export function applyConversationEvent(
         ...withSeq,
         blocks: [
           ...withSeq.blocks,
-          { kind: "tool", toolCallId: event.toolCallId, display, status: "running" },
+          { kind: "tool", toolCallId: event.toolCallId, toolName: event.tool, display, ...(event.display?.details ? { details: mergeToolDetails(undefined, event.display.details) } : {}), status: "running" },
         ],
       };
     }
@@ -263,7 +272,12 @@ export function applyConversationEvent(
         ...withSeq,
         blocks: withSeq.blocks.map((block) =>
           block.kind === "tool" && block.toolCallId === event.toolCallId
-            ? { ...block, status: failed ? "error" as const : "done" as const, display }
+            ? {
+                ...block,
+                status: failed ? "error" as const : "done" as const,
+                display,
+                ...(event.display?.details ? { details: mergeToolDetails(block.details, event.display.details) } : {}),
+              }
             : block,
         ),
       };
@@ -289,6 +303,8 @@ export function applyConversationEvent(
         status: "completed",
         proposals,
         ...(event.message.createdAt ? { createdAt: event.message.createdAt } : {}),
+        ...(withSeq.startedAt ? { startedAt: withSeq.startedAt } : {}),
+        completedAt: new Date().toISOString(),
       };
       return { ...withSeq, turnId: event.turnId, serverTurnId: event.turnId, proposals, terminal };
     }
@@ -302,6 +318,8 @@ export function applyConversationEvent(
         status: "failed",
         proposals: withSeq.proposals,
         error: { message: publicErrorMessage(event.error.message, event.error.code), retryable: event.retryable && event.error.retryable },
+        ...(withSeq.startedAt ? { startedAt: withSeq.startedAt } : {}),
+        completedAt: new Date().toISOString(),
       };
       return { ...withSeq, turnId: event.turnId, serverTurnId: event.turnId, terminal };
     }
@@ -309,6 +327,10 @@ export function applyConversationEvent(
     default:
       return withSeq;
   }
+}
+
+function mergeToolDetails(existing: string[] | undefined, incoming: string[]): string[] {
+  return [...new Set([...(existing ?? []), ...incoming])].slice(0, 8);
 }
 
 // ---------------------------------------------------------------------------
@@ -414,11 +436,31 @@ function buildRowFromPair(
   user: PersistedMessage,
   assistant: PersistedMessage | null,
 ): TranscriptRow {
-  const proposals = assistant?.metadata?.proposals ?? [];
+  const metadata = assistant?.metadata ?? user.metadata;
+  const proposals = metadata?.proposals ?? [];
   const blocks: AssistantBlock[] = [];
+  for (const block of metadata?.process ?? []) {
+    if (block.kind === "thinking") {
+      if (metadata?.thinking) blocks.push(block);
+      continue;
+    }
+    if (block.kind !== "tool") {
+      blocks.push(block);
+      continue;
+    }
+    blocks.push({
+      ...block,
+      display: block.status === "error"
+        ? "操作遇到问题"
+        : block.status === "running"
+          ? toolRunningLabel(block.toolName)
+          : toolDoneLabel(block.toolName),
+    });
+  }
 
   if (assistant && assistant.content) {
-    blocks.push({ kind: "text", content: assistant.content });
+    const reconciled = reconcileFinalText(blocks, assistant.content);
+    blocks.splice(0, blocks.length, ...reconciled);
   }
 
   for (const proposal of proposals) {
@@ -438,6 +480,8 @@ function buildRowFromPair(
     assistant: blocks,
     status: assistant?.status === "failed" || user.status === "failed" || missingAssistant ? "failed" : "completed",
     proposals,
+    ...(metadata?.startedAt ? { startedAt: metadata.startedAt } : {}),
+    ...(metadata?.completedAt ? { completedAt: metadata.completedAt } : {}),
     ...((assistant?.createdAt ?? user.createdAt) ? { createdAt: assistant?.createdAt ?? user.createdAt } : {}),
     ...(error ? { error } : missingAssistant ? { error: { message: "这次回复未完成。", retryable: false } } : {}),
   };

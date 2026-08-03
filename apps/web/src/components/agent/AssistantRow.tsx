@@ -1,10 +1,10 @@
 "use client";
 
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 
 import type { AgentActionProposal } from "../../lib/agent-contract";
 import { assistantRowCopyText } from "../../lib/agent/row-actions";
-import { groupBlocks } from "../../lib/agent/transcript-grouping";
+import { assistantPresentation, processInitiallyOpen, processOpenAfterTerminal, processSummary } from "../../lib/agent/assistant-presentation";
 import type { AssistantBlock, TranscriptRow } from "../../lib/agent/types";
 import { contextChipIcon, contextChipLabel } from "../../lib/agent/context-display";
 import type { AISidebarContentContext } from "../shell/AISidebar";
@@ -12,7 +12,6 @@ import { PrototypeIcon } from "../shell/PrototypeIcon";
 import { ConfirmationCard } from "./ConfirmationCard";
 import { StreamingMarkdown } from "./StreamingMarkdown";
 import { ToolBlock } from "./ToolBlock";
-import { ToolGroup } from "./ToolGroup";
 
 interface AssistantRowProps {
   row: TranscriptRow;
@@ -28,7 +27,7 @@ interface AssistantRowProps {
 /**
  * Renders one complete turn as a single assistant row.
  * Internal blocks: text / tool / thinking / confirmation.
- * Consecutive terminal tool blocks are folded into a collapsible group.
+ * Process blocks keep provider order inside one collapsible timeline.
  * Failed turns show error + retry in-place.
  * Hover action bars: copy/edit on the user message, copy/regenerate on the reply.
  * Memoized so streaming updates to the live row don't re-render (and
@@ -38,11 +37,10 @@ export const AssistantRow = memo(function AssistantRow({ row, context, onProposa
   const [copied, setCopied] = useState<"user" | "assistant" | null>(null);
   const isStreaming = row.status === "streaming";
   const isFailed = row.status === "failed";
-  const hasContent = row.assistant.length > 0;
-  const groups = useMemo(() => groupBlocks(row.assistant), [row.assistant]);
-  const lastBlock = row.assistant[row.assistant.length - 1];
-  // Streaming with a non-text tail (tool running / just finished): keep a live status line.
-  const showWorking = isStreaming && hasContent && lastBlock?.kind !== "text";
+  const presentation = useMemo(
+    () => assistantPresentation(row.assistant, isStreaming),
+    [isStreaming, row.assistant],
+  );
   const assistantText = assistantRowCopyText(row);
   const showAssistantActions = !isStreaming && (assistantText.length > 0 || Boolean(onRegenerate));
 
@@ -102,32 +100,27 @@ export const AssistantRow = memo(function AssistantRow({ row, context, onProposa
       {/* Assistant blocks */}
       <div className="mewmo-message-group mewmo-message-group--assistant">
         <div className="mewmo-ai-message mewmo-ai-message--assistant">
-          {!hasContent && isStreaming && <ThinkingDots />}
-
-          {groups.map((group) =>
-            group.kind === "tools" ? (
-              <ToolGroup
-                key={`${row.turnId}-tools-${group.startIndex}`}
-                blocks={group.blocks}
-                hasRunning={group.hasRunning}
-              />
-            ) : (
-              <BlockRenderer
-                key={`${row.turnId}-${group.index}`}
-                block={group.block}
-                streaming={isStreaming && group.index === row.assistant.length - 1}
-                context={context}
-                onProposalChange={onProposalChange}
-              />
-            ),
+          {row.userContent && (
+            <ProcessRegion
+              blocks={presentation.processBlocks}
+              hasFinal={presentation.finalBlocks.some((block) => block.kind === "text")}
+              row={row}
+              streamingIndex={presentation.streamingProcessIndex}
+              context={context}
+              onProposalChange={onProposalChange}
+            />
           )}
 
-          {/* Streaming but the tail is not text yet: show a working status line */}
-          {showWorking && (
-            <div className="mewmo-working-line" aria-live="polite">
-              <span className="mewmo-tool-line__label mewmo-tool-line__label--shimmer">正在工作…</span>
-            </div>
-          )}
+          {presentation.finalBlocks.map((block, index) => (
+            <BlockRenderer
+              key={`${row.turnId}-final-${index}`}
+              block={block}
+              streaming={index === presentation.streamingFinalIndex}
+              final
+              context={context}
+              onProposalChange={onProposalChange}
+            />
+          ))}
 
           {row.stopped && <div className="mewmo-transcript-stopped">已停止生成</div>}
 
@@ -175,13 +168,59 @@ export const AssistantRow = memo(function AssistantRow({ row, context, onProposa
   );
 });
 
-function ThinkingDots() {
+function ProcessRegion({
+  blocks,
+  hasFinal,
+  row,
+  streamingIndex,
+  context,
+  onProposalChange,
+}: {
+  blocks: AssistantBlock[];
+  hasFinal: boolean;
+  row: TranscriptRow;
+  streamingIndex: number;
+  context: AISidebarContentContext | null;
+  onProposalChange: (proposal: AgentActionProposal) => void;
+}) {
+  const contentRef = useRef<HTMLDivElement>(null);
+  const streaming = row.status === "streaming";
+  const [open, setOpen] = useState(processInitiallyOpen(row));
+  const wasStreaming = useRef(streaming);
+
+  useEffect(() => {
+    if (wasStreaming.current && !streaming) setOpen(processOpenAfterTerminal(row));
+    wasStreaming.current = streaming;
+  }, [row.status, row.stopped, streaming]);
+
+  useEffect(() => {
+    if (!streaming || !contentRef.current) return;
+    contentRef.current.scrollTop = contentRef.current.scrollHeight;
+  }, [blocks, streaming]);
+
   return (
-    <div className="mewmo-assistant-thinking">
-      <span className="mewmo-assistant-thinking__dot" />
-      <span className="mewmo-assistant-thinking__dot" />
-      <span className="mewmo-assistant-thinking__dot" />
-    </div>
+    <details className={`mewmo-thinking-region ${hasFinal ? "mewmo-thinking-region--with-final" : ""}`} open={open}>
+      <summary className="mewmo-thinking-region__title" onClick={(event) => { event.preventDefault(); setOpen((value) => !value); }}>
+        <PrototypeIcon name="caret" size={10} className="mewmo-thinking-region__caret" />
+        <span>{processSummary(row)}</span>
+      </summary>
+      <div
+        ref={contentRef}
+        className="mewmo-thinking-region__content"
+        aria-live={streaming ? "polite" : "off"}
+        tabIndex={0}
+      >
+        {blocks.map((block, index) => (
+          <BlockRenderer
+            key={`process-${index}`}
+            block={block}
+            streaming={index === streamingIndex}
+            context={context}
+            onProposalChange={onProposalChange}
+          />
+        ))}
+      </div>
+    </details>
   );
 }
 
@@ -190,25 +229,34 @@ function BlockRenderer({
   streaming,
   context,
   onProposalChange,
+  final = false,
 }: {
   block: AssistantBlock;
   streaming: boolean;
   context: AISidebarContentContext | null;
   onProposalChange: (proposal: AgentActionProposal) => void;
+  final?: boolean;
 }) {
   switch (block.kind) {
     case "text":
-      return <StreamingMarkdown content={block.content} streaming={streaming} />;
+      return (
+        <div className={final ? "mewmo-final-answer" : "mewmo-process-narration"}>
+          <StreamingMarkdown content={block.content} streaming={streaming} />
+        </div>
+      );
 
     case "tool":
-      return <ToolBlock display={block.display} status={block.status} />;
+      return <ToolBlock {...(block.toolName ? { toolName: block.toolName } : {})} display={block.display} {...(block.details ? { details: block.details } : {})} status={block.status} />;
 
     case "thinking":
       return (
-        <details className="mewmo-thinking-block" open={streaming}>
-          <summary>思考过程</summary>
-          <div className="mewmo-thinking-block__content">{block.content}</div>
-        </details>
+        <div className="mewmo-process-thinking">
+          <PrototypeIcon name="bulb" size={13} />
+          <span className="mewmo-process-thinking__title">
+            {streaming ? "深度思考中" : "思考过程"}
+          </span>
+          <div className="mewmo-process-thinking__content">{block.content}</div>
+        </div>
       );
 
     case "confirmation":

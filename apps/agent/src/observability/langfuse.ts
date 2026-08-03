@@ -187,8 +187,11 @@ export function createLangfuseTurnObservation(
       );
       generations.set(start.sequence, { observation, start });
     },
-    generationInput({ sequence, input: generationInput }) {
-      generations.get(sequence)?.observation.update({ input: generationInput });
+    generationInput({ sequence, input: generationInput, modelParameters }) {
+      generations.get(sequence)?.observation.update({
+        input: generationInput,
+        ...(modelParameters ? { modelParameters } : {}),
+      });
     },
     generationCompleted(end) {
       const active = generations.get(end.sequence);

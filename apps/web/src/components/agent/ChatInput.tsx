@@ -7,6 +7,10 @@ import type { SendStatus } from "../../lib/agent/conversation-store";
 import { shouldSendOnEnter } from "../../lib/agent/composer-send-key";
 import { contextChipIcon, contextChipLabel } from "../../lib/agent/context-display";
 import { shouldBlockStopFollowupSubmit } from "../../lib/agent/stop-pointer-guard";
+import {
+  buildComposerSendOptions,
+  type ComposerSendOptions,
+} from "../../lib/agent/composer-one-shot";
 
 interface ChatInputProps {
   status: SendStatus;
@@ -21,7 +25,7 @@ interface ChatInputProps {
   onDeepInsight: () => void;
   /** Stop the current streaming reply (shown in place of send while sending). */
   onStop: () => void;
-  onSend: (options: { content: string; skillId?: string; thinking?: boolean; includeContext: boolean; editTurnId?: string }) => boolean | Promise<boolean>;
+  onSend: (options: ComposerSendOptions) => boolean | Promise<boolean>;
 }
 
 const MAX_TEXTAREA_HEIGHT = 168;
@@ -45,6 +49,7 @@ export function ChatInput({ status, chatReady, context, requestedSkill, prefill,
   // After stop swaps back to send, a late pointer click can land on the new
   // button. The form submit path stays unguarded so keyboard send still works.
   const sendGuardUntilRef = useRef(0);
+  const sendPendingRef = useRef(false);
 
   useEffect(() => {
     setContextDropped(false);
@@ -87,14 +92,27 @@ export function ChatInput({ status, chatReady, context, requestedSkill, prefill,
 
   const send = async () => {
     const content = input.trim();
-    if (!content || !chatReady || status === "sending") return;
-    const started = await onSend({ content, ...(skillId ? { skillId } : {}), ...(thinking ? { thinking: true } : {}), includeContext: attachedContext !== null, ...(editTurnId ? { editTurnId } : {}) });
-    if (!started) return;
-    setInput("");
-    setSkillId(undefined);
-    setThinking(false);
-    setAttachedFile(null);
-    setEditTurnId(null);
+    if (!content || !chatReady || status === "sending" || sendPendingRef.current) return;
+    sendPendingRef.current = true;
+
+    try {
+      const started = await onSend(buildComposerSendOptions({
+        content,
+        ...(skillId ? { skillId } : {}),
+        thinking,
+        includeContext: attachedContext !== null,
+        ...(editTurnId ? { editTurnId } : {}),
+      }));
+      if (!started) return;
+      setInput("");
+      setSkillId(undefined);
+      setAttachedFile(null);
+      setEditTurnId(null);
+    } catch {
+      // The send did not start, so the draft and persistent options stay recoverable.
+    } finally {
+      sendPendingRef.current = false;
+    }
   };
 
   // Keep the composer editable while streaming so stopping preserves the
@@ -200,7 +218,7 @@ export function ChatInput({ status, chatReady, context, requestedSkill, prefill,
               disabled={disabled}
               aria-pressed={thinking}
             >
-              <PrototypeIcon name="spark" size={13} />深度思考
+              <PrototypeIcon name="bulb" size={13} />深度思考
             </button>
           </div>
           {status === "sending" ? (

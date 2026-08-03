@@ -37,6 +37,7 @@ export async function loadFoundationAdapters() {
             chatId: input.chatId,
             clientRequestId: input.clientRequestId,
             content: input.content,
+            ...(input.thinking === undefined ? {} : { thinking: input.thinking }),
             workerId: input.workerId,
             leaseMs: input.leaseMs,
           });
@@ -63,7 +64,7 @@ export async function loadFoundationAdapters() {
             turnId: input.turnId,
             workerId: input.workerId,
             assistantEntryId: input.assistantEntryId,
-            output: { response },
+            output: { response, transcript: { blocks: input.process } },
           });
           return response;
         });

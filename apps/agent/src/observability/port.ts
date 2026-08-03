@@ -55,7 +55,11 @@ export interface AgentTurnObservation {
     requestedModel: string;
   }): void;
   generationStarted(input: AgentGenerationStart): void;
-  generationInput?(input: { sequence: number; input: unknown }): void;
+  generationInput?(input: {
+    sequence: number;
+    input: unknown;
+    modelParameters?: Record<string, string | number>;
+  }): void;
   generationCompleted(input: AgentGenerationEnd): void;
   toolStarted(input: AgentToolObservationStart): void;
   toolCompleted(input: AgentToolObservationEnd): void;

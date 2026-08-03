@@ -14,7 +14,6 @@ const config: AgentConfig = {
   AGENT_MAX_STEPS: 6,
   AGENT_TIMEOUT_MS: 45_000,
   AGENT_WORKER_ID: "test-worker",
-  AGENT_CHAT_THINKING_LEVEL: "off",
   AGENT_TURN_LEASE_MS: 120_000,
   JINA_API_KEY: "",
   AGENT_WEB_TIMEOUT_MS: 20_000,
@@ -32,7 +31,7 @@ describe("Agent HTTP server", () => {
   });
 
   it("derives actor identity from the signed token and completes a leased turn", async () => {
-    const run = vi.fn(async () => ({ text: "ok", proposals: [], citations: [], userEntryId: "entry-user", assistantEntryId: "entry-assistant" }));
+    const run = vi.fn(async () => ({ text: "ok", process: [], proposals: [], citations: [], userEntryId: "entry-user", assistantEntryId: "entry-assistant" }));
     const complete = vi.fn(async () => completedResponse("ok"));
     const application = createApplicationStub({ turns: { ...createApplicationStub().turns, complete } });
     const app = buildAgentServer({ config, runtime: { run }, application });
@@ -45,7 +44,7 @@ describe("Agent HTTP server", () => {
   });
 
   it("passes Deep Thinking and Deep Insight independently to the runtime", async () => {
-    const run = vi.fn(async () => ({ text: "ok", proposals: [], citations: [], userEntryId: "entry-user", assistantEntryId: "entry-assistant" }));
+    const run = vi.fn(async () => ({ text: "ok", process: [], proposals: [], citations: [], userEntryId: "entry-user", assistantEntryId: "entry-assistant" }));
     const app = buildAgentServer({ config, runtime: { run }, application: createApplicationStub() });
     const token = await signIdentityForTest(TEST_ACTOR, identityOptions());
     const response = await app.inject({
@@ -91,11 +90,11 @@ describe("Agent HTTP server", () => {
     const runtime = { run: vi.fn(async (_context, onEvent) => {
       await onEvent?.({ type: "text_delta", delta: "ok" });
       await onEvent?.({ type: "thinking_delta", delta: "private reasoning" });
-      return { text: "ok", proposals: [], citations: [], userEntryId: "entry-user", assistantEntryId: "entry-assistant" };
+      return { text: "ok", process: [], proposals: [], citations: [], userEntryId: "entry-user", assistantEntryId: "entry-assistant" };
     }) };
     const app = buildAgentServer({ config, runtime, application: createApplicationStub() });
     const token = await signIdentityForTest(TEST_ACTOR, identityOptions());
-    const response = await app.inject({ method: "POST", url: "/v1/chats/chat-1/stream", headers: { authorization: `Bearer ${token}` }, payload: validMessage() });
+    const response = await app.inject({ method: "POST", url: "/v1/chats/chat-1/stream", headers: { authorization: `Bearer ${token}` }, payload: { ...validMessage(), thinking: true } });
     expect(response.headers["content-type"]).toContain("text/event-stream");
     expect(response.body).toContain("event: turn.started");
     expect(response.body).toContain("event: assistant.text.delta");
@@ -105,6 +104,25 @@ describe("Agent HTTP server", () => {
     expect(response.body).toContain("event: result");
     expect(response.body).toContain("private reasoning");
     expect(stableEvents(response.body).map((event) => event.seq)).toEqual([1, 2, 3, 4]);
+  });
+
+  it.each([undefined, false])("does not expose low reasoning when thinking is %s", async (thinking) => {
+    const runtime = { run: vi.fn(async (_context, onEvent) => {
+      await onEvent?.({ type: "thinking_delta", delta: "private low reasoning" });
+      return { text: "ok", process: [{ kind: "thinking" as const, content: "private low reasoning" }], proposals: [], citations: [], userEntryId: "entry-user", assistantEntryId: "entry-assistant" };
+    }) };
+    const app = buildAgentServer({ config, runtime, application: createApplicationStub() });
+    const token = await signIdentityForTest(TEST_ACTOR, identityOptions());
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/chats/chat-1/stream",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { ...validMessage(), ...(thinking === undefined ? {} : { thinking }) },
+    });
+
+    expect(response.body).not.toContain("event: assistant.thinking.delta");
+    expect(response.body).not.toContain("event: thinking_delta");
+    expect(response.body).not.toContain("private low reasoning");
   });
 
   it("streams product tool and confirmation events without raw tool payloads", async () => {
@@ -119,7 +137,7 @@ describe("Agent HTTP server", () => {
     const runtime = { run: vi.fn(async (_context, onEvent) => {
       await onEvent?.({ type: "tool_start", toolCallId: "tool-1", toolName: "read_current_context" });
       await onEvent?.({ type: "tool_end", toolCallId: "tool-1", toolName: "read_current_context", isError: false });
-      return { text: "ok", proposals: [proposal], citations: [], userEntryId: "entry-user", assistantEntryId: "entry-assistant" };
+      return { text: "ok", process: [], proposals: [proposal], citations: [], userEntryId: "entry-user", assistantEntryId: "entry-assistant" };
     }) };
     const complete = vi.fn(async () => ({ ...completedResponse("ok"), proposals: [proposal] }));
     const application = createApplicationStub({ turns: { ...createApplicationStub().turns, complete } });

@@ -90,6 +90,7 @@ export async function runAgentAutomationsOnce(input: {
         turnId: started.turnId,
         workerId: input.workerId,
         assistantEntryId: generated.assistantEntryId,
+        process: generated.process,
         proposals: generated.proposals,
       });
       await input.runs.complete({ runId: run.id, workerId: input.workerId, output: response });

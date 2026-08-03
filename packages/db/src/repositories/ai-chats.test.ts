@@ -61,6 +61,48 @@ describe("ai chats repository clear", () => {
       messages: [],
     });
   });
+
+  it("projects only safe ordered turn history and hides low reasoning", async () => {
+    const client = {
+      aiChat: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "chat-1",
+          sessionEntries: [
+            { entryId: "user-high", entrySeq: 1, timestamp: new Date("2026-08-03T00:00:00Z"), payload: { message: { role: "user", content: [{ type: "text", text: "高档问题" }] } }, attachments: [] },
+            { entryId: "assistant-intermediate", entrySeq: 2, timestamp: new Date("2026-08-03T00:00:01Z"), payload: { message: { role: "assistant", content: [{ type: "text", text: "不应成为独立回复" }] } }, attachments: [] },
+            { entryId: "assistant-high", entrySeq: 3, timestamp: new Date("2026-08-03T00:00:02Z"), payload: { message: { role: "assistant", content: [{ type: "text", text: "最终答案" }] } }, attachments: [] },
+            { entryId: "user-low", entrySeq: 4, timestamp: new Date("2026-08-03T00:00:03Z"), payload: { message: { role: "user", content: [{ type: "text", text: "低档问题" }] } }, attachments: [] },
+            { entryId: "assistant-low", entrySeq: 5, timestamp: new Date("2026-08-03T00:00:04Z"), payload: { message: { role: "assistant", content: [{ type: "text", text: "直接答案" }] } }, attachments: [] },
+          ],
+          turns: [
+            {
+              id: "turn-high", userEntryId: "user-high", assistantEntryId: "assistant-high", status: "succeeded",
+              startedAt: new Date("2026-08-03T00:00:00Z"), completedAt: new Date("2026-08-03T00:00:02Z"),
+              output: { transcript: { thinking: true, blocks: [
+                { kind: "thinking", content: "真实推理", private: "raw-secret" },
+                { kind: "tool", toolCallId: "tool-1", toolName: "content_search", status: "done", details: ["查询：Agent", "结果：找到 1 项"], args: { token: "raw-secret" } },
+                { kind: "text", content: "最终答案" },
+              ] }, response: {} },
+            },
+            {
+              id: "turn-low", userEntryId: "user-low", assistantEntryId: "assistant-low", status: "succeeded",
+              startedAt: new Date("2026-08-03T00:00:03Z"), completedAt: new Date("2026-08-03T00:00:04Z"),
+              output: { transcript: { thinking: false, blocks: [{ kind: "thinking", content: "不得返回" }, { kind: "text", content: "直接答案" }] }, response: {} },
+            },
+          ],
+          messages: [],
+        }),
+      },
+    };
+
+    const chat = await createAiChatsRepository(client).findById("user-1", "chat-1") as { messages: Array<{ metadata?: { process?: Array<{ kind: string; details?: string[] }> } }> };
+    expect(chat.messages).toHaveLength(4);
+    expect(chat.messages[1]?.metadata?.process?.map((block) => block.kind)).toEqual(["thinking", "tool", "text"]);
+    expect(chat.messages[1]?.metadata?.process?.[1]?.details).toEqual(["查询：Agent", "结果：找到 1 项"]);
+    expect(chat.messages[3]?.metadata?.process?.map((block) => block.kind)).toEqual(["text"]);
+    expect(JSON.stringify(chat)).not.toContain("raw-secret");
+    expect(JSON.stringify(chat)).not.toContain("不得返回");
+  });
 });
 
 describe("ai chats repository truncate", () => {

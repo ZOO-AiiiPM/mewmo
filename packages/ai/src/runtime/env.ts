@@ -26,6 +26,15 @@ export function loadAIRuntimeConfig(input: AIEnvironment = process.env): AIRunti
     const model = names.map((name) => input[name]?.trim()).find(Boolean);
     if (!model) continue;
     const definition: ModelDefinition = { provider: providerName, model };
+    if (provider === "deepseek" && (purpose === "agent.chat" || purpose === "agent.deep_insight")) {
+      definition.api = "openai-responses";
+      definition.maxTokens = 65_536;
+      definition.reasoning = true;
+      definition.thinkingLevelMap = {
+        low: "low",
+        high: "high",
+      };
+    }
     if (purpose === "workflow.embedding") {
       const dimensions = Number.parseInt(input.AI_EMBEDDING_DIMENSIONS?.trim() ?? "", 10);
       if (Number.isFinite(dimensions) && dimensions > 0) definition.dimensions = dimensions;

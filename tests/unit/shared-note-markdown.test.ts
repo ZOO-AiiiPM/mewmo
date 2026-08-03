@@ -119,6 +119,32 @@ const value = 1;
     ]);
   });
 
+  it("keeps advancing while block markers are still streaming", () => {
+    expect(parseSharedNoteMarkdown("# ")).toEqual([
+      { type: "paragraph", children: [{ type: "text", value: "#" }] },
+    ]);
+    expect(parseSharedNoteMarkdown("- ")).toEqual([
+      { type: "paragraph", children: [{ type: "text", value: "-" }] },
+    ]);
+    expect(parseSharedNoteMarkdown("1. ")).toEqual([
+      { type: "paragraph", children: [{ type: "text", value: "1." }] },
+    ]);
+
+    expect(parseSharedNoteMarkdown("## 标题\n\n- 项目\n\n1. 步骤")).toEqual([
+      { type: "heading", level: 2, children: [{ type: "text", value: "标题" }] },
+      {
+        type: "list",
+        ordered: false,
+        items: [{ children: [{ type: "text", value: "项目" }], depth: 0 }],
+      },
+      {
+        type: "list",
+        ordered: true,
+        items: [{ children: [{ type: "text", value: "步骤" }], depth: 0 }],
+      },
+    ]);
+  });
+
   it("folds flat depth-annotated items into a nested tree", () => {
     const blocks = parseSharedNoteMarkdown("- a\n  - b\n  - c\n- d");
     const list = blocks[0];

@@ -16,7 +16,10 @@ describe("createHarnessObservationBridge", () => {
     });
 
     bridge.providerRequestStarted();
-    bridge.providerPayload({ messages: [{ role: "user", content: "private prompt" }] });
+    bridge.providerPayload({
+      messages: [{ role: "user", content: "private prompt" }],
+      reasoning: { effort: "high", summary: "auto" },
+    });
     bridge.event(assistantEnd("toolUse", 10, 2));
     bridge.event({
       type: "tool_execution_start",
@@ -63,7 +66,11 @@ describe("createHarnessObservationBridge", () => {
     });
     expect(observation.generationInput).toHaveBeenCalledWith({
       sequence: 1,
-      input: { messages: [{ role: "user", content: "private prompt" }] },
+      input: {
+        messages: [{ role: "user", content: "private prompt" }],
+        reasoning: { effort: "high", summary: "auto" },
+      },
+      modelParameters: { "reasoning.effort": "high" },
     });
   });
 

@@ -126,6 +126,14 @@ export function parseSharedNoteMarkdown(markdown: string): SharedNoteMarkdownBlo
         children: parseSharedNoteInlineMarkdown(paragraph),
       });
     }
+    // A stream can end on an incomplete block marker such as `# ` or `- `.
+    if (paragraphLines.length === 0) {
+      blocks.push({
+        type: "paragraph",
+        children: parseSharedNoteInlineMarkdown(line.trim()),
+      });
+      index += 1;
+    }
   }
 
   return blocks;

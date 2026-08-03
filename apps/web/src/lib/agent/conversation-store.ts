@@ -17,19 +17,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { AgentActionProposal } from "../agent-contract";
 import {
-  applyConversationEvent,
-  applyLegacyEvent,
   createLiveTurn,
   finalizeLegacyTurn,
-  mergeResultIntoTerminal,
   messagesToTranscriptRows,
   type LiveTurnState,
 } from "./transcript-adapter";
+import { runConversationStream } from "./conversation-stream-lifecycle";
 import { sendAndStream } from "./stream-client";
+import { createLiveRowScheduler } from "./live-row-scheduler";
 import { publicErrorMessage } from "./tool-display";
 import type {
-  ConversationEvent,
-  LegacyStreamEvent,
   PersistedChat,
   TranscriptContextChip,
   TranscriptRow,
@@ -97,7 +94,7 @@ export function useConversationStore(chatId: string | null): ConversationStore {
   const abortRef = useRef<AbortController | null>(null);
   const stopRequestedRef = useRef(false);
   const generationRef = useRef(0);
-  const flushHandleRef = useRef<number | null>(null);
+  const liveRowSchedulerRef = useRef<ReturnType<typeof createLiveRowScheduler> | null>(null);
   const chatIdRef = useRef(chatId);
   chatIdRef.current = chatId;
 
@@ -183,6 +180,7 @@ export function useConversationStore(chatId: string | null): ConversationStore {
       assistant: [],
       status: "streaming",
       proposals: [],
+      ...(liveTurn.startedAt ? { startedAt: liveTurn.startedAt } : {}),
       ...(contextChip ? { contextChip } : {}),
     });
     setStatus("sending");
@@ -201,6 +199,8 @@ export function useConversationStore(chatId: string | null): ConversationStore {
         status: "completed",
         proposals: finalTurn?.proposals ?? [],
         stopped: true,
+        ...((finalTurn?.startedAt ?? liveTurn.startedAt) ? { startedAt: finalTurn?.startedAt ?? liveTurn.startedAt } : {}),
+        completedAt: new Date().toISOString(),
       };
       commitRow(stoppedRow);
       setFailedRequest(null);
@@ -208,37 +208,53 @@ export function useConversationStore(chatId: string | null): ConversationStore {
     };
 
     try {
-      const result = await sendAndStream(
-        targetChatId,
-        {
-          clientRequestId: request.clientRequestId,
-          content: request.options.content,
-          ...(request.options.skillId ? { skillId: request.options.skillId } : {}),
-          ...(request.options.thinking ? { thinking: true } : {}),
-          context: request.options.context ?? null,
+      const outcome = await runConversationStream(
+        liveTurn,
+        (callbacks) => sendAndStream(
+          targetChatId,
+          {
+            clientRequestId: request.clientRequestId,
+            content: request.options.content,
+            ...(request.options.skillId ? { skillId: request.options.skillId } : {}),
+            ...(request.options.thinking ? { thinking: true } : {}),
+            context: request.options.context ?? null,
+          },
+          callbacks,
+          controller.signal,
+        ),
+        (updated) => {
+          if (chatIdRef.current !== targetChatId || generationRef.current !== generation) return;
+          liveTurnRef.current = updated;
+          scheduleLiveRowSync();
         },
         {
-          onLegacyEvent: (event: LegacyStreamEvent) => {
+          onTerminal: (terminal, terminalTurn) => {
             if (chatIdRef.current !== targetChatId || generationRef.current !== generation) return;
-            const current = liveTurnRef.current;
-            if (!current) return;
-            const updated = applyLegacyEvent(current, event);
-            if (updated === current) return;
-            liveTurnRef.current = updated;
-            scheduleLiveRowSync();
+            // A sequence gap requires persisted-history reconciliation instead
+            // of trusting an incomplete live projection.
+            if (terminalTurn.hasSequenceGap) return;
+            commitRow(terminal);
+            if (terminal.status === "failed") {
+              setFailedRequest({ ...request, turnId: terminal.turnId });
+              setStatus("failed");
+            } else {
+              setFailedRequest(null);
+              setStatus("idle");
+            }
+            recordStreamDebug({
+              at: new Date().toISOString(),
+              phase: "terminal_settled",
+              chatId: targetChatId,
+              turnId: terminal.turnId,
+              seq: terminalTurn.lastSeq,
+              rowStatus: terminal.status,
+              storeStatus: terminal.status === "failed" ? "failed" : "idle",
+            });
           },
-          onConversationEvent: (event: ConversationEvent) => {
-            if (chatIdRef.current !== targetChatId || generationRef.current !== generation) return;
-            const current = liveTurnRef.current;
-            if (!current) return;
-            const updated = applyConversationEvent(current, event);
-            if (updated === current) return;
-            liveTurnRef.current = updated;
-            scheduleLiveRowSync();
-          },
+          onLifecycle: (event) => recordStreamDebug({ ...event }),
         },
-        controller.signal,
       );
+      const { result } = outcome;
 
       // Guard: ensure we're still on the same chat
       if (chatIdRef.current !== targetChatId || generationRef.current !== generation) return;
@@ -249,8 +265,7 @@ export function useConversationStore(chatId: string | null): ConversationStore {
         return;
       }
 
-      const finalTurn = liveTurnRef.current;
-      if (!finalTurn) return;
+      const finalTurn = outcome.turn;
 
       if (finalTurn.hasSequenceGap) {
         const failedRequest = finalTurn.terminal?.status === "failed"
@@ -266,8 +281,8 @@ export function useConversationStore(chatId: string | null): ConversationStore {
         return;
       }
 
-      if (finalTurn.terminal) {
-        const terminal = mergeResultIntoTerminal(finalTurn.terminal, result);
+      if (outcome.terminal) {
+        const terminal = outcome.terminal;
         commitRow(terminal);
         if (terminal.status === "failed") {
           setFailedRequest({ ...request, turnId: terminal.turnId });
@@ -305,6 +320,8 @@ export function useConversationStore(chatId: string | null): ConversationStore {
           status: "failed",
           proposals: [],
           error: { message: "Agent 未返回完整结果", retryable: true },
+          ...(finalTurn.startedAt ? { startedAt: finalTurn.startedAt } : {}),
+          completedAt: new Date().toISOString(),
           ...(finalTurn.contextChip ? { contextChip: finalTurn.contextChip } : {}),
         };
         setLiveRow(null);
@@ -329,6 +346,8 @@ export function useConversationStore(chatId: string | null): ConversationStore {
         status: "failed",
         proposals: [],
         error: { message, retryable: true },
+        ...((finalTurn?.startedAt ?? liveTurn.startedAt) ? { startedAt: finalTurn?.startedAt ?? liveTurn.startedAt } : {}),
+        completedAt: new Date().toISOString(),
         ...(contextChip ? { contextChip } : {}),
       };
       setLiveRow(null);
@@ -436,19 +455,13 @@ export function useConversationStore(chatId: string | null): ConversationStore {
 
   /**
    * Coalesce high-frequency stream events into at most one React commit per
-   * animation frame. Every delta re-parses the growing markdown, so per-event
+   * animation frame. A bounded timer also flushes when a throttled tab suspends
+   * animation frames. Every delta re-parses the growing markdown, so per-event
    * setState freezes the main thread on long replies (O(n²)).
    */
   function scheduleLiveRowSync() {
-    if (flushHandleRef.current !== null) return;
-    if (typeof requestAnimationFrame !== "function") {
-      flushLiveRow();
-      return;
-    }
-    flushHandleRef.current = requestAnimationFrame(() => {
-      flushHandleRef.current = null;
-      flushLiveRow();
-    });
+    liveRowSchedulerRef.current ??= createLiveRowScheduler(flushLiveRow);
+    liveRowSchedulerRef.current.schedule();
   }
 
   function flushLiveRow() {
@@ -460,15 +473,13 @@ export function useConversationStore(chatId: string | null): ConversationStore {
       assistant: turn.blocks,
       status: turn.terminal?.status ?? "streaming",
       proposals: turn.proposals,
+      ...(turn.startedAt ? { startedAt: turn.startedAt } : {}),
       ...(turn.contextChip ? { contextChip: turn.contextChip } : {}),
     });
   }
 
   function cancelLiveRowSync() {
-    if (flushHandleRef.current !== null && typeof cancelAnimationFrame === "function") {
-      cancelAnimationFrame(flushHandleRef.current);
-    }
-    flushHandleRef.current = null;
+    liveRowSchedulerRef.current?.cancel();
   }
 
   function commitRow(row: TranscriptRow) {
@@ -491,6 +502,23 @@ export function useConversationStore(chatId: string | null): ConversationStore {
     reload,
     updateProposal,
   };
+}
+
+type StreamDebugRecord = Record<string, unknown> & { at: string; phase: string };
+
+declare global {
+  interface Window {
+    __MEWMO_AGENT_STREAM_DEBUG__?: StreamDebugRecord[];
+  }
+}
+
+/** Development-only, content-free evidence for browser/console reconciliation. */
+function recordStreamDebug(event: StreamDebugRecord) {
+  if (process.env.NODE_ENV !== "development" || typeof window === "undefined") return;
+  const records = window.__MEWMO_AGENT_STREAM_DEBUG__ ??= [];
+  records.push(event);
+  if (records.length > 500) records.splice(0, records.length - 500);
+  console.debug("[agent-stream]", event);
 }
 
 // ---------------------------------------------------------------------------

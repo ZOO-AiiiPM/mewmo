@@ -157,8 +157,131 @@ describe("AI runtime", () => {
       "workflow.embedding": { model: "legacy-embedding" },
     });
   });
+
+  it("uses DeepSeek Responses only for Agent purposes", () => {
+    const config = loadAIRuntimeConfig({
+      AI_PROVIDER: "deepseek",
+      DEEPSEEK_API_KEY: "secret",
+      DEEPSEEK_BASE_URL: "https://api.deepseek.com",
+      AI_MODEL_AGENT_CHAT: "deepseek-v4-flash",
+      AI_MODEL_SUMMARY: "deepseek-v4-flash",
+    });
+    const runtime = createAIRuntime(config);
+
+    expect(config.models["agent.chat"]).toMatchObject({
+      api: "openai-responses",
+      maxTokens: 65_536,
+      reasoning: true,
+      thinkingLevelMap: { low: "low", high: "high" },
+    });
+    expect(config.models["agent.deep_insight"]).toMatchObject({
+      api: "openai-responses",
+      maxTokens: 65_536,
+    });
+    expect(config.models["workflow.summary"]).not.toHaveProperty("maxTokens");
+    expect(runtime.model("agent.chat")).toMatchObject({
+      id: "deepseek-v4-flash",
+      api: "openai-responses",
+      maxTokens: 65_536,
+      reasoning: true,
+    });
+    expect(runtime.model("workflow.summary")).toMatchObject({
+      id: "deepseek-v4-flash",
+      api: "openai-completions",
+    });
+  });
+
+  it("sends low and high effort through DeepSeek Responses and captures reasoning", async () => {
+    const requests: Array<{ path: string; body: Record<string, unknown> }> = [];
+    const server = createServer(async (request, response) => {
+      let body = "";
+      for await (const chunk of request) body += chunk;
+      requests.push({ path: request.url ?? "", body: JSON.parse(body) as Record<string, unknown> });
+      response.writeHead(200, { "Content-Type": "text/event-stream" });
+      response.end(deepseekResponsesSse(requests.length));
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+
+    try {
+      const address = server.address() as AddressInfo;
+      const runtime = createAIRuntime(loadAIRuntimeConfig({
+        AI_PROVIDER: "deepseek",
+        DEEPSEEK_API_KEY: "secret",
+        DEEPSEEK_BASE_URL: `http://127.0.0.1:${address.port}`,
+        AI_MODEL_AGENT_CHAT: "deepseek-v4-flash",
+      }));
+      const model = runtime.model("agent.chat");
+      const context: Context = {
+        messages: [{ role: "user", content: "Think, then answer.", timestamp: Date.now() }],
+      };
+
+      const low = await runtime.models().completeSimple(model, context, { reasoning: "low", maxRetries: 0 });
+      const high = await runtime.models().completeSimple(model, context, { reasoning: "high", maxRetries: 0 });
+
+      expect(requests.map((request) => request.path)).toEqual(["/responses", "/responses"]);
+      expect(requests.map((request) => request.body.model)).toEqual([
+        "deepseek-v4-flash",
+        "deepseek-v4-flash",
+      ]);
+      expect(requests.map((request) => request.body.max_output_tokens)).toEqual([65_536, 65_536]);
+      expect(requests.map((request) => request.body.reasoning)).toEqual([
+        { effort: "low", summary: "auto" },
+        { effort: "high", summary: "auto" },
+      ]);
+      expect(low.content).toEqual([
+        expect.objectContaining({ type: "thinking", thinking: "reasoning-1" }),
+        expect.objectContaining({ type: "text", text: "answer-1" }),
+      ]);
+      expect(low.usage.reasoning).toBe(7);
+      expect(high.usage.reasoning).toBe(9);
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
+  });
 });
 
 function googleSse(body: unknown) {
   return `data: ${JSON.stringify(body)}\n\n`;
+}
+
+function deepseekResponsesSse(requestNumber: number) {
+  const response = {
+    id: `resp-${requestNumber}`,
+    object: "response",
+    created_at: 0,
+    status: "completed",
+    model: "deepseek-v4-flash",
+    output: [],
+    usage: {
+      input_tokens: 5,
+      input_tokens_details: { cached_tokens: 0 },
+      output_tokens: 12,
+      output_tokens_details: { reasoning_tokens: requestNumber === 1 ? 7 : 9 },
+      total_tokens: 17,
+    },
+  };
+  const reasoning = {
+    type: "reasoning",
+    id: `rs-${requestNumber}`,
+    summary: [],
+    content: [{ type: "reasoning_text", text: `reasoning-${requestNumber}` }],
+  };
+  const message = {
+    type: "message",
+    id: `msg-${requestNumber}`,
+    role: "assistant",
+    status: "completed",
+    content: [{ type: "output_text", text: `answer-${requestNumber}`, annotations: [] }],
+  };
+  const events = [
+    { type: "response.created", response: { ...response, status: "in_progress" } },
+    { type: "response.output_item.added", output_index: 0, item: { ...reasoning, content: [] } },
+    { type: "response.reasoning_text.delta", output_index: 0, delta: `reasoning-${requestNumber}` },
+    { type: "response.output_item.done", output_index: 0, item: reasoning },
+    { type: "response.output_item.added", output_index: 1, item: { ...message, content: [] } },
+    { type: "response.output_text.delta", output_index: 1, content_index: 0, delta: `answer-${requestNumber}` },
+    { type: "response.output_item.done", output_index: 1, item: message },
+    { type: "response.completed", response },
+  ];
+  return `${events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join("")}data: [DONE]\n\n`;
 }

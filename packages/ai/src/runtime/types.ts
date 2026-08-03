@@ -1,4 +1,4 @@
-import type { Api, CredentialStore, Model, ModelCost, Models } from "@earendil-works/pi-ai";
+import type { Api, CredentialStore, Model, ModelCost, Models, ThinkingLevelMap } from "@earendil-works/pi-ai";
 
 import type { AIProvider, CompletionMessage } from "../providers/types";
 import type { RerankInput, RerankResult, RerankerConfig } from "../rerank/types";
@@ -28,9 +28,12 @@ export interface ProviderDefinition {
 export interface ModelDefinition {
   provider: string;
   model: string;
+  /** Provider wire protocol. Omitted models retain the provider's existing default adapter. */
+  api?: "openai-responses";
   contextWindow?: number;
   maxTokens?: number;
   reasoning?: boolean;
+  thinkingLevelMap?: ThinkingLevelMap;
   /** Optional output dimensionality forwarded to the embedding endpoint. */
   dimensions?: number;
   /** Required for custom endpoints to report a known provider cost. */
