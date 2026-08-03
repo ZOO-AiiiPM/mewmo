@@ -3,22 +3,24 @@ import type { AssistantBlock } from "./types";
 export interface AssistantPresentation {
   processBlocks: AssistantBlock[];
   finalBlocks: AssistantBlock[];
+  orderedBlocks: AssistantBlock[];
   streamingProcessIndex: number;
   streamingFinalIndex: number;
 }
 
 export function assistantPresentation(
   blocks: AssistantBlock[],
-  isStreaming: boolean,
+  reconcileCompletedTurn: boolean,
 ): AssistantPresentation {
   const processBlocks: AssistantBlock[] = [];
   const finalBlocks: AssistantBlock[] = [];
   let finalTextIndex = -1;
 
-  if (isStreaming) {
+  if (!reconcileCompletedTurn) {
     return {
-      processBlocks: blocks,
-      finalBlocks,
+      processBlocks: blocks.filter(isProcessBlock),
+      finalBlocks: blocks.filter((block) => !isProcessBlock(block)),
+      orderedBlocks: blocks,
       streamingProcessIndex: blocks.length - 1,
       streamingFinalIndex: -1,
     };
@@ -40,9 +42,14 @@ export function assistantPresentation(
   return {
     processBlocks,
     finalBlocks,
+    orderedBlocks: [],
     streamingProcessIndex: -1,
     streamingFinalIndex: -1,
   };
+}
+
+export function isProcessBlock(block: AssistantBlock) {
+  return block.kind === "thinking" || block.kind === "tool";
 }
 
 export function processSummary(row: Pick<import("./types").TranscriptRow, "status" | "stopped" | "startedAt" | "completedAt">) {

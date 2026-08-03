@@ -10,7 +10,7 @@ describe("assistant ordered process presentation", () => {
       { kind: "tool", toolCallId: "tool-1", display: "搜索工作区", status: "done" },
       { kind: "thinking", content: "结合搜索结果" },
       { kind: "text", content: "最终回答" },
-    ], false);
+    ], true);
 
     expect(presentation.processBlocks).toEqual([
       { kind: "thinking", content: "先核对事实" },
@@ -21,42 +21,67 @@ describe("assistant ordered process presentation", () => {
     expect(presentation.finalBlocks).toEqual([{ kind: "text", content: "最终回答" }]);
   });
 
-  it("keeps every generation in process until terminal reconciliation", () => {
+  it("keeps live generations exposed in event order and folds only reasoning and tools", () => {
     const presentation = assistantPresentation([
       { kind: "thinking", content: "第一步" },
       { kind: "text", content: "已有回答" },
       { kind: "thinking", content: "继续分析" },
-    ], true);
+    ], false);
 
-    expect(presentation.processBlocks).toEqual([
+    expect(presentation.orderedBlocks).toEqual([
       { kind: "thinking", content: "第一步" },
       { kind: "text", content: "已有回答" },
       { kind: "thinking", content: "继续分析" },
     ]);
-    expect(presentation.finalBlocks).toEqual([]);
+    expect(presentation.processBlocks).toEqual([
+      { kind: "thinking", content: "第一步" },
+      { kind: "thinking", content: "继续分析" },
+    ]);
+    expect(presentation.finalBlocks).toEqual([{ kind: "text", content: "已有回答" }]);
     expect(presentation.streamingProcessIndex).toBe(2);
     expect(presentation.streamingFinalIndex).toBe(-1);
   });
 
-  it("does not move a live text generation outside the process", () => {
+  it("keeps a live text generation outside the folded process", () => {
     const presentation = assistantPresentation([
       { kind: "thinking", content: "分析完成" },
       { kind: "text", content: "答案流" },
-    ], true);
+    ], false);
 
-    expect(presentation.processBlocks).toHaveLength(2);
-    expect(presentation.finalBlocks).toEqual([]);
+    expect(presentation.processBlocks).toEqual([{ kind: "thinking", content: "分析完成" }]);
+    expect(presentation.finalBlocks).toEqual([{ kind: "text", content: "答案流" }]);
+    expect(presentation.orderedBlocks).toEqual([
+      { kind: "thinking", content: "分析完成" },
+      { kind: "text", content: "答案流" },
+    ]);
     expect(presentation.streamingProcessIndex).toBe(1);
   });
 
   it("does not create thinking content when no thinking event arrived", () => {
     const presentation = assistantPresentation([
       { kind: "text", content: "直接回答" },
-    ], true);
+    ], false);
 
-    expect(presentation.processBlocks).toEqual([{ kind: "text", content: "直接回答" }]);
-    expect(presentation.finalBlocks).toEqual([]);
+    expect(presentation.processBlocks).toEqual([]);
+    expect(presentation.finalBlocks).toEqual([{ kind: "text", content: "直接回答" }]);
+    expect(presentation.orderedBlocks).toEqual([{ kind: "text", content: "直接回答" }]);
     expect(presentation.streamingProcessIndex).toBe(0);
+  });
+
+  it("does not reconcile failed or stopped generations into a success disclosure", () => {
+    const blocks = [
+      { kind: "text", content: "阶段回答" } as const,
+      { kind: "thinking", content: "继续分析" } as const,
+      { kind: "text", content: "中断前回答" } as const,
+    ];
+
+    const presentation = assistantPresentation(blocks, false);
+
+    expect(presentation.orderedBlocks).toEqual(blocks);
+    expect(presentation.finalBlocks).toEqual([
+      { kind: "text", content: "阶段回答" },
+      { kind: "text", content: "中断前回答" },
+    ]);
   });
 
   it("labels all terminal states with whole-turn duration only when both bounds exist", () => {

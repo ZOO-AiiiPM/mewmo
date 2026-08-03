@@ -4884,13 +4884,18 @@ html.light .mewmo-chat-switcher__item--active {
 
 .mewmo-thinking-region__title {
   display: flex;
+  width: 100%;
   min-height: 24px;
   align-items: center;
   gap: 6px;
+  border: 0;
+  background: transparent;
   color: var(--ink-soft);
+  padding: 0;
   font-size: 12px;
   line-height: 1.6;
   font-weight: 600;
+  text-align: left;
   cursor: pointer;
   list-style: none;
 }
@@ -4903,6 +4908,19 @@ html.light .mewmo-chat-switcher__item--active {
 }
 
 .mewmo-thinking-region[open] .mewmo-thinking-region__caret { transform: rotate(180deg); }
+.mewmo-thinking-region__caret--open { transform: rotate(180deg); }
+
+.mewmo-live-turn {
+  display: grid;
+  gap: 10px;
+}
+
+.mewmo-live-turn__process {
+  color: var(--ink-soft);
+  padding-left: 20px;
+  font-size: 12px;
+  line-height: 1.6;
+}
 
 .mewmo-thinking-region__content {
   min-height: 72px;

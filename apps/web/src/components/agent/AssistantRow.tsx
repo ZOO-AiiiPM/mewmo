@@ -4,7 +4,7 @@ import { memo, useEffect, useMemo, useRef, useState } from "react";
 
 import type { AgentActionProposal } from "../../lib/agent-contract";
 import { assistantRowCopyText } from "../../lib/agent/row-actions";
-import { assistantPresentation, processInitiallyOpen, processOpenAfterTerminal, processSummary } from "../../lib/agent/assistant-presentation";
+import { assistantPresentation, isProcessBlock, processInitiallyOpen, processOpenAfterTerminal, processSummary } from "../../lib/agent/assistant-presentation";
 import type { AssistantBlock, TranscriptRow } from "../../lib/agent/types";
 import { contextChipIcon, contextChipLabel } from "../../lib/agent/context-display";
 import type { AISidebarContentContext } from "../shell/AISidebar";
@@ -37,9 +37,10 @@ export const AssistantRow = memo(function AssistantRow({ row, context, onProposa
   const [copied, setCopied] = useState<"user" | "assistant" | null>(null);
   const isStreaming = row.status === "streaming";
   const isFailed = row.status === "failed";
+  const reconcileCompletedTurn = row.status === "completed" && !row.stopped;
   const presentation = useMemo(
-    () => assistantPresentation(row.assistant, isStreaming),
-    [isStreaming, row.assistant],
+    () => assistantPresentation(row.assistant, reconcileCompletedTurn),
+    [reconcileCompletedTurn, row.assistant],
   );
   const assistantText = assistantRowCopyText(row);
   const showAssistantActions = !isStreaming && (assistantText.length > 0 || Boolean(onRegenerate));
@@ -100,7 +101,7 @@ export const AssistantRow = memo(function AssistantRow({ row, context, onProposa
       {/* Assistant blocks */}
       <div className="mewmo-message-group mewmo-message-group--assistant">
         <div className="mewmo-ai-message mewmo-ai-message--assistant">
-          {row.userContent && (
+          {row.userContent && reconcileCompletedTurn && presentation.processBlocks.length > 0 && (
             <ProcessRegion
               blocks={presentation.processBlocks}
               hasFinal={presentation.finalBlocks.some((block) => block.kind === "text")}
@@ -111,7 +112,17 @@ export const AssistantRow = memo(function AssistantRow({ row, context, onProposa
             />
           )}
 
-          {presentation.finalBlocks.map((block, index) => (
+          {!reconcileCompletedTurn && (
+            <OrderedRunningBlocks
+              blocks={presentation.orderedBlocks}
+              row={row}
+              streamingIndex={presentation.streamingProcessIndex}
+              context={context}
+              onProposalChange={onProposalChange}
+            />
+          )}
+
+          {reconcileCompletedTurn && presentation.finalBlocks.map((block, index) => (
             <BlockRenderer
               key={`${row.turnId}-final-${index}`}
               block={block}
@@ -167,6 +178,48 @@ export const AssistantRow = memo(function AssistantRow({ row, context, onProposa
     </div>
   );
 });
+
+function OrderedRunningBlocks({
+  blocks,
+  row,
+  streamingIndex,
+  context,
+  onProposalChange,
+}: {
+  blocks: AssistantBlock[];
+  row: TranscriptRow;
+  streamingIndex: number;
+  context: AISidebarContentContext | null;
+  onProposalChange: (proposal: AgentActionProposal) => void;
+}) {
+  const hasProcess = blocks.some(isProcessBlock);
+  const [open, setOpen] = useState(processInitiallyOpen(row));
+
+  return (
+    <div className="mewmo-live-turn">
+      {hasProcess && (
+        <button
+          type="button"
+          className="mewmo-thinking-region__title"
+          aria-expanded={open}
+          onClick={() => setOpen((value) => !value)}
+        >
+          <PrototypeIcon name="caret" size={10} className={`mewmo-thinking-region__caret ${open ? "mewmo-thinking-region__caret--open" : ""}`} />
+          <span>{processSummary(row)}</span>
+        </button>
+      )}
+      {blocks.map((block, index) => isProcessBlock(block) ? (
+        open && (
+          <div className="mewmo-live-turn__process" key={`live-process-${index}`}>
+            <BlockRenderer block={block} streaming={index === streamingIndex} context={context} onProposalChange={onProposalChange} />
+          </div>
+        )
+      ) : (
+        <BlockRenderer key={`live-answer-${index}`} block={block} streaming={index === streamingIndex} final context={context} onProposalChange={onProposalChange} />
+      ))}
+    </div>
+  );
+}
 
 function ProcessRegion({
   blocks,

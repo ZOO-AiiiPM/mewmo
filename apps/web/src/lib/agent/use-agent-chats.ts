@@ -38,7 +38,7 @@ export function useAgentChats(options?: AgentChatsOptions): AgentChats {
   const startFresh = options?.startFresh ?? false;
   const [chats, setChats] = useState<ChatSummary[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
-  const [loadingChats, setLoadingChats] = useState(true);
+  const [loadingChats, setLoadingChats] = useState(false);
   const [pendingChatId, setPendingChatId] = useState<string | null>(null);
   const [chatError, setChatError] = useState<string | null>(null);
   const activeChatIdRef = useRef(activeChatId);
@@ -58,7 +58,8 @@ export function useAgentChats(options?: AgentChatsOptions): AgentChats {
 
   useEffect(() => {
     let cancelled = false;
-    void (async () => {
+    setLoadingChats(true);
+    const load = async () => {
       try {
         const response = await fetch("/api/agent/chats", { cache: "no-store" });
         const data = await response.json().catch(() => null) as { chats?: ChatSummary[]; error?: { message?: string } } | null;
@@ -75,8 +76,9 @@ export function useAgentChats(options?: AgentChatsOptions): AgentChats {
       } finally {
         if (!cancelled) setLoadingChats(false);
       }
-    })();
-    return () => { cancelled = true; };
+    };
+    const timer = window.setTimeout(() => { void load(); }, 0);
+    return () => { cancelled = true; window.clearTimeout(timer); };
   }, [createChat, startFresh]);
 
   // Auto-naming (R4): when the active chat's transcript first goes from 0 to

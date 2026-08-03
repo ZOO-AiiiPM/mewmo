@@ -5,7 +5,7 @@ describe("AssistantRow ordered process presentation wiring", () => {
   it("renders an ordered collapsible process and a separate final region", () => {
     const source = readFileSync("apps/web/src/components/agent/AssistantRow.tsx", "utf8");
 
-    expect(source).toContain("assistantPresentation(row.assistant, isStreaming)");
+    expect(source).toContain("assistantPresentation(row.assistant, reconcileCompletedTurn)");
     expect(source).not.toContain("ToolGroup");
     expect(source).toContain('<details className={`mewmo-thinking-region');
     expect(source).toContain('final ? "mewmo-final-answer" : "mewmo-process-narration"');
@@ -15,6 +15,9 @@ describe("AssistantRow ordered process presentation wiring", () => {
     expect(source.indexOf('name="caret"')).toBeLessThan(source.indexOf("processSummary(row)"));
     expect(source).toContain('name="bulb"');
     expect(source).toContain('streaming ? "深度思考中" : "思考过程"');
+    expect(source).toContain("blocks.some(isProcessBlock)");
+    expect(source).toContain("isProcessBlock(block)");
+    expect(source).toContain("reconcileCompletedTurn && presentation.processBlocks.length > 0");
   });
 
   it("gives the process a bounded, internally scrollable region as a layout contract", () => {
