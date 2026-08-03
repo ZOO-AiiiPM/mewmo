@@ -5,7 +5,7 @@
   "description": "",
   "status": "in_progress",
   "dev_type": null,
-  "scope": "apps/agent, packages/ai, packages/db, deploy/agent (local validation only); worker/Workflow 配置与 Production 不动",
+  "scope": "ZOO-102 local DeepSeek baseline + ZOO-111/ZOO-112 acceptance fixes across apps/agent, apps/web, packages/ai/shared/db; ZOO-128, Workflows and Production excluded",
   "package": "admin",
   "priority": "P2",
   "creator": "zoo",

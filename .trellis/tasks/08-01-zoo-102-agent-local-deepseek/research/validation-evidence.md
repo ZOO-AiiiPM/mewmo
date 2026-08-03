@@ -13,7 +13,7 @@
 - `DATABASE_URL` 机械校验：**host=127.0.0.1, port=55432**（PASS），库 `mewmo_zoo102`。
 - `REDIS_URL` 指向 127.0.0.1:56379（本地 Docker Redis；此前 `docker ps` 只读确认容器运行）。
 - 配置文件 key 集合（值一律 redacted）：含 Agent 运行必需（identity、host/port、Langfuse development）、DeepSeek 变量（`AI_PROVIDER`/`AI_MODEL_AGENT_CHAT`/`AI_MODEL_DEEP_INSIGHT`/`DEEPSEEK_API_KEY`/`DEEPSEEK_BASE_URL`）；**不含** Workflow 模型变量。
-- 运行 Agent 进程 env 指示：`AI_PROVIDER=deepseek`、`AI_MODEL_AGENT_CHAT=deepseek-chat`、`AI_MODEL_DEEP_INSIGHT=deepseek-chat`、`DEEPSEEK_BASE_URL=https://api.deepseek.com`、`NODE_ENV=development`、`AGENT_HOST=127.0.0.1`、`AGENT_PORT=3101`。
+- 运行 Agent 进程 env 指示：`AI_PROVIDER=deepseek`、`AI_MODEL_AGENT_CHAT=deepseek-v4-flash`、`AI_MODEL_DEEP_INSIGHT=deepseek-v4-flash`、`DEEPSEEK_BASE_URL=https://api.deepseek.com`、`NODE_ENV=development`、`AGENT_HOST=127.0.0.1`。
 
 ## 2. 非破坏性前置检查
 
@@ -41,23 +41,36 @@
 - 在本地隔离库 `mewmo_zoo102` 注入最小测试 user + 空演示 chat（明确 test 标识，非真实用户数据）。
 - 用合法 HS256 短期 identity token（secret 来自 env 不落盘，issuer/audience 默认）`POST /v1/chats/{demoChat}/stream`（SSE），内容为简短中文问候。
 - 结果 **HTTP 200**；SSE 事件序列含 `turn.started` → 多个 `assistant.text.delta` → `turn.completed` / `result`。
-- 本地库收到 1 个 `ai_turn`（写库成功），`ai_usage_events` 记录：
+- 首轮历史冒烟使用了错误的 `deepseek-chat` 配置；该记录只保留为纠错历史，不作为最终模型验收依据。
+- 修正后未修改 Pi adapter，真实 high 请求 HTTP 200，SSE 包含 reasoning delta 与 `turn.completed`；最新 `ai_usage_events` 记录：
   - `provider=primary`（Runtime 单一 primary provider 名；实际 provider = deepseek，见进程 env）
-  - `requested_model=deepseek-chat`（与配置一致）
-  - `response_model=<deepseek 官方实际服务模型>`（官方服务端返回）
-  - `input_tokens=2437`、`output_tokens=8`、`reasoning_tokens=0`（真实推断）
+  - `requested_model=deepseek-v4-flash`
+  - `response_model=null`（请求已使用真实 model id，不依赖 adapter 改写响应模型）
+  - `reasoning_tokens=24`
+- Langfuse observation `1781d89537fad031`：`model=deepseek-v4-flash`、`reasoning.effort=high`、reasoning usage 24。
 
 ## 6. 验收对照
 
 | 验收项 | 结果 |
 |--------|------|
-| Agent 本地环境使用 DeepSeek 官方付费 API | ✅ 满足：`AI_PROVIDER=deepseek` + 官方 base URL + `deepseek-chat`；真实请求 `requested_model=deepseek-chat` 写入本地 usage 事件 |
+| Agent 本地环境使用 DeepSeek 官方付费 API | ✅ 满足：`AI_PROVIDER=deepseek` + 官方 base URL；Agent 直接请求 `deepseek-v4-flash`，未修改 Pi adapter |
 | Workflow 环境/模型配置无 diff | ✅ 满足：`deploy/worker/.env.worker` 未触碰，Agent env 无 Workflow 模型变量，`git status` 无相关 diff |
 | PostgreSQL/Redis 前置检查通过，Agent `/health` 可访问 | ✅ 满足：本地只读检查通过，`/health` HTTP 200 `{"ok":true}` |
-| 至少一次真实 Agent 请求可验证结果 | ✅ 满足：本地库拿到 1 个 ai_turn + usage 事件（`requested_model=deepseek-chat`） |
+| 至少一次真实 Agent 请求可验证结果 | ✅ 满足：真实 high SSE 完成，本地 usage 与 Langfuse 均记录 `deepseek-v4-flash` |
 | 配置文件均被 gitignore，Git diff 不含凭据 | ✅ 满足：env untracked，任务文档只含 key 名/占位符，`git status` 干净 |
 
 ## 7. Blockers / 备注
 
 - **无 blocker**：本地隔离库上全部达成。
 - 备注：本地库 `mewmo_zoo102` 仅含为冒烟注入的 test user/chat，无生产/真实用户数据。
+
+## 8. ZOO-112 自动验证（2026-08-03）
+
+- Focused Vitest：`pnpm exec vitest run apps/agent/src/server.test.ts apps/agent/src/pi/runtime.test.ts apps/agent/src/pi/tool-event-display.test.ts apps/agent/src/automation/run-batch.test.ts apps/web/src/components/agent/AssistantRow.test.tsx apps/web/src/components/agent/ChatInput.test.ts apps/web/src/lib/agent/assistant-presentation.test.ts apps/web/src/lib/agent/transcript-adapter.test.ts apps/web/src/lib/agent/conversation-stream-lifecycle.test.ts packages/application/src/ai-session-service.test.ts packages/db/src/repositories/ai-chats.test.ts packages/shared/src/agent-events.test.ts tests/unit/shared-note-markdown.test.ts` → **13 files / 91 tests passed**。新增 regression 覆盖 low omitted/false 不发 stable 或 legacy reasoning SSE、high 仍发两种事件，以及 runtime/legacy/stable/history 的 Tool start + result details 保序去重合并（最多 8 条）。
+- Web lint：`pnpm --filter @mewmo/web lint` → passed。
+- TypeScript：`pnpm exec tsc --noEmit -p apps/web/tsconfig.json`、`apps/agent/tsconfig.json`、`packages/application/tsconfig.json`、`packages/shared/tsconfig.json`、`packages/db/tsconfig.json` → 全部 passed。
+- Theme：`pnpm test:theme` → passed。
+- Diff：`git diff --check && git diff --cached --check` → passed。
+- Scope/safety audit：无 `deploy/worker`、Prisma schema 或 ZOO-128 产品实现 diff；未发现凭据赋值进入 diff。
+- Tool icon source：`magnifer-linear` / `sledgehammer-linear` 已按 Iconify Solar API 返回的官方 SVG path 本地内联；未新增依赖或外部运行时资源。
+- Localhost：复用同 worktree 既有 `http://localhost:3100`，HTTP 200；in-app browser 可加载公开首页，但没有登录态，无法进入 Agent transcript。G5/G6 仍需在登录态浏览器完成深浅主题、computed list marker、图标/折叠与刷新历史验收，未标记为通过。
