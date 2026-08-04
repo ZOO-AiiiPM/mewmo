@@ -4,6 +4,7 @@ packages:
 allowBuilds:
   '@google/genai': false
   '@parcel/watcher': false
+  '@sentry/cli': true
   '@prisma/engines': true
   '@swc/core': false
   esbuild: true

@@ -1,0 +1,9 @@
+@import "../web/src/app/globals.css";
+@source "../../packages/ui/src";
+@source "./stories";
+
+body.sb-show-main {
+  height: auto;
+  min-height: 100vh;
+  overflow: auto;
+}

@@ -22,6 +22,58 @@
 | staging | Neon 分支 | PR Preview / 内测 |
 | production | Neon 主库 | 正式用户 |
 
+## Web Sentry 运行契约
+
+### 1. Scope / Trigger
+
+修改 Web Browser、Node、Edge 错误采集、Sentry 环境变量或 source-map 上传时适用。Sentry 只能补充应用错误定位，不能接管 Langfuse 的 AI trace/usage，也不能让遥测配置影响业务可用性。
+
+### 2. Signatures
+
+- `createSentryOptions({ dsn?, environment?, release? })`：无 DSN 返回 `null`，有 DSN 返回三端共享的隐私配置。
+- `scrubSentryEvent<T>(event: T): T`：返回脱敏副本，不修改 SDK 传入对象。
+- Next instrumentation 保留 `register()`，并导出 `onRequestError = Sentry.captureRequestError`。
+
+### 3. Contracts
+
+- Browser 使用 `NEXT_PUBLIC_SENTRY_DSN`；Node/Edge 优先 `SENTRY_DSN`，再回退 public DSN。
+- environment 使用对应的 `SENTRY_ENVIRONMENT` / `NEXT_PUBLIC_SENTRY_ENVIRONMENT`；release 使用 `SENTRY_RELEASE` 或部署 commit SHA。
+- 只有 `SENTRY_AUTH_TOKEN`、`SENTRY_ORG`、`SENTRY_PROJECT` 同时存在时上传 source maps。
+- 默认关闭 PII、HTTP bodies/headers/cookies/query、AI 输入输出与 logs；发送前过滤 credential、token、正文、prompt/messages 和 tool payload，URL 去除 query/hash/内嵌凭据。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 必须行为 |
+|------|----------|
+| 运行时无 DSN | 不调用 `Sentry.init`，请求和构建继续 |
+| source-map 三项凭据不完整 | 跳过上传，构建继续 |
+| 事件含敏感字段 | 值替换为 `[Filtered]`，保留非敏感定位字段 |
+| URL 含 query/hash/凭据 | 只保留无凭据的 origin/path |
+
+### 5. Good / Base / Bad Cases
+
+- Good：测试 DSN + environment + release 可收到 Browser 与 Server event，并解析 source map。
+- Base：完全无 Sentry 变量时，Web lint、type-check 和 production build 通过且不发送事件。
+- Bad：不得把真实 DSN 上传凭据、用户正文或认证信息写进代码、测试、日志或事件。
+
+### 6. Tests Required
+
+- 单测断言嵌套敏感字段、URL 清理、输入对象不变和无 DSN 返回 `null`。
+- 无 Sentry 环境变量执行 Web production build，断言 fail-open 路径可打包。
+- 有测试 project 时手动触发 Browser/Server error，核对 environment、release、stack 与事件脱敏。
+
+### 7. Wrong vs Correct
+
+```ts
+// Wrong: 遥测凭据缺失会改变业务构建结果。
+export default withSentryConfig(nextConfig, uploadOptions);
+
+// Correct: 只有上传凭据完整时才包装构建配置。
+export default canUploadSourceMaps
+  ? withSentryConfig(nextConfig, uploadOptions)
+  : nextConfig;
+```
+
 ## Production Agent/Workflow 资源边界
 
 服务器上已经有一个 Agent 实例，不能停止、重启、删除或覆盖它。Mewmo 只新增一个 Production Agent；Preview 不运行 Agent 或 Workflow。4 GB 内存不是 Mewmo 的专属配额，部署前必须检查 `free -h`、`swapon --show`、`docker stats --no-stream`、`docker ps` 和端口占用，再按实际余量设置 Compose 的 `mem_limit`/`mem_reservation`。当前 Compose 的固定值只是保守起点，后续应通过部署环境变量按余量调整；不要在服务器本地构建镜像，也不在服务器自托管模型、embedding 模型或 Langfuse。

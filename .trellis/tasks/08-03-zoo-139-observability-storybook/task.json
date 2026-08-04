@@ -1,0 +1,31 @@
+{
+  "id": "zoo-139-observability-storybook",
+  "name": "zoo-139-observability-storybook",
+  "title": "ZOO-139 Web 可观测性与 Storybook UI 验收基础",
+  "description": "Linear ZOO-139；补齐 Web/API Sentry 可观测性与共享 UI Storybook 隔离验收。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": "apps/web Sentry runtime; apps/storybook; packages/ui stories; docs and focused tests",
+  "package": "web",
+  "priority": "P1",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-08-03",
+  "completedAt": null,
+  "branch": "codex/issue-ZOO-139-observability-storybook",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "linear_issue": "ZOO-139",
+    "linear_url": "https://linear.app/zoos-agent-lib/issue/ZOO-139",
+    "pr_url": "https://github.com/ZOO-AiiiPM/mewmo/pull/84",
+    "commit": "ee46c98f"
+  }
+}

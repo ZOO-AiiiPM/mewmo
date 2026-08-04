@@ -25,6 +25,7 @@
     "@milkdown/kit": "7.21.2",
     "@milkdown/react": "7.21.2",
     "@panzoom/panzoom": "^4.6.2",
+    "@sentry/nextjs": "10.69.0",
     "@tanstack/react-virtual": "^3.14.3",
     "entities": "7.0.1",
     "ioredis": "5.10.1",
