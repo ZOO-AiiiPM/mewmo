@@ -190,15 +190,20 @@ struct MacShellView: View {
         .frame(minWidth: 990, minHeight: 480)
     }
 
+    @ViewBuilder
     private var splitView: some View {
-        NavigationSplitView {
-            sidebar
-        } content: {
-            listColumn
-        } detail: {
-            detailColumn
+        if activeTab?.section == .notes {
+            MacNotesWorkspace()
+        } else {
+            NavigationSplitView {
+                sidebar
+            } content: {
+                listColumn
+            } detail: {
+                detailColumn
+            }
+            .navigationSplitViewStyle(.balanced)
         }
-        .navigationSplitViewStyle(.balanced)
     }
 
     private var tabStrip: some View {
@@ -362,12 +367,14 @@ struct MacShellView: View {
             .keyboardShortcut("w", modifiers: .command)
             .disabled(activeTab == nil)
 
-            Button {
-                showLocalPreview()
-            } label: {
-                Label("New local preview", systemImage: "square.and.pencil")
+            if activeTab?.section != .notes {
+                Button {
+                    showLocalPreview()
+                } label: {
+                    Label("New local preview", systemImage: "square.and.pencil")
+                }
+                .keyboardShortcut("n", modifiers: .command)
             }
-            .keyboardShortcut("n", modifiers: .command)
 
             Button {
                 searchIsFocused = true
