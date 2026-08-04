@@ -66,6 +66,30 @@ describe("loadEnv", () => {
     expect(env.R2_BUCKET).toBeUndefined();
   });
 
+  it("treats blank optional local-env fields as unset", () => {
+    const env = loadEnv({
+      ...validEnv,
+      STORAGE_PROVIDER: "qiniu",
+      R2_ENDPOINT: "",
+      R2_ACCESS_KEY: "",
+      R2_SECRET_KEY: "",
+      R2_BUCKET: "",
+      R2_PUBLIC_BASE_URL: "",
+      QINIU_ACCESS_KEY: "qiniu-access",
+      QINIU_SECRET_KEY: "qiniu-secret",
+      QINIU_BUCKET: "mewmo-images",
+      QINIU_PUBLIC_BASE_URL: "http://cdn.example.test",
+      QINIU_UPLOAD_ENDPOINT: "",
+      FEED_SEARCH_ENDPOINT: "",
+      FEED_SEARCH_API_KEY: "",
+    });
+
+    expect(env.R2_ENDPOINT).toBeUndefined();
+    expect(env.QINIU_UPLOAD_ENDPOINT).toBeUndefined();
+    expect(env.FEED_SEARCH_ENDPOINT).toBeUndefined();
+    expect(env.FEED_SEARCH_API_KEY).toBeUndefined();
+  });
+
   it("does not require provider-specific AI keys for inactive providers", () => {
     const envWithoutInactiveAIKeys: Partial<typeof validEnv> = { ...validEnv };
     delete envWithoutInactiveAIKeys.OPENAI_API_KEY;

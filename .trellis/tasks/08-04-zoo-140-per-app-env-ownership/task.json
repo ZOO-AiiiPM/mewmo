@@ -1,0 +1,28 @@
+{
+  "id": "zoo-140-per-app-env-ownership",
+  "name": "zoo-140-per-app-env-ownership",
+  "title": "ZOO-140 Per-app environment ownership",
+  "description": "修复本地运行时误读仓库根 env，统一 Web、Agent、AI Workflow 的 app-local 环境归属。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": "agent",
+  "priority": "P1",
+  "creator": "zoo",
+  "assignee": "zoo",
+  "createdAt": "2026-08-04",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "linear_id": "ZOO-140"
+  }
+}

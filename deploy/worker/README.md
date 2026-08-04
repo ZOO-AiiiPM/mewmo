@@ -7,6 +7,10 @@
 
 没有常驻 BullMQ Worker，也不需要 Redis。两个进程都不接收入站请求，因此不需要域名、SSL、Nginx 或开放公网端口。
 
+## 本地 AI Workflow
+
+本地 Workflow 配置只放在 `apps/ai-workflows/.env.local`，从同目录 `.env.local.example` 创建。`pnpm --filter @mewmo/ai-workflows cron:ai:local` 显式加载该文件；Production 使用的 `cron:ai` 继续只接受部署注入。不要读取 Web、Agent 或仓库根 env，也不要把 Agent 的 DeepSeek 模型设置复制到 Workflow。
+
 ## 构建和传输镜像
 
 在 Mac 项目根目录执行：

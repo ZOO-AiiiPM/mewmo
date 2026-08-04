@@ -1,5 +1,9 @@
 # Mewmo Agent 服务部署
 
+## 本地 Agent
+
+本地配置只放在 `apps/agent/.env.local`，从同目录 `.env.local.example` 创建。`pnpm --filter @mewmo/agent dev`、`start:local` 与 `cron:automations:local` 会显式加载该文件；Production 使用的 `start` 与 `cron:automations` 只接受部署注入。Web 的 `AGENT_INTERNAL_SECRET` 必须与 Agent 的 `AGENT_IDENTITY_SECRET` 完全相同，但两个 runtime 分别维护配置。
+
 `@mewmo/agent` 是常驻 Fastify 服务，负责实时 Tool Loop、Deep Insight 和已确认动作的执行。它与一次性 Feed/AI Cron 分开部署；两者共享 PostgreSQL 与 `packages/ai` Runtime，但不共享进程生命周期。
 
 ## 网络边界
