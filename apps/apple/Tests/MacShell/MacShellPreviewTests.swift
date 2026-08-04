@@ -1,8 +1,7 @@
 import XCTest
 
 final class MacShellPreviewTests: XCTestCase {
-    func testLocalPreviewHasStableInitialSelection() {
-        XCTAssertEqual(MacShellPreview.items.first?.id, "daily")
+    func testMacSectionsRemainStable() {
         XCTAssertEqual(MacShellSection.allCases.map(\.rawValue), ["home", "notes", "clips", "feeds"])
     }
 

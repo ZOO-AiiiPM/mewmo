@@ -4,5 +4,6 @@ Mewmo.xcodeproj/
 xcuserdata/
 *.xcworkspace/
 DerivedData/
+DerivedData-*/
 .build/
 build/

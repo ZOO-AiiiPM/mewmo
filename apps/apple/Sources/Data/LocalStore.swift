@@ -76,14 +76,21 @@ public actor LocalStore {
 
     // MARK: - Clips
 
-    public func listClips(userId: String, includeDeleted: Bool = false) throws -> [ClipSnapshot] {
-        let desc = FetchDescriptor<MewmoClip>(
+    public func listClips(
+        userId: String,
+        includeDeleted: Bool = false,
+        limit: Int? = nil,
+        offset: Int = 0
+    ) throws -> [ClipSnapshot] {
+        var desc = FetchDescriptor<MewmoClip>(
             predicate: #Predicate<MewmoClip> { $0.userId == userId && (includeDeleted || $0.deletedAt == nil) },
             sortBy: [
                 SortDescriptor(\MewmoClip.updatedAt, order: .reverse),
                 SortDescriptor(\MewmoClip.id, order: .forward),
             ]
         )
+        if let limit { desc.fetchLimit = limit }
+        desc.fetchOffset = offset
         return try modelContext.fetch(desc).map(ClipSnapshot.init)
     }
 
@@ -126,16 +133,61 @@ public actor LocalStore {
         return true
     }
 
+    /// Deletes a clip locally and places its existing canonical mutation in the durable outbox in one save.
+    @discardableResult
+    public func softDeleteClipAndEnqueue(
+        id: String,
+        userId: String,
+        version: Int,
+        deletedAt: Date,
+        mutationId: String,
+        payloadJSON: String
+    ) throws -> Bool {
+        guard
+            let existing = try first(MewmoClip.self, predicate: #Predicate {
+                $0.id == id && $0.userId == userId && $0.deletedAt == nil
+            }),
+            version >= existing.version
+        else { return false }
+
+        existing.deletedAt = deletedAt
+        existing.version = version
+        existing.updatedAt = deletedAt
+
+        let nextSeq = (try listPendingMutations(userId: userId).map(\.seq).max() ?? 0) + 1
+        modelContext.insert(
+            MewmoPendingMutation(
+                queueKey: "\(userId)#\(nextSeq)",
+                mutationId: mutationId,
+                seq: nextSeq,
+                entityKind: "clip",
+                op: "delete",
+                expectedVersion: version,
+                payloadJSON: payloadJSON,
+                userId: userId
+            )
+        )
+        try modelContext.save()
+        return true
+    }
+
     // MARK: - Feeds
 
-    public func listFeeds(userId: String, includeDeleted: Bool = false) throws -> [FeedSnapshot] {
-        let desc = FetchDescriptor<MewmoFeed>(
+    public func listFeeds(
+        userId: String,
+        includeDeleted: Bool = false,
+        limit: Int? = nil,
+        offset: Int = 0
+    ) throws -> [FeedSnapshot] {
+        var desc = FetchDescriptor<MewmoFeed>(
             predicate: #Predicate<MewmoFeed> { $0.userId == userId && (includeDeleted || $0.deletedAt == nil) },
             sortBy: [
                 SortDescriptor(\MewmoFeed.updatedAt, order: .reverse),
                 SortDescriptor(\MewmoFeed.id, order: .forward),
             ]
         )
+        if let limit { desc.fetchLimit = limit }
+        desc.fetchOffset = offset
         return try modelContext.fetch(desc).map(FeedSnapshot.init)
     }
 
@@ -180,14 +232,35 @@ public actor LocalStore {
 
     // MARK: - Feed entries
 
-    public func listFeedEntries(userId: String, includeDeleted: Bool = false) throws -> [FeedEntrySnapshot] {
-        let desc = FetchDescriptor<MewmoFeedEntry>(
-            predicate: #Predicate<MewmoFeedEntry> { $0.userId == userId && (includeDeleted || $0.deletedAt == nil) },
-            sortBy: [
-                SortDescriptor(\MewmoFeedEntry.updatedAt, order: .reverse),
-                SortDescriptor(\MewmoFeedEntry.id, order: .forward),
-            ]
-        )
+    public func listFeedEntries(
+        userId: String,
+        feedId: String? = nil,
+        includeDeleted: Bool = false,
+        limit: Int? = nil,
+        offset: Int = 0
+    ) throws -> [FeedEntrySnapshot] {
+        var desc: FetchDescriptor<MewmoFeedEntry>
+        if let feedId {
+            desc = FetchDescriptor<MewmoFeedEntry>(
+                predicate: #Predicate<MewmoFeedEntry> {
+                    $0.userId == userId && $0.feedId == feedId && (includeDeleted || $0.deletedAt == nil)
+                },
+                sortBy: [
+                    SortDescriptor(\MewmoFeedEntry.updatedAt, order: .reverse),
+                    SortDescriptor(\MewmoFeedEntry.id, order: .forward),
+                ]
+            )
+        } else {
+            desc = FetchDescriptor<MewmoFeedEntry>(
+                predicate: #Predicate<MewmoFeedEntry> { $0.userId == userId && (includeDeleted || $0.deletedAt == nil) },
+                sortBy: [
+                    SortDescriptor(\MewmoFeedEntry.updatedAt, order: .reverse),
+                    SortDescriptor(\MewmoFeedEntry.id, order: .forward),
+                ]
+            )
+        }
+        if let limit { desc.fetchLimit = limit }
+        desc.fetchOffset = offset
         return try modelContext.fetch(desc).map(FeedEntrySnapshot.init)
     }
 

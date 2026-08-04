@@ -21,16 +21,6 @@ enum MacShellSection: String, CaseIterable, Identifiable {
     }
 }
 
-enum MacShellPreviewState: String, CaseIterable, Identifiable {
-    case loaded
-    case loading
-    case empty
-
-    var id: Self { self }
-
-    var title: String { rawValue.capitalized }
-}
-
 enum MacShellAppearance: String, CaseIterable, Identifiable {
     case system
     case light
@@ -47,21 +37,6 @@ enum MacShellAppearance: String, CaseIterable, Identifiable {
         case .dark: .dark
         }
     }
-}
-
-struct MacShellItem: Hashable, Identifiable {
-    let id: String
-    let title: String
-    let summary: String
-    let metadata: String
-}
-
-enum MacShellPreview {
-    static let items = [
-        MacShellItem(id: "daily", title: "Daily review", summary: "A local preview of the reading surface.", metadata: "Today"),
-        MacShellItem(id: "research", title: "Design references", summary: "A local list item with a concise summary.", metadata: "Yesterday"),
-        MacShellItem(id: "inbox", title: "Reading inbox", summary: "A placeholder for future synced content.", metadata: "Jul 31")
-    ]
 }
 
 enum MacShellPalette {
@@ -111,10 +86,12 @@ enum MacShellPalette {
 
 struct MacShellView: View {
     @Environment(\.colorScheme) private var systemColorScheme
+    @Environment(\.scenePhase) private var scenePhase
     @AppStorage("mac-shell-theme") private var appearance = MacShellAppearance.system.rawValue
-    @FocusState private var searchIsFocused: Bool
-    @State private var workspace = MacShellWorkspace(initialSelectedItemID: MacShellPreview.items.first?.id)
-    @State private var previewState = MacShellPreviewState.loaded
+    @State private var workspace = MacShellWorkspace()
+    @State private var contentSession = MacContentSession()
+    @State private var searchFocusRequest = 0
+    @State private var showsDeleteConfirmation = false
 
     private var selectedAppearance: MacShellAppearance {
         MacShellAppearance(rawValue: appearance) ?? .system
@@ -128,58 +105,89 @@ struct MacShellView: View {
         workspace.activeTab
     }
 
-    private var displayedItems: [MacShellItem] {
-        let searchQuery = activeTab?.searchQuery ?? ""
-        guard !searchQuery.isEmpty else { return MacShellPreview.items }
-        return MacShellPreview.items.filter {
-            $0.title.localizedCaseInsensitiveContains(searchQuery)
-                || $0.summary.localizedCaseInsensitiveContains(searchQuery)
-        }
-    }
-
-    private var selectedItem: MacShellItem? {
-        MacShellPreview.items.first { $0.id == activeTab?.selectedItemID }
-    }
-
     private var sectionBinding: Binding<MacShellSection?> {
         Binding(
             get: { activeTab?.section },
-            set: { section in workspace.updateActive { $0.section = section } }
+            set: { section in
+                saveActiveContentState()
+                workspace.updateActive {
+                    $0.section = section
+                    $0.selectedItemID = nil
+                    $0.searchQuery = ""
+                }
+                restoreActiveContentState()
+            }
         )
     }
 
-    private var itemSelectionBinding: Binding<String?> {
-        Binding(
-            get: { activeTab?.selectedItemID },
-            set: { itemID in workspace.updateActive { $0.selectedItemID = itemID } }
-        )
-    }
-
-    private var searchBinding: Binding<String> {
-        Binding(
-            get: { activeTab?.searchQuery ?? "" },
-            set: { query in workspace.updateActive { $0.searchQuery = query } }
-        )
-    }
-
-    private func showLocalPreview() {
-        if activeTab == nil {
-            workspace.addTab()
+    private func saveActiveContentState() {
+        guard let content = contentSession.content, let section = activeTab?.section else { return }
+        workspace.updateActive {
+            switch section {
+            case .clips:
+                $0.selectedItemID = content.selectedClipID
+                $0.searchQuery = content.clipSearch
+            case .feeds:
+                $0.selectedItemID = content.selectedEntryID
+                $0.searchQuery = content.entrySearch
+            default:
+                break
+            }
         }
-        previewState = .loaded
-        workspace.updateActive { $0.selectedItemID = MacShellPreview.items.first?.id }
+    }
+
+    private func restoreActiveContentState() {
+        guard let content = contentSession.content, let tab = activeTab else { return }
+        switch tab.section {
+        case .clips:
+            content.selectedClipID = tab.selectedItemID
+            Task { await content.updateClipSearch(tab.searchQuery) }
+        case .feeds:
+            content.selectedEntryID = tab.selectedItemID
+            Task { await content.updateEntrySearch(tab.searchQuery) }
+        default:
+            break
+        }
+    }
+
+    private func activateTab(_ id: MacShellTab.ID) {
+        saveActiveContentState()
+        workspace.activate(id)
+        restoreActiveContentState()
+    }
+
+    private func closeTab(_ id: MacShellTab.ID) {
+        saveActiveContentState()
+        workspace.close(id)
+        restoreActiveContentState()
+    }
+
+    private func addTab() {
+        saveActiveContentState()
+        workspace.addTab()
+        restoreActiveContentState()
+    }
+
+    private func cycleTabs(forward: Bool) {
+        saveActiveContentState()
+        workspace.cycle(forward: forward)
+        restoreActiveContentState()
+    }
+
+    private func activateTab(position: Int) {
+        saveActiveContentState()
+        workspace.activate(position: position)
+        restoreActiveContentState()
     }
 
     var body: some View {
         VStack(spacing: 0) {
             tabStrip
-            Divider()
-                .overlay(MacShellPalette.line(for: activeColorScheme))
-
+            Divider().overlay(MacShellPalette.line(for: activeColorScheme))
             if activeTab != nil {
                 splitView
             } else {
-                ContentUnavailableView("No workspace tabs", systemImage: "rectangle.stack.badge.plus", description: Text("Create a local workspace tab to continue."))
+                ContentUnavailableView("No workspace tabs", systemImage: "rectangle.stack.badge.plus", description: Text("Create a workspace tab to continue."))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
@@ -188,6 +196,20 @@ struct MacShellView: View {
         .background(MacShellPalette.canvas(for: activeColorScheme))
         .toolbar { toolbarContent }
         .frame(minWidth: 990, minHeight: 480)
+        .task { await contentSession.start() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { contentSession.didBecomeActive() }
+        }
+        .alert("Delete this clip?", isPresented: $showsDeleteConfirmation) {
+            Button("Delete", role: .destructive) {
+                if let content = contentSession.content {
+                    Task { await content.deleteSelectedClip() }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("The clip is removed from this Mac immediately and synced as a soft delete when possible.")
+        }
     }
 
     private var splitView: some View {
@@ -203,22 +225,17 @@ struct MacShellView: View {
 
     private var tabStrip: some View {
         HStack(spacing: 8) {
-            Button {
-                workspace.addTab()
-            } label: {
+            Button { addTab() } label: {
                 Label("New tab", systemImage: "plus")
             }
             .buttonStyle(.borderless)
             .help("New tab")
 
-            Divider()
-                .frame(height: 18)
+            Divider().frame(height: 18)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 4) {
-                    ForEach(workspace.tabs) { tab in
-                        tabButton(tab)
-                    }
+                    ForEach(workspace.tabs) { tab in tabButton(tab) }
                 }
             }
         }
@@ -230,17 +247,12 @@ struct MacShellView: View {
 
     private func tabButton(_ tab: MacShellTab) -> some View {
         HStack(spacing: 4) {
-            Button {
-                workspace.activate(tab.id)
-            } label: {
-                Label(tab.title, systemImage: tab.symbol)
-                    .lineLimit(1)
+            Button { activateTab(tab.id) } label: {
+                Label(tab.title, systemImage: tab.symbol).lineLimit(1)
             }
             .buttonStyle(.plain)
 
-            Button {
-                workspace.close(tab.id)
-            } label: {
+            Button { closeTab(tab.id) } label: {
                 Image(systemName: "xmark.circle.fill")
             }
             .buttonStyle(.borderless)
@@ -255,9 +267,29 @@ struct MacShellView: View {
     }
 
     private var sidebar: some View {
-        List(MacShellSection.allCases, selection: sectionBinding) { section in
-            Label(section.title, systemImage: section.symbol)
-                .tag(section)
+        List(selection: sectionBinding) {
+            ForEach(MacShellSection.allCases) { section in
+                Label(section.title, systemImage: section.symbol).tag(section)
+            }
+
+            if activeTab?.section == .feeds, let content = contentSession.content {
+                Section("Subscriptions") {
+                    ForEach(content.feeds, id: \.id) { feed in
+                        Button {
+                            Task { await content.selectFeed(feed.id) }
+                        } label: {
+                            Label(feed.title, systemImage: "dot.radiowaves.left.and.right")
+                                .lineLimit(1)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(feed.id == content.selectedFeedID ? MacShellPalette.text(for: activeColorScheme) : MacShellPalette.secondaryText(for: activeColorScheme))
+                        .accessibilityLabel("Show \(feed.title)")
+                    }
+                    if content.hasMoreFeeds {
+                        Button("Load more subscriptions") { Task { await content.loadMoreFeeds() } }
+                    }
+                }
+            }
         }
         .navigationTitle("mewmo")
         .scrollContentBackground(.hidden)
@@ -266,96 +298,41 @@ struct MacShellView: View {
         .accessibilityElement(children: .contain)
     }
 
-    private var listColumn: some View {
-        VStack(spacing: 0) {
-            TextField("Search local preview", text: searchBinding)
-                .textFieldStyle(.roundedBorder)
-                .focused($searchIsFocused)
-                .padding(12)
-
-            Divider()
-                .overlay(MacShellPalette.line(for: activeColorScheme))
-
-            listBody
-        }
-        .navigationTitle(activeTab?.section?.title ?? "Workspace")
-        .background(MacShellPalette.surface(for: activeColorScheme))
-        .navigationSplitViewColumnWidth(min: 260, ideal: 312, max: 360)
-        .accessibilityElement(children: .contain)
-    }
-
     @ViewBuilder
-    private var listBody: some View {
-        switch previewState {
-        case .loaded:
-            List(displayedItems, selection: itemSelectionBinding) { item in
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(item.title)
-                        .font(.headline)
-                    Text(item.summary)
-                        .font(.callout)
-                        .foregroundStyle(MacShellPalette.secondaryText(for: activeColorScheme))
-                        .lineLimit(2)
-                    Text(item.metadata)
-                        .font(.caption)
-                        .foregroundStyle(MacShellPalette.secondaryText(for: activeColorScheme))
-                }
-                .padding(.vertical, 4)
-                .tag(item.id)
-                .accessibilityElement(children: .combine)
+    private var listColumn: some View {
+        if let content = contentSession.content {
+            switch activeTab?.section {
+            case .clips:
+                MacClipsListColumn(content: content, colorScheme: activeColorScheme, imagePipeline: contentSession.imagePipeline, focusRequest: searchFocusRequest)
+            case .feeds:
+                MacFeedsListColumn(content: content, colorScheme: activeColorScheme, imagePipeline: contentSession.imagePipeline, focusRequest: searchFocusRequest)
+            default:
+                MacContentStateView(state: contentSession.state)
             }
-            .scrollContentBackground(.hidden)
-            .background(MacShellPalette.surface(for: activeColorScheme))
-        case .loading:
-            MacShellListSkeleton()
-        case .empty:
-            ContentUnavailableView("No local preview", systemImage: "tray", description: Text("Choose Loaded from the view menu."))
+        } else {
+            MacContentStateView(state: contentSession.state)
         }
     }
 
     @ViewBuilder
     private var detailColumn: some View {
-        switch previewState {
-        case .loading:
-            MacShellDetailSkeleton()
-        case .empty:
-            ContentUnavailableView("Nothing selected", systemImage: "doc.text", description: Text("The local preview has no items."))
-        case .loaded:
-            if let selectedItem {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text(selectedItem.title)
-                            .font(.title2.weight(.semibold))
-                        Text(selectedItem.summary)
-                            .font(.body)
-                            .foregroundStyle(MacShellPalette.secondaryText(for: activeColorScheme))
-                        Divider()
-                            .overlay(MacShellPalette.line(for: activeColorScheme))
-                        Text("This macOS Shell uses local preview data only. Content, repositories, authentication, and sync are intentionally deferred.")
-                            .font(.body)
-                            .foregroundStyle(MacShellPalette.text(for: activeColorScheme))
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(28)
-                }
-            } else {
-                ContentUnavailableView("Select an item", systemImage: "sidebar.right", description: Text("Choose an item from the local preview list."))
-            }
+        if let content = contentSession.content {
+            MacContentDetailColumn(section: activeTab?.section, content: content, colorScheme: activeColorScheme, imagePipeline: contentSession.imagePipeline)
+        } else {
+            MacContentStateView(state: contentSession.state)
         }
     }
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
-            Button {
-                workspace.addTab()
-            } label: {
+            Button { addTab() } label: {
                 Label("New tab", systemImage: "plus")
             }
             .keyboardShortcut("t", modifiers: .command)
 
             Button {
-                workspace.closeActiveTab()
+                if let activeID = workspace.activeTabID { closeTab(activeID) }
             } label: {
                 Label("Close tab", systemImage: "xmark")
             }
@@ -363,63 +340,55 @@ struct MacShellView: View {
             .disabled(activeTab == nil)
 
             Button {
-                showLocalPreview()
+                if activeTab == nil { addTab() }
+                saveActiveContentState()
+                workspace.updateActive { $0.section = .clips }
+                restoreActiveContentState()
             } label: {
-                Label("New local preview", systemImage: "square.and.pencil")
+                Label("Show clips", systemImage: "paperclip")
             }
             .keyboardShortcut("n", modifiers: .command)
 
-            Button {
-                searchIsFocused = true
-            } label: {
+            Button { searchFocusRequest += 1 } label: {
                 Label("Search", systemImage: "magnifyingglass")
             }
             .keyboardShortcut("f", modifiers: .command)
 
+            Button {
+                Task { await contentSession.content?.synchronize() }
+            } label: {
+                Label("Sync", systemImage: "arrow.clockwise")
+            }
+            .keyboardShortcut("r", modifiers: .command)
+            .disabled(contentSession.content == nil)
+
+            if activeTab?.section == .clips, contentSession.content?.selectedClip != nil {
+                Button { showsDeleteConfirmation = true } label: {
+                    Label("Delete clip", systemImage: "trash")
+                }
+                .keyboardShortcut(.delete, modifiers: .command)
+            }
+
             Menu {
-                Button("Next tab") {
-                    workspace.cycle(forward: true)
-                }
-                .keyboardShortcut(.tab, modifiers: .control)
-
-                Button("Previous tab") {
-                    workspace.cycle(forward: false)
-                }
-                .keyboardShortcut(.tab, modifiers: [.control, .shift])
-
+                Button("Next tab") { cycleTabs(forward: true) }
+                    .keyboardShortcut(.tab, modifiers: .control)
+                Button("Previous tab") { cycleTabs(forward: false) }
+                    .keyboardShortcut(.tab, modifiers: [.control, .shift])
                 Divider()
-
-                Button("Switch to tab 1") { workspace.activate(position: 1) }
-                    .keyboardShortcut("1", modifiers: .command)
-                Button("Switch to tab 2") { workspace.activate(position: 2) }
-                    .keyboardShortcut("2", modifiers: .command)
-                Button("Switch to tab 3") { workspace.activate(position: 3) }
-                    .keyboardShortcut("3", modifiers: .command)
-                Button("Switch to tab 4") { workspace.activate(position: 4) }
-                    .keyboardShortcut("4", modifiers: .command)
-                Button("Switch to tab 5") { workspace.activate(position: 5) }
-                    .keyboardShortcut("5", modifiers: .command)
-                Button("Switch to tab 6") { workspace.activate(position: 6) }
-                    .keyboardShortcut("6", modifiers: .command)
-                Button("Switch to tab 7") { workspace.activate(position: 7) }
-                    .keyboardShortcut("7", modifiers: .command)
-                Button("Switch to tab 8") { workspace.activate(position: 8) }
-                    .keyboardShortcut("8", modifiers: .command)
-                Button("Switch to tab 9") { workspace.activate(position: 9) }
-                    .keyboardShortcut("9", modifiers: .command)
+                Button("Switch to tab 1") { activateTab(position: 1) }.keyboardShortcut("1", modifiers: .command)
+                Button("Switch to tab 2") { activateTab(position: 2) }.keyboardShortcut("2", modifiers: .command)
+                Button("Switch to tab 3") { activateTab(position: 3) }.keyboardShortcut("3", modifiers: .command)
+                Button("Switch to tab 4") { activateTab(position: 4) }.keyboardShortcut("4", modifiers: .command)
+                Button("Switch to tab 5") { activateTab(position: 5) }.keyboardShortcut("5", modifiers: .command)
+                Button("Switch to tab 6") { activateTab(position: 6) }.keyboardShortcut("6", modifiers: .command)
+                Button("Switch to tab 7") { activateTab(position: 7) }.keyboardShortcut("7", modifiers: .command)
+                Button("Switch to tab 8") { activateTab(position: 8) }.keyboardShortcut("8", modifiers: .command)
+                Button("Switch to tab 9") { activateTab(position: 9) }.keyboardShortcut("9", modifiers: .command)
             } label: {
                 Label("Tabs", systemImage: "rectangle.stack")
             }
 
             Menu {
-                Picker("Preview state", selection: $previewState) {
-                    ForEach(MacShellPreviewState.allCases) { state in
-                        Text(state.title).tag(state)
-                    }
-                }
-
-                Divider()
-
                 Picker("Appearance", selection: $appearance) {
                     ForEach(MacShellAppearance.allCases) { option in
                         Text(option.title).tag(option.rawValue)
@@ -432,35 +401,21 @@ struct MacShellView: View {
     }
 }
 
-private struct MacShellListSkeleton: View {
-    var body: some View {
-        List(0..<6, id: \.self) { _ in
-            VStack(alignment: .leading, spacing: 8) {
-                Capsule().frame(width: 128, height: 14)
-                Capsule().frame(maxWidth: .infinity, minHeight: 10, maxHeight: 10)
-                Capsule().frame(width: 52, height: 9)
-            }
-            .redacted(reason: .placeholder)
-            .padding(.vertical, 6)
-        }
-        .disabled(true)
-        .accessibilityLabel("Loading local preview")
-    }
-}
+private struct MacContentStateView: View {
+    let state: MacContentSession.State
 
-private struct MacShellDetailSkeleton: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Loading local preview")
-                .font(.title2)
-            Text("A placeholder detail surface keeps the three-column layout stable while local preview content loads.")
-            Divider()
-            Text("Placeholder detail content")
+        switch state {
+        case .loading:
+            ProgressView("Opening local library")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        case .signedOut:
+            ContentUnavailableView("Sign in required", systemImage: "person.crop.circle", description: Text("This Mac keeps browsing data in the account recovered from the native session."))
+        case .unavailable:
+            ContentUnavailableView("Local library unavailable", systemImage: "exclamationmark.triangle", description: Text("Existing data was left untouched. Retry after storage is available."))
+        case .ready:
+            ContentUnavailableView("Choose Clips or Feeds", systemImage: "sidebar.left", description: Text("Use the sidebar to browse local content."))
         }
-        .redacted(reason: .placeholder)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(28)
-        .accessibilityLabel("Loading detail preview")
     }
 }
 
