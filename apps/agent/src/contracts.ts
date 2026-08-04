@@ -90,6 +90,8 @@ export interface AgentMessageResponse {
   assistantMessage: { id: string; role: "assistant"; content: string; status: string; createdAt: string };
   proposals?: AgentActionProposal[];
   citations?: AgentCitation[];
+  totalTokens?: number;
+  /** @deprecated Internal compatibility only; public responses omit detailed usage. */
   usage?: {
     inputTokens: number;
     outputTokens: number;

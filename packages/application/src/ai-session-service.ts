@@ -1,4 +1,4 @@
-import { getPrisma, Prisma, type PrismaClient } from "@mewmo/db";
+import { getPrisma, Prisma, totalAiUsageTokens, type PrismaClient } from "@mewmo/db";
 import { createHash, randomUUID } from "node:crypto";
 
 import type { Actor } from "./actor";
@@ -186,6 +186,16 @@ export function createAiSessionService(options: { prisma?: PrismaClient } = {}) 
     async getTurn(actor: Actor, input: { turnId: string }) {
       assertScope(actor.scopes, "content:read");
       return requireOwnedTurn(db, actor.userId, input.turnId);
+    },
+
+    async getTurnUsageTotal(actor: Actor, input: { turnId: string }) {
+      assertScope(actor.scopes, "content:read");
+      const turn = await requireOwnedTurn(db, actor.userId, input.turnId);
+      const events = await db.aiUsageEvent.findMany({
+        where: { turnId: turn.id, userId: actor.userId },
+        select: { inputTokens: true, outputTokens: true, cacheReadTokens: true, cacheWriteTokens: true },
+      });
+      return totalAiUsageTokens(events);
     },
 
     async getSessionMetadata(actor: Actor, chatId: string) {

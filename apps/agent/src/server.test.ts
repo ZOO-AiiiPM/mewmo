@@ -125,6 +125,26 @@ describe("Agent HTTP server", () => {
     expect(response.body).not.toContain("private low reasoning");
   });
 
+  it("returns only the whole-turn token total after completion", async () => {
+    const complete = vi.fn(async () => ({
+      ...completedResponse("ok"),
+      totalTokens: 12_800,
+      usage: { inputTokens: 1, outputTokens: 2, cacheReadTokens: 3, cacheWriteTokens: 4, providerCostUsd: 5 },
+    }));
+    const application = createApplicationStub({ turns: { ...createApplicationStub().turns, complete } });
+    const app = buildAgentServer({
+      config,
+      runtime: { run: vi.fn(async () => ({ text: "ok", process: [], proposals: [], citations: [], userEntryId: "entry-user", assistantEntryId: "entry-assistant" })) },
+      application,
+    });
+    const token = await signIdentityForTest(TEST_ACTOR, identityOptions());
+    const response = await app.inject({ method: "POST", url: "/v1/chats/chat-1/stream", headers: { authorization: `Bearer ${token}` }, payload: validMessage() });
+
+    expect(response.body).toContain('"totalTokens":12800');
+    expect(response.body).not.toContain("providerCostUsd");
+    expect(stableEvents(response.body).at(-1)).not.toHaveProperty("usage");
+  });
+
   it("streams product tool and confirmation events without raw tool payloads", async () => {
     const proposal = {
       id: "action-1",
@@ -159,7 +179,7 @@ describe("Agent HTTP server", () => {
   });
 
   it("streams a stable failed event before the legacy error", async () => {
-    const fail = vi.fn(async () => {});
+    const fail = vi.fn(async () => ({}));
     const app = buildAgentServer({
       config,
       runtime: { run: vi.fn(async () => { throw new Error("provider secret"); }) },
@@ -179,6 +199,21 @@ describe("Agent HTTP server", () => {
       code: "internal_error",
       message: "Agent request failed.",
     }));
+  });
+
+  it("returns settled token usage for a failed turn when available", async () => {
+    const fail = vi.fn(async () => ({ totalTokens: 321 }));
+    const app = buildAgentServer({
+      config,
+      runtime: { run: vi.fn(async () => { throw new Error("provider secret"); }) },
+      application: createApplicationStub({ turns: { ...createApplicationStub().turns, fail } }),
+    });
+    const token = await signIdentityForTest(TEST_ACTOR, identityOptions());
+    const response = await app.inject({ method: "POST", url: "/v1/chats/chat-1/stream", headers: { authorization: `Bearer ${token}` }, payload: validMessage() });
+
+    expect(response.body).toContain("event: result");
+    expect(response.body).toContain('"totalTokens":321');
+    expect(response.body).not.toContain("provider secret");
   });
 
   it("keeps a client edit confirmed until the Web reports its save result", async () => {

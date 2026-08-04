@@ -199,6 +199,34 @@ describe("AI session service", () => {
       where: { userId_idempotencyKey: { userId: "user-1", idempotencyKey: "session:chat-1:entry:entry-7" } },
     }));
   });
+
+  it("aggregates every owned turn generation without double-counting reasoning", async () => {
+    const db = {
+      aiTurn: { findFirst: vi.fn().mockResolvedValue({ id: "turn-1", userId: "user-1" }) },
+      aiUsageEvent: { findMany: vi.fn().mockResolvedValue([
+        { inputTokens: 10, outputTokens: 5, cacheReadTokens: 2, cacheWriteTokens: 1, reasoningTokens: 4 },
+        { inputTokens: 20, outputTokens: 8, cacheReadTokens: 3, cacheWriteTokens: 0, reasoningTokens: 6 },
+      ]) },
+    };
+
+    await expect(createAiSessionService({ prisma: db as never }).getTurnUsageTotal(actor, { turnId: "turn-1" }))
+      .resolves.toBe(49);
+    expect(db.aiUsageEvent.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { turnId: "turn-1", userId: "user-1" },
+    }));
+  });
+
+  it("does not query usage for another user's turn", async () => {
+    const db = {
+      aiTurn: { findFirst: vi.fn().mockResolvedValue(null) },
+      aiUsageEvent: { findMany: vi.fn() },
+    };
+
+    await expect(createAiSessionService({ prisma: db as never }).getTurnUsageTotal(actor, { turnId: "foreign-turn" }))
+      .rejects.toMatchObject({ code: "not_found" });
+    expect(db.aiTurn.findFirst).toHaveBeenCalledWith({ where: { id: "foreign-turn", userId: "user-1" } });
+    expect(db.aiUsageEvent.findMany).not.toHaveBeenCalled();
+  });
 });
 
 function hash(content: string) {

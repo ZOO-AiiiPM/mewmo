@@ -16,7 +16,7 @@ export function createApplicationStub(overrides: Partial<ApplicationPort> = {}):
         userMessage: { id: "entry-user", role: "user", content: "user", status: "completed", createdAt: new Date().toISOString() },
         assistantMessage: { id: "entry-assistant", role: "assistant", content: "assistant", status: "completed", createdAt: new Date().toISOString() },
       }),
-      fail: async () => {},
+      fail: async () => ({}),
     },
     sessions: {
       metadata: async () => ({ id: "chat-1", createdAt: new Date().toISOString(), activeLeafId: null }),

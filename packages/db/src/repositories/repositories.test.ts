@@ -204,7 +204,24 @@ describe("repositories", () => {
           include: { attachments: true },
         },
         turns: {
-          select: { id: true, userEntryId: true, assistantEntryId: true, status: true, errorMessage: true, output: true, startedAt: true, completedAt: true },
+          select: {
+            id: true,
+            userEntryId: true,
+            assistantEntryId: true,
+            status: true,
+            errorMessage: true,
+            output: true,
+            startedAt: true,
+            completedAt: true,
+            usageEvents: {
+              select: {
+                inputTokens: true,
+                outputTokens: true,
+                cacheReadTokens: true,
+                cacheWriteTokens: true,
+              },
+            },
+          },
         },
         messages: {
           where: { deletedAt: null },

@@ -1,0 +1,4 @@
+{"file":".trellis/spec/dev-backend.md","reason":"Verify ownership and absence of cross-user usage disclosure."}
+{"file":".trellis/spec/dev-ai.md","reason":"Verify aggregation semantics and metadata privacy."}
+{"file":".trellis/spec/release.md","reason":"Select and report focused validation across all changed boundaries."}
+{"file":".trellis/tasks/08-03-zoo-136-agent-turn-token-usage/prd.md","reason":"Check every ZOO-136 acceptance criterion."}

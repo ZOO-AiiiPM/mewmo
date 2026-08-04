@@ -65,7 +65,19 @@ const chatMessageInclude = {
     include: { attachments: true },
   },
   turns: {
-    select: { id: true, userEntryId: true, assistantEntryId: true, status: true, errorMessage: true, output: true, startedAt: true, completedAt: true },
+    select: {
+      id: true,
+      userEntryId: true,
+      assistantEntryId: true,
+      status: true,
+      errorMessage: true,
+      output: true,
+      startedAt: true,
+      completedAt: true,
+      usageEvents: {
+        select: { inputTokens: true, outputTokens: true, cacheReadTokens: true, cacheWriteTokens: true },
+      },
+    },
   },
   messages: {
     where: { deletedAt: null },
@@ -258,22 +270,27 @@ function projectSessionMessages(value: unknown): unknown {
     for (const turn of turns) {
       if (!isRecord(turn) || typeof turn.id !== "string" || typeof turn.status !== "string") continue;
       const failed = turn.status === "failed" || turn.status === "interrupted";
+      const totalTokens = totalAiUsageTokens(turn.usageEvents);
       const turnInfo = {
         turnId: turn.id,
         status: failed ? "failed" : "completed",
         ...(failed && typeof turn.errorMessage === "string" ? { error: { message: turn.errorMessage, retryable: true } } : {}),
       };
-      if (typeof turn.userEntryId === "string") entryTurns.set(turn.userEntryId, turnInfo);
-      if (typeof turn.assistantEntryId === "string") entryTurns.set(turn.assistantEntryId, turnInfo);
-      if (!isRecord(turn.output)) continue;
-      const response = isRecord(turn.output.response) ? turn.output.response : {};
+      const output = isRecord(turn.output) ? turn.output : {};
+      const response = isRecord(output.response) ? output.response : {};
       const metadata = {
         ...(Array.isArray(response.proposals) ? { proposals: response.proposals } : {}),
-        ...(isRecord(response.usage) ? { usage: response.usage } : {}),
-        ...publicTurnTranscript(turn.output, turn.startedAt, turn.completedAt),
+        ...(totalTokens === undefined ? {} : { totalTokens }),
+        ...publicTurnTranscript(output, turn.startedAt, turn.completedAt),
       };
-      if (typeof turn.userEntryId === "string") turnMetadata.set(turn.userEntryId, metadata);
-      if (typeof turn.assistantEntryId === "string") turnMetadata.set(turn.assistantEntryId, metadata);
+      if (typeof turn.userEntryId === "string") {
+        entryTurns.set(turn.userEntryId, turnInfo);
+        turnMetadata.set(turn.userEntryId, metadata);
+      }
+      if (typeof turn.assistantEntryId === "string") {
+        entryTurns.set(turn.assistantEntryId, turnInfo);
+        turnMetadata.set(turn.assistantEntryId, metadata);
+      }
     }
   }
   const messages = sessionEntries.flatMap((entry) => {
@@ -402,4 +419,20 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isUniqueViolation(error: unknown) {
   return isRecord(error) && error.code === "P2002";
+}
+
+export function totalAiUsageTokens(events: unknown): number | undefined {
+  if (!Array.isArray(events) || events.length === 0) return undefined;
+  return events.reduce((total, event) => {
+    if (!isRecord(event)) return total;
+    return total
+      + number(event.inputTokens)
+      + number(event.outputTokens)
+      + number(event.cacheReadTokens)
+      + number(event.cacheWriteTokens);
+  }, 0);
+}
+
+function number(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }

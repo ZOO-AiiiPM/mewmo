@@ -42,15 +42,23 @@ export async function loadFoundationAdapters() {
             leaseMs: input.leaseMs,
           });
           if (!started.cached) return { turnId: started.turn.id };
-          return { turnId: started.turn.id, cached: outputResponse(started.turn.output) };
+          const totalTokens = await sessions.getTurnUsageTotal(actor(input.actor), { turnId: started.turn.id });
+          return {
+            turnId: started.turn.id,
+            cached: {
+              ...outputResponse(started.turn.output),
+              ...(totalTokens === undefined ? {} : { totalTokens }),
+            },
+          };
         });
       },
       async complete(input) {
         return withDomainErrors(async () => {
           const turn = await sessions.getTurn(actor(input.actor), { turnId: input.turnId });
-          const [userEntry, assistantEntry] = await Promise.all([
+          const [userEntry, assistantEntry, totalTokens] = await Promise.all([
             turn.userEntryId ? sessions.getEntry(actor(input.actor), { chatId: turn.chatId, entryId: turn.userEntryId }) : null,
             sessions.getEntry(actor(input.actor), { chatId: turn.chatId, entryId: input.assistantEntryId }),
+            sessions.getTurnUsageTotal(actor(input.actor), { turnId: input.turnId }),
           ]);
           if (!userEntry || !assistantEntry) throw new AgentError("internal_error", "Completed Agent turn session entries were not found.");
           const response: AgentMessageResponse = {
@@ -58,7 +66,7 @@ export async function loadFoundationAdapters() {
             assistantMessage: messageView(entryRecord(assistantEntry), "assistant"),
             ...(input.proposals.length ? { proposals: input.proposals } : {}),
             ...(input.citations?.length ? { citations: input.citations } : {}),
-            ...usagePatch(entryRecord(assistantEntry)),
+            ...(totalTokens === undefined ? {} : { totalTokens }),
           };
           await sessions.completeTurn(actor(input.actor), {
             turnId: input.turnId,
@@ -70,7 +78,8 @@ export async function loadFoundationAdapters() {
         });
       },
       async fail(input) {
-        await withDomainErrors(async () => {
+        return withDomainErrors(async () => {
+          const totalTokens = await sessions.getTurnUsageTotal(actor(input.actor), { turnId: input.turnId });
           await sessions.failTurn(actor(input.actor), {
             turnId: input.turnId,
             workerId: input.workerId,
@@ -78,6 +87,7 @@ export async function loadFoundationAdapters() {
             message: input.message,
             ...(input.interrupted === undefined ? {} : { interrupted: input.interrupted }),
           });
+          return totalTokens === undefined ? {} : { totalTokens };
         });
       },
     },
@@ -219,7 +229,9 @@ export async function loadFoundationAdapters() {
 
 function outputResponse(value: unknown): AgentMessageResponse {
   if (!isRecord(value) || !isRecord(value.response)) throw new AgentError("internal_error", "Cached Agent turn output is invalid.");
-  return value.response as unknown as AgentMessageResponse;
+  const response = value.response as unknown as AgentMessageResponse;
+  const { usage: _usage, ...publicResponse } = response;
+  return publicResponse;
 }
 
 function messageView<Role extends "user" | "assistant">(entry: SessionEntryRecord, role: Role) {
@@ -242,25 +254,6 @@ function messageText(content: unknown): string {
     .filter((part) => part.type === "text" && typeof part.text === "string")
     .map((part) => part.text)
     .join("");
-}
-
-function assistantUsage(entry: SessionEntryRecord) {
-  const message = piMessage(entry);
-  if (message.role !== "assistant" || !isRecord(message.usage)) return undefined;
-  const usage = message.usage as Record<string, unknown>;
-  return {
-    inputTokens: number(usage.input),
-    outputTokens: number(usage.output),
-    cacheReadTokens: number(usage.cacheRead),
-    cacheWriteTokens: number(usage.cacheWrite),
-    ...(typeof usage.reasoning === "number" ? { reasoningTokens: usage.reasoning } : {}),
-    ...(isRecord(usage.cost) && typeof usage.cost.total === "number" ? { providerCostUsd: usage.cost.total } : {}),
-  };
-}
-
-function usagePatch(entry: SessionEntryRecord): Pick<AgentMessageResponse, "usage"> | Record<string, never> {
-  const usage = assistantUsage(entry);
-  return usage ? { usage } : {};
 }
 
 function piMessage(entry: SessionEntryRecord): Record<string, unknown> {
@@ -332,7 +325,6 @@ function isRecord(value: unknown): value is Record<string, unknown> { return typ
 function stringField(input: Record<string, unknown>, name: string) { const value = input[name]; if (typeof value !== "string" || !value) throw new AgentError("bad_request", `Missing ${name}.`); return value; }
 function optionalString(input: Record<string, unknown>, name: string) { return typeof input[name] === "string" ? input[name] : undefined; }
 function nullableString(input: Record<string, unknown>, name: string) { const value = input[name]; return typeof value === "string" ? value : null; }
-function number(value: unknown) { return typeof value === "number" && Number.isFinite(value) ? value : 0; }
 async function withDomainErrors<T>(operation: () => Promise<T>): Promise<T> { try { return await operation(); } catch (error) { throw normalizeError(error); } }
 export async function withUrlCaptureErrors<T>(operation: () => Promise<T>, publicMessage: string): Promise<T> {
   try {

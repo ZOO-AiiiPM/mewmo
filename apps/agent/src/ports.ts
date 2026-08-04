@@ -115,7 +115,7 @@ export interface ApplicationPort {
       code: string;
       message: string;
       interrupted?: boolean;
-    }): Promise<void>;
+    }): Promise<{ totalTokens?: number }>;
   };
   sessions: {
     metadata(input: { actor: AgentActor; chatId: string }): Promise<{ id: string; createdAt: string; activeLeafId: string | null }>;

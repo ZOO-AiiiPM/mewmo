@@ -135,6 +135,10 @@ export const AssistantRow = memo(function AssistantRow({ row, context, onProposa
 
           {row.stopped && <div className="mewmo-transcript-stopped">已停止生成</div>}
 
+          {!isStreaming && row.totalTokens !== undefined && (
+            <div className="mewmo-turn-usage">{formatTokenCount(row.totalTokens)} tokens</div>
+          )}
+
           {/* Error state */}
           {isFailed && row.error && (
             <div className="mewmo-transcript-error">
@@ -179,6 +183,12 @@ export const AssistantRow = memo(function AssistantRow({ row, context, onProposa
   );
 });
 
+const tokenNumberFormat = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
+
+export function formatTokenCount(totalTokens: number) {
+  return tokenNumberFormat.format(totalTokens);
+}
+
 function OrderedRunningBlocks({
   blocks,
   row,
@@ -194,7 +204,6 @@ function OrderedRunningBlocks({
 }) {
   const hasProcess = blocks.some(isProcessBlock);
   const [open, setOpen] = useState(processInitiallyOpen(row));
-
   return (
     <div className="mewmo-live-turn">
       {hasProcess && (

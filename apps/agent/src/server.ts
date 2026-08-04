@@ -53,10 +53,10 @@ export function buildAgentServer(dependencies: AgentServerDependencies): Fastify
       workerId,
       leaseMs: dependencies.config.AGENT_TURN_LEASE_MS,
     });
-    if (started.cached) return started.cached;
+    if (started.cached) return publicMessageResponse(started.cached);
     try {
       const result = await dependencies.runtime.run({ actor: request.agentActor, chatId: request.params.chatId, turnId: started.turnId, workerId, request: body });
-      return dependencies.application.turns.complete({ actor: request.agentActor, turnId: started.turnId, workerId, assistantEntryId: result.assistantEntryId, process: result.process, proposals: result.proposals, citations: result.citations });
+      return publicMessageResponse(await dependencies.application.turns.complete({ actor: request.agentActor, turnId: started.turnId, workerId, assistantEntryId: result.assistantEntryId, process: result.process, proposals: result.proposals, citations: result.citations }));
     } catch (error) {
       const normalized = toAgentError(error);
       logAgentFailure("message", request.id, normalized);
@@ -78,8 +78,9 @@ export function buildAgentServer(dependencies: AgentServerDependencies): Fastify
     const conversation = createConversationEmitter(send, request.params.chatId, started.turnId);
     conversation.emit({ type: "turn.started" });
     if (started.cached) {
-      emitCompletedTurn(conversation, started.cached);
-      send("result", started.cached);
+      const response = publicMessageResponse(started.cached);
+      emitCompletedTurn(conversation, response);
+      send("result", response);
       reply.raw.end();
       return;
     }
@@ -88,19 +89,23 @@ export function buildAgentServer(dependencies: AgentServerDependencies): Fastify
         { actor: request.agentActor, chatId: request.params.chatId, turnId: started.turnId, workerId, request: body },
         (event) => streamRuntimeEvent(send, conversation, event, body.thinking === true),
       );
-      const response = await dependencies.application.turns.complete({ actor: request.agentActor, turnId: started.turnId, workerId, assistantEntryId: result.assistantEntryId, process: result.process, proposals: result.proposals, citations: result.citations });
+      const response = publicMessageResponse(await dependencies.application.turns.complete({ actor: request.agentActor, turnId: started.turnId, workerId, assistantEntryId: result.assistantEntryId, process: result.process, proposals: result.proposals, citations: result.citations }));
       emitCompletedTurn(conversation, response);
       send("result", response);
     } catch (error) {
       const normalized = toAgentError(error);
       logAgentFailure("stream", request.id, normalized);
-      await dependencies.application.turns.fail({ actor: request.agentActor, turnId: started.turnId, workerId, code: normalized.code, message: normalized.message, interrupted: isInterrupted(error) });
+      const usage = await dependencies.application.turns.fail({ actor: request.agentActor, turnId: started.turnId, workerId, code: normalized.code, message: normalized.message, interrupted: isInterrupted(error) });
       conversation.emit({
         type: "turn.failed",
         error: { code: normalized.code, message: normalized.message, retryable: normalized.retryable },
         retryable: normalized.retryable,
       });
-      send("error", errorBody(normalized, request.id));
+      if (usage.totalTokens === undefined) {
+        send("error", errorBody(normalized, request.id));
+      } else {
+        send("result", { error: errorBody(normalized, request.id).error, totalTokens: usage.totalTokens });
+      }
     } finally {
       reply.raw.end();
     }
@@ -203,8 +208,12 @@ function emitCompletedTurn(conversation: ConversationEmitter, response: AgentMes
   conversation.emit({
     type: "turn.completed",
     message: response.assistantMessage,
-    ...(response.usage ? { usage: response.usage } : {}),
   });
+}
+
+function publicMessageResponse(response: AgentMessageResponse): AgentMessageResponse {
+  const { usage: _usage, ...publicResponse } = response;
+  return publicResponse;
 }
 
 function proposalDisplay(proposal: AgentActionProposal) {

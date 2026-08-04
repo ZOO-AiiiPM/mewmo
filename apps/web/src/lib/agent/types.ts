@@ -57,6 +57,7 @@ export interface LegacyResultPayload {
   userMessage?: { id?: string; content: string; status?: string };
   assistantMessage?: { id?: string; content: string; status?: string };
   proposals?: AgentActionProposal[];
+  totalTokens?: number;
   usage?: UsageDTO;
   error?: { code?: string; message?: string; retryable?: boolean };
 }
@@ -86,6 +87,7 @@ export const legacyResultPayloadSchema = z.object({
   userMessage: legacyMessageSchema.optional(),
   assistantMessage: legacyMessageSchema.optional(),
   proposals: z.array(agentActionProposalSchema).optional(),
+  totalTokens: z.number().int().nonnegative().optional(),
   usage: usageSchema.optional(),
   error: publicErrorSchema.optional(),
 });
@@ -117,6 +119,7 @@ export interface TranscriptRow {
   assistant: AssistantBlock[];
   status: TranscriptRowStatus;
   proposals: AgentActionProposal[];
+  totalTokens?: number;
   contextChip?: TranscriptContextChip;
   error?: { message: string; retryable: boolean };
   /** True when the user stopped generation client-side (reply may be partial). */
@@ -158,6 +161,7 @@ export interface PersistedMessage {
     process?: PersistedProcessBlock[];
     startedAt?: string;
     completedAt?: string;
+    totalTokens?: number;
   };
   /** Persisted context attachments (targetType + title) captured at send time. */
   contextAttachments?: Array<{ targetType: string; title: string }>;

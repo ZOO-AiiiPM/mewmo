@@ -8743,6 +8743,12 @@ html.light .acct-submenu {
   font-size: 10.5px;
 }
 
+.mewmo-turn-usage {
+  color: var(--ink-faint);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Stop button replaces send while a reply is streaming. */
 .mewmo-chat-input__send--stop {
   opacity: 1;

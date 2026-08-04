@@ -52,8 +52,27 @@ test("chat history strips context snapshots and leaves a pagination contract", (
   // #6: the detail route may expose only the sanitized chip projection
   // (targetType + title) — stored snapshot/extract payloads must not leak.
   assert.match(detail, /sanitizeContextAttachments/);
+  assert.match(detail, /sanitizeMessageMetadata/);
+  assert.match(detail, /totalTokens/);
+  assert.match(detail, /process:\s*z\.array\(processBlockSchema\)/);
+  assert.match(detail, /thinking:\s*z\.boolean\(\)/);
+  assert.match(detail, /startedAt:\s*z\.string\(\)/);
+  assert.match(detail, /completedAt:\s*z\.string\(\)/);
+  assert.doesNotMatch(detail, /metadata: message\.metadata/);
   assert.match(detail, /return \[\{ targetType, title \}\];/);
   assert.doesNotMatch(detail, /contentSnapshot|extractedText/);
+});
+
+test("agent transcript shows only settled whole-turn token usage", () => {
+  const row = read("apps/web/src/components/agent/AssistantRow.tsx");
+  const adapter = read("apps/web/src/lib/agent/transcript-adapter.ts");
+  const usageLine = row.split("\n").find((line) => line.includes("mewmo-turn-usage"));
+
+  assert.match(row, /!isStreaming && row\.totalTokens !== undefined/);
+  assert.match(row, /formatTokenCount\(row\.totalTokens\).*tokens/);
+  assert.match(adapter, /result\.totalTokens/);
+  assert.ok(usageLine);
+  assert.doesNotMatch(usageLine, /provider|model|cost|purpose/i);
 });
 
 test("chat lifecycle commands validate input and preserve ownership boundaries", () => {

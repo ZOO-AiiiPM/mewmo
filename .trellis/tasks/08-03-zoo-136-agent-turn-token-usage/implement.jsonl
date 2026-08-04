@@ -1,0 +1,4 @@
+{"file":".trellis/spec/dev-backend.md","reason":"Preserve actor ownership at the application and repository projection boundaries."}
+{"file":".trellis/spec/dev-ai.md","reason":"Reuse AiUsageEvent and keep Agent runtime metadata private."}
+{"file":".trellis/spec/dev-frontend.md","reason":"Use semantic theme tokens and the shared transcript rendering path."}
+{"file":".trellis/tasks/08-03-zoo-136-agent-turn-token-usage/design.md","reason":"Follow the approved single-source aggregation and projection design."}
