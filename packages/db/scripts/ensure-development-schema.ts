@@ -4,9 +4,7 @@ import { fileURLToPath } from "node:url";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 
-const rootEnv = fileURLToPath(new URL("../../../.env.local", import.meta.url));
 const webEnv = fileURLToPath(new URL("../../../apps/web/.env.local", import.meta.url));
-if (!process.env.DATABASE_URL && existsSync(rootEnv)) process.loadEnvFile(rootEnv);
 if (!process.env.DATABASE_URL && existsSync(webEnv)) process.loadEnvFile(webEnv);
 
 const connectionString = process.env.DATABASE_URL;

@@ -4,10 +4,8 @@ import { fileURLToPath } from "node:url";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 
-// Prisma CLI/脚本不自动读取 .env.local，这里手动加载本机配置。
-const rootEnv = fileURLToPath(new URL("../../../.env.local", import.meta.url));
+// 本地 DB 工具归属 Web runtime；部署环境显式注入 DATABASE_URL 时不读文件。
 const webEnv = fileURLToPath(new URL("../../../apps/web/.env.local", import.meta.url));
-if (!process.env.DATABASE_URL && existsSync(rootEnv)) process.loadEnvFile(rootEnv);
 if (!process.env.DATABASE_URL && existsSync(webEnv)) process.loadEnvFile(webEnv);
 
 const connectionString = process.env.DATABASE_URL;

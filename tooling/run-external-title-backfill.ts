@@ -5,9 +5,7 @@ import { getPrisma } from "../packages/db/src/client";
 import { backfillExternalTitles } from "./external-title-backfill";
 
 async function main() {
-  const rootEnv = fileURLToPath(new URL("../.env.local", import.meta.url));
   const webEnv = fileURLToPath(new URL("../apps/web/.env.local", import.meta.url));
-  if (!process.env.DATABASE_URL && existsSync(rootEnv)) process.loadEnvFile(rootEnv);
   if (!process.env.DATABASE_URL && existsSync(webEnv)) process.loadEnvFile(webEnv);
 
   const apply = process.argv.includes("--apply");

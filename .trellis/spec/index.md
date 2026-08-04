@@ -13,6 +13,7 @@
 | [dev-ai.md](./dev-ai.md) | AI 层规范（Runtime 边界 / 入口归属 / Prompt-Eval / 会话流式 / Memory-凭据 / Usage） |
 | [dev-apple.md](./dev-apple.md) | Apple 端（SwiftUI）未来实现约束 |
 | [release.md](./release.md) | 部署矩阵 / 环境 / 资源边界 / 验证顺序 / Schema-migration |
+| [environment-ownership.md](./environment-ownership.md) | Web / Agent / Workflow 本地 env 归属、加载签名、测试与 Production 边界 |
 | [gotchas.md](./gotchas.md) | 反直觉 4 条 + Repo Wiki 使用边界 |
 
 ## 按包分层的模板 Spec（`trellis init` 生成）
